@@ -5714,6 +5714,20 @@ function pushProfileToFirebase(profKey) {
         currentWeek: state.currentWeek || 8,
         updatedAt: nowIso
       }, { merge: true }).catch(function() {});
+      var wkSubKey = "week_" + (state.currentWeek || 8);
+      fsDb.collection("pickem_v14_users").doc(profKey).collection("weeks").doc(wkSubKey).set({
+        profileKey: profKey,
+        week: state.currentWeek || 8,
+        picks: normPicks,
+        _picksCleared: !hasPicksNow && !!profObj._picksCleared,
+        pickStatus: statusNow,
+        submitted: isSubmittedNow,
+        locked: isLockedNow,
+        draft: isDraftNow,
+        tiebreaker: tbStrNow,
+        tieBreakerTotal: tbTotalNow,
+        updatedAt: nowIso
+      }, { merge: true }).catch(function() {});
     } catch (eUserDoc) {}
   }
 
@@ -6289,12 +6303,13 @@ function parseEspnScore(s) {
 
 
 function hardResetToDefaults() {
-  state.michael = { picks: {}, tiebreaker: "28-24", target: 20 };
-  state.kinyion = { picks: {}, tiebreaker: "31-24", target: 20 };
+  if (typeof assertCommissionerRole === "function" && !assertCommissionerRole("Reset Optimal Picks")) return;
+  state.michael = Object.assign({}, state.michael || {}, { picks: {}, tiebreaker: "28-24", tieBreakerTotal: 52, target: 20, _picksCleared: false });
+  state.kinyion = Object.assign({}, state.kinyion || {}, { picks: {}, tiebreaker: "31-24", tieBreakerTotal: 55, target: 20, _picksCleared: false });
   for (var i = 0; i < GAMES.length; i++) {
     var g = GAMES[i];
-    state.michael.picks[g.id] = g.rec;
-    state.kinyion.picks[g.id] = g.kinyionDefault;
+    setCanonicalPickInMap(state.michael.picks, g, g.rec);
+    setCanonicalPickInMap(state.kinyion.picks, g, g.kinyionDefault);
   }
   ensureWatchlistDefaults();
   saveCurrentState("michael");
@@ -6712,46 +6727,22 @@ function claimOrCompareFromLeaderboard(memberName, mode) {
     switchProfile(existingLinkedPf.key);
     return;
   }
-  // Otherwise, create a new linked user profile for this leaderboard participant & switch to them!
-  var cleanKey = "u_" + stdName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 14) + "_" + (Date.now() % 10000);
-  var pm = findPoolMemberByName(stdName);
-  var lb = findLeaderboardEntryByName(stdName);
-  var priorPts = lb ? (parseFloat(lb.priorPts) || 0) : (pm ? (parseFloat(pm.priorPts) || 0) : 0);
-  var rankStr = lb && lb.rank ? lb.rank : (pm && pm.priorRank ? pm.priorRank : "Linked");
-
-  var isDeletedLb = !!((state.deletedPicksByMember && state.deletedPicksByMember[stdName.toLowerCase()]) || (pm && pm._picksCleared));
-  var initialPicks = {};
-  var hasSheet = !isDeletedLb && pm && !pm.awaitingSheet && pm.picks && hasSubmittedPicksForCurrentSlate(pm.picks, GAMES);
-  if (hasSheet) {
-    for (var gIdx = 0; gIdx < GAMES.length; gIdx++) {
-      var gm = GAMES[gIdx];
-      if (pm.picks[gm.id]) initialPicks[gm.id] = pm.picks[gm.id];
-    }
-  }
-
-  state.customUsers.push({
-    key: cleanKey,
-    name: stdName,
-    linkedMemberName: stdName,
-    priorPts: priorPts,
-    rank: rankStr,
-    color: "#10b981"
+  // Route through resolveOrCreateProfileForMember so deterministic key & parent UID/ownerEmail contract are enforced!
+  var parentUid = (AUTH_SESSION && (AUTH_SESSION.parentUid || AUTH_SESSION.uid)) || "";
+  var ownerEmail = (AUTH_SESSION && (AUTH_SESSION.ownerEmail || AUTH_SESSION.email)) || "";
+  var primaryKey = (AUTH_SESSION && (AUTH_SESSION.primaryProfileKey || AUTH_SESSION.boundProfileKey)) || "";
+  var resolved = resolveOrCreateProfileForMember(stdName, stdName, parentUid, ownerEmail, {
+    ownerEmail: ownerEmail,
+    parentUid: parentUid,
+    primaryProfileKey: primaryKey,
+    isSecondaryEntry: !!primaryKey
   });
-  state[cleanKey] = {
-    picks: initialPicks,
-    tiebreaker: (pm && pm.tiebreaker && pm.tiebreaker !== "—") ? pm.tiebreaker : "28-24",
-    target: 20,
-    linkedMemberName: stdName
-  };
-  state.profilePrivacy[cleanKey] = {
-    hidden: false,
-    pin: "",
-    revealAtKickoff: true,
-    autoUnhideOnSheet: true,
-    autoUnhideFridayNight: true
-  };
+  var cleanKey = resolved.profileKey;
   SESSION_UNLOCKED_PROFILES[cleanKey] = true;
   activeProfile = cleanKey;
+  window.activeProfileId = cleanKey;
+  state.activeProfileId = cleanKey;
+  syncActiveProfileControlsUI();
   regradeAllPoolMembersLive();
   pushMultiUserAndPrivacyToFirebase();
   pushProfileToFirebase(cleanKey);
@@ -7181,16 +7172,19 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
 
   // Enforce Primary-to-Secondary Parent Linking Contract:
   // If user selected/entered a secondary buy-in profile that belongs to an existing parent account,
-  // bind to the parent account's ownerEmail & primary UID instead of spawning a detached phantom account!
-  if (!acctDoc && chosenMemberName) {
-    var parentAcct = await findParentAccountForLinkedEntry(chosenMemberName, email);
-    if (parentAcct && (!email || parentAcct.email === email)) {
+  // ALWAYS bind to the parent account's ownerEmail & primary UID instead of spawning a detached phantom account!
+  var checkMemberForParent = chosenMemberName || dispName || "";
+  if (checkMemberForParent) {
+    var parentAcct = await findParentAccountForLinkedEntry(checkMemberForParent, email);
+    if (parentAcct && (!acctDoc || (acctDoc.email !== parentAcct.email && (!Array.isArray(acctDoc.linkedEntries) || acctDoc.linkedEntries.length <= 1)))) {
       acctDoc = parentAcct;
-      if (!email && parentAcct.email) {
+      if (parentAcct.email) {
         email = String(parentAcct.email).trim().toLowerCase();
         emailDocKey = "email_" + email.replace(/[^a-z0-9]/g, "_");
       }
-      if (parentAcct.uid) uid = parentAcct.uid;
+      if (parentAcct.parentUid || parentAcct.uid) {
+        uid = parentAcct.parentUid || parentAcct.uid;
+      }
     }
   }
 
@@ -8702,9 +8696,12 @@ function copyOtherProfile() {
     showAppToast("⚠️ No picks available on " + sourceName + " to copy.");
     return;
   }
-  var copy = {};
-  for (var k in sourcePicks) copy[k] = sourcePicks[k];
-  state[activeProfile].picks = copy;
+  clearDeletedFlagForProfile(activeProfile);
+  state[activeProfile].picks = normalizePickDictionary(sourcePicks, GAMES);
+  state[activeProfile]._manualEditsThisWeek = true;
+  state[activeProfile]._picksCleared = false;
+  state[activeProfile].draft = true;
+  state[activeProfile].pickStatus = state[activeProfile].userLockedPicks ? "locked" : "draft";
   saveCurrentState(activeProfile);
   renderAll();
   showAppToast("📥 Copied picks from " + sourceName + " into " + getProfileMetaByKey(activeProfile).name + "!");
@@ -8713,19 +8710,27 @@ function copyOtherProfile() {
 function applyPreset(type) {
   lastLocalPickTs = Date.now();
   clearDeletedFlagForProfile(activeProfile);
+  if (!state[activeProfile]) state[activeProfile] = { picks: {}, tiebreaker: "28-24", tieBreakerTotal: 52, target: 20 };
+  if (!state[activeProfile].picks) state[activeProfile].picks = {};
   for (var i = 0; i < GAMES.length; i++) {
     var g = GAMES[i];
+    var chosen = g.rec;
     if (type === "optimal") {
-      state[activeProfile].picks[g.id] = g.rec;
+      chosen = g.rec;
     } else if (type === "safe" || type === "chalk") {
-      state[activeProfile].picks[g.id] = g.awayProb > g.homeProb ? g.away : g.home;
+      chosen = g.awayProb > g.homeProb ? g.away : g.home;
     } else if (type === "aggressive") {
       var dog = g.awayPts > 1 ? g.away : (g.homePts > 1 ? g.home : null);
       var dogProb = dog === g.away ? g.awayProb : g.homeProb;
-      if (dog && dogProb >= 0.27) state[activeProfile].picks[g.id] = dog;
-      else state[activeProfile].picks[g.id] = g.rec;
+      if (dog && dogProb >= 0.27) chosen = dog;
+      else chosen = g.rec;
     }
+    setCanonicalPickInMap(state[activeProfile].picks, g, chosen);
   }
+  state[activeProfile]._manualEditsThisWeek = true;
+  state[activeProfile]._picksCleared = false;
+  state[activeProfile].draft = !state[activeProfile].submitted;
+  state[activeProfile].pickStatus = state[activeProfile].userLockedPicks ? "locked" : (state[activeProfile].submitted ? "submitted" : "draft");
   saveCurrentState(activeProfile);
   renderAll();
 }
@@ -16667,6 +16672,18 @@ function commishDeletePlayerPicks(memberName) {
           deletedByCommissionerAt: nowIso,
           updatedAt: nowIso
         }, { merge: true }).catch(function() {});
+        var wkDelKey = "week_" + (state.currentWeek || 8);
+        fsDb.collection("pickem_v14_users").doc(pk).collection("weeks").doc(wkDelKey).set({
+          picks: {},
+          _picksCleared: true,
+          pickStatus: "cleared",
+          submitted: false,
+          locked: false,
+          draft: false,
+          userLockedPicks: false,
+          deletedByCommissionerAt: nowIso,
+          updatedAt: nowIso
+        }, { merge: true }).catch(function() {});
       } catch (e) {}
     }
   }
@@ -16902,8 +16919,16 @@ function switchLinkedBuyInEntry(targetProfileKey) {
   }
 
   syncActiveProfileControlsUI();
+  if (typeof syncCommissionerVisibilityDOM === "function") syncCommissionerVisibilityDOM();
   updateAuthUI();
+  if (typeof renderMultiBuyInEntryStrip === "function") renderMultiBuyInEntryStrip();
   renderAll();
+  var setBd = document.getElementById("settings-drawer-backdrop");
+  if (setBd && setBd.style.display === "flex" && typeof renderSettingsDrawerBody === "function") renderSettingsDrawerBody();
+  var evBd = document.getElementById("ev-sim-drawer-backdrop");
+  if (evBd && evBd.style.display === "flex" && typeof renderEvSimulatorDrawerBody === "function") renderEvSimulatorDrawerBody();
+  var revBd = document.getElementById("review-checklist-backdrop");
+  if (revBd && revBd.style.display === "flex" && typeof renderReviewChecklistModalBody === "function") renderReviewChecklistModalBody();
   var meta = getProfileMetaByKey(targetProfileKey);
   showAppToast("🏈 Switched active buy-in entry to " + meta.name + "!");
 }
