@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isVerifiedCommissioner() {
+      return request.auth != null && (
+        request.auth.token.email.lower() == 'michael4ts14@gmail.com' ||
+        request.auth.token.email.lower() == 'commissioner@separatedatturf.com' ||
+        request.auth.token.email.lower() == 'commissioner@separatedatturt.com' ||
+        (exists(/databases/$(database)/documents/pickem_v14_commissioners/roles) && (
+          request.auth.token.email.lower() == get(/databases/$(database)/documents/pickem_v14_commissioners/roles).data.primaryCommissionerEmail.lower() ||
+          get(/databases/$(database)/documents/pickem_v14_commissioners/roles).data.authorizedEmails[request.auth.token.email.lower()] == true
+        ))
+      );
+    }
+
+    match /pickem_v14/shared_state {
+      allow read: if true;
+      allow write: if isVerifiedCommissioner() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['customGames', 'commissionerConfig', 'weekArchives', 'officialSheetSyncedForWeek']);
+    }
+
+    match /pickem_v14_commissioners/{docId} {
+      allow read: if true;
+      allow write: if isVerifiedCommissioner();
+    }
+
+    match /pickem_v14_users/{profileKey} {
+      allow read: if true;
+      allow write: if request.auth != null || isVerifiedCommissioner();
+    }
+
+    match /pickem_v14_accounts/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null || isVerifiedCommissioner();
+    }
+  }
+}
+
