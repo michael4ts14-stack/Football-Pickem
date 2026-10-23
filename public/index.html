@@ -3716,7 +3716,8 @@ function getMyInstanceProfileKey() {
 
 function isMyOwnInstanceProfile(profKey) {
   if (profKey === "test") return true;
-  if (AUTH_SESSION && AUTH_SESSION.adminUnlock) {
+  if (!AUTH_SESSION || GUEST_BROWSING_MODE) return false;
+  if (AUTH_SESSION && AUTH_SESSION.adminUnlock && (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) {
     return profKey === activeProfile || profKey === AUTH_SESSION.boundProfileKey;
   }
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
@@ -3735,8 +3736,9 @@ function isProfileHiddenFromViewer(profKey, gameId) {
   if (BLIND_MODE) {
     return true;
   }
-  var priv = state.profilePrivacy[profKey] || { hidden: false, revealAtKickoff: true, autoUnhideOnSheet: false, autoUnhideFridayNight: false };
-  if (!priv.hidden) {
+  var priv = (state.profilePrivacy && state.profilePrivacy[profKey]) || { hidden: false, revealAtKickoff: true, autoUnhideOnSheet: false, autoUnhideFridayNight: false };
+  var isLocked = Boolean(priv.hidden || (state[profKey] && state[profKey].userLockedPicks));
+  if (!isLocked) {
     return false;
   }
   // Check if automatic reveal conditions are met (e.g. Game Kickoff, Official Sheet Synced, or Friday 5PM CST)
@@ -3760,7 +3762,7 @@ function resolveCompareTargetDescriptor() {
     var pm = findPoolMemberByName(pmName);
     var lb = findLeaderboardEntryByName(pmName);
     var linkedPf = getProfileLinkedToMemberName(pmName);
-    if (linkedPf && !linkedPf.isSandbox && linkedPf.key !== myKey) {
+    if (linkedPf && !linkedPf.isSandbox) {
       // Use live synced profile if that pool member has an active account instance
       var lMeta = getProfileMetaByKey(linkedPf.key);
       var lState = state[lMeta.key] || { picks: {} };
@@ -3794,7 +3796,15 @@ function resolveCompareTargetDescriptor() {
       rank: lb && lb.rank ? lb.rank : (pm && pm.priorRank ? pm.priorRank : "Pool"),
       picks: hasPicks ? pm.picks : {},
       hasPicks: !!hasPicks,
-      isHiddenForGame: function() { return BLIND_MODE; }
+      isHiddenForGame: function(gameId) {
+        if (BLIND_MODE) return true;
+        if (!pm) return false;
+        if (pm.awaitingSheet) return true;
+        if (gameId && !isGameStartedOrFinal(gameId) && !state.fridayNightRevealOverride) {
+          return false;
+        }
+        return false;
+      }
     };
   }
   var meta = getProfileMetaByKey(key);
@@ -3991,18 +4001,6 @@ function safeGetStorage(key, defaultVal) {
   return raw;
 }
 function safeSetStorage(key, val) {
-  if (key === "sat_week7_official_v14" && typeof state === "object" && state && Array.isArray(GAMES) && GAMES.length > 0) {
-    state.customGames = GAMES;
-    if (!isHardcodedWeek7Slate(GAMES)) {
-      try {
-        var ls0 = window["local" + "Storage"];
-        if (ls0) ls0.setItem("sat_active_week_games_v16", JSON.stringify(GAMES));
-      } catch (eCache0) {}
-    }
-    if (typeof val === "string") {
-      try { val = JSON.stringify(state); } catch (eStr) {}
-    }
-  }
   var serialized = val;
   if (val !== null && typeof val === "object") {
     try {
@@ -4017,7 +4015,32 @@ function safeSetStorage(key, val) {
   try {
     var ls = window["local" + "Storage"];
     if (ls) ls.setItem(key, serialized);
-  } catch (e) {}
+  } catch (e) {
+    if (e && (e.name === "QuotaExceededError" || e.code === 22 || e.code === 1014)) {
+      try {
+        var ls2 = window["local" + "Storage"];
+        if (ls2) {
+          ls2.removeItem("sat_team_logs_cache_v16");
+          ls2.removeItem("sat_team_logs_cache_ts_v16");
+          ls2.removeItem("sat_monte_carlo_cache_v16");
+        }
+        if (state && state.weekArchives) {
+          for (var wk in state.weekArchives) {
+            if (state.weekArchives.hasOwnProperty(wk) && state.weekArchives[wk] && state.weekArchives[wk].games) {
+              for (var gi = 0; gi < state.weekArchives[wk].games.length; gi++) {
+                delete state.weekArchives[wk].games[gi].driveSummary;
+                delete state.weekArchives[wk].games[gi].pbp;
+              }
+            }
+          }
+        }
+        if (key === "sat_week7_official_v14" && typeof state === "object") {
+          serialized = JSON.stringify(state);
+        }
+        if (ls2) ls2.setItem(key, serialized);
+      } catch (ePrune) {}
+    }
+  }
 }
 
 try {
@@ -4191,6 +4214,9 @@ function clearAllSlateCaches() {
   DEMO_SIM_STATE = {};
   EXPANDED_FIELD_TRACKERS = {};
   GAME_DRIVE_VIEW_MODE = {};
+  FROZEN_PICK_SHEETS_MEMORY = {};
+  if (typeof MONTE_CARLO_CACHE !== "undefined") MONTE_CARLO_CACHE = {};
+  safeSetStorage("sat_frozen_pick_sheets_v16", {});
 }
 
 function isHardcodedWeek7Slate(gamesArr) {
@@ -5383,10 +5409,23 @@ function hydrateLiveScoreEntryFromUnifiedGame(gid, rawEntry) {
   return hydrated;
 }
 
-function pushLiveWeekStateToFirestore() {
+var LAST_PUSHED_LIVE_STATE_HASH = "";
+var LAST_REMOTE_LIVE_STATE_FETCH_TS = 0;
+
+function pushLiveWeekStateToFirestore(forcePush) {
   if (!fsDb || isApplyingRemoteUpdate) return;
+  // Free tier quota protection: Regular clients / guests NEVER write live scores to Firestore
+  // unless the user is a verified Commissioner, OR remote live state is stale by > 3 minutes.
+  var isCommish = (typeof isVerifiedCommissioner === "function") && isVerifiedCommissioner();
+  var isStale = (Date.now() - LAST_REMOTE_LIVE_STATE_FETCH_TS) > (3 * 60 * 1000);
+  if (!forcePush && !isCommish && !isStale) return;
+
   var gamesPayload = buildUnifiedLiveWeekStateMap(LIVE_SCORES);
   if (Object.keys(gamesPayload).length === 0) return;
+
+  var currentLiveHash = JSON.stringify(gamesPayload);
+  if (!forcePush && currentLiveHash === LAST_PUSHED_LIVE_STATE_HASH) return;
+
   var docPayload = {
     currentWeek: state.currentWeek || 8,
     weekLabel: state.weekLabel || ("Week " + (state.currentWeek || 8)),
@@ -5394,7 +5433,9 @@ function pushLiveWeekStateToFirestore() {
     updatedAt: new Date().toISOString()
   };
   try {
-    fsDb.collection("live_games").doc("week_state").set(docPayload, { merge: true }).catch(function() {});
+    fsDb.collection("live_games").doc("week_state").set(docPayload, { merge: true }).then(function() {
+      LAST_PUSHED_LIVE_STATE_HASH = currentLiveHash;
+    }).catch(function() {});
   } catch (e) {}
 }
 
@@ -5477,13 +5518,22 @@ function applyEachUserDocToMemory(docId, uData) {
   return true;
 }
 
+var LAST_FROZEN_PICK_SHEETS_LOAD_TS = 0;
+
 // One-time getDoc / getDocs loader for frozen pick sheets & roles (Eliminates collection-wide onSnapshot listeners!)
-async function loadFrozenPickSheetsOnce() {
+async function loadFrozenPickSheetsOnce(force) {
   var cachedFrozen = safeGetStorage("sat_frozen_pick_sheets_v16");
   if (cachedFrozen && typeof cachedFrozen === "object") {
     FROZEN_PICK_SHEETS_MEMORY = cachedFrozen;
   }
   if (!fsDb) return FROZEN_PICK_SHEETS_MEMORY;
+
+  // Free Tier Protection: Throttle whole-collection loads to at most once per 5 minutes per tab
+  var now = Date.now();
+  if (!force && (now - LAST_FROZEN_PICK_SHEETS_LOAD_TS < 5 * 60 * 1000) && Object.keys(FROZEN_PICK_SHEETS_MEMORY).length > 0) {
+    return FROZEN_PICK_SHEETS_MEMORY;
+  }
+  LAST_FROZEN_PICK_SHEETS_LOAD_TS = now;
 
   try {
     var sharedPromise = fsDb.collection("pickem_v14").doc("shared_state").get().catch(function() { return null; });
@@ -5535,6 +5585,7 @@ async function loadFrozenPickSheetsOnce() {
     }
 
     if (liveDoc && liveDoc.exists) {
+      LAST_REMOTE_LIVE_STATE_FETCH_TS = Date.now();
       gradeUserPicksLocally(liveDoc.data());
     } else {
       gradeUserPicksLocally(LIVE_SCORES);
@@ -5617,6 +5668,7 @@ function startFirebaseRealtimeListeners() {
       // ONLY ONE single Firestore document listener (`live_games/week_state`) per connected client!
       liveStateUnsubscribe = fsDb.collection("live_games").doc("week_state").onSnapshot(function(doc) {
         if (doc && doc.exists) {
+          LAST_REMOTE_LIVE_STATE_FETCH_TS = Date.now();
           var data = doc.data() || {};
           gradeUserPicksLocally(data);
           var nowStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -5645,7 +5697,7 @@ function handleTabVisibilityChange() {
       DEMO_AUTO_TIMER = null;
     }
   } else {
-    // Re-establish the single `live_games/week_state` listener and perform an immediate refresh
+    // Re-establish the single `live_games/week_state` onSnapshot listener (which immediately delivers the live document)
     startFirebaseRealtimeListeners();
     if (AUTO_POLL_ENABLED_PREF) {
       if (livePollTimer) clearInterval(livePollTimer);
@@ -5653,17 +5705,7 @@ function handleTabVisibilityChange() {
         if (!document.hidden) pollLiveSaturdayScores(false);
       }, typeof getOptimalEspnPollIntervalMs === "function" ? getOptimalEspnPollIntervalMs() : 30000);
     }
-    if (fsDb) {
-      fsDb.collection("live_games").doc("week_state").get().then(function(doc) {
-        if (doc && doc.exists) {
-          gradeUserPicksLocally(doc.data());
-        } else {
-          pollLiveSaturdayScores(false);
-        }
-      }).catch(function() {
-        pollLiveSaturdayScores(false);
-      });
-    } else {
+    if (!fsDb) {
       pollLiveSaturdayScores(false);
     }
   }
@@ -6000,10 +6042,12 @@ function applyRemoteCloudData(data, sourceLabel) {
   }
 }
 
+var LAST_PUSHED_PICKS_HASH_BY_PROFILE = {};
+
 function pushProfileToFirebase(profKey) {
   if (isApplyingRemoteUpdate) return;
-  // Keep `test` (Sandbox Sim) local to this device so sandbox experiments never collide across users
-  if (profKey === "test") {
+  // Free Tier Protection & Guest Isolation: Never write to Firestore for unauthenticated users or sandbox
+  if (!AUTH_SESSION || GUEST_BROWSING_MODE || profKey === "test") {
     safeSetStorage("sat_device_test_sim_v16", JSON.stringify(state.test || {}));
     return;
   }
@@ -6041,6 +6085,19 @@ function pushProfileToFirebase(profKey) {
   profObj.locked = isLockedNow;
   profObj.submitted = isSubmittedNow;
   profObj.draft = isDraftNow;
+
+  var currentPicksHash = JSON.stringify({
+    picks: normPicks,
+    tb: tbStrNow,
+    tbTot: tbTotalNow,
+    sub: isSubmittedNow,
+    lock: isLockedNow,
+    stat: statusNow,
+    wk: state.currentWeek || 8
+  });
+  if (LAST_PUSHED_PICKS_HASH_BY_PROFILE[profKey] === currentPicksHash) {
+    return;
+  }
 
   var resolvedOwnerEmail = profObj.ownerEmail || "";
   var resolvedOwnerUid = profObj.ownerUid || profObj.parentUid || "";
@@ -6088,7 +6145,9 @@ function pushProfileToFirebase(profKey) {
         userLockedPicks: isLockedNow,
         currentWeek: state.currentWeek || 8,
         updatedAt: nowIso
-      }, { merge: true }).catch(function() {});
+      }, { merge: true }).then(function() {
+        LAST_PUSHED_PICKS_HASH_BY_PROFILE[profKey] = currentPicksHash;
+      }).catch(function() {});
       var wkSubKey = "week_" + (state.currentWeek || 8);
       fsDb.collection("pickem_v14_users").doc(profKey).collection("weeks").doc(wkSubKey).set({
         profileKey: profKey,
@@ -6106,13 +6165,10 @@ function pushProfileToFirebase(profKey) {
     } catch (eUserDoc) {}
   }
 
-  // 2. Also merge this profile's key + cleared flags into `pickem_v14/shared_state`
+  // 2. Also merge this profile's key + cleared flags into `pickem_v14/shared_state` (WITHOUT re-uploading all 89 pool members!)
   var payload = {};
   payload[profKey] = profObj;
   payload.deletedPicksByMember = state.deletedPicksByMember || {};
-  if (state.poolMembers && Array.isArray(state.poolMembers)) {
-    payload.poolMembers = state.poolMembers;
-  }
   payload.currentWeek = state.currentWeek || 8;
   payload.weekLabel = state.weekLabel || ("Week " + (state.currentWeek || 8));
   payload.updatedAt = nowIso;
@@ -6120,8 +6176,10 @@ function pushProfileToFirebase(profKey) {
   if (fsDb) {
     try {
       fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }).then(function() {
+        LAST_PUSHED_PICKS_HASH_BY_PROFILE[profKey] = currentPicksHash;
         var t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        document.getElementById("cloud-status-text").textContent = "✓ Saved " + profKey.toUpperCase() + " to Cloud Firestore (" + t + ")";
+        var stEl = document.getElementById("cloud-status-text");
+        if (stEl) stEl.textContent = "✓ Saved " + profKey.toUpperCase() + " to Cloud Firestore (" + t + ")";
       }).catch(function() {});
     } catch (e) {}
   }
@@ -6354,10 +6412,9 @@ function pickSideForProfile(profKey, gameId, sideCode) {
     showAppToast("🔒 Game #" + g.id + " (" + g.awayCode + " at " + g.homeCode + ") is locked (Kickoff / Commissioner Lock)!");
     return;
   }
-  if (isAccountInstanceLocked() && !canEditProfileInCurrentInstance(profKey)) {
-    var myMeta = getProfileMetaByKey(AUTH_SESSION.boundProfileKey);
+  if (!canEditProfileInCurrentInstance(profKey)) {
     var otherMeta = getProfileMetaByKey(profKey);
-    showAppToast("🔒 Instance Locked to " + myMeta.name + ": " + otherMeta.name + "'s picks are read-only on your instance.");
+    showAppToast("🔒 " + otherMeta.name + "'s picks are read-only on your instance. Sign in to edit your account.");
     return;
   }
   if (isProfileHiddenFromViewer(profKey, g.id)) {
@@ -6384,7 +6441,9 @@ function pickSideForWatchlist(watchIdx, gameId, sideCode) {
   var numId = Number(g.id);
   state.watchlist[watchIdx].picks[numId] = (sideCode === 1) ? g.away : g.home;
   state.watchlist[watchIdx].picks[String(numId)] = (sideCode === 1) ? g.away : g.home;
-  pushWatchlistOrStandingsToFirebase();
+  if (AUTH_SESSION && !GUEST_BROWSING_MODE) {
+    pushWatchlistOrStandingsToFirebase();
+  }
   renderAll();
 }
 
@@ -6404,7 +6463,9 @@ function toggleWatchlistPick(watchIdx, gameId) {
     delete state.watchlist[watchIdx].picks[numId];
     delete state.watchlist[watchIdx].picks[String(numId)];
   }
-  pushWatchlistOrStandingsToFirebase();
+  if (AUTH_SESSION && !GUEST_BROWSING_MODE) {
+    pushWatchlistOrStandingsToFirebase();
+  }
   renderAll();
 }
 
@@ -6761,6 +6822,13 @@ async function syncAllLiveTrackingData(saveToCloudAfter) {
       await fetchLiveCollegeFootballInjuries(true);
     } catch (eInjSync) {}
 
+    var cachedLogs = safeGetStorage("sat_team_logs_cache_v16");
+    var logsCacheTs = safeGetStorage("sat_team_logs_cache_ts_v16");
+    var isFreshLogs = logsCacheTs && (Date.now() - logsCacheTs < 6 * 60 * 60 * 1000);
+    if (cachedLogs && typeof cachedLogs === "object") {
+      TEAM_LOGS = Object.assign({}, cachedLogs, TEAM_LOGS);
+    }
+
     var uniqueTeams = {};
     for (var m = 0; m < GAMES.length; m++) {
       var gmItem = GAMES[m];
@@ -6774,9 +6842,16 @@ async function syncAllLiveTrackingData(saveToCloudAfter) {
     var promises = [];
     for (var u = 0; u < teamNames.length; u++) {
       var tName = teamNames[u];
+      if (isFreshLogs && TEAM_LOGS[tName] && TEAM_LOGS[tName].rec && !saveToCloudAfter) {
+        continue;
+      }
       promises.push(fetchAndStoreSingleTeamSchedule(tName, uniqueTeams[tName]));
     }
-    await Promise.all(promises);
+    if (promises.length > 0) {
+      await Promise.all(promises);
+      safeSetStorage("sat_team_logs_cache_v16", TEAM_LOGS);
+      safeSetStorage("sat_team_logs_cache_ts_v16", Date.now());
+    }
 
     // Rebuild dynamic 4-pillar insights immediately from scoreboard + team schedule data (zero wait)
     for (var c0 = 0; c0 < GAMES.length; c0++) {
@@ -8987,6 +9062,9 @@ function initState() {
 
 function saveCurrentState(profOverride, debounceWrite) {
   var targetProf = profOverride || activeProfile;
+  if (!AUTH_SESSION || GUEST_BROWSING_MODE) {
+    targetProf = "test";
+  }
   var tbEl = document.getElementById("tiebreaker-input");
   var sTbEl = document.getElementById("simple-tiebreaker-input");
   var slEl = document.getElementById("target-slider");
@@ -9011,7 +9089,7 @@ function saveCurrentState(profOverride, debounceWrite) {
       saveStateDebounceTimer = null;
       safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
       pushProfileToFirebase(targetProf);
-    }, 180);
+    }, 800);
   } else {
     safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
     pushProfileToFirebase(targetProf);
@@ -9512,6 +9590,12 @@ function syncCondensedLayoutModeUI() {
 
 function unhideProfileFromCondensedView(profKey) {
   ensureMultiUserAndPrivacyState();
+  var canUnhide = (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) ||
+                  (typeof canEditProfileInCurrentInstance === "function" ? canEditProfileInCurrentInstance(profKey) : isMyOwnInstanceProfile(profKey));
+  if (!canUnhide) {
+    showAppToast("🔒 Only the entry owner or Commissioner can unhide these picks.");
+    return;
+  }
   if (BLIND_MODE) {
     BLIND_MODE = false;
     var topBtn = document.getElementById("btn-blind-mode");
@@ -9522,6 +9606,9 @@ function unhideProfileFromCondensedView(profKey) {
   if (profKey && state.profilePrivacy && state.profilePrivacy[profKey]) {
     state.profilePrivacy[profKey].hidden = false;
     state.profilePrivacy[profKey].manualLockOverride = false;
+  }
+  if (profKey && state[profKey]) {
+    state[profKey].userLockedPicks = false;
   }
   if (profKey) SESSION_UNLOCKED_PROFILES[profKey] = true;
   pushMultiUserAndPrivacyToFirebase();
@@ -9561,7 +9648,9 @@ function renderCondensedTable() {
     for (var pIdx = 0; pIdx < displayProfs.length; pIdx++) {
       var pf = displayProfs[pIdx];
       var isLockedHdr = isProfileHiddenFromViewer(pf.key, null);
-      var unhideBtnHdr = isLockedHdr ? (' <button type="button" class="btn-sm" style="padding:1px 6px;font-size:0.62rem;margin-left:4px;border-color:#34d399;color:#6ee7b7;" onclick="unhideProfileFromCondensedView(\'' + pf.key + '\')">👁️ Show</button>') : '';
+      var canUnhidePf = (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) ||
+                        (typeof canEditProfileInCurrentInstance === "function" ? canEditProfileInCurrentInstance(pf.key) : isMyOwnInstanceProfile(pf.key));
+      var unhideBtnHdr = isLockedHdr ? (canUnhidePf ? (' <button type="button" class="btn-sm" style="padding:1px 6px;font-size:0.62rem;margin-left:4px;border-color:#34d399;color:#6ee7b7;" onclick="unhideProfileFromCondensedView(\'' + pf.key + '\')">👁️ Show</button>') : ' <span style="font-size:0.65rem;color:#fca5a5;">🔒</span>') : '';
       thHtml += '<th>' + pf.icon + ' ' + pf.shortName + (isLockedHdr ? ' 🔒' : '') + unhideBtnHdr + '</th>';
     }
     if (cmpTarget && cmpTarget.isPoolMember) {
@@ -9636,11 +9725,19 @@ function renderCondensedTable() {
       var uPtsLabel = uPick ? (uPts + "x") : "—";
 
       if (uHidden) {
-        profTdsHtml += '<td><button type="button" class="cond-locked-pill" onclick="unhideProfileFromCondensedView(\'' + uMeta.key + '\')" title="Tap to unhide ' + uMeta.name + '\'s picks in Both Picks view">🔒 Hidden (Tap to Show)</button></td>';
-        profMobileBoxesHtml += '<div class="cond-m-prof-box">' +
-          '<div class="cond-m-prof-label" style="color:' + uMeta.color + ';"><span>⚔️ ' + uMeta.shortName + '</span><span>🔒</span></div>' +
-          '<button type="button" class="cond-locked-pill" style="padding:3px 6px;font-size:0.65rem;" onclick="unhideProfileFromCondensedView(\'' + uMeta.key + '\')">🔒 Tap to Show</button>' +
-        '</div>';
+        if (isEditableMine || (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) {
+          profTdsHtml += '<td><button type="button" class="cond-locked-pill" onclick="unhideProfileFromCondensedView(\'' + uMeta.key + '\')" title="Tap to unhide ' + uMeta.name + '\'s picks in Both Picks view">🔒 Hidden (Tap to Show)</button></td>';
+          profMobileBoxesHtml += '<div class="cond-m-prof-box">' +
+            '<div class="cond-m-prof-label" style="color:' + uMeta.color + ';"><span>⚔️ ' + uMeta.shortName + '</span><span>🔒</span></div>' +
+            '<button type="button" class="cond-locked-pill" style="padding:3px 6px;font-size:0.65rem;" onclick="unhideProfileFromCondensedView(\'' + uMeta.key + '\')">🔒 Tap to Show</button>' +
+          '</div>';
+        } else {
+          profTdsHtml += '<td><span class="cond-locked-pill" style="cursor:default;opacity:0.85;" title="Picks locked until kickoff">🔒 Hidden until Kickoff</span></td>';
+          profMobileBoxesHtml += '<div class="cond-m-prof-box">' +
+            '<div class="cond-m-prof-label" style="color:' + uMeta.color + ';"><span>⚔️ ' + uMeta.shortName + '</span><span>🔒</span></div>' +
+            '<span class="cond-locked-pill" style="padding:3px 6px;font-size:0.65rem;cursor:default;opacity:0.85;">🔒 Hidden until Kickoff</span>' +
+          '</div>';
+        }
       } else {
         var roleTag = (uMeta.key === activeProfile) ? " (Active)" : (isEditableMine ? "" : " (H2H)");
         var roStyle = isEditableMine ? "" : "opacity:0.92;";
@@ -10749,6 +10846,39 @@ function matchSideFromTeamText(rawTeamStr, g, ls, awayComp, homeComp) {
   return null;
 }
 
+function parseSignedHomeSpread(lineStr, g, awayComp, homeComp) {
+  if (!lineStr || !g) return { homeSpread: null, favSide: null, favTeamName: "", spreadNum: null, isPk: false };
+  var str = String(lineStr).trim();
+  if (/^(?:PK|EVEN|PICK)$/i.test(str)) {
+    return { homeSpread: 0, favSide: "even", favTeamName: "EVEN", spreadNum: 0, isPk: true };
+  }
+  var m = str.match(/^([A-Za-z0-9&.' -]+?)\s*(?:-|\+)?\s*(\d+\.?\d*)/);
+  if (!m) {
+    var mNum = str.match(/-(\d+\.?\d*)/);
+    if (mNum) {
+      return { homeSpread: null, favSide: null, favTeamName: "", spreadNum: parseFloat(mNum[1]), isPk: false };
+    }
+    return { homeSpread: null, favSide: null, favTeamName: "", spreadNum: null, isPk: false };
+  }
+  var rawFavName = m[1].trim();
+  var spreadVal = parseFloat(m[2]);
+  var side = matchSideFromTeamText(rawFavName, g, null, awayComp, homeComp);
+  var favCanonical = (side === "away") ? g.away : ((side === "home") ? g.home : rawFavName);
+  var homeSpread = null;
+  if (side === "home") {
+    homeSpread = -spreadVal; // Home is favored by spreadVal points
+  } else if (side === "away") {
+    homeSpread = spreadVal;  // Away is favored by spreadVal points (Home is +spreadVal)
+  }
+  return {
+    homeSpread: homeSpread,
+    favSide: side,
+    favTeamName: favCanonical,
+    spreadNum: spreadVal,
+    isPk: false
+  };
+}
+
 function parseSpotTextToYl100(spotText, g, ls, awayComp, homeComp, possSide, yardsToEndzone) {
   // Converts an ESPN yard line string (e.g. "IND 28", "OSU 14", "50", "COLO 4") or yardsToEndzone
   // into a 0..100 coordinate where 0 = Away Endzone (Left) and 100 = Home Endzone (Right).
@@ -11199,10 +11329,11 @@ function enrichGameFromEspnSummaryData(g, data) {
     var pc = data.pickcenter[0];
     if (pc && pc.details) {
       var ouStr = pc.overUnder ? (" (O/U " + pc.overUnder + ")") : "";
-      g.liveLine = pc.details + ouStr;
+      var parsedPc = parseSignedHomeSpread(pc.details, g, null, null);
+      var canonicalPc = parsedPc.isPk ? "EVEN" : (parsedPc.favTeamName ? (parsedPc.favTeamName + " -" + parsedPc.spreadNum) : pc.details);
+      g.liveLine = canonicalPc + ouStr;
       if (typeof pc.overUnder === "number") g.ouTotal = pc.overUnder;
-      var spM = String(pc.details).match(/-(\d+\.?\d*)/);
-      if (spM) g.liveSpreadNum = parseFloat(spM[1]);
+      if (typeof parsedPc.spreadNum === "number") g.liveSpreadNum = parsedPc.spreadNum;
     }
   }
 
@@ -12175,26 +12306,38 @@ async function pollLiveSaturdayScores(manual) {
       }
       if (comp.odds && comp.odds[0] && comp.odds[0].details) {
         var od = comp.odds[0];
-        var ouPart = od.overUnder ? (" (O/U " + od.overUnder + ")") : "";
-        g.liveLine = od.details + ouPart;
         if (typeof od.overUnder === "number") g.ouTotal = od.overUnder;
-        var liveSpMatch = String(od.details).match(/-(\d+\.?\d*)/);
-        var poolSpMatch = String(g.poolLine || "").match(/-(\d+\.?\d*)/);
-        if (liveSpMatch) {
-          g.liveSpreadNum = parseFloat(liveSpMatch[1]);
-          if (poolSpMatch && !isHardcodedWeek7Slate(GAMES)) {
-            var pSp = parseFloat(poolSpMatch[1]);
-            var lSp = g.liveSpreadNum;
-            var diffSp = +(lSp - pSp).toFixed(1);
-            if (Math.abs(diffSp) >= 1.5 && !g.sway) {
-              g.sway = {
-                level: Math.abs(diffSp) >= 2.5 ? "critical" : "warn",
-                title: "Line Moved " + (diffSp > 0 ? "+" + diffSp : diffSp) + " Pts vs Sheet (" + g.poolLine + " → " + od.details + ")",
-                detail: "Pool locked at " + g.poolLine + ", while live Vegas line is now " + g.liveLine + "."
-              };
-            }
-            if ((pSp <= 7.0 && lSp >= 7.5) || (pSp >= 7.5 && lSp <= 7.0) || (pSp <= 14.0 && lSp >= 14.5) || (pSp >= 14.5 && lSp <= 14.0)) {
-              g.cliffTrap = "⚠️ Cliff Move: " + pSp + " (Sheet) → " + lSp + " (Live)";
+        var ouPart = od.overUnder ? (" (O/U " + od.overUnder + ")") : "";
+
+        var liveParsed = parseSignedHomeSpread(od.details, g, sheetAwayComp, sheetHomeComp);
+        var poolParsed = parseSignedHomeSpread(g.poolLine, g, sheetAwayComp, sheetHomeComp);
+
+        var canonicalLiveSpread = liveParsed.isPk ? "EVEN" : (liveParsed.favTeamName ? (liveParsed.favTeamName + " -" + liveParsed.spreadNum) : od.details);
+        g.liveLine = canonicalLiveSpread + ouPart;
+        if (typeof liveParsed.spreadNum === "number") g.liveSpreadNum = liveParsed.spreadNum;
+
+        if (liveParsed.homeSpread !== null && poolParsed.homeSpread !== null && !isHardcodedWeek7Slate(GAMES)) {
+          var lineSwingPts = +(Math.abs(liveParsed.homeSpread - poolParsed.homeSpread)).toFixed(1);
+          var favFlipped = (poolParsed.favSide && liveParsed.favSide && poolParsed.favSide !== liveParsed.favSide && poolParsed.favSide !== "even" && liveParsed.favSide !== "even");
+
+          if (lineSwingPts >= 1.5 && !g.sway) {
+            var swayFavText = favFlipped ? (liveParsed.favTeamName + " now favored") : (liveParsed.homeSpread < poolParsed.homeSpread ? (g.home + " gained value") : (g.away + " gained value"));
+            g.sway = {
+              level: lineSwingPts >= 2.5 ? "critical" : "warn",
+              title: "Line Moved " + lineSwingPts + " Pts vs Sheet (" + (g.poolLine || "Sheet") + " → " + canonicalLiveSpread + ")",
+              detail: "Pool locked at " + (g.poolLine || "Sheet") + ", while live Vegas line is now " + g.liveLine + " (" + swayFavText + ")."
+            };
+          }
+
+          if (favFlipped) {
+            g.cliffTrap = "⚠️ Favorite Flipped: " + poolParsed.favTeamName + " -" + poolParsed.spreadNum + " → " + liveParsed.favTeamName + " -" + liveParsed.spreadNum;
+          } else {
+            var pSp = poolParsed.spreadNum;
+            var lSp = liveParsed.spreadNum;
+            if (typeof pSp === "number" && typeof lSp === "number") {
+              if ((pSp <= 7.0 && lSp >= 7.5) || (pSp >= 7.5 && lSp <= 7.0) || (pSp <= 14.0 && lSp >= 14.5) || (pSp >= 14.5 && lSp <= 14.0)) {
+                g.cliffTrap = "⚠️ Cliff Move: " + pSp + " (Sheet) → " + lSp + " (Live)";
+              }
             }
           }
         }
@@ -12286,9 +12429,10 @@ async function pollLiveSaturdayScores(manual) {
         LIVE_SCORES[g.id] = lsEntry;
       }
 
+      var hasFinalDrive = Boolean((SUMMARY_PBP_CACHE[g.id] && SUMMARY_PBP_CACHE[g.id].finalDrive) || (LIVE_SCORES[g.id] && LIVE_SCORES[g.id].finalDrive));
       if (isInProg && item.ev.id) {
         inProgSummaryPromises.push(fetchGameDriveSummary(g.id, item.ev.id));
-      } else if (isComp && item.ev.id && (!SUMMARY_PBP_CACHE[g.id] || manual)) {
+      } else if (isComp && item.ev.id && (!hasFinalDrive || manual)) {
         completedToFetch.push({ gameId: g.id, eventId: item.ev.id });
       }
     }
@@ -17817,9 +17961,8 @@ function ensureMultiBuyInEntries() {
 
 function isMyLinkedBuyInProfile(profKey) {
   if (profKey === "test") return true;
-  if (!isAccountInstanceLocked()) return true;
-  if (!AUTH_SESSION) return true;
-  if (AUTH_SESSION.adminUnlock && isVerifiedCommissioner()) return true;
+  if (!AUTH_SESSION || GUEST_BROWSING_MODE) return false;
+  if (AUTH_SESSION.adminUnlock && (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) return true;
   if (AUTH_SESSION.boundProfileKey === profKey) return true;
   var list = ensureMultiBuyInEntries();
   for (var i = 0; i < list.length; i++) {
@@ -17830,10 +17973,14 @@ function isMyLinkedBuyInProfile(profKey) {
 
 // Override isMyOwnInstanceProfile & canEditProfileInCurrentInstance so multi-buy-in entries are all editable by the owner!
 isMyOwnInstanceProfile = function(profKey) {
+  if (profKey === "test") return true;
+  if (!AUTH_SESSION || GUEST_BROWSING_MODE) return false;
   return isMyLinkedBuyInProfile(profKey);
 };
 canEditProfileInCurrentInstance = function(profKey) {
-  if (!isAccountInstanceLocked()) return true;
+  if (profKey === "test") return true;
+  if (!AUTH_SESSION || GUEST_BROWSING_MODE) return false;
+  if (AUTH_SESSION && AUTH_SESSION.adminUnlock && (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) return true;
   return isMyLinkedBuyInProfile(profKey);
 };
 
