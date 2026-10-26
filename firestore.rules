@@ -18,6 +18,11 @@ service cloud.firestore {
       allow write: if isVerifiedCommissioner() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['customGames', 'commissionerConfig', 'weekArchives', 'officialSheetSyncedForWeek']);
     }
 
+    match /live_games/{docId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     match /pickem_v14_commissioners/{docId} {
       allow read: if true;
       allow write: if isVerifiedCommissioner();
