@@ -1388,12 +1388,14 @@ function scrapeGoogleFormGames(formUrl) {
 function buildGamesArrayFromLines(lines) {
   var parsedGames = [];
   for (var i = 0; i < lines.length - 1; i++) {
-    if (lines[i + 1].toLowerCase().indexOf("at ") === 0) {
+    var lineNext = (lines[i + 1] || "").trim();
+    var isMatchup = /^(?:at|vs\.?)\s+/i.test(lineNext);
+    if (isMatchup) {
       var awayLine = lines[i];
-      var homeLine = lines[i + 1].substring(3).trim();
+      var homeLine = lineNext.replace(/^(?:at|vs\.?)\s+/i, "").trim();
       var candKick = lines[i + 2] || "";
       var nextAfterCand = lines[i + 3] || "";
-      var isCandTeam = (nextAfterCand.toLowerCase().indexOf("at ") === 0) || /\(\s*-\d/.test(candKick) || /\b\d{1,2}-\d{1,2}\b/.test(candKick);
+      var isCandTeam = (/^(?:at|vs\.?)\s+/i.test((nextAfterCand || "").trim())) || /\(\s*-\d/.test(candKick) || /\b\d{1,2}-\d{1,2}\b/.test(candKick);
       var kickLine = (!candKick || isCandTeam) ? "Saturday CST" : candKick;
 
       var spAway = awayLine.match(/\(\s*-(\d+\.?\d*)/);
