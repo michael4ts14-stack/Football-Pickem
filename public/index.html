@@ -37,7 +37,12 @@
 <link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-27d" />
 <link rel="stylesheet" href="/css/app.css?v=2026-10-27d" />
 </head>
-<body>
+<body class="simple-ui-mode">
+<script>
+  // Simple mode from the first paint. Only someone who switched to Advanced ("0") starts there;
+  // initSimpleModeAndCommish() applies the same rule again at boot.
+  try { if (localStorage.getItem("sat_simple_ui_mode_v16") === "0") document.body.classList.remove("simple-ui-mode"); } catch (e) {}
+</script>
 <a class="skip-link" href="#app-content">Skip to content</a>
 <span id="cloud-status-text" class="hidden">V16 COMMAND CENTER (`football-pickem-46206`)</span>
 
