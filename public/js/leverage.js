@@ -38,15 +38,15 @@ function getGamePoolOwnership(g) {
     }
   }
   var total = awayCount + homeCount;
-  var awayPct = total > 0 ? Math.round((awayCount / total) * 100) : Math.round(g.awayProb * 100);
-  var homePct = total > 0 ? (100 - awayPct) : Math.round(g.homeProb * 100);
+  var awayPct = total > 0 ? Math.round((awayCount / total) * 100) : Math.round(getTeamWinProb(g, "away") * 100);
+  var homePct = total > 0 ? (100 - awayPct) : Math.round(getTeamWinProb(g, "home") * 100);
 
-  var awayWinPct = Math.round(g.awayProb * 100);
-  var homeWinPct = Math.round(g.homeProb * 100);
+  var awayWinPct = Math.round(getTeamWinProb(g, "away") * 100);
+  var homeWinPct = Math.round(getTeamWinProb(g, "home") * 100);
 
   // Leverage = Win Probability % minus Pool Ownership % (plus multiplier bonus for 2x/3x dogs)
-  var awayLev = (awayWinPct - awayPct) + (g.awayPts > 1 ? Math.round((g.awayProb * g.awayPts - g.awayProb) * 35) : 0);
-  var homeLev = (homeWinPct - homePct) + (g.homePts > 1 ? Math.round((g.homeProb * g.homePts - g.homeProb) * 35) : 0);
+  var awayLev = (awayWinPct - awayPct) + (g.awayPts > 1 ? Math.round((getTeamWinProb(g, "away") * g.awayPts - getTeamWinProb(g, "away")) * 35) : 0);
+  var homeLev = (homeWinPct - homePct) + (g.homePts > 1 ? Math.round((getTeamWinProb(g, "home") * g.homePts - getTeamWinProb(g, "home")) * 35) : 0);
 
   var bestSideIsAway = awayLev >= homeLev;
   var bestLevTeam = bestSideIsAway ? g.away : g.home;

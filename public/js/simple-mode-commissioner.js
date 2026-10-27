@@ -552,8 +552,7 @@ function commishSwapIndividualGame(gameId, candidateIdxStr) {
   var cg = ESPN_CANDIDATE_SLATE_GAMES[cIdx];
   if (!cg) return;
 
-  var favProb = Math.min(0.92, 0.50 + cg.spread * 0.0235);
-  var dogProb = +(1 - favProb).toFixed(2);
+  var est = spreadWinProbEstimate(cg.spread);
   g.espnEventId = cg.espnEventId;
   g.cstWindow = cstWindowFromIsoDate(cg.dateIso) || g.cstWindow || "11:00 AM CST Window";
   g.away = cg.away;
@@ -566,8 +565,8 @@ function commishSwapIndividualGame(gameId, candidateIdxStr) {
   g.liveLine = cg.spreadStr;
   g.awayPts = cg.favIsAway ? 1 : cg.dogPts;
   g.homePts = cg.favIsAway ? cg.dogPts : 1;
-  g.awayProb = cg.favIsAway ? +favProb.toFixed(2) : dogProb;
-  g.homeProb = cg.favIsAway ? dogProb : +favProb.toFixed(2);
+  g.awayProbEstimate = cg.favIsAway ? est.fav : est.dog;
+  g.homeProbEstimate = cg.favIsAway ? est.dog : est.fav;
   g.rec = cg.favIsAway ? cg.away : cg.home;
   g.grokPick = g.rec;
   g.kinyionDefault = g.rec;
@@ -996,12 +995,11 @@ function commishUpdateGameSpread(gameId, newPoolLine) {
     var sp = parseFloat(m[2]) || 3.5;
     var favIsAway = isSameTeamPick(favName, g.away, g) || normalizeTeamKey(g.away).indexOf(normalizeTeamKey(favName)) === 0;
     var dogPts = sp >= 14.5 ? 3 : (sp >= 7.5 ? 2 : 1);
-    var favProb = Math.min(0.92, 0.50 + sp * 0.0235);
-    var dogProb = +(1 - favProb).toFixed(2);
+    var est = spreadWinProbEstimate(sp);
     g.awayPts = favIsAway ? 1 : dogPts;
     g.homePts = favIsAway ? dogPts : 1;
-    g.awayProb = favIsAway ? +favProb.toFixed(2) : dogProb;
-    g.homeProb = favIsAway ? dogProb : +favProb.toFixed(2);
+    g.awayProbEstimate = favIsAway ? est.fav : est.dog;
+    g.homeProbEstimate = favIsAway ? est.dog : est.fav;
   }
   g.mondayPoolLine = g.poolLine;
   g.mondayAwayPts = g.awayPts;
@@ -1098,10 +1096,10 @@ async function commishPublishSelectedEspnSlate() {
     var cg = ESPN_CANDIDATE_SLATE_GAMES[idx];
     if (!cg) continue;
     targetWk = cg.weekNum || targetWk;
-    var favProb = Math.min(0.92, 0.50 + cg.spread * 0.0235);
-    var dogProb = +(1 - favProb).toFixed(2);
-    var awayProb = cg.favIsAway ? +favProb.toFixed(2) : dogProb;
-    var homeProb = cg.favIsAway ? dogProb : +favProb.toFixed(2);
+    var est = spreadWinProbEstimate(cg.spread);
+    var dogProb = est.dog;
+    var awayProb = cg.favIsAway ? est.fav : est.dog;
+    var homeProb = cg.favIsAway ? est.dog : est.fav;
     var awayPts = cg.favIsAway ? 1 : cg.dogPts;
     var homePts = cg.favIsAway ? cg.dogPts : 1;
     var rec = cg.favIsAway ? cg.away : cg.home;
@@ -1115,7 +1113,7 @@ async function commishPublishSelectedEspnSlate() {
       poolLine: cg.spreadStr,
       liveLine: cg.spreadStr,
       awayPts: awayPts, homePts: homePts,
-      awayProb: awayProb, homeProb: homeProb,
+      awayProbEstimate: awayProb, homeProbEstimate: homeProb,
       rec: rec, grokPick: rec, kinyionDefault: rec,
       tier: cg.dogPts >= 2 && dogProb >= 0.28 ? "Multiplier Upside Play" : "Lean",
       sway: null,
@@ -1161,7 +1159,7 @@ function commishAutoFillMissingPlayers(strategy) {
     pm.picks = {};
     for (var g = 0; g < GAMES.length; g++) {
       var gm = GAMES[g];
-      pm.picks[gm.id] = (strategy === "away") ? gm.away : (gm.awayProb >= gm.homeProb ? gm.away : gm.home);
+      pm.picks[gm.id] = (strategy === "away") ? gm.away : (getTeamWinProb(gm, "away") >= getTeamWinProb(gm, "home") ? gm.away : gm.home);
     }
     pm.awaitingSheet = false;
     filledPlayers++;

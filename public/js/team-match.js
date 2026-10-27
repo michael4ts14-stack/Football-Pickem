@@ -277,14 +277,14 @@ function rebuildDynamicGameInsights(g) {
   if (aLog && aLog.streak && !g.awaySit) g.awaySit = aLog.streak;
   if (hLog && hLog.streak && !g.homeSit) g.homeSit = hLog.streak;
 
-  var awayEV = +(g.awayProb * g.awayPts).toFixed(2);
-  var homeEV = +(g.homeProb * g.homePts).toFixed(2);
-  var favIsAway = g.awayProb >= g.homeProb;
+  var awayEV = +(getTeamWinProb(g, "away") * g.awayPts).toFixed(2);
+  var homeEV = +(getTeamWinProb(g, "home") * g.homePts).toFixed(2);
+  var favIsAway = getTeamWinProb(g, "away") >= getTeamWinProb(g, "home");
   var favTeam = favIsAway ? g.away : g.home;
   var dogTeam = favIsAway ? g.home : g.away;
   var dogPts = favIsAway ? g.homePts : g.awayPts;
-  var dogProb = favIsAway ? g.homeProb : g.awayProb;
-  var favProb = favIsAway ? g.awayProb : g.homeProb;
+  var dogProb = favIsAway ? getTeamWinProb(g, "home") : getTeamWinProb(g, "away");
+  var favProb = favIsAway ? getTeamWinProb(g, "away") : getTeamWinProb(g, "home");
   var dogEV = +(dogProb * dogPts).toFixed(2);
   var favEV = +(favProb * 1).toFixed(2);
 

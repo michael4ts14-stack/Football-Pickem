@@ -37,7 +37,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
     var g = GAMES[i];
     gameAwayPts[i] = g.awayPts || 1;
     gameHomePts[i] = g.homePts || 1;
-    gameAwayProb[i] = g.awayProb || 0.5;
+    gameAwayProb[i] = getTeamWinProb(g, "away") || 0.5;
     var ls = LIVE_SCORES[g.id];
     if (ls && ls.completed && ls.awayScore !== ls.homeScore) {
       gameLockedResult[i] = (ls.awayScore > ls.homeScore) ? 1 : 0;
@@ -53,7 +53,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
       var gm = GAMES[idx];
       var p = getResolvedPickForGame(picksMap, gm, allowFallback);
       if (!p) {
-        arr[idx] = (gm.awayProb >= gm.homeProb) ? 1 : 0;
+        arr[idx] = (getTeamWinProb(gm, "away") >= getTeamWinProb(gm, "home")) ? 1 : 0;
       } else {
         validCnt++;
         arr[idx] = isSameTeamPick(p, gm.away, gm) ? 1 : 0;

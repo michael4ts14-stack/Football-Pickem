@@ -1032,10 +1032,10 @@ function applyPreset(type) {
     if (type === "optimal") {
       state[activeProfile].picks[g.id] = g.rec;
     } else if (type === "safe" || type === "chalk") {
-      state[activeProfile].picks[g.id] = g.awayProb > g.homeProb ? g.away : g.home;
+      state[activeProfile].picks[g.id] = getTeamWinProb(g, "away") > getTeamWinProb(g, "home") ? g.away : g.home;
     } else if (type === "aggressive") {
       var dog = g.awayPts > 1 ? g.away : (g.homePts > 1 ? g.home : null);
-      var dogProb = dog === g.away ? g.awayProb : g.homeProb;
+      var dogProb = dog === g.away ? getTeamWinProb(g, "away") : getTeamWinProb(g, "home");
       if (dog && dogProb >= 0.27) state[activeProfile].picks[g.id] = dog;
       else state[activeProfile].picks[g.id] = g.rec;
     }

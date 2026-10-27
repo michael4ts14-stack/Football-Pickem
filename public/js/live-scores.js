@@ -877,10 +877,9 @@ async function importStrictSheetText() {
       if (!away || !home) continue;
 
       var dogPts = spread >= 14.5 ? 3 : (spread >= 7.5 ? 2 : 1);
-      var favProb = Math.min(0.92, 0.50 + spread * 0.0235);
-      var dogProb = +(1 - favProb).toFixed(2);
-      var awayProb = favIsAway ? +favProb.toFixed(2) : dogProb;
-      var homeProb = favIsAway ? dogProb : +favProb.toFixed(2);
+      var est = spreadWinProbEstimate(spread);
+      var awayProb = favIsAway ? est.fav : est.dog;
+      var homeProb = favIsAway ? est.dog : est.fav;
       var awayPts = favIsAway ? 1 : dogPts;
       var homePts = favIsAway ? dogPts : 1;
       var rec = favIsAway ? away : home;
@@ -907,7 +906,7 @@ async function importStrictSheetText() {
         mondayAwayPts: awayPts,
         mondayHomePts: homePts,
         awayPts: awayPts, homePts: homePts,
-        awayProb: awayProb, homeProb: homeProb,
+        awayProbEstimate: awayProb, homeProbEstimate: homeProb,
         rec: rec, grokPick: rec, kinyionDefault: rec,
         tier: isTb ? (dogPts + "x (Tiebreaker Game)") : (dogPts + "x"),
         isTiebreaker: isTb,

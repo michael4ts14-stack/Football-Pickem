@@ -1483,10 +1483,10 @@ function buildGamesArrayFromLines(lines) {
       if (!away || !home) continue;
 
       var dogPts = spread >= 14.5 ? 3 : (spread >= 7.5 ? 2 : 1);
-      var favProb = Math.min(0.92, 0.50 + spread * 0.0235);
-      var dogProb = +(1 - favProb).toFixed(2);
-      var awayProb = favIsAway ? +favProb.toFixed(2) : dogProb;
-      var homeProb = favIsAway ? dogProb : +favProb.toFixed(2);
+      var est = spreadWinProbEstimate_(spread);
+      var dogProb = est.dog;
+      var awayProb = favIsAway ? est.fav : est.dog;
+      var homeProb = favIsAway ? est.dog : est.fav;
       var awayPts = favIsAway ? 1 : dogPts;
       var homePts = favIsAway ? dogPts : 1;
       var rec = favIsAway ? away : home;
@@ -1505,13 +1505,14 @@ function buildGamesArrayFromLines(lines) {
         poolLine: (favIsAway ? away : home) + " -" + spread,
         liveLine: (favIsAway ? away : home) + " -" + spread,
         awayPts: awayPts, homePts: homePts,
-        awayProb: awayProb, homeProb: homeProb,
+        // Fallback only: the app shows ESPN's predictor when it has one (getTeamWinProb in win-prob.js).
+        awayProbEstimate: awayProb, homeProbEstimate: homeProb,
         rec: rec, grokPick: rec, kinyionDefault: rec,
         tier: dogPts === 2 && dogProb >= 0.28 ? "Multiplier Upside Play" : "Lean",
         sway: null,
         rationale: "Auto-Scraped by Gmail Bot (Row #" + (parsedGames.length + 1) + ")",
         insights: {
-          vegas: "Pool Spread: " + (favIsAway ? away : home) + " -" + spread + " | Win Prob: " + away + " " + Math.round(awayProb * 100) + "% vs " + home + " " + Math.round(homeProb * 100) + "%",
+          vegas: "Pool Spread: " + (favIsAway ? away : home) + " -" + spread + " | Est. win prob (from spread): " + away + " " + Math.round(awayProb * 100) + "% vs " + home + " " + Math.round(homeProb * 100) + "%",
           stats: away + " vs " + home + " live statistical profile.",
           matchup: "Positional matchup favoring " + rec + ".",
           splits: kickLine
@@ -2517,4 +2518,12 @@ function writeBotStatus_(job, summary) {
   var errorsBefore = BOT_RUN_ERRORS.length;
   patchFirestoreDocUrl(FIRESTORE_BASE_URL + "/live_games/bot_status", payload);
   BOT_RUN_ERRORS.length = errorsBefore;
+}
+
+// Spread -> win chance estimate. Same model as public/js/win-prob.js (spreadWinProbEstimate);
+// used only when ESPN's predictor isn't available.
+function spreadWinProbEstimate_(spread) {
+  var s = Math.abs(parseFloat(spread) || 0);
+  var fav = Math.min(0.92, 0.50 + s * 0.0235);
+  return { fav: +fav.toFixed(2), dog: +(1 - fav).toFixed(2) };
 }

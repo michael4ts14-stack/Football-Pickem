@@ -111,7 +111,7 @@ function gradePickMap(picksMap, allowFallbackToRec, computeDp) {
     submittedPicksCount++;
     var isAway = isSameTeamPick(pick, g.away, g);
     var pts = isAway ? g.awayPts : g.homePts;
-    var prob = isAway ? g.awayProb : g.homeProb;
+    var prob = isAway ? getTeamWinProb(g, "away") : getTeamWinProb(g, "home");
     ceiling += pts;
     ev += pts * prob;
     if (pts === 1) chalkCount++;
