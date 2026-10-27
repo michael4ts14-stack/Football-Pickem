@@ -1,0 +1,35 @@
+name: Official form map (Google Form -> Firestore)
+
+# Reads this week's official Separated at Turf Google Form (read-only, nothing is submitted)
+# and writes live_games/week_N_form so the app can open a pre-filled copy of the form.
+on:
+  schedule:
+    - cron: "41 */3 * * *"
+  workflow_dispatch:
+  push:
+    branches: [claude/desktop-layout]
+    paths: ["tools/form/**", "tools/lib/**", "tests/form/**", ".github/workflows/form.yml"]
+
+concurrency:
+  group: official-form
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: node --test "tests/form/*.test.mjs"
+      - name: Dry run (branch push)
+        if: github.event_name == 'push'
+        run: node tools/form/build-form.mjs --dry-run
+      - name: Read the form and write to Firestore
+        if: github.event_name != 'push'
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: node tools/form/build-form.mjs

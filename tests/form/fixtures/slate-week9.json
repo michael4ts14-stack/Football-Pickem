@@ -1,0 +1,212 @@
+{
+ "currentWeek": 9,
+ "games": [
+  {
+   "id": 1,
+   "away": "Arizona",
+   "home": "Texas Tech",
+   "awayCode": "Arizona",
+   "homeCode": "TTech",
+   "mondayPoolLine": "Texas Tech -3.5",
+   "poolLine": "Texas Tech -3.5"
+  },
+  {
+   "id": 2,
+   "away": "SMU",
+   "home": "Syracuse",
+   "awayCode": "SMU",
+   "homeCode": "Syr",
+   "mondayPoolLine": "SMU -9.5",
+   "poolLine": "SMU -9.5"
+  },
+  {
+   "id": 3,
+   "away": "Wisconsin",
+   "home": "Iowa",
+   "awayCode": "Wisc",
+   "homeCode": "Iowa",
+   "mondayPoolLine": "Iowa -3.5",
+   "poolLine": "Iowa -3.5"
+  },
+  {
+   "id": 4,
+   "away": "Boston College",
+   "home": "Duke",
+   "awayCode": "BC",
+   "homeCode": "Duke",
+   "mondayPoolLine": "Duke -7.5",
+   "poolLine": "Duke -7.5"
+  },
+  {
+   "id": 5,
+   "away": "Illinois",
+   "home": "Maryland",
+   "awayCode": "Illini",
+   "homeCode": "MD",
+   "mondayPoolLine": "Illinois -2.5",
+   "poolLine": "Illinois -2.5"
+  },
+  {
+   "id": 6,
+   "away": "Michigan",
+   "home": "Rutgers",
+   "awayCode": "Mich",
+   "homeCode": "Rutgers",
+   "mondayPoolLine": "Michigan -14.0",
+   "poolLine": "Michigan -14.0"
+  },
+  {
+   "id": 7,
+   "away": "Auburn",
+   "home": "Ole Miss",
+   "awayCode": "Auburn",
+   "homeCode": "OleMiss",
+   "mondayPoolLine": "Ole Miss -13.5",
+   "poolLine": "Ole Miss -13.5"
+  },
+  {
+   "id": 8,
+   "away": "Kansas State",
+   "home": "Colorado",
+   "awayCode": "KState",
+   "homeCode": "Colo",
+   "mondayPoolLine": "Kansas State -2.5",
+   "poolLine": "Kansas State -2.5"
+  },
+  {
+   "id": 9,
+   "away": "Florida",
+   "home": "Georgia",
+   "awayCode": "Florida",
+   "homeCode": "Georgia",
+   "mondayPoolLine": "Georgia -10.5",
+   "poolLine": "Georgia -10.5"
+  },
+  {
+   "id": 10,
+   "away": "Minnesota",
+   "home": "Indiana",
+   "awayCode": "Minn",
+   "homeCode": "Indiana",
+   "mondayPoolLine": "Indiana -19.5",
+   "poolLine": "Indiana -19.5"
+  },
+  {
+   "id": 11,
+   "away": "Arizona State",
+   "home": "BYU",
+   "awayCode": "ArizSt",
+   "homeCode": "BYU",
+   "mondayPoolLine": "BYU -15.5",
+   "poolLine": "BYU -15.5"
+  },
+  {
+   "id": 12,
+   "away": "Northwestern",
+   "home": "Oregon",
+   "awayCode": "Nwest",
+   "homeCode": "Oregon",
+   "mondayPoolLine": "Oregon -3.5",
+   "poolLine": "Oregon -3.5"
+  },
+  {
+   "id": 13,
+   "away": "Utah",
+   "home": "Cincinnati",
+   "awayCode": "Utah",
+   "homeCode": "Cincy",
+   "mondayPoolLine": "Utah -6.5",
+   "poolLine": "Utah -6.5"
+  },
+  {
+   "id": 14,
+   "away": "Virginia",
+   "home": "Wake Forest",
+   "awayCode": "UVA",
+   "homeCode": "Wake",
+   "mondayPoolLine": "Wake Forest -14.0",
+   "poolLine": "Wake Forest -14.0"
+  },
+  {
+   "id": 15,
+   "away": "South Carolina",
+   "home": "Oklahoma",
+   "awayCode": "SCar",
+   "homeCode": "OU",
+   "mondayPoolLine": "Oklahoma -3.5",
+   "poolLine": "Oklahoma -3.5"
+  },
+  {
+   "id": 16,
+   "away": "Oklahoma State",
+   "home": "Iowa State",
+   "awayCode": "OklaSt",
+   "homeCode": "IowaSt",
+   "mondayPoolLine": "Oklahoma State -10.0",
+   "poolLine": "Oklahoma State -10.0"
+  },
+  {
+   "id": 17,
+   "away": "Clemson",
+   "home": "Florida State",
+   "awayCode": "Clemson",
+   "homeCode": "FSU",
+   "mondayPoolLine": "Florida State -6.0",
+   "poolLine": "Florida State -6.0"
+  },
+  {
+   "id": 18,
+   "away": "Miami",
+   "home": "North Carolina",
+   "awayCode": "Miami",
+   "homeCode": "UNC",
+   "mondayPoolLine": "Miami -14.5",
+   "poolLine": "Miami -14.5"
+  },
+  {
+   "id": 19,
+   "away": "Ohio State",
+   "home": "USC",
+   "awayCode": "OhioSt",
+   "homeCode": "USC",
+   "mondayPoolLine": "Ohio State -7.0",
+   "poolLine": "Ohio State -7.0"
+  },
+  {
+   "id": 20,
+   "away": "Mississippi State",
+   "home": "Texas",
+   "awayCode": "MissSt",
+   "homeCode": "Texas",
+   "mondayPoolLine": "Texas -20.5",
+   "poolLine": "Texas -20.5"
+  },
+  {
+   "id": 21,
+   "away": "Georgia Tech",
+   "home": "Pittsburgh",
+   "awayCode": "GaTech",
+   "homeCode": "Pitt",
+   "mondayPoolLine": "Pittsburgh -7.5",
+   "poolLine": "Pittsburgh -7.5"
+  },
+  {
+   "id": 22,
+   "away": "Missouri",
+   "home": "Arkansas",
+   "awayCode": "Mizzou",
+   "homeCode": "Ark",
+   "mondayPoolLine": "Missouri -10.0",
+   "poolLine": "Missouri -10.0"
+  },
+  {
+   "id": 23,
+   "away": "Washington",
+   "home": "Nebraska",
+   "awayCode": "Wash",
+   "homeCode": "Neb",
+   "mondayPoolLine": "Nebraska -8.5",
+   "poolLine": "Nebraska -8.5"
+  }
+ ]
+}

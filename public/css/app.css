@@ -982,3 +982,20 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
   .app-sidebar.is-rail .nav-list-plain { margin-top: 2px; }
 }
 @media (prefers-reduced-motion: reduce) { .app-sidebar { transition: none; } }
+
+/* ---------- Send to Separated at Turf ---------- */
+.official-form-slot { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.official-form-slot:empty { display: none; }
+.tool-btn.is-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tool-btn.is-primary svg.lucide { color: var(--on-accent); }
+.form-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+.form-chip svg.lucide { width: 14px; height: 14px; color: var(--win); }
+.form-chip.is-changed { color: var(--text); border-color: var(--warn); }
+.form-name-field { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 14px; font-size: 14px; color: var(--text-muted); }
+.form-name-field .search-input { min-height: 44px; font-size: 16px; }
+.form-summary-line { font-size: 16px; margin: 0 0 10px; }
+.form-problems { margin: 0 0 14px; padding-left: 18px; color: var(--text); font-size: 14px; line-height: 1.45; }
+.form-problems li::marker { color: var(--loss); }
+#official-form-summary .btn-submit { width: 100%; }
+#official-form-summary .btn-submit[disabled] { opacity: 0.6; cursor: not-allowed; }
+.form-commish-note { margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; }
