@@ -322,7 +322,7 @@ function updatePicksHead() {
 
   var sb = document.getElementById("sandbox-note");
   if (sb) {
-    if (activeProfile === "test") {
+    if (activeProfile === "test" && AUTH_SESSION) {
       sb.hidden = false;
       sb.innerHTML = '<span>Sandbox: these picks are only a what-if and are never submitted.</span>' +
         '<button type="button" class="link-btn" onclick="switchProfile(getMyInstanceProfileKey())">Back to my picks</button>';
@@ -508,4 +508,35 @@ var _picksUiPrevSyncLock = syncManualLockButtonUI;
 syncManualLockButtonUI = function() {
   _picksUiPrevSyncLock.apply(this, arguments);
   updatePicksHead();
+};
+
+// ---------- Signed-out visitors start as guests ----------
+// They pick in the local sandbox ("test"), which is never written to the cloud.
+function enterGuestModeIfSignedOut() {
+  if (AUTH_SESSION) return;
+  GUEST_BROWSING_MODE = true;
+  if (!state.test) state.test = { picks: {}, tiebreaker: "28-24", target: 20, linkedMemberName: "" };
+  if (!state.test.picks) state.test.picks = {};
+  activeProfile = "test";
+  syncActiveProfileControlsUI();
+}
+
+var _guestPrevSignOut = signOutAccountInstance;
+signOutAccountInstance = function() {
+  var r = _guestPrevSignOut.apply(this, arguments);
+  enterGuestModeIfSignedOut();
+  renderAll();
+  return r;
+};
+
+// Remember that this guest session made picks (used when carrying them into a new account).
+var _guestPrevPickSide = pickSide;
+pickSide = function() {
+  if (!AUTH_SESSION && activeProfile === "test") window._guestPicksTouched = true;
+  return _guestPrevPickSide.apply(this, arguments);
+};
+var _guestPrevApplyPreset = applyPreset;
+applyPreset = function() {
+  if (!AUTH_SESSION && activeProfile === "test") window._guestPicksTouched = true;
+  return _guestPrevApplyPreset.apply(this, arguments);
 };
