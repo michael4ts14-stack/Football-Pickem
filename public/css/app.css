@@ -85,9 +85,9 @@ svg.lucide { width: 18px; height: 18px; stroke-width: 2; flex-shrink: 0; }
 body.simple-ui-mode .app-rail { display: none; }
 /* Desktop: the right rail is an overlay panel opened from the page header, so it never
    squeezes the picks. At 1600px+ it can be pinned open as a column. */
-.rail-open-btn { display: none; }
+.page-head .rail-open-btn { display: none; }
 @media (min-width: 900px) {
-  .rail-open-btn { display: inline-flex; }
+  .page-head .rail-open-btn { display: inline-flex; }
   .app-rail, body.simple-ui-mode .app-rail { display: none; }
   .app-rail.is-open, body.simple-ui-mode .app-rail.is-open {
     display: flex; position: fixed; top: 0; right: 0; bottom: 0; z-index: 1400;
@@ -112,7 +112,7 @@ body.simple-ui-mode .app-rail { display: none; }
     width: auto; padding: 0; background: transparent; border: 0;
   }
   body.rail-pinned .app-rail .rail-card, body.rail-pinned .app-rail .rail-head { display: block; }
-  body.rail-pinned .rail-close-btn, body.rail-pinned .rail-open-btn, body.rail-pinned .rail-backdrop { display: none; }
+  body.rail-pinned .rail-close-btn, body.rail-pinned .page-head .rail-open-btn, body.rail-pinned .rail-backdrop { display: none; }
 }
 .app-rail .sidebar { position: static; max-height: none; overflow: visible; padding-right: 0; }
 
