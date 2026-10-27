@@ -1156,11 +1156,23 @@ function resolveBotSheetTeam(cellVal, g) {
   var hCode = normalizeBotKey(g.homeCode);
   if (norm === aKey || norm === aCode) return g.away;
   if (norm === hKey || norm === hCode) return g.home;
-  var matchAway = (aKey.length >= 4 && aKey.indexOf(norm) !== -1) || (norm.length >= 4 && norm.indexOf(aKey) !== -1) || (aCode.length >= 3 && aCode.indexOf(norm) !== -1) || isSafeBotTeamSubstrMatch(norm, aKey);
-  var matchHome = (hKey.length >= 4 && hKey.indexOf(norm) !== -1) || (norm.length >= 4 && norm.indexOf(hKey) !== -1) || (hCode.length >= 3 && hCode.indexOf(norm) !== -1) || isSafeBotTeamSubstrMatch(norm, hKey);
+  // Partial matches must not cross into a different school: "Michigan" is not
+  // "Michigan State", "Texas" is not "Texas Tech" (isSafeBotTeamSubstrMatch blocks those).
+  var matchAway = isSafeBotTeamSubstrMatch(aKey, norm) || isSafeBotTeamSubstrMatch(norm, aKey) || isSafeBotTeamSubstrMatch(aCode, norm);
+  var matchHome = isSafeBotTeamSubstrMatch(hKey, norm) || isSafeBotTeamSubstrMatch(norm, hKey) || isSafeBotTeamSubstrMatch(hCode, norm);
   if (matchAway && !matchHome) return g.away;
   if (matchHome && !matchAway) return g.home;
   return null;
+}
+
+// A column header like "Arizona @ Texas Tech" / "SMU at Syracuse" / "Iowa vs Wisconsin"
+// names both teams of one game; plain resolveBotSheetTeam rejects it as ambiguous.
+function headerMatchesGame_(hCell, g) {
+  var parts = String(hCell || "").split(/\s+(?:@|at|vs\.?|v\.?)\s+|\s*@\s*/i);
+  if (parts.length !== 2) return false;
+  var left = resolveBotSheetTeam(parts[0], g);
+  var right = resolveBotSheetTeam(parts[1], g);
+  return !!(left && right && left !== right);
 }
 
 function parsePoolSpreadsheetGrid(grid, gamesList, currentCloud) {
@@ -1191,7 +1203,7 @@ function parsePoolSpreadsheetGrid(grid, gamesList, currentCloud) {
         for (var gi = 0; gi < gamesList.length; gi++) {
           var gObj = gamesList[gi];
           if (colToGameId[c] !== undefined) continue;
-          if (resolveBotSheetTeam(hCell, gObj)) {
+          if (headerMatchesGame_(hCell, gObj) || resolveBotSheetTeam(hCell, gObj)) {
             colToGameId[c] = gObj.id;
             break;
           }
@@ -1830,7 +1842,9 @@ function resetProcessedEmailHistory() {
 // down & distance, red-zone status, and real-time play-by-play drive timelines
 // on the same timing as ESPN so the client SVG field graphics glide in real time!
 // ============================================================================
-var BOT_TEAM_ALIASES = {
+// Merged into the sheet aliases above (a second `var BOT_TEAM_ALIASES = {...}` used to replace
+// them, silently dropping 56 of the 70 aliases the spreadsheet matcher relies on).
+Object.assign(BOT_TEAM_ALIASES, {
   "miamifl": "miami", "miamiflorida": "miami", "theu": "miami",
   "miamiohio": "miamioh", "miamiofohio": "miamioh",
   "mississippi": "olemiss", "pitt": "pittsburgh",
@@ -1849,7 +1863,7 @@ var BOT_TEAM_ALIASES = {
   "samhoustonstate": "samhouston", "texasam": "texasam", "tamu": "texasam",
   "vandy": "vanderbilt", "cal": "california", "calberkeley": "california",
   "bama": "alabama", "uga": "georgia", "ecu": "eastcarolina", "niu": "northernillinois"
-};
+});
 
 function normalizeBotTeamKey(str) {
   var s = String(str || "").toLowerCase()

@@ -318,3 +318,38 @@ test("when ESPN refuses the bot (HTTP 403) the poller backs off 30 min", () => {
   assert.ok(next > Date.now() + 25 * 60 * 1000, "next poll deferred");
   assert.match(botStatusWrites(h).pop().espn.errors[0], /HTTP 403/);
 });
+
+test("team matcher: a school never matches its 'State'/'Tech' namesake", () => {
+  const h = loadBot({ cloud: baseCloud() });
+  const r = h.ctx.resolveBotSheetTeam;
+  const msuGame = { id: 1, away: "Michigan State", awayCode: "MichSt", home: "Indiana", homeCode: "Indiana" };
+  const ttGame = { id: 2, away: "Arizona", awayCode: "Arizona", home: "Texas Tech", homeCode: "TTech" };
+  assert.strictEqual(r("Michigan", msuGame), null);
+  assert.strictEqual(r("Michigan State", msuGame), "Michigan State");
+  assert.strictEqual(r("Texas", ttGame), null);
+  assert.strictEqual(r("Arizona State", ttGame), null);
+  assert.strictEqual(r("Arizona Wildcats", ttGame), "Arizona");
+  assert.strictEqual(r("Texas Tech Red Raiders", ttGame), "Texas Tech");
+});
+
+test("sheet aliases from the first alias table survive (OklaSt, KState, TTech)", () => {
+  const h = loadBot({ cloud: baseCloud() });
+  assert.strictEqual(h.ctx.normalizeBotKey("OklaSt"), "oklahomastate");
+  assert.strictEqual(h.ctx.normalizeBotKey("KState"), "kansasstate");
+  assert.strictEqual(h.ctx.normalizeBotKey("TTech"), "texastech");
+  assert.strictEqual(h.ctx.normalizeBotTeamKey("Miami (OH)"), "miamioh", "ESPN-side aliases still present");
+});
+
+test("'Away @ Home' headers map columns even with extra columns before the games", () => {
+  const h = loadBot({ cloud: baseCloud() });
+  const header = ["Rank", "Contestant", "Email"].concat(sheetSlate.map((g) => g.away + " @ " + g.home)).concat(["Tiebreaker", "Prior Pts"]);
+  const rows = [header];
+  sheetNames.forEach((n, i) => rows.push([String(i + 1), n, n.toLowerCase().replace(" ", "") + "@x.com",
+    "Texas Tech", "Syracuse", "Wisconsin", "Duke", "Maryland", "Rutgers", "31-17", String(100 - i)]));
+  const res = h.ctx.parsePoolSpreadsheetGrid(rows, sheetSlate, {});
+  assert.strictEqual(res.poolMembers.length, 10);
+  const adam = res.poolMembers.find((m) => m.name === "Adam L");
+  assert.strictEqual(JSON.stringify(adam.picks), JSON.stringify({ 1: "Texas Tech", 2: "Syracuse", 3: "Wisconsin", 4: "Duke", 5: "Maryland", 6: "Rutgers" }));
+  assert.strictEqual(adam.tiebreaker, "31-17");
+  assert.strictEqual(adam.priorPts, 100);
+});
