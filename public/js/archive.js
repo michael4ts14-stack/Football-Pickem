@@ -270,7 +270,7 @@ function renderSeasonArchiveHub() {
       '<div style="margin-top:4px;display:flex;gap:6px;">' +
         (isCurrent
           ? '<button type="button" class="btn-sm" style="width:100%;border-color:var(--border);color:var(--win);font-weight:800;" onclick="saveCurrentWeekToArchive(true)">💾 Update Snapshot in Firestore</button>'
-          : '<button type="button" class="btn-sm" style="width:100%;background:var(--legacy-accent);color:var(--on-accent);border:none;font-weight:800;" onclick="switchWeekArchive(\'' + k + '\')">📂 Load ' + (snap.weekLabel || ("Week " + snap.weekNum)) + ' Slate & Grades</button>') +
+          : '<button type="button" class="btn-sm" style="width:100%;background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="switchWeekArchive(\'' + k + '\')">📂 Load ' + (snap.weekLabel || ("Week " + snap.weekNum)) + ' Slate & Grades</button>') +
       '</div>' +
     '</div>';
   }
@@ -286,7 +286,7 @@ function renderSeasonArchiveHub() {
 
 function renderAll() {
   var lfltBtn = document.getElementById("lflt-all");
-  if (lfltBtn) lfltBtn.textContent = "All " + GAMES.length + " Games";
+  if (lfltBtn) lfltBtn.textContent = "All " + GAMES.length;
   var fltBtn = document.getElementById("flt-all");
   if (fltBtn) fltBtn.textContent = "All " + GAMES.length;
 

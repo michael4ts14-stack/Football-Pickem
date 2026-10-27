@@ -28,19 +28,19 @@ function openUnifiedImportModal(defaultTab) {
       '<div style="background:var(--raised);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:0.75rem;">' +
         '<div id="gas-modal-dynamic-title" style="font-weight:800;color:var(--win);margin-bottom:4px;">✅ ' + activeWk + ' Email Attachment Auto-Scraped & Pre-Loaded!</div>' +
         '<div id="gas-modal-dynamic-desc" style="color:var(--text);">Active file: <strong><code>' + activeFile + '</code></strong> — all <strong>' + participantCount + ' participants</strong>, their 26 picks, Prior Season Points, and Tiebreakers are loaded!</div>' +
-        '<button class="btn-sm" style="margin-top:8px;background:var(--green);color:var(--on-accent);font-weight:800;width:100%;padding:7px;" onclick="syncCurrentLoadedSheetToFirebase()">⚡ Sync All ' + participantCount + ' ' + activeWk + ' Picks + Michael & Kinyion to Firebase Now</button>' +
+        '<button class="btn-sm" style="margin-top:8px;background:var(--accent);color:var(--on-accent);font-weight:800;width:100%;padding:7px;" onclick="syncCurrentLoadedSheetToFirebase()">⚡ Sync All ' + participantCount + ' ' + activeWk + ' Picks + Michael & Kinyion to Firebase Now</button>' +
       '</div>' +
       '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px;">' +
         '<strong>🔗 Deployed Google Apps Script Web App URL</strong> (triggers <code>runMasterPickemEmailBot()</code> live):' +
       '</div>' +
       '<div style="display:flex;gap:6px;margin-bottom:10px;">' +
         '<input type="text" id="gas-webapp-url-input" class="search-input" style="font-size:0.73rem;padding:6px 9px;" placeholder="https://script.google.com/macros/s/.../exec" value="' + savedUrl + '" />' +
-        '<button class="btn-sm" style="background:var(--legacy-accent);color:var(--on-accent);font-weight:800;" onclick="triggerAppsScriptGmailScraper()">🔄 Run Gmail Bot</button>' +
+        '<button class="btn-sm" style="background:var(--accent);color:var(--on-accent);font-weight:800;" onclick="triggerAppsScriptGmailScraper()">🔄 Run Gmail Bot</button>' +
       '</div>' +
       '<div id="gas-bot-status" style="font-size:0.74rem;color:var(--green);margin-bottom:8px;font-weight:700;"></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">' +
         '<span style="font-size:0.74rem;font-weight:800;color:var(--text);">📜 Upgraded <code>Code.gs</code> for Google Apps Script:</span>' +
-        '<button class="btn-sm" style="background:var(--amber);color:var(--on-accent);font-weight:800;" onclick="copyUpgradedCodeGs()">📋 Copy Code.gs</button>' +
+        '<button class="btn-sm" style="background:var(--accent);color:var(--on-accent);font-weight:800;" onclick="copyUpgradedCodeGs()">📋 Copy Code.gs</button>' +
       '</div>' +
       '<textarea id="gas-code-preview" readonly rows="7" class="search-input" style="width:100%;font-family:monospace;font-size:0.68rem;color:var(--text);"></textarea>' +
     '</div>' +
@@ -54,7 +54,7 @@ function openUnifiedImportModal(defaultTab) {
       '</div>' +
       '<div id="csv-import-status" style="font-size:0.76rem;color:var(--green);margin-bottom:8px;font-weight:700;"></div>' +
       '<textarea id="csv-raw-paste-area" rows="7" class="search-input" style="width:100%;margin-bottom:10px;font-family:monospace;font-size:0.72rem;" placeholder="Or paste raw CSV / Excel cells here (Header row + Participant rows)..."></textarea>' +
-      '<button class="btn-sm" style="background:var(--green);color:var(--on-accent);font-weight:800;width:100%;padding:8px;" onclick="parseAndStoreMasterPoolCsv()">⚡ Parse & Sync Full Pool to Firebase</button>' +
+      '<button class="btn-sm" style="background:var(--accent);color:var(--on-accent);font-weight:800;width:100%;padding:8px;" onclick="parseAndStoreMasterPoolCsv()">⚡ Parse & Sync Full Pool to Firebase</button>' +
     '</div>' +
 
     '<!-- TAB 3: PDF SLATE -->' +
@@ -66,7 +66,7 @@ function openUnifiedImportModal(defaultTab) {
       '</div>' +
       '<div id="pdf-parse-status" style="font-size:0.78rem;color:var(--green);margin-bottom:8px;font-weight:700;"></div>' +
       '<textarea id="raw-sheet-text" rows="6" class="search-input" style="width:100%;margin-bottom:10px;font-family:monospace;font-size:0.73rem;" placeholder="Upload a PDF above or paste form text here..."></textarea>' +
-      '<button class="btn-sm" style="background:var(--green);color:var(--on-accent);font-weight:800;width:100%;padding:8px;" onclick="importStrictSheetText()">⚡ Build Sheet + Sync to Firebase Cloud</button>' +
+      '<button class="btn-sm" style="background:var(--accent);color:var(--on-accent);font-weight:800;width:100%;padding:8px;" onclick="importStrictSheetText()">⚡ Build Sheet + Sync to Firebase Cloud</button>' +
     '</div>' +
 
     '<!-- TAB 4: EMAIL / STANDINGS -->' +
@@ -88,8 +88,8 @@ function openUnifiedImportModal(defaultTab) {
       '<textarea id="email-automation-text" rows="7" class="search-input" style="width:100%;margin-bottom:10px;font-family:monospace;font-size:0.73rem;" placeholder="Paste confirmation email picks (e.g. Ohio State, Texas, LSU...) OR standings lines (e.g. 58. Michael A - 96 pts)..."></textarea>' +
       '<div id="email-import-status" style="font-size:0.75rem;color:var(--green);margin-bottom:8px;font-weight:700;"></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-        '<button class="btn-sm" style="background:var(--legacy-accent);color:var(--on-accent);font-weight:800;padding:8px;" onclick="parseConfirmationEmailPicks()">⚡ Import 23 Picks</button>' +
-        '<button class="btn-sm" style="background:var(--green);color:var(--on-accent);font-weight:800;padding:8px;" onclick="parseStandingsEmailText()">🏆 Import Standings</button>' +
+        '<button class="btn-sm" style="background:var(--accent);color:var(--on-accent);font-weight:800;padding:8px;" onclick="parseConfirmationEmailPicks()">⚡ Import 23 Picks</button>' +
+        '<button class="btn-sm" style="background:var(--accent);color:var(--on-accent);font-weight:800;padding:8px;" onclick="parseStandingsEmailText()">🏆 Import Standings</button>' +
       '</div>' +
     '</div>' +
 

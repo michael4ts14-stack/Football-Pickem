@@ -1,4 +1,4 @@
-/* Design tokens. Every other stylesheet uses these variables only.
+/* Design tokens. Accent is red (owner's choice, 2026-10-27) instead of the original gold. Every other stylesheet uses these variables only.
    Dark is the default; html[data-theme="light"] is set from Settings (localStorage sat_theme_v1). */
 :root,
 html[data-theme="dark"] {
@@ -9,15 +9,18 @@ html[data-theme="dark"] {
   --border: #2a2c31;
   --text: #ececee;
   --text-muted: #9a9ca3;
-  --accent: #c9a227;
-  --accent-text: #c9a227;      /* gold used as text (rank 1-3, active tab label) */
-  --accent-soft: #c9a2271f;    /* faint gold wash for the picked-team ring on --surface */
-  --on-accent: #141414;
+  --accent: #d22b2b;           /* red: picked teams, primary buttons, active tab, top-3 ranks */
+  --accent-text: #ff5c5c;      /* the same red, lightened so it passes 4.5:1 as text */
+  --accent-soft: #d22b2b24;
+  --on-accent: #ffffff;
   --win: #3fb871;
   --loss: #e5534b;
   --warn: #e09b2d;             /* stale-sync dot and "Questionable" only */
   --overlay: #000000b3;        /* sheet / modal backdrop */
   --logo-ring: #ffffff2e;      /* 1px ring so dark logos show on black */
+  --print-bg: #ffffff;         /* printed pick sheet is always black on white */
+  --print-text: #000000;
+  --print-shade: #e5e5e5;
 
   --radius: 8px;
   --radius-btn: 6px;
@@ -39,10 +42,10 @@ html[data-theme="light"] {
   --border: #d9dade;
   --text: #16171a;
   --text-muted: #5c5f67;
-  --accent: #c9a227;
-  --accent-text: #7d6008;
-  --accent-soft: #c9a22726;
-  --on-accent: #141414;
+  --accent: #d22b2b;
+  --accent-text: #b3141f;
+  --accent-soft: #d22b2b1f;
+  --on-accent: #ffffff;
   --win: #1d7a44;
   --loss: #c2372f;
   --warn: #975a00;

@@ -289,7 +289,7 @@ function updateScoreboard(skipFullRegrade) {
   }
   var fltDiffBtn = document.getElementById("flt-diffs");
   if (fltDiffBtn) {
-    fltDiffBtn.textContent = "⚔️ " + getProfileMetaByKey(activeProfile).shortName + " vs " + (cmpDesc ? cmpDesc.shortName : "Rival") + " Diffs";
+    fltDiffBtn.textContent = "Diffs vs " + (cmpDesc ? cmpDesc.shortName : "rival");
   }
 // Legacy Show Kinyion compare-pin button removed per V16.7 UI cleanup
 
@@ -967,6 +967,7 @@ function renderGames() {
     if (currentFilter === "3x" && maxPts !== 3) continue;
     if (currentFilter === "diffs" && !isDiff) continue;
     if (currentFilter === "inj" && !cardInjHdr && outCount === 0 && qCount === 0) continue;
+    if (currentFilter === "missing" && getResolvedPickForGame(state[activeProfile].picks, g, false)) continue;
 
     if (q) {
       var awayL5 = getTeamLog(g.away).l5.map(function(x) { return x.opp; }).join(" ");
@@ -1144,7 +1145,7 @@ function toggleAllSubpanels(type) {
 
 function setFilter(flt) {
   currentFilter = flt;
-  var list = ["all", "plusev", "leverage", "sway", "ev", "2x", "3x", "diffs", "inj"];
+  var list = ["all", "missing", "plusev", "leverage", "sway", "ev", "2x", "3x", "diffs", "inj"];
   for (var i = 0; i < list.length; i++) {
     var k = list[i];
     var btn = document.getElementById("flt-" + k);

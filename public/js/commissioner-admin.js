@@ -467,7 +467,7 @@ function renderCommishActiveEditBar() {
       '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:var(--border);color:var(--text);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'chalk\')">🔒 All Favorites</button>' +
       '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:var(--border);color:var(--warn);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'dogs\')">🚀 Underdog Chaser</button>' +
       '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;" onclick="commishDeletePlayerPicks(\'' + safeName + '\')">🗑️ Delete Picks</button>' +
-      '<button type="button" class="btn-sm" style="padding:4px 9px;font-size:0.69rem;background:var(--green);color:var(--on-accent);border:none;font-weight:900;" onclick="exitCommissionerImpersonateMode()">✓ Done</button>' +
+      '<button type="button" class="btn-sm" style="padding:4px 9px;font-size:0.69rem;background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="exitCommissionerImpersonateMode()">✓ Done</button>' +
     '</div>';
 }
 
@@ -620,20 +620,20 @@ function renderMultiBuyInEntryStrip() {
   }
   var entries = ensureMultiBuyInEntries();
   strip.style.display = "flex";
-  var pillsHtml = '<span style="font-size:0.71rem;font-weight:800;color:var(--text);">🎟️ My Linked Buy-In Entries (' + entries.length + '):</span>';
+  var pillsHtml = '<span class="entry-label">Entries</span>';
   for (var i = 0; i < entries.length; i++) {
     var en = entries[i];
     var isAct = (activeProfile === en.profileKey);
     var isLockedEntry = state[en.profileKey] && state[en.profileKey].userLockedPicks;
-    pillsHtml += '<button type="button" class="entry-pill-btn' + (isAct ? ' active' : '') + '" onclick="switchLinkedBuyInEntry(\'' + en.profileKey + '\')">' +
-      '🏈 #' + (i + 1) + ' ' + en.memberName + (isLockedEntry ? ' 🔒' : '') +
+    pillsHtml += '<button type="button" class="entry-pill-btn' + (isAct ? ' active' : '') + '" aria-pressed="' + isAct + '" onclick="switchLinkedBuyInEntry(\'' + en.profileKey + '\')">' +
+      en.memberName + (isLockedEntry ? ' (locked)' : '') +
     '</button>';
   }
   pillsHtml +=
-    '<div style="display:inline-flex;gap:4px;align-items:center;margin-left:auto;">' +
-      '<input type="text" id="inline-buyin-entry-input" class="search-input" style="width:145px;min-width:0;padding:3px 7px;font-size:0.69rem;" placeholder="2nd Entry Name..." />' +
-      '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.68rem;border-color:var(--border);color:var(--text);font-weight:800;" onclick="addLinkedBuyInEntryFromInput(\'inline-buyin-entry-input\')">➕ Add Buy-In</button>' +
-    '</div>';
+    '<span class="entry-add">' +
+      '<input type="text" id="inline-buyin-entry-input" class="search-input" placeholder="2nd entry name" aria-label="Second buy-in entry name" />' +
+      '<button type="button" class="btn-sm" onclick="addLinkedBuyInEntryFromInput(\'inline-buyin-entry-input\')">Add buy-in</button>' +
+    '</span>';
   strip.innerHTML = pillsHtml;
 }
 
@@ -673,34 +673,12 @@ function syncManualLockButtonUI() {
   var isCommishLocked = isGameLockedByCommissioner(1);
 
   if (btn) {
-    if (isCommishLocked) {
-      btn.textContent = "🔒 Official Lock Active";
-      btn.style.background = "var(--raised)";
-      btn.style.borderColor = "var(--border)";
-      btn.style.color = "var(--loss)";
-    } else if (isUserLocked) {
-      btn.textContent = "🔒 Picks Locked ✓ (Tap to Unlock)";
-      btn.style.background = "var(--raised)";
-      btn.style.borderColor = "var(--border)";
-      btn.style.color = "var(--win)";
-    } else {
-      btn.textContent = "🔒 Lock Picks";
-      btn.style.background = "var(--raised)";
-      btn.style.borderColor = "var(--border)";
-      btn.style.color = "var(--warn)";
-    }
+    btn.textContent = isCommishLocked ? "Locked for the week" : (isUserLocked ? "Unlock picks" : "Lock picks");
+    btn.setAttribute("aria-pressed", isUserLocked ? "true" : "false");
   }
   if (pill) {
-    if (isCommishLocked) {
-      pill.className = "badge badge-3x";
-      pill.textContent = "🔒 Locked (Fri 9:00 PM CST)";
-    } else if (isUserLocked) {
-      pill.className = "badge badge-ev";
-      pill.textContent = "🔒 Picks Locked by You (Monday Odds Locked)";
-    } else {
-      pill.className = "badge badge-2x";
-      pill.textContent = "🔓 Monday Odds Locked • Editable til Fri 9PM";
-    }
+    pill.className = "lock-text";
+    pill.textContent = isCommishLocked ? "Locked" : (isUserLocked ? "You locked your picks" : "Locks Fri 9:00 PM CT");
   }
 
   var revCountEl = document.getElementById("top-review-count");
@@ -998,7 +976,7 @@ function renderReviewChecklistModalBody() {
         '<input type="text" class="search-input" style="width:90px;min-width:0;padding:4px 8px;font-weight:800;text-align:center;" value="' + tb.replace(/"/g, '&quot;') + '" oninput="syncSimpleTiebreakerInput(this.value); document.getElementById(\'simple-tiebreaker-input\').value=this.value;" />' +
       '</div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-        '<button type="button" class="btn-sm" style="font-weight:900;padding:6px 12px;' + (isLocked ? 'background:var(--accent);border-color:var(--border);color:var(--loss);' : 'background:var(--amber);color:var(--on-accent);border:none;') + '" onclick="toggleManualUserPickLock()">' +
+        '<button type="button" class="btn-sm" style="font-weight:900;padding:6px 12px;' + (isLocked ? 'background:var(--accent);border-color:var(--border);color:var(--loss);' : 'background:var(--accent);color:var(--on-accent);border:none;') + '" onclick="toggleManualUserPickLock()">' +
           (isLocked ? '🔓 Unlock Picks to Edit' : '🔒 Confirm & Lock My 23 Picks') +
         '</button>' +
         '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;padding:6px 12px;" onclick="closeReviewChecklistModal(); saveAndSendPickConfirmationReceipt();">💾 Save & Email Receipt</button>' +
@@ -1024,6 +1002,7 @@ function toggleDesktopSidebarCollapse() {
   if (btn) {
     btn.setAttribute("aria-pressed", DESKTOP_SIDEBAR_COLLAPSED ? "true" : "false");
     btn.setAttribute("aria-label", DESKTOP_SIDEBAR_COLLAPSED ? "Show side panel" : "Hide side panel");
+    btn.textContent = DESKTOP_SIDEBAR_COLLAPSED ? "Show side panel" : "Hide side panel";
   }
 }
 
@@ -1355,7 +1334,7 @@ renderCommissionerModalBody = function() {
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
           '<input type="text" class="search-input" style="min-width:180px;padding:5px 9px;font-size:0.74rem;" placeholder="🔍 Filter player name..." value="' + MASTER_SHEET_SEARCH_Q.replace(/"/g, '&quot;') + '" oninput="MASTER_SHEET_SEARCH_Q=this.value; renderCommissionerModalBody();" />' +
-          '<button type="button" class="btn-sm" style="background:var(--green);color:var(--on-accent);border:none;font-weight:900;" onclick="exportOfficialMasterCsv()">📥 Download Master .CSV</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="exportOfficialMasterCsv()">📥 Download Master .CSV</button>' +
         '</div>' +
       '</div>' +
       '<div class="master-sheet-wrap">' +
@@ -1401,7 +1380,7 @@ renderCommissionerModalBody = function() {
           '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Update the primary administrative email address (default: <code>commissioner@separatedatturf.com</code> / <code>commissioner@separatedatturt.com</code>):</div>' +
           '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
             '<input type="email" id="commish-primary-email-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.76rem;" value="' + String(cfg.primaryCommissionerEmail || "commissioner@separatedatturf.com").replace(/"/g, '&quot;') + '" />' +
-            '<button type="button" class="btn-sm" style="background:var(--amber);color:var(--on-accent);border:none;font-weight:900;" onclick="commishUpdatePrimaryEmail()">💾 Update Primary Email</button>' +
+            '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="commishUpdatePrimaryEmail()">💾 Update Primary Email</button>' +
           '</div>' +
         '</div>' +
 
@@ -1410,7 +1389,7 @@ renderCommissionerModalBody = function() {
           '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Grant commissioner privileges by email address or pool member name:</div>' +
           '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">' +
             '<input type="text" id="commish-new-role-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.75rem;" placeholder="Email or Player Name..." />' +
-            '<button type="button" class="btn-sm" style="background:var(--green);color:var(--on-accent);border:none;font-weight:900;" onclick="commishGrantRole(document.getElementById(\'commish-new-role-input\').value, \'Co-Commissioner\')">➕ Grant Role</button>' +
+            '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="commishGrantRole(document.getElementById(\'commish-new-role-input\').value, \'Co-Commissioner\')">➕ Grant Role</button>' +
           '</div>' +
           '<select class="search-input" style="width:100%;padding:5px 8px;font-size:0.73rem;" onchange="if(this.value){commishGrantRole(this.value, this.value + \' (Co-Commish)\'); this.value=\'\';}">' + memberOpts + '</select>' +
         '</div>' +
