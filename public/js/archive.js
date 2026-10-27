@@ -57,7 +57,7 @@ function saveCurrentWeekToArchive(notifyToast) {
     liveScores: JSON.parse(JSON.stringify(LIVE_SCORES || {}))
   };
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  if (fsDb && !isApplyingRemoteUpdate) {
+  if (fsDb && !isApplyingRemoteUpdate && canWriteSharedPoolState()) {
     try {
       fsDb.collection("pickem_v14").doc("shared_state").set({
         weekArchives: state.weekArchives,
@@ -74,16 +74,94 @@ function saveCurrentWeekToArchive(notifyToast) {
   }
 }
 
+// While a past week is on screen, the live week's data is parked in LIVE_WEEK_SNAPSHOT and
+// incoming cloud snapshots wait in PENDING_REMOTE_DATA instead of yanking the view back
+// to the live week (the "flickers between weeks" bug). Picks and saves are blocked.
+var VIEWING_ARCHIVE_KEY = null;
+var LIVE_WEEK_SNAPSHOT = null;
+var PENDING_REMOTE_DATA = null;
+
+function liveWeekNum() {
+  return parseInt(VIEWING_ARCHIVE_KEY ? LIVE_WEEK_SNAPSHOT.currentWeek : state.currentWeek, 10) || 0;
+}
+
+function captureLiveWeekSnapshot() {
+  var copy = function(v) { return v === undefined ? undefined : JSON.parse(JSON.stringify(v)); };
+  return {
+    games: copy(GAMES),
+    liveScores: copy(LIVE_SCORES),
+    currentWeek: state.currentWeek,
+    weekLabel: state.weekLabel,
+    tiebreakerGameId: state.tiebreakerGameId,
+    michael: copy(state.michael),
+    kinyion: copy(state.kinyion),
+    watchlist: copy(state.watchlist),
+    poolMembers: copy(state.poolMembers),
+    leaderboard: copy(state.leaderboard)
+  };
+}
+
+function returnToLiveWeek() {
+  if (!VIEWING_ARCHIVE_KEY) return;
+  var snap = LIVE_WEEK_SNAPSHOT;
+  isApplyingRemoteUpdate = true;
+  clearAllSlateCaches();
+  GAMES = snap.games;
+  LIVE_SCORES = snap.liveScores || {};
+  state.liveScores = LIVE_SCORES;
+  state.currentWeek = snap.currentWeek;
+  state.weekLabel = snap.weekLabel;
+  state.tiebreakerGameId = snap.tiebreakerGameId;
+  ["michael", "kinyion", "watchlist", "poolMembers", "leaderboard"].forEach(function(k) {
+    if (snap[k] !== undefined) state[k] = snap[k];
+  });
+  MONTE_CARLO_CACHE = null;
+  VIEWING_ARCHIVE_KEY = null;
+  LIVE_WEEK_SNAPSHOT = null;
+  isApplyingRemoteUpdate = false;
+
+  var pending = PENDING_REMOTE_DATA;
+  PENDING_REMOTE_DATA = null;
+  if (pending) {
+    applyRemoteCloudData(pending, "Cloud Firestore");
+  } else {
+    regradeAllPoolMembersLive();
+    syncActiveProfileControlsUI();
+    renderSwayFeed();
+    renderAll();
+  }
+  var brandEl = document.getElementById("sheet-title-brand");
+  if (brandEl) brandEl.textContent = "🏈 " + state.weekLabel + " (CST)";
+  populateWeekArchiveDropdown();
+  showAppToast("🏈 Back to " + state.weekLabel + " (live)");
+}
+
+function isViewingArchiveWeek(actionLabel) {
+  if (!VIEWING_ARCHIVE_KEY) return false;
+  showAppToast("📚 You're viewing an archived week. Switch back to Week " + liveWeekNum() + " to " + (actionLabel || "make changes") + ".");
+  return true;
+}
+
 function switchWeekArchive(weekKey) {
   ensureWeekArchivesState();
+  if (weekKey === "week_" + liveWeekNum()) {
+    // The live week always shows live data, never an archived copy of it.
+    returnToLiveWeek();
+    populateWeekArchiveDropdown();
+    return;
+  }
   var targetSnap = state.weekArchives[weekKey];
   if (!targetSnap) return;
 
-  // Auto-save the currently active week ONLY if games were completed/scored and not unplayed Week 9
-  var curKey = "week_" + (parseInt(state.currentWeek, 10) || 8);
-  if (curKey !== weekKey && typeof countScoredGamesInLiveScores === "function" && countScoredGamesInLiveScores() > 0 && curKey !== "week_9") {
-    saveCurrentWeekToArchive(false);
+  if (!VIEWING_ARCHIVE_KEY) {
+    // Auto-save the currently active week ONLY if games were completed/scored and not unplayed Week 9
+    var curKey = "week_" + (parseInt(state.currentWeek, 10) || 8);
+    if (curKey !== weekKey && typeof countScoredGamesInLiveScores === "function" && countScoredGamesInLiveScores() > 0 && curKey !== "week_9") {
+      saveCurrentWeekToArchive(false);
+    }
+    LIVE_WEEK_SNAPSHOT = captureLiveWeekSnapshot();
   }
+  VIEWING_ARCHIVE_KEY = weekKey;
 
   isApplyingRemoteUpdate = true;
   clearAllSlateCaches();
@@ -104,7 +182,7 @@ function switchWeekArchive(weekKey) {
 
   var brandEl = document.getElementById("sheet-title-brand");
   if (brandEl) {
-    brandEl.textContent = "🏈 " + state.weekLabel + (state.currentWeek === 7 ? " (Archive)" : " (CST)");
+    brandEl.textContent = "🏈 " + state.weekLabel + " (Archive)";
   }
 
   regradeAllPoolMembersLive();
@@ -121,8 +199,9 @@ function populateWeekArchiveDropdown() {
   if (!sel) return;
   if (!state.weekArchives || typeof state.weekArchives !== "object") return;
 
-  var curWk = parseInt(state.currentWeek, 10) || 8;
+  var curWk = liveWeekNum() || 8;
   var curKey = "week_" + curWk;
+  var selectedKey = VIEWING_ARCHIVE_KEY || curKey;
   var keys = Object.keys(state.weekArchives);
   if (keys.indexOf(curKey) === -1) keys.push(curKey);
 
@@ -138,9 +217,11 @@ function populateWeekArchiveDropdown() {
     var snap = state.weekArchives[k];
     var wNum = parseInt(k.replace("week_", ""), 10) || curWk;
     var lbl = (snap && snap.weekLabel) ? snap.weekLabel : ("Week " + wNum);
-    var gmCount = (snap && snap.games && snap.games.length) ? snap.games.length : GAMES.length;
-    var tag = (wNum === 7) ? "Archived • 89 Graded" : ("Active • " + gmCount + " Games");
-    html += '<option value="' + k + '"' + (k === curKey ? ' selected' : '') + '>📚 ' + lbl + ' (' + tag + ')</option>';
+    var liveGames = VIEWING_ARCHIVE_KEY ? LIVE_WEEK_SNAPSHOT.games : GAMES;
+    var gmCount = (k === curKey) ? liveGames.length : ((snap && snap.games && snap.games.length) ? snap.games.length : GAMES.length);
+    var tag = (k === curKey) ? ("Live • " + gmCount + " Games") : ((wNum === 7) ? "Archived • 89 Graded" : ("Archived • " + gmCount + " Games"));
+    if (k === curKey) lbl = "Week " + curWk;
+    html += '<option value="' + k + '"' + (k === selectedKey ? ' selected' : '') + '>📚 ' + lbl + ' (' + tag + ')</option>';
   }
   sel.innerHTML = html;
 }
@@ -223,3 +304,15 @@ function renderAll() {
 }
 
 
+
+// Picks can't be changed while a past week is on screen.
+var _origPickSideArchive = pickSide;
+pickSide = function(gameId, sideCode) {
+  if (isViewingArchiveWeek("make picks")) return;
+  return _origPickSideArchive.apply(this, arguments);
+};
+var _origPickSideForProfileArchive = pickSideForProfile;
+pickSideForProfile = function(profKey, gameId, sideCode) {
+  if (isViewingArchiveWeek("make picks")) return;
+  return _origPickSideForProfileArchive.apply(this, arguments);
+};

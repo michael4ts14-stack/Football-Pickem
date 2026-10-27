@@ -35,7 +35,10 @@ function startFirebaseRealtimeListeners() {
           if (docId === "test") continue;
           if (docId === activeProfile && withinMyLocalEdit) continue;
 
-          var matchStats = countMatchingPicksForSlate(uData.picks, GAMES);
+          // While a past week is on screen, live picks belong to the parked live week.
+          var viewingArchive = typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY && LIVE_WEEK_SNAPSHOT;
+          var store = (viewingArchive && (docId === "michael" || docId === "kinyion")) ? LIVE_WEEK_SNAPSHOT : state;
+          var matchStats = countMatchingPicksForSlate(uData.picks, viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES);
           if (matchStats.total >= 5 && matchStats.matched < Math.ceil(matchStats.total * 0.5)) continue;
 
           // Register custom user metadata if this is one of the 80+ user accounts not yet in state.customUsers
@@ -72,12 +75,12 @@ function startFirebaseRealtimeListeners() {
             if ((Date.now() - lastLocalPickTs) < 4000) continue;
             delete state.deletedPicksByMember[linkedLow];
           }
-          state[docId] = Object.assign({}, state[docId] || {}, {
+          store[docId] = Object.assign({}, store[docId] || {}, {
             picks: isClearedDoc ? {} : uData.picks,
             _picksCleared: isClearedDoc,
-            tiebreaker: uData.tiebreaker || (state[docId] && state[docId].tiebreaker) || "28-24",
-            target: uData.target || (state[docId] && state[docId].target) || 20,
-            linkedMemberName: uData.linkedMemberName !== undefined ? uData.linkedMemberName : (state[docId] ? state[docId].linkedMemberName : "")
+            tiebreaker: uData.tiebreaker || (store[docId] && store[docId].tiebreaker) || "28-24",
+            target: uData.target || (store[docId] && store[docId].target) || 20,
+            linkedMemberName: uData.linkedMemberName !== undefined ? uData.linkedMemberName : (store[docId] ? store[docId].linkedMemberName : "")
           });
           anyRemoteApplied = true;
         }
@@ -101,6 +104,13 @@ function applyRemoteCloudData(data, sourceLabel) {
   //    overwrite an active Week 8+ slate already loaded in memory!
   var incomingGames = (data.customGames && Array.isArray(data.customGames) && data.customGames.length > 0) ? data.customGames : null;
   var incomingWkNum = Math.max(parseInt(data.currentWeek, 10) || 0, parseWeekNumFromLabel(data.weekLabel));
+  if (incomingWkNum > LAST_CLOUD_WEEK) LAST_CLOUD_WEEK = incomingWkNum;
+  if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) {
+    // Someone is looking at a past week: keep the newest snapshot and apply it when they
+    // return to the live week, instead of switching the screen out from under them.
+    PENDING_REMOTE_DATA = data;
+    return;
+  }
   var incomingIsWk7 = incomingGames ? isHardcodedWeek7Slate(incomingGames) : (incomingWkNum > 0 && incomingWkNum <= 7 && !data.leaderboard && !data.poolMembers);
   var currentIsCustomNewWeek = !isHardcodedWeek7Slate(GAMES) || hasLockedCustomSlate || (state.currentWeek && state.currentWeek >= 8);
 
@@ -316,6 +326,8 @@ function applyRemoteCloudData(data, sourceLabel) {
 
 function pushProfileToFirebase(profKey) {
   if (isApplyingRemoteUpdate) return;
+  // An archived week's picks on screen must never be saved as this week's picks.
+  if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return;
   // Keep `test` (Sandbox Sim) local to this device so sandbox experiments never collide across users
   if (profKey === "test") {
     safeSetStorage("sat_device_test_sim_v16", JSON.stringify(state.test || {}));
@@ -347,10 +359,9 @@ function pushProfileToFirebase(profKey) {
   }
 
   // 2. Also merge ONLY this profile's key into `pickem_v14/shared_state` (never touching other users' keys!)
+  //    The active week is NOT written here: a pick save must never move everyone's week.
   var payload = {};
   payload[profKey] = profObj;
-  payload.currentWeek = state.currentWeek || 8;
-  payload.weekLabel = state.weekLabel || ("Week " + (state.currentWeek || 8));
   payload.updatedAt = nowIso;
 
   if (fsDb) {
@@ -363,33 +374,51 @@ function pushProfileToFirebase(profKey) {
   }
 }
 
+// Highest currentWeek seen in any shared_state snapshot this session.
+var LAST_CLOUD_WEEK = 0;
+
+// Pool-wide fields (poolMembers, leaderboard, liveScores, weekArchives, customGames,
+// watchlist, currentWeek) are shared by every player. Only a verified commissioner may
+// write them, and never while looking at an archived week. Every other client used to
+// push its own copy, so 40-100 browsers overwrote each other (lost sheet imports,
+// week flicker, a write->snapshot->re-render storm).
+function canWriteSharedPoolState() {
+  if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return false;
+  return typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner();
+}
+
+// Week fields for a commissioner write; omitted if they would move the pool backward.
+function sharedWeekFields() {
+  var wk = parseInt(state.currentWeek, 10) || 0;
+  if (!wk || wk < LAST_CLOUD_WEEK) return {};
+  return { currentWeek: wk, weekLabel: "Week " + wk };
+}
+
 function pushWatchlistOrStandingsToFirebase() {
   if (isApplyingRemoteUpdate) return;
   state.liveScores = LIVE_SCORES;
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  var payload = {
+  if (!canWriteSharedPoolState()) return;
+  var payload = Object.assign({
     watchlist: state.watchlist,
     leaderboard: state.leaderboard,
     poolMembers: state.poolMembers || [],
     liveScores: LIVE_SCORES,
-    currentWeek: state.currentWeek || 8,
-    weekLabel: state.weekLabel || ("Week " + (state.currentWeek || 8)),
     weekArchives: state.weekArchives || {},
     updatedAt: new Date().toISOString()
-  };
+  }, sharedWeekFields());
   if (fsDb) {
     try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }); } catch (e) {}
   }
 }
 
 function pushCustomGamesToFirebase() {
+  if (!canWriteSharedPoolState()) return;
   if (fsDb) {
     try {
-      fsDb.collection("pickem_v14").doc("shared_state").set({
+      fsDb.collection("pickem_v14").doc("shared_state").set(Object.assign({
         customGames: GAMES,
         tiebreakerGameId: state.tiebreakerGameId || null,
-        currentWeek: state.currentWeek || 8,
-        weekLabel: state.weekLabel || ("Week " + (state.currentWeek || 8)),
         michael: state.michael,
         kinyion: state.kinyion,
         watchlist: state.watchlist,
@@ -397,7 +426,7 @@ function pushCustomGamesToFirebase() {
         poolMembers: state.poolMembers || [],
         weekArchives: state.weekArchives || {},
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      }, sharedWeekFields()), { merge: true });
     } catch (e) {}
   }
 }

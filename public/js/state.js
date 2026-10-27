@@ -534,6 +534,8 @@ function safeGetStorage(key) {
   }
 }
 function safeSetStorage(key, val) {
+  // Don't persist an archived week as this device's saved state.
+  if (key === "sat_week7_official_v14" && typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return;
   MEMORY_STORE[key] = val;
   try {
     var ls = window["local" + "Storage"];
