@@ -703,6 +703,7 @@ function runMasterPickemEmailBot(forceRescan) {
 
           // NEVER reset picks if newWkNum <= curWkNum (current or past week)!
           if (newWkNum > curWkNum) {
+          var prevWkNum = curWkNum;
           var newWkLabel = "Week " + newWkNum;
 
           // STEP 1 (PRE-RESET): Pull final ESPN scores & play-by-play drives for the outgoing week before resetting!
