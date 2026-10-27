@@ -226,7 +226,8 @@ function renderPickCardsHtml() {
       infoParts.push('<span class="card-info-item"><span class="card-info-label">Pool</span> ' +
         escapeShellHtml(g.awayCode) + ' ' + ownInfo.awayPct + '% · ' + escapeShellHtml(g.homeCode) + ' ' + ownInfo.homePct + '%</span>');
     }
-    if (h2h) {
+    // Head-to-head is an Advanced feature, and only with a chosen target (h2h is null without one).
+    if (h2h && !SIMPLE_UI_MODE) {
       var isDiff = !!(myPick && h2h.pick && !isSameTeamPick(myPick, h2h.pick, g));
       infoParts.push('<span class="card-info-item"><span class="card-info-label">' + escapeShellHtml(h2h.name) + '</span> ' + escapeShellHtml(h2h.text) +
         (isDiff ? ' <span class="diff-tag">Diff</span>' : '') + '</span>');
@@ -433,7 +434,7 @@ function renderGameDetailSheet() {
   // Head-to-head: your compare target's pick on this game (respects their privacy settings).
   var h2hHtml = "";
   try {
-    var cmp = resolveCompareTargetDescriptor();
+    var cmp = SIMPLE_UI_MODE ? null : resolveCompareTargetDescriptor();
     if (cmp) {
       var cmpHidden = cmp.isHiddenForGame ? cmp.isHiddenForGame(g.id) : false;
       var cmpPick = (!cmpHidden && cmp.hasPicks) ? getResolvedPickForGame(cmp.picks, g, !cmp.isPoolMember) : null;

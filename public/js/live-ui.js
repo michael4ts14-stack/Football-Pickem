@@ -134,7 +134,7 @@ renderLiveScoreboardTab = function() {
     var situation = fieldMiniBarHtml(g, ls) || ((ls.inProgress && (ls.downDistanceText || ls.possessionText))
       ? '<div class="live-situation">' + escapeShellHtml([ls.downDistanceText, ls.possessionText].filter(Boolean).join(" · ")) + '</div>'
       : '');
-    var h2hLine = h2h
+    var h2hLine = (h2h && !SIMPLE_UI_MODE)
       ? '<div class="card-info"><span class="card-info-item"><span class="card-info-label">' + escapeShellHtml(h2h.name) + '</span> ' + escapeShellHtml(h2h.text) +
           (isDiff ? ' <span class="diff-tag">Diff</span>' : '') + '</span></div>'
       : '';
