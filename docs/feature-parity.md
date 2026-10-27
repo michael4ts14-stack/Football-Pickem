@@ -1,6 +1,21 @@
 # Feature Parity Checklist — UI Redesign
 
-Status: **DRAFT — awaiting approval.** No UI code has changed yet.
+Status: **Approved 2026-10-27.** Step 1 (tokens + shell) built; awaiting screenshot review.
+
+## Decisions (2026-10-27)
+
+1. Work happens on `claude/sat-ui-redesign-ogkerh`. After each approved step a PR into `main` is
+   opened for the owner to merge (merging deploys).
+2. Team logos come from ESPN's CDN using the ESPN team ids the app already fetches; a team-code
+   circle is the fallback.
+3. A new **Missing** chip (your unpicked games) is added to the Picks filters.
+4. **Submit X of Y** calls the existing `saveAndSendPickConfirmationReceipt()`. Lock Picks stays separate.
+5. **New Week Reset** moves into the Commissioner console only, behind a red confirm step. (It was
+   already hidden from non-commissioners by `syncCommissionerVisibilityDOM()`, which hides the
+   whole Standings toolbar.)
+
+Found during step 1: **Past weeks** (the archive select and Season archive box) has always been
+commissioner-only, so the new "Past weeks" entry keeps that rule.
 
 Source of truth: `public/index.html` + `public/js/**` on `Week8` @ `00bf24e`. Every row was
 found in the code, either in the static markup or in an HTML string that a render function
@@ -28,22 +43,22 @@ the item is verified at 390px and 1280px after that step.
 
 | ☐ | Feature | Handler / ID | Today | New home | Step |
 |---|---|---|---|---|---|
-| ☐ | Simple (default) / Advanced toggle | `toggleSimpleUiMode()` · `#btn-simple-mode-toggle` · localStorage `sat_simple_ui_mode_v16` (unchanged key, `"0"` = Advanced, anything else = Simple) | Top bar | PH toggle + M›Settings | 1/4 |
-| ☐ | Body class driving simple/advanced visibility | `applySimpleUiModeDOM()` → `body.simple-ui-mode` | — | Kept; new CSS hooks onto the same class | 1 |
-| ☐ | Main view switching | `switchMainView('cards'\|'condensed'\|'live'\|'standings')` (incl. the V16.6 override wrapper in `commissioner-admin.js`) | Top tabs `#tab-mode-*` | Bottom tabs (phone) / sidebar (desktop). Old `#tab-mode-*` IDs kept on the new sidebar buttons | 1 |
-| ☐ | Mobile bottom nav | `handleMobileNavClick()` · `#mnav-cards/-condensed/-live/-standings/-drawer` | 5 tabs | 4 tabs: Picks · Live · Standings · More. `#mnav-condensed` becomes the Cards/Table toggle inside Picks; `#mnav-drawer` becomes "More" | 1 |
-| ☐ | Simple-mode tab highlighting | `syncSimpleModeTabHighlights()` | — | Must keep working against the renamed buttons | 1 |
+| ☑ | Simple (default) / Advanced toggle | `toggleSimpleUiMode()` · `#btn-simple-mode-toggle` · localStorage `sat_simple_ui_mode_v16` (unchanged key, `"0"` = Advanced, anything else = Simple) | Top bar | PH toggle + M›Settings | 1/4 |
+| ☑ | Body class driving simple/advanced visibility | `applySimpleUiModeDOM()` → `body.simple-ui-mode` | — | Kept; new CSS hooks onto the same class | 1 |
+| ☑ | Main view switching | `switchMainView('cards'\|'condensed'\|'live'\|'standings')` (incl. the V16.6 override wrapper in `commissioner-admin.js`) | Top tabs `#tab-mode-*` | Bottom tabs (phone) / sidebar (desktop). Old `#tab-mode-*` IDs kept on the new sidebar buttons | 1 |
+| ☑ | Mobile bottom nav | `handleMobileNavClick()` · `#mnav-cards/-condensed/-live/-standings/-drawer` | 5 tabs | 4 tabs: Picks · Live · Standings · More. `#mnav-condensed` becomes the Cards/Table toggle inside Picks; `#mnav-drawer` becomes "More" | 1 |
+| ☑ | Simple-mode tab highlighting | `syncSimpleModeTabHighlights()` | — | Must keep working against the renamed buttons | 1 |
 | ☐ | Menu / Settings drawer | `openSettingsDrawer()` / `closeSettingsDrawer()` / `renderSettingsDrawerBody()` · `#settings-drawer-backdrop`, `#settings-drawer-body` | ☰ Menu | Becomes the **More** screen (phone) / More group (desktop). Function names kept as aliases | 7 |
-| ☐ | Desktop rail collapse | `toggleDesktopSidebarCollapse()` · `#btn-toggle-desktop-rail` | Top bar "◀ Rail" | Right-rail collapse button (desktop) | 1 |
-| ☐ | Mobile sidebar drawer | `toggleMobileSidebar()` · `#main-sidebar.mobile-drawer-open` | Menu | Old sidebar contents get redistributed (see §H); function kept as a no-op-safe helper | 1 |
-| ☐ | Commissioner announcement banner + Dismiss | `renderCommishAnnouncementBanner()` · `dismissCommishBanner()` · `#commish-announcement-banner/-text` | Above top bar | Thin bar under the sticky header | 1 |
-| ☐ | App toast | `showAppToast()` · `#app-toast-banner` | Overlay | Restyled toast above the bottom tabs | 1 |
-| ☐ | Week title | `#sheet-title-brand` | Top bar | Sidebar app name + "Week N Picks" header | 1/2 |
-| ☐ | Profile pill (name + instance tag) | `#top-profile-pill`, `#top-profile-name`, `#top-profile-instance-tag` | Top bar | Header avatar button → M›Account | 1 |
-| ☐ | Bot status pill (CM) | `#bot-sync-pill` | Top bar | Header (CM only) + M›Commissioner | 1 |
+| ☑ | Desktop rail collapse | `toggleDesktopSidebarCollapse()` · `#btn-toggle-desktop-rail` | Top bar "◀ Rail" | Right-rail collapse button (desktop) | 1 |
+| ☑ | Mobile sidebar drawer | `toggleMobileSidebar()` · `#main-sidebar.mobile-drawer-open` | Menu | Old sidebar contents get redistributed (see §H); function kept as a no-op-safe helper | 1 |
+| ☑ | Commissioner announcement banner + Dismiss | `renderCommishAnnouncementBanner()` · `dismissCommishBanner()` · `#commish-announcement-banner/-text` | Above top bar | Thin bar under the sticky header | 1 |
+| ☑ | App toast | `showAppToast()` · `#app-toast-banner` | Overlay | Restyled toast above the bottom tabs | 1 |
+| ☑ | Week title | `#sheet-title-brand` | Top bar | Sidebar app name + "Week N Picks" header | 1/2 |
+| ☑ | Profile pill (name + instance tag) | `#top-profile-pill`, `#top-profile-name`, `#top-profile-instance-tag` | Top bar | Header avatar button → M›Account | 1 |
+| ☑ | Bot status pill (CM) | `#bot-sync-pill` | Top bar | Header (CM only) + M›Commissioner | 1 |
 | ☐ | Live sync badge (tap = sync) | `syncAllLiveTrackingData(true)` · `#live-sync-badge` | Top bar | Live header "Synced Ns ago" indicator (tap = sync) | 5 |
 | ☐ | Risk meter (1x/2x/3x/Max/EV) | `#top-risk-meter`, `#rm-chalk/-2x/-3x`, `#top-ceiling`, `#top-ev` | Top bar (ADV) | PH second line (ADV) | 4 |
-| ☐ | Hidden cloud status text | `#cloud-status-text` | Hidden | Kept hidden | 1 |
+| ☑ | Hidden cloud status text | `#cloud-status-text` | Hidden | Kept hidden | 1 |
 
 ## B. Picks screen — game list
 
@@ -236,7 +251,7 @@ the item is verified at 390px and 1280px after that step.
 
 | ☐ | Feature | Handler | New home | Step |
 |---|---|---|---|---|
-| ☐ | **Theme: Dark (default) / Light** | **NEW**: `setAppTheme()` · localStorage `sat_theme_v1` · `html[data-theme]` | M›Settings | 1/7 |
+| ☑ | **Theme: Dark (default) / Light** | **NEW**: `setAppTheme()` · localStorage `sat_theme_v1` · `html[data-theme]` | M›Settings | 1/7 |
 | ☐ | Advanced mode | `toggleSimpleUiMode()` | M›Settings | 7 |
 | ☐ | Show details inline (Cards + Injuries/L5) | `setSimpleCardLayoutStyle()` | M›Settings | 7 |
 | ☐ | Privacy: Hide my picks · Spy Shield/Blind · Full privacy & H2H settings | see §F | M›Settings | 7 |

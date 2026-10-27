@@ -1,7 +1,7 @@
   /* === V16 EXTENSION: CSV IMPORTER, FULL LEADERBOARD & SVG FIELD TRACKER === */
   .csv-dropzone {
     border: 2px dashed var(--green);
-    background: rgba(16, 185, 129, 0.08);
+    background: var(--raised);
     border-radius: 10px;
     padding: 16px;
     text-align: center;
@@ -10,16 +10,16 @@
     transition: all 0.2s;
   }
   .csv-dropzone:hover {
-    background: rgba(16, 185, 129, 0.16);
-    border-color: #34d399;
+    background: var(--raised);
+    border-color: var(--border);
   }
   .row-highlight-michael {
-    background: rgba(56, 189, 248, 0.18) !important;
-    border-left: 4px solid #38bdf8;
+    background: var(--raised) !important;
+    border-left: 4px solid var(--border);
   }
   .row-highlight-kinyion {
-    background: rgba(192, 132, 252, 0.18) !important;
-    border-left: 4px solid #c084fc;
+    background: var(--raised) !important;
+    border-left: 4px solid var(--border);
   }
   .drive-situation-bar {
     cursor: pointer;
@@ -30,8 +30,8 @@
     border-color: var(--gold);
   }
   .field-tracker-drawer {
-    background: #070b12;
-    border: 1px solid #1e293b;
+    background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 9px;
     margin-top: 6px;
@@ -41,7 +41,7 @@
     width: 100%;
     border-radius: 6px;
     overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.14);
+    border: 1px solid var(--border);
     margin-bottom: 8px;
   }
   .drive-meta-strip {
@@ -50,7 +50,7 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 6px;
-    background: rgba(30, 41, 59, 0.65);
+    background: var(--raised);
     padding: 5px 8px;
     border-radius: 6px;
     margin-bottom: 6px;
@@ -62,16 +62,16 @@
     gap: 5px;
   }
   .pbp-item {
-    background: rgba(15, 23, 42, 0.85);
-    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-left: 3px solid var(--legacy-accent);
     padding: 5px 8px;
     border-radius: 4px;
     line-height: 1.35;
   }
   .pbp-badge-score {
-    background: rgba(16, 185, 129, 0.25);
-    color: #6ee7b7;
-    border: 1px solid #10b981;
+    background: var(--raised);
+    color: var(--win);
+    border: 1px solid var(--border);
     font-size: 0.62rem;
     font-weight: 900;
     padding: 1px 5px;
@@ -79,9 +79,9 @@
     margin-right: 5px;
   }
   .pbp-badge-turnover {
-    background: rgba(239, 68, 68, 0.28);
-    color: #fca5a5;
-    border: 1px solid #ef4444;
+    background: var(--raised);
+    color: var(--loss);
+    border: 1px solid var(--border);
     font-size: 0.62rem;
     font-weight: 900;
     padding: 1px 5px;
@@ -103,22 +103,18 @@
     stroke-dasharray: 260;
     stroke-dashoffset: 0;
     animation: playArcDraw 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-    filter: drop-shadow(0 0 6px rgba(52, 211, 153, 0.8));
   }
   .football-marker {
-    filter: drop-shadow(0 0 6px rgba(250, 204, 21, 0.75));
     cursor: pointer;
   }
   .first-down-line {
-    filter: drop-shadow(0 0 5px rgba(250, 204, 21, 0.8));
   }
   .los-line {
-    filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.85));
   }
   .pbp-badge-demo {
-    background: rgba(56, 189, 248, 0.25);
-    color: #7dd3fc;
-    border: 1px solid #38bdf8;
+    background: var(--raised);
+    color: var(--text);
+    border: 1px solid var(--border);
     font-size: 0.62rem;
     font-weight: 900;
     padding: 1px 5px;
@@ -126,9 +122,9 @@
     margin-right: 5px;
   }
   .pbp-badge-final {
-    background: rgba(148, 163, 184, 0.25);
-    color: #cbd5e1;
-    border: 1px solid #94a3b8;
+    background: var(--raised);
+    color: var(--text);
+    border: 1px solid var(--border);
     font-size: 0.62rem;
     font-weight: 900;
     padding: 1px 5px;
@@ -136,13 +132,12 @@
     margin-right: 5px;
   }
   .field-tracker-drawer {
-    background: #060a12;
-    border: 1px solid #263554;
+    background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 11px;
     margin-top: 7px;
     font-size: 0.78rem;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.55);
   }
   .field-toolbar-row {
     display: flex;
@@ -152,7 +147,7 @@
     gap: 6px;
     margin-bottom: 8px;
     padding-bottom: 7px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid var(--border);
   }
   .field-mode-pills {
     display: inline-flex;
@@ -161,9 +156,9 @@
     align-items: center;
   }
   .field-mode-btn {
-    background: #111827;
-    color: #94a3b8;
-    border: 1px solid #263554;
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
     padding: 4px 9px;
     border-radius: 6px;
     font-size: 0.7rem;
@@ -172,23 +167,23 @@
     transition: all 0.15s;
   }
   .field-mode-btn:hover {
-    border-color: #38bdf8;
-    color: #fff;
+    border-color: var(--border);
+    color: var(--text);
   }
   .field-mode-btn.active {
-    background: rgba(56, 189, 248, 0.22);
-    border-color: #38bdf8;
-    color: #fff;
+    background: var(--raised);
+    border-color: var(--border);
+    color: var(--text);
   }
   .field-mode-btn.demo-active {
-    background: rgba(16, 185, 129, 0.25);
-    border-color: #10b981;
-    color: #6ee7b7;
+    background: var(--raised);
+    border-color: var(--border);
+    color: var(--win);
   }
   .field-expand-btn {
-    background: linear-gradient(90deg, #0284c7, #4f46e5);
-    color: #fff;
-    border: 1px solid #38bdf8;
+    background: var(--raised);
+    color: var(--text);
+    border: 1px solid var(--border);
     padding: 4px 10px;
     border-radius: 6px;
     font-size: 0.71rem;
@@ -204,16 +199,16 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 6px;
-    background: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.4);
+    background: var(--raised);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 7px 10px;
     margin-bottom: 8px;
   }
   .demo-sim-btn {
-    background: #065f46;
-    color: #ecfdf5;
-    border: 1px solid #34d399;
+    background: var(--accent);
+    color: var(--win);
+    border: 1px solid var(--border);
     padding: 4px 9px;
     border-radius: 6px;
     font-size: 0.71rem;
@@ -221,15 +216,15 @@
     cursor: pointer;
   }
   .demo-sim-btn:hover {
-    background: #047857;
+    background: var(--accent);
   }
   .demo-sim-btn.primary {
-    background: #10b981;
-    color: #000;
+    background: var(--accent);
+    color: var(--on-accent);
   }
   .pbp-item {
-    background: rgba(15, 23, 42, 0.92);
-    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    border-left: 3px solid var(--legacy-accent);
     padding: 7px 10px;
     border-radius: 6px;
     line-height: 1.42;
@@ -238,8 +233,7 @@
   #field-theater-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(3, 7, 18, 0.86);
-    backdrop-filter: blur(6px);
+    background: var(--bg);
     z-index: 1200;
     display: none;
     align-items: center;
@@ -247,15 +241,14 @@
     padding: 14px;
   }
   #field-theater-modal {
-    background: #0b1120;
-    border: 2px solid #38bdf8;
+    background: var(--surface);
+    border: 2px solid var(--border);
     border-radius: 14px;
     max-width: 980px;
     width: 100%;
     padding: 16px;
     max-height: 92vh;
     overflow-y: auto;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.9);
   }
   .field-svg-wrap svg {
     width: 100%;
@@ -283,9 +276,9 @@
     transition: all 0.15s;
   }
   .hub-tab-btn.active {
-    background: linear-gradient(90deg, #059669, #0284c7);
-    color: #fff;
-    border-color: #34d399;
+    background: var(--raised);
+    color: var(--text);
+    border-color: var(--border);
   }
   @media (max-width: 640px) {
     #field-theater-backdrop {
@@ -314,11 +307,10 @@
       position: sticky;
       left: 0;
       z-index: 3;
-      background: #111827;
-      box-shadow: 2px 0 6px rgba(0, 0, 0, 0.45);
+      background: var(--surface);
     }
     .condensed-table tr.diff-row td:nth-child(2) {
-      background: #1b1630;
+      background: var(--raised);
     }
     .cond-btn {
       padding: 6px 9px;
@@ -346,9 +338,9 @@
     transition: all 0.15s;
   }
   .cond-mode-pill.active {
-    background: linear-gradient(90deg, #0284c7, #4f46e5);
-    color: #fff;
-    border-color: var(--accent);
+    background: var(--raised);
+    color: var(--text);
+    border-color: var(--legacy-accent);
   }
   .cond-mobile-list {
     display: none;
@@ -390,13 +382,13 @@
   }
   .cond-m-card.diff-card {
     border-left: 4px solid var(--purple);
-    background: linear-gradient(180deg, rgba(192, 132, 252, 0.09), rgba(19, 28, 46, 0.96));
+    background: var(--raised);
   }
   .cond-m-card.mult-2x-card {
-    border-top: 2px solid rgba(245, 158, 11, 0.65);
+    border-top: 2px solid var(--border);
   }
   .cond-m-card.mult-3x-card {
-    border-top: 2px solid rgba(239, 68, 68, 0.75);
+    border-top: 2px solid var(--border);
   }
   .cond-m-header {
     display: flex;
@@ -404,13 +396,13 @@
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    border-bottom: 1px solid var(--border);
     padding-bottom: 5px;
   }
   .cond-m-title {
     font-size: 0.81rem;
     font-weight: 800;
-    color: #fff;
+    color: var(--text);
     display: flex;
     align-items: center;
     gap: 5px;
@@ -418,8 +410,8 @@
     line-height: 1.25;
   }
   .cond-m-num {
-    background: rgba(56, 189, 248, 0.16);
-    color: var(--accent);
+    background: var(--raised);
+    color: var(--legacy-accent);
     padding: 1px 6px;
     border-radius: 5px;
     font-size: 0.72rem;
@@ -428,7 +420,7 @@
   .cond-m-line-pill {
     font-size: 0.67rem;
     font-weight: 700;
-    color: #cbd5e1;
+    color: var(--text);
     background: var(--panel-alt);
     border: 1px solid var(--border-muted);
     padding: 1px 6px;
@@ -447,8 +439,8 @@
     }
   }
   .cond-m-prof-box {
-    background: rgba(9, 13, 22, 0.65);
-    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 7px;
     padding: 5px 6px;
     display: flex;
@@ -490,7 +482,7 @@
     justify-content: space-between;
     gap: 5px;
     flex-wrap: wrap;
-    background: rgba(15, 23, 42, 0.55);
+    background: var(--surface);
     border-radius: 6px;
     padding: 4px 7px;
   }

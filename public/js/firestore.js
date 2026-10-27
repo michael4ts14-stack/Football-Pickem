@@ -428,7 +428,7 @@ function renderBotSyncPill() {
   var espn = BOT_STATUS && BOT_STATUS.espn;
   if (!gmail) {
     el.textContent = "🤖 Bot: no data";
-    el.style.color = "#94a3b8";
+    el.style.color = "var(--text)";
     return;
   }
   var lastOk = gmail.lastSuccessAt;

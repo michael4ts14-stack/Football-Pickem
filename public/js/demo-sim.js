@@ -580,7 +580,7 @@ function buildPlaysListHtml(tel, g, ls) {
   var plays = tel.plays || [];
   if (plays.length === 0) {
     return '<div class="pbp-item" style="color:var(--muted);">' +
-      '⏳ Loading official ESPN play-by-play drive log... <a href="javascript:void(0)" style="color:var(--accent);font-weight:800;" onclick="fetchGameDriveSummary(' + g.id + ', \'' + ((ls && ls.eventId) || '') + '\').then(renderAll)">Tap to Refresh Now</a>' +
+      '⏳ Loading official ESPN play-by-play drive log... <a href="javascript:void(0)" style="color:var(--legacy-accent);font-weight:800;" onclick="fetchGameDriveSummary(' + g.id + ', \'' + ((ls && ls.eventId) || '') + '\').then(renderAll)">Tap to Refresh Now</a>' +
     '</div>';
   }
   var html = "";
