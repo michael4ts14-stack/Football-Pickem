@@ -269,8 +269,7 @@ function renderRightRail() {
 
   var rows = [];
   try { rows = buildPoolLeaderboardRows(); } catch (e) { rows = []; }
-  var myName = "";
-  try { myName = standardizeParticipantName(getLinkedMemberNameForProfile(getMyInstanceProfileKey()) || "").toLowerCase(); } catch (e2) {}
+  var myName = (typeof getMyLeaderboardNameLower === "function") ? getMyLeaderboardNameLower() : "";
 
   var listHtml = "";
   var prevTot = null, prevRank = 1;
