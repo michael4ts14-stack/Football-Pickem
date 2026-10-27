@@ -225,26 +225,14 @@ function commishRevokeRole(key) {
   showAppToast("🚫 Revoked Commissioner privileges for " + key + ".");
 }
 
+// "Commissioner login" used to sign the device in as the primary commissioner with no password.
+// Commissioners now sign in like everyone else (Google or email); the console opens for any
+// signed-in account on the authorized list (see isVerifiedCommissioner).
 function quickSignInAsVerifiedCommissioner() {
-  var cfg = ensureCommissionerConfig();
-  var pEmail = cfg.primaryCommissionerEmail || "commissioner@separatedatturf.com";
-  bindAuthenticatedAccountToProfile({
-    uid: "commish_primary",
-    email: pEmail,
-    displayName: "Michael A",
-    provider: "commissioner_auth",
-    isCommissioner: true
-  }, "Michael A").then(function() {
-    if (AUTH_SESSION) {
-      AUTH_SESSION.isCommissioner = true;
-      saveDeviceAuthSession();
-    }
-    syncCommissionerVisibilityDOM();
-    closeAuthModal();
-    closeSettingsDrawer();
-    renderAll();
-    showAppToast("👑 Signed in as Verified Commissioner (" + pEmail + ")!");
-  });
+  closeSettingsDrawer();
+  AUTH_MODAL_MODE = "signin";
+  openAuthModal();
+  showAppToast("Sign in with your commissioner account to open the console.");
 }
 
 // Gate openCommissionerModal & saveCurrentWeekToArchive to verified commissioners only
