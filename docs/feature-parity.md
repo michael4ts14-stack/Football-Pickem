@@ -26,6 +26,14 @@ Status: **Approved 2026-10-27.** Step 1 (tokens + shell) built; awaiting screens
    GameCast & Drive Theater (field, drives, red zone, Field Sim controls). Cards show the down &
    distance line and a "Ball" tag for possession.
 
+10. **Standings** list shows points and points back (the pool data has no season W–L). The full
+    breakdown table, grading cards, Monte Carlo odds and watchlist stay in Advanced mode; the
+    Top 5 weekly podium is Advanced-only because the Week list covers it.
+11. **Confirm step** (red) before New Week Reset (now in Console › Submissions only), Delete Picks,
+    Revoke and Reset Optimal Picks. Code paths that call these without a click are not gated.
+12. **Emoji** are removed from on-screen text as it renders (inputs, textareas and the print sheet
+    are left alone); copied/emailed text is unchanged.
+
 Found during step 2:
 - `pickSide()` never clears a pick (tapping the picked team re-saves it). "Tap again to clear" would
   change how picks are saved, so it is **not** implemented; switching teams works as before.
@@ -66,7 +74,7 @@ the item is verified at 390px and 1280px after that step.
 | ☑ | Main view switching | `switchMainView('cards'\|'condensed'\|'live'\|'standings')` (incl. the V16.6 override wrapper in `commissioner-admin.js`) | Top tabs `#tab-mode-*` | Bottom tabs (phone) / sidebar (desktop). Old `#tab-mode-*` IDs kept on the new sidebar buttons | 1 |
 | ☑ | Mobile bottom nav | `handleMobileNavClick()` · `#mnav-cards/-condensed/-live/-standings/-drawer` | 5 tabs | 4 tabs: Picks · Live · Standings · More. `#mnav-condensed` becomes the Cards/Table toggle inside Picks; `#mnav-drawer` becomes "More" | 1 |
 | ☑ | Simple-mode tab highlighting | `syncSimpleModeTabHighlights()` | — | Must keep working against the renamed buttons | 1 |
-| ☐ | Menu / Settings drawer | `openSettingsDrawer()` / `closeSettingsDrawer()` / `renderSettingsDrawerBody()` · `#settings-drawer-backdrop`, `#settings-drawer-body` | ☰ Menu | Becomes the **More** screen (phone) / More group (desktop). Function names kept as aliases | 7 |
+| ☑ | Menu / Settings drawer | `openSettingsDrawer()` / `closeSettingsDrawer()` / `renderSettingsDrawerBody()` · `#settings-drawer-backdrop`, `#settings-drawer-body` | ☰ Menu | Becomes the **More** screen (phone) / More group (desktop). Function names kept as aliases | 7 |
 | ☑ | Desktop rail collapse | `toggleDesktopSidebarCollapse()` · `#btn-toggle-desktop-rail` | Top bar "◀ Rail" | Right-rail collapse button (desktop) | 1 |
 | ☑ | Mobile sidebar drawer | `toggleMobileSidebar()` · `#main-sidebar.mobile-drawer-open` | Menu | Old sidebar contents get redistributed (see §H); function kept as a no-op-safe helper | 1 |
 | ☑ | Commissioner announcement banner + Dismiss | `renderCommishAnnouncementBanner()` · `dismissCommishBanner()` · `#commish-announcement-banner/-text` | Above top bar | Thin bar under the sticky header | 1 |
@@ -146,7 +154,7 @@ the item is verified at 390px and 1280px after that step.
 | ☐ | Tie-breaker game select | `setTiebreakerGame()` · `#tiebreaker-game-select`, `#tiebreaker-box-title` | Sidebar | Tie-breaker card (P) | 2 |
 | ☐ | Vegas implied score calculator + Apply | `recalcImpliedTiebreaker()`, `applyCalculatedTiebreaker()` · `#calc-ou`, `#calc-spread`, `#calc-result-text` | Sidebar | Tie-breaker card, collapsible "Calculator" | 2 |
 | ☐ | Make an Account & Keep My Picks (guest) | `openAuthModalCarryingGuestPicks()` | Receipt + guest strip | Same | 2 |
-| ☐ | Delete Picks (commish, per player) | `commishDeletePlayerPicks(key)` | Commish | CM, red confirm step | 8 |
+| ☑ | Delete Picks (commish, per player) | `commishDeletePlayerPicks(key)` | Commish | CM, red confirm step | 8 |
 | ☐ | Import N Picks (from confirmation email) | `parseConfirmationEmailPicks()` · `#email-import-target` | Import Hub › Email | Import Hub (M›Commissioner / Account) | 8 |
 
 ## F. Profiles, privacy & head-to-head
@@ -157,9 +165,9 @@ the item is verified at 390px and 1280px after that step.
 | ☐ | Multi-buy-in entry switcher | `switchLinkedBuyInEntry()` · `#multi-buyin-entry-strip` | Simple bar + drawer | Same PH switcher (lists each entry) | 2 |
 | ☐ | Add Buy-In | `addLinkedBuyInEntryFromInput()` · `#inline-buyin-entry-input`, `#drawer-new-buyin-input` | Drawer | M›Account | 7 |
 | ☑ | Copy other profile's picks | `copyOtherProfile()` | Sidebar | QP (ADV) | 4 |
-| ☐ | Hide My Picks (quick lock) | `toggleQuickLockActiveProfile()` · `#btn-quick-hide-active`, `#active-privacy-status-pill` | Sidebar + drawer | M›Settings › Privacy | 7 |
-| ☐ | Blind mode / Spy Shield (same function) | `toggleBlindMode()` · `#btn-sidebar-blind`, `#btn-blind-mode` | Sidebar + drawer | M›Settings › Privacy | 7 |
-| ☐ | Pick Privacy / Full Pick Privacy & H2H Settings | `openUserAndPrivacyModal()` | Sidebar, drawer, guest strip | M›Settings › Privacy (opens the existing modal content) | 7 |
+| ☑ | Hide My Picks (quick lock) | `toggleQuickLockActiveProfile()` · `#btn-quick-hide-active`, `#active-privacy-status-pill` | Sidebar + drawer | M›Settings › Privacy | 7 |
+| ☑ | Blind mode / Spy Shield (same function) | `toggleBlindMode()` · `#btn-sidebar-blind`, `#btn-blind-mode` | Sidebar + drawer | M›Settings › Privacy | 7 |
+| ☑ | Pick Privacy / Full Pick Privacy & H2H Settings | `openUserAndPrivacyModal()` | Sidebar, drawer, guest strip | M›Settings › Privacy (opens the existing modal content) | 7 |
 | ☐ | Privacy options: reveal at kickoff / auto-unhide on sheet / auto-unhide Friday night | `toggleProfilePrivacyOption()` | Privacy modal | Same modal | 7 |
 | ☐ | Toggle Privacy (account modal) | `toggleQuickLockActiveProfile(); openAuthModal()` | Auth modal | Same | 7 |
 | ☑ | Compare vs (H2H target), 4 selects | `setCompareTarget()` · `#sidebar-compare-select`, `#live-compare-select`, `#cond-compare-select`, `#standings-compare-select` · localStorage `sat_device_compare_target_v16` | Sidebar, Live, Condensed, Standings | One "Compare with ▾" control per screen (ADV); all four IDs kept | 4/5/6 |
@@ -215,10 +223,10 @@ the item is verified at 390px and 1280px after that step.
 
 | ☐ | Feature | Handler / ID | Today | New home | Step |
 |---|---|---|---|---|---|
-| ☐ | EV Sim drawer | `openEvSimulatorDrawer()` / `closeEvSimulatorDrawer()` / `renderEvSimulatorDrawerBody()` · `#ev-sim-drawer-backdrop`, `#ev-sim-drawer-body`, `#btn-open-ev-sim-drawer` | Top bar, sidebar, drawer | M›Simulator (+ ADV entry in PH) | 4 |
-| ☐ | Monte Carlo pool sim | `runMonteCarloPoolSimulation(5000, true)` · `#monte-carlo-sim-container` | Standings | S (ADV) + Simulator | 6 |
-| ☐ | Weekly Finish Odds / Season Standings Odds | `setMonteCarloSimMode()` | Standings | S segmented (ADV) | 6 |
-| ☐ | Re-Run 5,000 Sims | `runMonteCarloPoolSimulation()` | Standings | S | 6 |
+| ☑ | EV Sim drawer | `openEvSimulatorDrawer()` / `closeEvSimulatorDrawer()` / `renderEvSimulatorDrawerBody()` · `#ev-sim-drawer-backdrop`, `#ev-sim-drawer-body`, `#btn-open-ev-sim-drawer` | Top bar, sidebar, drawer | M›Simulator (+ ADV entry in PH) | 4 |
+| ☑ | Monte Carlo pool sim | `runMonteCarloPoolSimulation(5000, true)` · `#monte-carlo-sim-container` | Standings | S (ADV) + Simulator | 6 |
+| ☑ | Weekly Finish Odds / Season Standings Odds | `setMonteCarloSimMode()` | Standings | S segmented (ADV) | 6 |
+| ☑ | Re-Run 5,000 Sims | `runMonteCarloPoolSimulation()` | Standings | S | 6 |
 | ☑ | Insights | `toggleAllSubpanels('ins')`, card insights | Cards (ADV) | DS + PH ⋯ (ADV) | 4 |
 | ☑ | Sandbox sim | `switchProfile('test')` | Sidebar/drawer/auth | PH profile switcher + M›Simulator | 2 |
 | ☐ | Interactive / Test Demo Sim | `setGameDriveViewMode(id,'demo')` | Cards/theater | GC | 5 |
@@ -227,19 +235,19 @@ the item is verified at 390px and 1280px after that step.
 
 | ☐ | Feature | Handler / ID | Today | New home | Step |
 |---|---|---|---|---|---|
-| ☐ | Standings / grading view | `renderStandingsAndGradingView()` · `#standings-view-container` | Tab | S | 6 |
-| ☐ | Weekly grading cards | `#automated-grading-cards` | Standings | S › Week (ADV) | 6 |
-| ☐ | Top 5 weekly winners podium | `#top5-weekly-winners-container` | Standings (both modes) | S › Week top block | 6 |
-| ☐ | Leaderboard table + search | `#pool-leaderboard-table`, `#pool-leaderboard-tbody`, `#leaderboard-search-input`, `#leaderboard-count-label` | Standings | S rows (rank, name, W–L, GB; "You" tag) + search icon. Prior/Live/Final/Total/multiplier columns stay in ADV and in the row detail | 6 |
-| ☐ | Week / Season | — | Columns in one table | S segmented control | 6 |
-| ☐ | Watchlist editor (rename / meta) | `updateWatchlistMeta()` · `#standings-watchlist-box`, `#watchlist-editor-grid` | Standings | S › "Watchlist" section (ADV) | 6 |
-| ☐ | Set Picks in Table → | `switchMainView('condensed')` | Watchlist box | Same | 6 |
-| ☐ | Season archive hub | `#season-archive-hub-container` | Standings | M›Past weeks (the container is moved, not duplicated) | 7 |
-| ☐ | Past weeks select | `switchWeekArchive()` · `#week-archive-select`, `#drawer-week-archive-select` | Drawer | M›Past weeks | 7 |
-| ☐ | Load archived week slate & grades | `switchWeekArchive(id)` | Archive hub | M›Past weeks | 7 |
-| ☐ | Snapshot Current Week / Update Snapshot in Firestore / Archive Week (CM) | `saveCurrentWeekToArchive(true)` · `#btn-top-archive-wk` | Archive hub + drawer | M›Past weeks (CM) + Console | 7/8 |
-| ☐ | New Week Reset (Clear Pool Picks) | `resetPoolPicksForNewWeek(true)` | Standings toolbar | Console only, red confirm step. **Question 5** | 8 |
-| ☐ | Import Pool Data / Bot | `openUnifiedImportModal('csv'\|'bot'\|…)` · `#btn-top-import-bot` | Standings + drawer | S header (CM) + Console | 6/8 |
+| ☑ | Standings / grading view | `renderStandingsAndGradingView()` · `#standings-view-container` | Tab | S | 6 |
+| ☑ | Weekly grading cards | `#automated-grading-cards` | Standings | S › Week (ADV) | 6 |
+| ☑ | Top 5 weekly winners podium | `#top5-weekly-winners-container` | Standings (both modes) | S › Week top block | 6 |
+| ☑ | Leaderboard table + search | `#pool-leaderboard-table`, `#pool-leaderboard-tbody`, `#leaderboard-search-input`, `#leaderboard-count-label` | Standings | S rows (rank, name, W–L, GB; "You" tag) + search icon. Prior/Live/Final/Total/multiplier columns stay in ADV and in the row detail | 6 |
+| ☑ | Week / Season | — | Columns in one table | S segmented control | 6 |
+| ☑ | Watchlist editor (rename / meta) | `updateWatchlistMeta()` · `#standings-watchlist-box`, `#watchlist-editor-grid` | Standings | S › "Watchlist" section (ADV) | 6 |
+| ☑ | Set Picks in Table → | `switchMainView('condensed')` | Watchlist box | Same | 6 |
+| ☑ | Season archive hub | `#season-archive-hub-container` | Standings | M›Past weeks (the container is moved, not duplicated) | 7 |
+| ☑ | Past weeks select | `switchWeekArchive()` · `#week-archive-select`, `#drawer-week-archive-select` | Drawer | M›Past weeks | 7 |
+| ☑ | Load archived week slate & grades | `switchWeekArchive(id)` | Archive hub | M›Past weeks | 7 |
+| ☑ | Snapshot Current Week / Update Snapshot in Firestore / Archive Week (CM) | `saveCurrentWeekToArchive(true)` · `#btn-top-archive-wk` | Archive hub + drawer | M›Past weeks (CM) + Console | 7/8 |
+| ☑ | New Week Reset (Clear Pool Picks) | `resetPoolPicksForNewWeek(true)` | Standings toolbar | Console only, red confirm step. **Question 5** | 8 |
+| ☑ | Import Pool Data / Bot | `openUnifiedImportModal('csv'\|'bot'\|…)` · `#btn-top-import-bot` | Standings + drawer | S header (CM) + Console | 6/8 |
 | ☐ | Import Standings | `parseStandingsEmailText()` | Import Hub › Email | Import Hub (S header link) | 8 |
 | ☐ | Copy Recap & Standings Post | `copyCommishRecapPost()` | Console › Comms | Console + S (CM) | 6/8 |
 | ☐ | Download Master .CSV | `exportOfficialMasterCsv()` | Console › Master grid | M›Export (CM) + Console | 7/8 |
@@ -250,7 +258,7 @@ the item is verified at 390px and 1280px after that step.
 
 | ☐ | Feature | Handler / ID | Today | New home | Step |
 |---|---|---|---|---|---|
-| ☐ | Account modal | `openAuthModal()` / `closeAuthModal()` · `#auth-modal-*`, `#btn-auth-account` | Sidebar, drawer, pill | M›Account (opens the same modal as a sheet) | 7 |
+| ☑ | Account modal | `openAuthModal()` / `closeAuthModal()` · `#auth-modal-*`, `#btn-auth-account` | Sidebar, drawer, pill | M›Account (opens the same modal as a sheet) | 7 |
 | ☐ | Sign In / Create Account mode | `setAuthModalMode('signin'\|'signup')` | Auth modal | Same | 7 |
 | ☐ | Continue with Google / Mobile Redirect | `signInWithGoogleAccount(false\|true)` | Auth modal | Same | 7 |
 | ☐ | Email + password submit | `submitEmailPasswordAuth()` · `#auth-email-input`, `#auth-password-input`, `#auth-name-input` | Auth modal | Same | 7 |
@@ -260,7 +268,7 @@ the item is verified at 390px and 1280px after that step.
 | ☐ | Sign Out of Instance | `signOutAccountInstance()` | Auth modal | M›Account (red confirm) | 7 |
 | ☐ | Profile PIN modal | `submitPinModal()` / `closePinModal()` / `unlockProfileWithPrompt()` · `#pin-modal-*` | Modal | Same, restyled | 7 |
 | ☑ | Guest strip: Continue as Guest / Login / Make an Account (Keep My N Picks) / My Account / Switch / Pick Privacy | `renderSimpleGuestAccountBar()`, `startGuestPickingMode()`, `openAuthModalCarryingGuestPicks()` · `#simple-guest-account-strip` | Above picks | Slim banner above the Picks list | 2 |
-| ☐ | Commish Login | `quickSignInAsVerifiedCommissioner()` | Drawer | M›Account | 7 |
+| ☑ | Commish Login | `quickSignInAsVerifiedCommissioner()` | Drawer | M›Account | 7 |
 | ☐ | Admin instance override (CM) | `toggleAdminInstanceOverride()` | Auth modal | Same (CM) | 7 |
 | ☐ | Reset Player Password (CM) | `commissionerResetPlayerPassword()` · `#commish-reset-email-input` | Auth modal | Same + Console › Roster | 7/8 |
 | ☐ | Session persistence | localStorage `sat_auth_session_v16`, `sat_device_active_profile_v16`, `sat_device_test_sim_v16`, `sat_week7_official_v14` | — | Unchanged | — |
@@ -270,10 +278,10 @@ the item is verified at 390px and 1280px after that step.
 | ☐ | Feature | Handler | New home | Step |
 |---|---|---|---|---|
 | ☑ | **Theme: Dark (default) / Light** | **NEW**: `setAppTheme()` · localStorage `sat_theme_v1` · `html[data-theme]` | M›Settings | 1/7 |
-| ☐ | Advanced mode | `toggleSimpleUiMode()` | M›Settings | 7 |
-| ☐ | Show details inline (Cards + Injuries/L5) | `setSimpleCardLayoutStyle()` | M›Settings | 7 |
-| ☐ | Privacy: Hide my picks · Spy Shield/Blind · Full privacy & H2H settings | see §F | M›Settings | 7 |
-| ☐ | Live: Auto-poll · Field Sim (ADV) · Sync now · Force Firebase pull | see §I | M›Settings | 7 |
+| ☑ | Advanced mode | `toggleSimpleUiMode()` | M›Settings | 7 |
+| ☑ | Show details inline (Cards + Injuries/L5) | `setSimpleCardLayoutStyle()` | M›Settings | 7 |
+| ☑ | Privacy: Hide my picks · Spy Shield/Blind · Full privacy & H2H settings | see §F | M›Settings | 7 |
+| ☑ | Live: Auto-poll · Field Sim (ADV) · Sync now · Force Firebase pull | see §I | M›Settings | 7 |
 
 ## N. Commissioner Command Console (CM)
 
@@ -286,7 +294,7 @@ left as they are. Entry points: `#btn-commish-console` (top bar), drawer "Commis
 
 | ☐ | Section / control | Handler / ID | Step |
 |---|---|---|---|
-| ☐ | Tabs 1–7 | `#cm-tab-submissions/-mastersheet/-slate/-locks/-roster/-comms/-admin` | 8 |
+| ☑ | Tabs 1–7 | `#cm-tab-submissions/-mastersheet/-slate/-locks/-roster/-comms/-admin` | 8 |
 | ☐ | Mode pill | `#commish-mode-pill` | 8 |
 | ☐ | **1 Submissions**: Saved/Missing KPIs; filter All/Saved/Missing | `setCommishSubFilter('all'\|'submitted'\|'missing')` | 8 |
 | ☐ | 1: Send Wed/Thu Nudge (copies missing list) | `triggerWedThuAutomatedNudge()`, `copyMissingPlayersList()` | 8 |
@@ -313,7 +321,7 @@ left as they are. Entry points: `#btn-commish-console` (top bar), drawer "Commis
 | ☐ | **7 Multi-Commish & Admin Email**: Update Primary Email | `commishUpdatePrimaryEmail()` · `#commish-primary-email-input` | 8 |
 | ☐ | 7: Grant Role (text + member select) | `commishGrantRole()` · `#commish-new-role-input` | 8 |
 | ☐ | 7: Enable / Disable role | `commishToggleRoleEnabled()` | 8 |
-| ☐ | 7: Revoke | `commishRevokeRole()` (red confirm) | 8 |
+| ☑ | 7: Revoke | `commishRevokeRole()` (red confirm) | 8 |
 | ☐ | **Import / Bot Hub** tabs: Gmail .XLSX Bot · CSV / Excel · PDF Slate · Email / Standings · Cloud & Reset | `openUnifiedImportModal()`, `switchImportHubTab()` · `#hub-btn-bot/-csv/-pdf/-email/-cloud` | 8 |
 | ☐ | Bot: Sync All N picks to Firebase | `syncCurrentLoadedSheetToFirebase()` | 8 |
 | ☐ | Bot: Apps Script URL + Run Gmail Bot | `triggerAppsScriptGmailScraper()` · `#gas-webapp-url-input` | 8 |
@@ -322,7 +330,7 @@ left as they are. Entry points: `#btn-commish-console` (top bar), drawer "Commis
 | ☐ | Email: Import N Picks / Import Standings | `parseConfirmationEmailPicks()`, `parseStandingsEmailText()` | 8 |
 | ☐ | Cloud & Reset: Force Firebase Pull / Reset Optimal Picks | `pullFromFirebaseCloud()`, `hardResetToDefaults()` | 8 |
 | ☐ | Archive Week / Snapshot / Update Snapshot | `saveCurrentWeekToArchive(true)` | 8 |
-| ☐ | New Week Reset (Clear Pool Picks) | `resetPoolPicksForNewWeek(true)` (red confirm) | 8 |
+| ☑ | New Week Reset (Clear Pool Picks) | `resetPoolPicksForNewWeek(true)` (red confirm) | 8 |
 | ☐ | Bot health pill | `#bot-sync-pill` | 8 |
 
 ---

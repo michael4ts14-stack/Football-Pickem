@@ -1078,8 +1078,8 @@ function renderSettingsDrawerBody() {
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">' +
         '<button type="button" class="btn-sm ' + (!SIMPLE_UI_MODE ? 'active' : '') + '" onclick="toggleSimpleUiMode(); renderSettingsDrawerBody();">' + (SIMPLE_UI_MODE ? '🧠 Enable Advanced Mode' : '✨ Return to Simple Mode') + '</button>' +
         '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-weight:800;" onclick="closeSettingsDrawer(); openEvSimulatorDrawer();">🎲 Open EV Simulator</button>' +
-        '<button type="button" class="btn-sm ' + (SIMPLE_CARD_LAYOUT_STYLE === "condensed" ? 'active' : '') + '" onclick="setSimpleCardLayoutStyle(\'condensed\'); renderSettingsDrawerBody();">⚡ Condensed Simple View</button>' +
-        '<button type="button" class="btn-sm ' + (SIMPLE_CARD_LAYOUT_STYLE === "detailed" ? 'active' : '') + '" onclick="setSimpleCardLayoutStyle(\'detailed\'); renderSettingsDrawerBody();">🃏 Cards + Injuries/L5</button>' +
+        '<button type="button" class="btn-sm ' + (SIMPLE_CARD_LAYOUT_STYLE === "condensed" ? 'active' : '') + '" onclick="setSimpleCardLayoutStyle(\'condensed\'); renderSettingsDrawerBody();">Compact cards</button>' +
+        '<button type="button" class="btn-sm ' + (SIMPLE_CARD_LAYOUT_STYLE === "detailed" ? 'active' : '') + '" onclick="setSimpleCardLayoutStyle(\'detailed\'); renderSettingsDrawerBody();">Last 5 open</button>' +
       '</div>' +
     '</div>' +
 
@@ -1254,6 +1254,7 @@ renderCommissionerModalBody = function() {
         '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
           '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);font-weight:800;" onclick="commishAutoFillMissingPlayers(\'chalk\')">⚡ Auto-Fill Missing (' + missingCount + ')</button>' +
           '<button type="button" class="btn-sm" style="border-color:var(--amber);color:var(--warn);font-weight:800;" onclick="triggerWedThuAutomatedNudge()">⏰ Send Wed/Thu Nudge</button>' +
+          '<button type="button" class="btn-sm danger-btn" onclick="resetPoolPicksForNewWeek(true)" title="Clear all other pool members\' picks for the new week until the Friday/Saturday sheet arrives">New week reset (clear pool picks)</button>' +
           '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:900;" onclick="triggerSaturdayMorningMasterSheetBroadcast()">📊 Sat Reveal & Export CSV</button>' +
         '</div>' +
       '</div>' +

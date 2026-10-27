@@ -100,7 +100,7 @@ function openUnifiedImportModal(defaultTab) {
         '<div style="color:var(--text);margin-bottom:10px;">' + cloudStatusMsg + '</div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
           '<button class="btn-sm" style="background:var(--accent);color:var(--text);border:none;font-weight:800;padding:8px;" onclick="pullFromFirebaseCloud(); closeOppModal();">☁️ Force Firebase Pull</button>' +
-          '<button class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;padding:8px;" onclick="hardResetToDefaults(); closeOppModal();">🔄 Reset Optimal Picks</button>' +
+          '<button class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;padding:8px;" onclick="confirmDanger(\'Reset Michael and Kinyion to the recommended picks? This overwrites both profiles and saves to the cloud.\', \'Reset picks\', function() { hardResetToDefaults(); closeOppModal(); })">Reset Optimal Picks</button>' +
         '</div>' +
       '</div>' +
     '</div>';
