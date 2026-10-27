@@ -1,0 +1,557 @@
+var state = {
+  currentWeek: 8,
+  weekLabel: "Week 8",
+  michael: Object.assign(JSON.parse(JSON.stringify(WEEK7_OFFICIAL_MICHAEL)), { linkedMemberName: "Michael A" }),
+  kinyion: Object.assign(JSON.parse(JSON.stringify(WEEK7_OFFICIAL_KINYION)), { linkedMemberName: "Kinyion C" }),
+  test: { picks: {}, tiebreaker: "28-24", target: 20, linkedMemberName: "" },
+  customUsers: [],
+  compareTargetKey: "kinyion",
+  fridayNightRevealOverride: false,
+  profilePrivacy: {
+    michael: { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: true, autoUnhideFridayNight: true },
+    kinyion: { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: true, autoUnhideFridayNight: true },
+    test: { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: true, autoUnhideFridayNight: true }
+  },
+  watchlist: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_WATCHLIST)),
+  leaderboard: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_LEADERBOARD)),
+  poolMembers: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_POOL_MEMBERS)),
+  gasWebAppUrl: ""
+};
+
+var BLIND_MODE = false;
+var SESSION_UNLOCKED_PROFILES = { michael: true, kinyion: true, test: true };
+var EXPLICITLY_VIEW_UNLOCKED_PROFILES = {};
+
+function getProfileLinkedToMemberName(memberName) {
+  if (!memberName) return null;
+  var target = standardizeParticipantName(memberName).toLowerCase();
+  var allProfs = getAllUserProfiles();
+  for (var i = 0; i < allProfs.length; i++) {
+    var pf = allProfs[i];
+    var linked = pf.linkedMemberName || (pf.isBuiltIn && !pf.isSandbox ? pf.name : "");
+    if (linked && standardizeParticipantName(linked).toLowerCase() === target) {
+      return pf;
+    }
+    if (!pf.isBuiltIn && standardizeParticipantName(pf.name).toLowerCase() === target) {
+      return pf;
+    }
+  }
+  return null;
+}
+
+function findPoolMemberByName(memberName) {
+  if (!memberName || !state.poolMembers || !Array.isArray(state.poolMembers)) return null;
+  var target = standardizeParticipantName(memberName).toLowerCase();
+  for (var i = 0; i < state.poolMembers.length; i++) {
+    var pm = state.poolMembers[i];
+    if (pm && pm.name && standardizeParticipantName(pm.name).toLowerCase() === target) {
+      return pm;
+    }
+  }
+  return null;
+}
+
+function findLeaderboardEntryByName(memberName) {
+  if (!memberName || !state.leaderboard || !Array.isArray(state.leaderboard)) return null;
+  var target = standardizeParticipantName(memberName).toLowerCase();
+  for (var i = 0; i < state.leaderboard.length; i++) {
+    var lb = state.leaderboard[i];
+    if (lb && lb.name && standardizeParticipantName(lb.name).toLowerCase() === target) {
+      return lb;
+    }
+  }
+  return null;
+}
+
+function getLinkedMemberNameForProfile(profKey) {
+  if (profKey === "michael") {
+    return (state.michael && state.michael.linkedMemberName !== undefined) ? state.michael.linkedMemberName : "Michael A";
+  }
+  if (profKey === "kinyion") {
+    return (state.kinyion && state.kinyion.linkedMemberName !== undefined) ? state.kinyion.linkedMemberName : "Kinyion C";
+  }
+  if (profKey === "test") {
+    return (state.test && state.test.linkedMemberName) ? state.test.linkedMemberName : "";
+  }
+  if (state.customUsers && Array.isArray(state.customUsers)) {
+    for (var i = 0; i < state.customUsers.length; i++) {
+      if (state.customUsers[i].key === profKey) {
+        return state.customUsers[i].linkedMemberName || state.customUsers[i].name || "";
+      }
+    }
+  }
+  return "";
+}
+
+function isFridayNightOrWeekendCST() {
+  if (state.fridayNightRevealOverride === true) return true;
+  try {
+    var now = new Date();
+    var parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago",
+      weekday: "short",
+      hour: "numeric",
+      hour12: false
+    }).formatToParts(now);
+    var wkday = "", hr = 0;
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i].type === "weekday") wkday = parts[i].value;
+      if (parts[i].type === "hour") hr = parseInt(parts[i].value, 10) % 24;
+    }
+    // Friday night >= 5:00 PM CST (17:00), all day Saturday, or all day Sunday
+    if (wkday === "Sat" || wkday === "Sun") return true;
+    if (wkday === "Fri" && hr >= 17) return true;
+  } catch (e) {}
+  return false;
+}
+
+function showAppToast(msg, durationMs) {
+  var el = document.getElementById("app-toast-banner");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = "block";
+  if (window._appToastTimer) clearTimeout(window._appToastTimer);
+  window._appToastTimer = setTimeout(function() {
+    el.style.display = "none";
+  }, durationMs || 2600);
+}
+
+function isUserModalOpen() {
+  var bd = document.getElementById("opp-modal-backdrop");
+  var titleEl = document.getElementById("modal-team-title");
+  return !!(bd && bd.style.display === "flex" && titleEl && titleEl.textContent.indexOf("Profile") !== -1);
+}
+
+function refreshUserModalIfOpen() {
+  if (isUserModalOpen()) {
+    openUserAndPrivacyModal();
+  }
+}
+
+function hasLinkedSpreadsheetPicksArrived(profKey) {
+  // Only auto-unhide via spreadsheet if a fresh weekly spreadsheet was explicitly imported for the current week
+  // AND the user has not manually locked their profile!
+  if (!state.officialSheetSyncedForWeek || state.officialSheetSyncedForWeek !== state.currentWeek) {
+    return false;
+  }
+  var priv = (state.profilePrivacy && state.profilePrivacy[profKey]) || {};
+  if (priv.manualLockOverride) return false;
+  var linkedName = getLinkedMemberNameForProfile(profKey);
+  if (!linkedName) return false;
+  var pm = findPoolMemberByName(linkedName);
+  if (!pm || pm.awaitingSheet || !pm.picks) return false;
+  return hasSubmittedPicksForCurrentSlate(pm.picks, GAMES);
+}
+
+function getAutoUnhideReason(profKey, gameId) {
+  var priv = (state.profilePrivacy && state.profilePrivacy[profKey]) || {};
+  if (!priv.hidden) return null;
+  // If user manually locked this profile, only kickoff of a live/final game (if enabled) or explicit Friday Reveal Override unhides it
+  if (gameId && priv.revealAtKickoff !== false && isGameStartedOrFinal(gameId)) {
+    return "Kickoff";
+  }
+  if (state.fridayNightRevealOverride === true) {
+    return "Friday Reveal ON";
+  }
+  if (!priv.manualLockOverride) {
+    if (priv.autoUnhideOnSheet === true && hasLinkedSpreadsheetPicksArrived(profKey)) {
+      return "Spreadsheet Synced";
+    }
+    if (priv.autoUnhideFridayNight === true && isFridayNightOrWeekendCST()) {
+      return "Friday Night CST";
+    }
+  }
+  return null;
+}
+
+function syncLinkedProfilesWithLeaderboard() {
+  var allProfs = getAllUserProfiles();
+  for (var i = 0; i < allProfs.length; i++) {
+    var pf = allProfs[i];
+    if (!pf.linkedMemberName) continue;
+    var pm = findPoolMemberByName(pf.linkedMemberName);
+    var lb = findLeaderboardEntryByName(pf.linkedMemberName);
+    var latestPts = (lb && lb.priorPts !== undefined) ? (parseFloat(lb.priorPts) || 0) : ((pm && pm.priorPts !== undefined) ? (parseFloat(pm.priorPts) || 0) : pf.priorPts);
+    var latestRank = (lb && lb.rank) ? String(lb.rank) : ((pm && pm.priorRank) ? String(pm.priorRank) : pf.defaultRank);
+
+    if (!pf.isBuiltIn && state.customUsers) {
+      for (var c = 0; c < state.customUsers.length; c++) {
+        if (state.customUsers[c].key === pf.key) {
+          if (latestPts > 0) state.customUsers[c].priorPts = latestPts;
+          if (latestRank) state.customUsers[c].rank = latestRank;
+          break;
+        }
+      }
+    }
+    var delMap = state.deletedPicksByMember || {};
+    var isDeletedMember = !!(delMap[standardizeParticipantName(pf.linkedMemberName).toLowerCase()] || (pm && pm._picksCleared) || (state[pf.key] && state[pf.key]._picksCleared));
+    if (!isDeletedMember && pm && !pm.awaitingSheet && pm.picks && hasSubmittedPicksForCurrentSlate(pm.picks, GAMES)) {
+      if (state[pf.key] && (!state[pf.key]._manualEditsThisWeek)) {
+        state[pf.key].picks = Object.assign({}, state[pf.key].picks || {}, pm.picks);
+        if (pm.tiebreaker && pm.tiebreaker !== "—") state[pf.key].tiebreaker = pm.tiebreaker;
+      }
+    }
+  }
+}
+
+function ensureMultiUserAndPrivacyState() {
+  if (!state.customUsers || !Array.isArray(state.customUsers)) state.customUsers = [];
+  if (!state.profilePrivacy || typeof state.profilePrivacy !== "object") state.profilePrivacy = {};
+  if (state.michael && state.michael.linkedMemberName === undefined) state.michael.linkedMemberName = "Michael A";
+  if (state.kinyion && state.kinyion.linkedMemberName === undefined) state.kinyion.linkedMemberName = "Kinyion C";
+  if (!state.compareTargetKey) {
+    state.compareTargetKey = (activeProfile === "michael") ? "kinyion" : "michael";
+  }
+  var allProfs = getAllUserProfiles();
+  for (var i = 0; i < allProfs.length; i++) {
+    var pk = allProfs[i].key;
+    if (!state[pk]) state[pk] = { picks: {}, tiebreaker: "28-24", target: 20 };
+    if (!state[pk].picks) state[pk].picks = {};
+    if (!state.profilePrivacy[pk]) {
+      state.profilePrivacy[pk] = { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: false, autoUnhideFridayNight: false, manualLockOverride: false };
+    } else {
+      if (state.profilePrivacy[pk].revealAtKickoff === undefined) state.profilePrivacy[pk].revealAtKickoff = true;
+      if (state.profilePrivacy[pk].autoUnhideOnSheet === undefined) state.profilePrivacy[pk].autoUnhideOnSheet = false;
+      if (state.profilePrivacy[pk].autoUnhideFridayNight === undefined) state.profilePrivacy[pk].autoUnhideFridayNight = false;
+    }
+  }
+}
+
+function getAllUserProfiles() {
+  var mLinked = (state.michael && state.michael.linkedMemberName !== undefined) ? state.michael.linkedMemberName : "Michael A";
+  var kLinked = (state.kinyion && state.kinyion.linkedMemberName !== undefined) ? state.kinyion.linkedMemberName : "Kinyion C";
+  var tLinked = (state.test && state.test.linkedMemberName) ? state.test.linkedMemberName : "";
+
+  var mLb = findLeaderboardEntryByName(mLinked || "Michael A");
+  var kLb = findLeaderboardEntryByName(kLinked || "Kinyion C");
+
+  var list = [
+    { key: "michael", name: "Michael A", shortName: "Michael", icon: "👤", color: "#38bdf8", tabClass: "active-michael", btnClass: "m-active", selClass: "selected-michael", tagClass: "p-tag-m", priorPts: mLb ? (parseFloat(mLb.priorPts) || 111) : 111, defaultRank: mLb && mLb.rank ? mLb.rank : "T-64th", linkedMemberName: mLinked, isBuiltIn: true },
+    { key: "kinyion", name: "Kinyion", shortName: "Kinyion", icon: "👤", color: "#c084fc", tabClass: "active-kinyion", btnClass: "k-active", selClass: "selected-kinyion", tagClass: "p-tag-k", priorPts: kLb ? (parseFloat(kLb.priorPts) || 112) : 112, defaultRank: kLb && kLb.rank ? kLb.rank : "T-57th", linkedMemberName: kLinked, isBuiltIn: true },
+    { key: "test", name: "Test Sim", shortName: "Test", icon: "🧪", color: "#f59e0b", tabClass: "active-test", btnClass: "t-active", selClass: "selected-test", tagClass: "p-tag-test", priorPts: 0, defaultRank: "Sandbox", linkedMemberName: tLinked, isBuiltIn: true, isSandbox: true }
+  ];
+  if (state.customUsers && Array.isArray(state.customUsers)) {
+    for (var i = 0; i < state.customUsers.length; i++) {
+      var cu = state.customUsers[i];
+      if (!cu || !cu.key || !cu.name) continue;
+      var cuLinked = cu.linkedMemberName !== undefined ? cu.linkedMemberName : cu.name;
+      var cuLb = cuLinked ? findLeaderboardEntryByName(cuLinked) : null;
+      list.push({
+        key: cu.key,
+        name: cu.name,
+        shortName: cu.name.slice(0, 8),
+        icon: "👤",
+        color: cu.color || "#10b981",
+        tabClass: "active-custom",
+        btnClass: "c-active",
+        selClass: "selected-custom",
+        tagClass: "p-tag-custom",
+        priorPts: cuLb ? (parseFloat(cuLb.priorPts) || parseFloat(cu.priorPts) || 0) : (parseFloat(cu.priorPts) || 0),
+        defaultRank: (cuLb && cuLb.rank) ? cuLb.rank : (cu.rank || "Linked"),
+        linkedMemberName: cuLinked,
+        isBuiltIn: false
+      });
+    }
+  }
+  return list;
+}
+
+function getProfileMetaByKey(profKey) {
+  var list = getAllUserProfiles();
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].key === profKey) return list[i];
+  }
+  return list[0];
+}
+
+function isGameStartedOrFinal(gameId) {
+  if (!gameId) return false;
+  var ls = LIVE_SCORES[gameId];
+  return !!(ls && (ls.inProgress || ls.completed));
+}
+
+function getMyInstanceProfileKey() {
+  if (AUTH_SESSION && AUTH_SESSION.adminUnlock && activeProfile && activeProfile !== "test") {
+    return activeProfile;
+  }
+  if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
+    return AUTH_SESSION.boundProfileKey;
+  }
+  return (activeProfile && activeProfile !== "test") ? activeProfile : "michael";
+}
+
+function isMyOwnInstanceProfile(profKey) {
+  if (profKey === "test") return true;
+  if (AUTH_SESSION && AUTH_SESSION.adminUnlock) {
+    return profKey === activeProfile || profKey === AUTH_SESSION.boundProfileKey;
+  }
+  if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
+    return profKey === AUTH_SESSION.boundProfileKey;
+  }
+  return profKey === getMyInstanceProfileKey();
+}
+
+function isProfileHiddenFromViewer(profKey, gameId) {
+  ensureMultiUserAndPrivacyState();
+  // Your own bound profile and your personal Sandbox Sim are ALWAYS visible to YOU on your device!
+  if (isMyOwnInstanceProfile(profKey)) {
+    return false;
+  }
+  // If you turned on Spy Shield (Blind Mode), hide all other users' picks while you make yours
+  if (BLIND_MODE) {
+    return true;
+  }
+  var priv = state.profilePrivacy[profKey] || { hidden: false, revealAtKickoff: true, autoUnhideOnSheet: false, autoUnhideFridayNight: false };
+  if (!priv.hidden) {
+    return false;
+  }
+  // Check if automatic reveal conditions are met (e.g. Game Kickoff, Official Sheet Synced, or Friday 5PM CST)
+  if (getAutoUnhideReason(profKey, gameId)) {
+    return false;
+  }
+  // Otherwise, another user's hidden picks stay strictly hidden on your instance — NO PIN bypass!
+  return true;
+}
+
+function resolveCompareTargetDescriptor() {
+  ensureMultiUserAndPrivacyState();
+  var myKey = getMyInstanceProfileKey();
+  var key = state.compareTargetKey;
+  if (!key || key === activeProfile || key === myKey) {
+    key = (myKey === "michael") ? "kinyion" : "michael";
+    state.compareTargetKey = key;
+  }
+  if (String(key).indexOf("pm:") === 0) {
+    var pmName = String(key).slice(3);
+    var pm = findPoolMemberByName(pmName);
+    var lb = findLeaderboardEntryByName(pmName);
+    var linkedPf = getProfileLinkedToMemberName(pmName);
+    if (linkedPf && !linkedPf.isSandbox && linkedPf.key !== myKey) {
+      // Use live synced profile if that pool member has an active account instance
+      var lMeta = getProfileMetaByKey(linkedPf.key);
+      var lState = state[lMeta.key] || { picks: {} };
+      return {
+        key: lMeta.key,
+        isPoolMember: false,
+        name: lMeta.name,
+        shortName: lMeta.shortName,
+        icon: "👤",
+        color: lMeta.color || "#c084fc",
+        tagClass: lMeta.tagClass || "p-tag-k",
+        btnClass: lMeta.btnClass || "k-active",
+        priorPts: lMeta.priorPts || 0,
+        rank: lMeta.defaultRank || "",
+        picks: lState.picks || {},
+        hasPicks: true,
+        isHiddenForGame: function(gameId) { return isProfileHiddenFromViewer(lMeta.key, gameId); }
+      };
+    }
+    var hasPicks = pm && !pm.awaitingSheet && pm.picks && hasSubmittedPicksForCurrentSlate(pm.picks, GAMES);
+    return {
+      key: key,
+      isPoolMember: true,
+      name: pm ? pm.name : pmName,
+      shortName: (pm ? pm.name : pmName).slice(0, 9),
+      icon: "🏆",
+      color: "#facc15",
+      tagClass: "p-tag-compare",
+      btnClass: "w-active",
+      priorPts: lb ? (parseFloat(lb.priorPts) || 0) : (pm ? (parseFloat(pm.priorPts) || 0) : 0),
+      rank: lb && lb.rank ? lb.rank : (pm && pm.priorRank ? pm.priorRank : "Pool"),
+      picks: hasPicks ? pm.picks : {},
+      hasPicks: !!hasPicks,
+      isHiddenForGame: function() { return BLIND_MODE; }
+    };
+  }
+  var meta = getProfileMetaByKey(key);
+  var pState = state[meta.key] || { picks: {} };
+  return {
+    key: meta.key,
+    isPoolMember: false,
+    name: meta.name,
+    shortName: meta.shortName,
+    icon: meta.icon || "👤",
+    color: meta.color || "#c084fc",
+    tagClass: meta.tagClass || "p-tag-k",
+    btnClass: meta.btnClass || "k-active",
+    priorPts: meta.priorPts || 0,
+    rank: meta.defaultRank || "",
+    picks: pState.picks || {},
+    hasPicks: true,
+    isHiddenForGame: function(gameId) { return isProfileHiddenFromViewer(meta.key, gameId); }
+  };
+}
+
+function setCompareTarget(targetKey) {
+  if (!targetKey) return;
+  state.compareTargetKey = targetKey;
+  safeSetStorage("sat_device_compare_target_v16", targetKey);
+  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  renderAll();
+}
+
+function populateCompareTargetSelectors() {
+  var allProfs = getAllUserProfiles();
+  var myKey = getMyInstanceProfileKey();
+  var curTarget = state.compareTargetKey;
+  if (!curTarget || curTarget === activeProfile || curTarget === myKey) {
+    curTarget = (myKey === "michael") ? "kinyion" : "michael";
+    state.compareTargetKey = curTarget;
+  }
+
+  var opts = '<optgroup label="👤 Linked App Users (Live Sync)">';
+  for (var i = 0; i < allProfs.length; i++) {
+    var pf = allProfs[i];
+    if (pf.key === myKey || pf.isSandbox) continue;
+    var isHidden = isProfileHiddenFromViewer(pf.key, null);
+    var sel = (curTarget === pf.key) ? " selected" : "";
+    opts += '<option value="' + pf.key + '"' + sel + '>' + pf.icon + ' ' + pf.name + (isHidden ? ' (🔒 Hidden Pre-Kickoff)' : ' (⚡ Live Picks)') + '</option>';
+  }
+  opts += '</optgroup>';
+
+  if (state.poolMembers && state.poolMembers.length > 0) {
+    opts += '<optgroup label="🏆 All 89 Pool Leaderboard Participants">';
+    var sortedPm = state.poolMembers.slice().sort(function(a, b) {
+      return (parseFloat(b.priorPts) || 0) - (parseFloat(a.priorPts) || 0);
+    });
+    for (var j = 0; j < sortedPm.length; j++) {
+      var pm = sortedPm[j];
+      var pmKey = "pm:" + pm.name;
+      var hasSheet = !pm.awaitingSheet && pm.picks && hasSubmittedPicksForCurrentSlate(pm.picks, GAMES);
+      var selPm = (curTarget === pmKey) ? " selected" : "";
+      opts += '<option value="' + pmKey + '"' + selPm + '>🏆 ' + pm.name + ' (' + (pm.priorPts || 0) + 'p' + (hasSheet ? ' • ✓ Sheet In' : ' • ⏳ Pre-Sheet') + ')</option>';
+    }
+    opts += '</optgroup>';
+  }
+
+  var sel1 = document.getElementById("sidebar-compare-select");
+  if (sel1) sel1.innerHTML = opts;
+  var sel2 = document.getElementById("cond-compare-select");
+  if (sel2) sel2.innerHTML = opts;
+  var sel3 = document.getElementById("live-compare-select");
+  if (sel3) sel3.innerHTML = opts;
+  var sel4 = document.getElementById("standings-compare-select");
+  if (sel4) sel4.innerHTML = opts;
+}
+
+// Legacy PIN modal stubs disabled so no PIN can ever bypass account login!
+function openPinModal() { openAuthModal(); }
+function closePinModal() {
+  var bd = document.getElementById("pin-modal-backdrop");
+  if (bd) bd.style.display = "none";
+}
+function submitPinModal() { closePinModal(); }
+
+function unlockProfileWithPrompt(profKey, onSuccess) {
+  // Never allow unlocking another user's profile via PIN!
+  if (isMyOwnInstanceProfile(profKey)) {
+    if (onSuccess) onSuccess();
+    return true;
+  }
+  var otherMeta = getProfileMetaByKey(profKey);
+  showAppToast("🔒 " + otherMeta.name + "'s picks are hidden until kickoff on their account instance.");
+  return false;
+}
+
+function toggleCompareTargetPinUnlock() {
+  showAppToast("🔒 Other users' hidden picks cannot be unlocked from your device — they auto-reveal at kickoff!");
+}
+
+function toggleQuickLockActiveProfile() {
+  ensureMultiUserAndPrivacyState();
+  var myKey = getMyInstanceProfileKey();
+  var meta = getProfileMetaByKey(myKey);
+  var priv = state.profilePrivacy[myKey] || { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: false, autoUnhideFridayNight: false };
+  priv.hidden = !priv.hidden;
+  priv.manualLockOverride = priv.hidden;
+  state.profilePrivacy[myKey] = priv;
+  pushMultiUserAndPrivacyToFirebase();
+  renderAll();
+  refreshUserModalIfOpen();
+  showAppToast(priv.hidden
+    ? ("🔒 Your picks (" + meta.name + ") are now HIDDEN from other users until kickoff! (Still visible to you)")
+    : ("👁️ Your picks (" + meta.name + ") are now PUBLIC to other users."));
+}
+
+function toggleFridayNightRevealOverride() {
+  state.fridayNightRevealOverride = !state.fridayNightRevealOverride;
+  pushMultiUserAndPrivacyToFirebase();
+  renderAll();
+  refreshUserModalIfOpen();
+}
+
+function toggleBlindMode() {
+  BLIND_MODE = !BLIND_MODE;
+  var topBtn = document.getElementById("btn-blind-mode");
+  if (topBtn) {
+    topBtn.textContent = BLIND_MODE ? "🙈 Spy Shield: ON" : "👁️ Spy Shield: OFF";
+    topBtn.className = "btn-sm" + (BLIND_MODE ? " active" : "");
+  }
+  var sbBtn = document.getElementById("btn-sidebar-blind");
+  if (sbBtn) {
+    sbBtn.textContent = BLIND_MODE ? "🙈 Blind: ON" : "🙈 Blind";
+    sbBtn.className = "btn-sm" + (BLIND_MODE ? " active" : "");
+  }
+  showAppToast(BLIND_MODE ? "🙈 Spy Shield ON: Other users' picks hidden!" : "👁️ Spy Shield OFF");
+  renderAll();
+}
+
+function cycleNextActiveProfile() {
+  var myKey = getMyInstanceProfileKey();
+  var nextKey = (activeProfile === "test") ? myKey : "test";
+  switchProfile(nextKey);
+}
+
+function pushMultiUserAndPrivacyToFirebase() {
+  if (isApplyingRemoteUpdate) return;
+  ensureMultiUserAndPrivacyState();
+  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  // Only push metadata (customUsers registry + profilePrivacy) and the current active profile's picks
+  // so one device NEVER overwrites another user's picks!
+  var payload = {
+    customUsers: state.customUsers || [],
+    profilePrivacy: state.profilePrivacy || {},
+    fridayNightRevealOverride: !!state.fridayNightRevealOverride,
+    updatedAt: new Date().toISOString()
+  };
+  if (activeProfile && activeProfile !== "test" && state[activeProfile]) {
+    payload[activeProfile] = state[activeProfile];
+  }
+  if (fsDb) {
+    try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }); } catch (e) {}
+  }
+  if (activeProfile && activeProfile !== "test") {
+    pushProfileToFirebase(activeProfile);
+  }
+}
+var MEMORY_STORE = {};
+function safeGetStorage(key) {
+  try {
+    var ls = window["local" + "Storage"];
+    return ls ? ls.getItem(key) : (MEMORY_STORE[key] || null);
+  } catch (e) {
+    return MEMORY_STORE[key] || null;
+  }
+}
+function safeSetStorage(key, val) {
+  MEMORY_STORE[key] = val;
+  try {
+    var ls = window["local" + "Storage"];
+    if (ls) ls.setItem(key, val);
+  } catch (e) {}
+}
+
+try {
+  if (typeof pdfjsLib !== "undefined") {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+} catch (e) {}
+
+function findGameById(id) {
+  var targetId = Number(id);
+  for (var i = 0; i < GAMES.length; i++) {
+    if (Number(GAMES[i].id) === targetId) return GAMES[i];
+  }
+  return null;
+}
+

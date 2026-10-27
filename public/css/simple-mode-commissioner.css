@@ -1,0 +1,482 @@
+  /* === V16.5 UPGRADE: SIMPLE PLAYER VIEW MODE & COMMISSIONER COMMAND SUITE === */
+  .simple-mode-btn-active {
+    background: linear-gradient(90deg, #10b981, #059669) !important;
+    border-color: #6ee7b7 !important;
+    color: #000 !important;
+    font-weight: 900 !important;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+  }
+  .commish-top-btn {
+    background: linear-gradient(90deg, #b45309, #d97706) !important;
+    border-color: #fde68a !important;
+    color: #fff !important;
+    font-weight: 800 !important;
+  }
+  #commish-announcement-banner {
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.2), rgba(2, 132, 199, 0.2));
+    border-bottom: 1px solid rgba(250, 204, 21, 0.45);
+    color: #fef08a;
+    padding: 7px 14px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    display: none;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  #simple-mode-tiebreaker-bar {
+    display: none;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.98));
+    border: 1px solid #38bdf888;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+  .simple-guest-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 9px;
+    padding: 8px 11px;
+  }
+  .top5-weekly-box {
+    background: linear-gradient(180deg, rgba(6, 95, 70, 0.22), rgba(15, 23, 42, 0.95));
+    border: 1px solid #10b98188;
+    border-radius: 11px;
+    padding: 12px;
+    margin-bottom: 14px;
+  }
+  .top5-podium-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .top5-podium-card {
+    background: var(--card);
+    border: 1px solid var(--border-muted);
+    border-radius: 9px;
+    padding: 9px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .top5-podium-card.rank-1 {
+    border-color: var(--gold);
+    background: linear-gradient(180deg, rgba(250, 204, 21, 0.14), rgba(19, 28, 46, 0.96));
+    box-shadow: 0 0 12px rgba(250, 204, 21, 0.2);
+  }
+  /* When Simple View is ON, hide all heavy analytics/EV/simulator extras and center a clean single-column layout */
+  body.simple-ui-mode .layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    max-width: 960px !important;
+  }
+  body.simple-ui-mode #main-sidebar {
+    display: none !important;
+  }
+  body.simple-ui-mode #simple-mode-tiebreaker-bar {
+    display: flex !important;
+  }
+  body.simple-ui-mode #tab-mode-condensed,
+  body.simple-ui-mode #mnav-condensed,
+  body.simple-ui-mode #mnav-drawer,
+  body.simple-ui-mode #btn-demo-field-toggle,
+  body.simple-ui-mode #btn-blind-mode,
+  body.simple-ui-mode #top-risk-meter,
+  body.simple-ui-mode #week-archive-select,
+  body.simple-ui-mode #btn-top-archive-wk,
+  body.simple-ui-mode #btn-top-import-bot,
+  body.simple-ui-mode #btn-toggle-all-ins,
+  body.simple-ui-mode #flt-plusev,
+  body.simple-ui-mode #flt-leverage,
+  body.simple-ui-mode #flt-sway,
+  body.simple-ui-mode #flt-diffs {
+    display: none !important;
+  }
+  body.simple-ui-mode .mobile-bottom-nav {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  body.simple-ui-mode .own-bar-wrap,
+  body.simple-ui-mode .rationale-box,
+  body.simple-ui-mode .shadow-badge-row,
+  body.simple-ui-mode .sway-banner,
+  body.simple-ui-mode .badge-leverage,
+  body.simple-ui-mode .badge-plus-ev-glow,
+  body.simple-ui-mode .badge-cliff-trap,
+  body.simple-ui-mode .badge-ev,
+  body.simple-ui-mode .wl-defense-badge,
+  body.simple-ui-mode .wl-offense-badge,
+  body.simple-ui-mode .game-header .watchlist-pill,
+  body.simple-ui-mode .team-meta,
+  body.simple-ui-mode .insights-grid,
+  body.simple-ui-mode .sub-toggles button:first-child {
+    display: none !important;
+  }
+  body.simple-ui-mode #automated-grading-cards,
+  body.simple-ui-mode #monte-carlo-sim-container,
+  body.simple-ui-mode #season-archive-hub-container,
+  body.simple-ui-mode #standings-watchlist-box,
+  body.simple-ui-mode #standings-toolbar-actions {
+    display: none !important;
+  }
+  #commish-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.9);
+    backdrop-filter: blur(8px);
+    z-index: 2700;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+  #commish-modal-box {
+    background: #0f172a;
+    border: 2px solid #f59e0b;
+    border-radius: 16px;
+    max-width: 1060px;
+    width: 100%;
+    padding: 16px;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95);
+  }
+  .commish-kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .commish-kpi {
+    background: var(--panel-alt);
+    border: 1px solid var(--border-muted);
+    border-radius: 9px;
+    padding: 8px 10px;
+  }
+
+
+  /* === V16.7 UPGRADE: SLIDE-OUT DRAWERS, CONDENSED SIMPLE VIEW, REVIEW CHECKLIST & ROLE GATING === */
+  .commish-only-hidden {
+    display: none !important;
+  }
+  .topbar {
+    position: sticky; top: 0; z-index: 100; background: rgba(11, 17, 32, 0.97);
+    backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-muted); padding: 8px 12px;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .layout.sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr) !important;
+    max-width: 1180px !important;
+  }
+  .layout.sidebar-collapsed #main-sidebar {
+    display: none !important;
+  }
+  .sidebar {
+    position: sticky;
+    top: 60px;
+    max-height: calc(100vh - 74px);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 4px;
+    scrollbar-width: thin;
+  }
+  /* Keep mobile bottom nav 5 columns in both Simple and Advanced modes */
+  body.simple-ui-mode .mobile-bottom-nav {
+    grid-template-columns: repeat(5, 1fr) !important;
+  }
+  body.simple-ui-mode #mnav-condensed,
+  body.simple-ui-mode #mnav-drawer,
+  body.simple-ui-mode #tab-mode-condensed {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* Slide-Out Drawers (Settings Menu & EV Simulator) */
+  .slideout-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.82);
+    backdrop-filter: blur(6px);
+    z-index: 2800;
+    display: none;
+    justify-content: flex-end;
+    align-items: stretch;
+  }
+  .slideout-drawer {
+    background: #0b1120;
+    border-left: 2px solid var(--accent);
+    width: min(440px, 94vw);
+    height: 100vh;
+    overflow-y: auto;
+    padding: 16px 14px 90px 14px;
+    box-shadow: -16px 0 45px rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    animation: slideInRight 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .slideout-drawer.ev-sim-wide {
+    width: min(720px, 96vw);
+    border-left-color: #10b981;
+  }
+  @keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0.5; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  .drawer-section {
+    background: var(--panel);
+    border: 1px solid var(--border-muted);
+    border-radius: 11px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .drawer-section-title {
+    font-size: 0.75rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+
+  /* Condensed Simple View (Clean Matchup + Monday Odds + Pick Choice + Multiplier) */
+  .simple-condensed-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .simple-cond-card {
+    background: var(--card);
+    border: 1px solid var(--border-muted);
+    border-radius: 11px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    transition: border-color 0.15s;
+  }
+  .simple-cond-card.mult-2x { border-left: 4px solid var(--amber); }
+  .simple-cond-card.mult-3x { border-left: 4px solid var(--red); }
+  .simple-cond-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 210px;
+    flex: 1;
+  }
+  .simple-cond-matchup {
+    font-size: 0.88rem;
+    font-weight: 800;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .simple-cond-meta {
+    font-size: 0.72rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .simple-cond-picks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    min-width: 260px;
+    flex: 1;
+  }
+  @media (max-width: 640px) {
+    .simple-cond-card {
+      flex-direction: column;
+      align-items: stretch;
+      padding: 9px 10px;
+      gap: 7px;
+    }
+    .simple-cond-picks {
+      min-width: 0;
+      width: 100%;
+    }
+  }
+  .simple-pick-btn {
+    background: var(--panel-alt);
+    border: 2px solid var(--border-muted);
+    border-radius: 9px;
+    padding: 8px 10px;
+    color: var(--text);
+    font-size: 0.8rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.14s;
+    text-align: left;
+  }
+  .simple-pick-btn:hover { border-color: #64748b; }
+  .simple-pick-btn.picked {
+    border-color: var(--green);
+    background: rgba(16, 185, 129, 0.18);
+    color: #fff;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+  }
+  .simple-pick-btn.locked-disabled {
+    opacity: 0.82;
+    cursor: not-allowed;
+  }
+
+  /* Multi-Buy-In Entry Switcher Pills */
+  .entry-switcher-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 8px;
+  }
+  .entry-pill-btn {
+    background: var(--panel-alt);
+    border: 1px solid var(--border-muted);
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.71rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .entry-pill-btn.active {
+    background: linear-gradient(90deg, #0284c7, #4f46e5);
+    border-color: #38bdf8;
+    color: #fff;
+  }
+
+  /* Commissioner Active Edit Bar */
+  #commish-active-edit-bar {
+    display: none;
+    background: linear-gradient(90deg, rgba(180, 83, 9, 0.28), rgba(15, 23, 42, 0.96));
+    border: 2px solid #f59e0b;
+    border-radius: 11px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Compact Review Checklist Modal */
+  #review-checklist-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 7, 18, 0.88);
+    backdrop-filter: blur(8px);
+    z-index: 2750;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+  #review-checklist-box {
+    background: #0f172a;
+    border: 2px solid #10b981;
+    border-radius: 16px;
+    max-width: 780px;
+    width: 100%;
+    padding: 16px;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95);
+  }
+
+  /* Master Spreadsheet Grid inside Commissioner Console */
+  .master-sheet-wrap {
+    max-height: 440px;
+    overflow: auto;
+    border: 1px solid var(--border-muted);
+    border-radius: 10px;
+    background: #090d16;
+  }
+  .master-sheet-table {
+    width: max-content;
+    min-width: 100%;
+    border-collapse: collapse;
+    font-size: 0.7rem;
+  }
+  .master-sheet-table th, .master-sheet-table td {
+    padding: 5px 7px;
+    border: 1px solid rgba(255,255,255,0.07);
+    text-align: center;
+    white-space: nowrap;
+  }
+  .master-sheet-table th {
+    position: sticky;
+    top: 0;
+    background: #1e293b;
+    z-index: 4;
+    color: #cbd5e1;
+    font-weight: 800;
+  }
+  .master-sheet-table th:first-child,
+  .master-sheet-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    background: #111827;
+    text-align: left;
+    font-weight: 800;
+    box-shadow: 2px 0 6px rgba(0,0,0,0.5);
+  }
+  .master-sheet-table th:first-child {
+    z-index: 6;
+    background: #1e293b;
+  }
+
+  /* Responsive Mobile Commissioner Modal & Topbar */
+  @media (max-width: 640px) {
+    #commish-modal-backdrop, #review-checklist-backdrop {
+      padding: 0;
+      align-items: flex-end;
+    }
+    #commish-modal-box, #review-checklist-box {
+      border-radius: 16px 16px 0 0;
+      border-bottom: none;
+      max-height: 94vh;
+      padding: 12px 10px 30px 10px;
+    }
+    #commish-modal-box .hub-tabs {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 6px;
+      scrollbar-width: none;
+    }
+    #commish-modal-box .hub-tabs::-webkit-scrollbar { display: none; }
+    #commish-modal-box .hub-tab-btn {
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+  }
+
