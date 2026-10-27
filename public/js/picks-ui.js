@@ -81,25 +81,35 @@ function gameStatusHtml(g) {
 }
 
 // ---------- Pick cards ----------
-function teamPickButtonHtml(g, isAway, pickedName, isLocked) {
+function teamPickButtonHtml(g, isAway, pickedName, isLocked, ownInfo) {
   var name = isAway ? g.away : g.home;
   var pts = isAway ? (g.mondayAwayPts || g.awayPts || 1) : (g.mondayHomePts || g.homePts || 1);
+  var prob = isAway ? g.awayProb : g.homeProb;
   var rec = parseTeamRecord(isAway ? g.awayRec : g.homeRec);
   var spread = spreadForTeam(g, name);
   var subParts = [];
   if (rec.rank) subParts.push("#" + rec.rank);
   if (rec.record) subParts.push(rec.record);
   if (spread) subParts.push(spread);
+
+  // Stats line: win % + multiplier for everyone; EV and leverage in Advanced mode.
+  var stats = [];
+  if (typeof prob === "number") stats.push('<span>' + Math.round(prob * 100) + '% win</span>');
+  if (!SIMPLE_UI_MODE) {
+    if (typeof prob === "number") stats.push('<span>EV ' + (prob * (isAway ? g.awayPts : g.homePts)).toFixed(2) + '</span>');
+    var lev = ownInfo ? (isAway ? ownInfo.awayLev : ownInfo.homeLev) : 0;
+    if (lev >= 10) stats.push('<span>+' + lev + '% lev</span>');
+  }
+
   var picked = !!pickedName && isSameTeamPick(pickedName, name, g);
-  var label = (picked ? "Picked: " : "Pick ") + name + (pts > 1 ? ", worth " + pts + " points" : "");
+  var label = (picked ? "Picked: " : "Pick ") + name + ", " + pts + "x" + (typeof prob === "number" ? ", " + Math.round(prob * 100) + "% to win" : "");
   return '<button type="button" class="team-pick ' + (isAway ? 'is-away' : 'is-home') + (picked ? ' is-picked' : '') + (isLocked ? ' is-locked' : '') + '"' +
       ' aria-pressed="' + picked + '" aria-label="' + escapeShellHtml(label) + '" onclick="pickSide(' + g.id + ', ' + (isAway ? 1 : 2) + ')">' +
     teamLogoHtml(g, isAway) +
     '<span class="team-pick-text">' +
       '<span class="team-pick-name">' + escapeShellHtml(name) + '</span>' +
-      '<span class="team-pick-sub">' + escapeShellHtml(subParts.join(" · ")) +
-        (pts > 1 ? (subParts.length ? ' · ' : '') + '<span class="pts-tag">' + pts + ' pts</span>' : '') +
-      '</span>' +
+      '<span class="team-pick-sub">' + escapeShellHtml(subParts.join(" · ")) + '</span>' +
+      '<span class="team-pick-stats"><span class="mult-badge mult-' + pts + '">' + pts + 'x</span>' + stats.join("") + '</span>' +
     '</span>' +
   '</button>';
 }
@@ -116,7 +126,17 @@ function countInjuryFlags(g) {
   return { out: out, q: q };
 }
 
-function gamePassesSimpleFilter(g, myPick, q) {
+// Head-to-head target's pick for one game: { name, text } (respects their privacy settings).
+function h2hPickForGame(cmp, g) {
+  if (!cmp) return null;
+  var hiddenForGame = cmp.isHiddenForGame ? cmp.isHiddenForGame(g.id) : false;
+  if (hiddenForGame) return { name: cmp.shortName || cmp.name, text: "Hidden", pick: null };
+  var pick = cmp.hasPicks ? getResolvedPickForGame(cmp.picks, g, !cmp.isPoolMember) : null;
+  return { name: cmp.shortName || cmp.name, text: pick || "No pick yet", pick: pick };
+}
+
+// Same rules as the original research-card filters, plus Missing.
+function gamePassesPicksFilter(g, myPick, q, ownInfo, h2h) {
   var aPts = g.mondayAwayPts || g.awayPts || 1;
   var hPts = g.mondayHomePts || g.homePts || 1;
   var maxPts = Math.max(aPts, hPts);
@@ -127,9 +147,22 @@ function gamePassesSimpleFilter(g, myPick, q) {
     var flags = countInjuryFlags(g);
     if (!(g.keyInjHeader || computeKeyInjHeaderFromLists(g)) && flags.out === 0 && flags.q === 0) return false;
   }
+  if (currentFilter === "plusev" || currentFilter === "ev") {
+    var awayEV = g.awayProb * g.awayPts, homeEV = g.homeProb * g.homePts;
+    var plusEvDog = (g.awayPts > 1 && awayEV >= 0.65) || (g.homePts > 1 && homeEV >= 0.65);
+    var tier = String(g.tier || "");
+    if (!(plusEvDog || tier.indexOf("Multiplier") !== -1 || tier.indexOf("Sharp") !== -1 || tier.indexOf("Contrarian") !== -1)) return false;
+  }
+  if (currentFilter === "leverage" && !(ownInfo && ownInfo.isHighLeverage)) return false;
+  if (currentFilter === "sway" && !g.sway && !g.cliffTrap) return false;
+  if (currentFilter === "diffs") {
+    if (!myPick || !h2h || !h2h.pick || isSameTeamPick(myPick, h2h.pick, g)) return false;
+  }
   if (q) {
-    var hay = (g.away + " " + g.home + " " + g.awayCode + " " + g.homeCode + " " + (g.mondayPoolLine || g.poolLine || "") + " " +
-      (g.awayInj || []).map(function(x) { return x.p || ""; }).join(" ") + " " + (g.homeInj || []).map(function(x) { return x.p || ""; }).join(" ")).toLowerCase();
+    var l5Opps = getTeamLog(g.away).l5.concat(getTeamLog(g.home).l5).map(function(x) { return x.opp; }).join(" ");
+    var hay = (g.away + " " + g.home + " " + g.awayCode + " " + g.homeCode + " " + (g.mondayPoolLine || g.poolLine || "") + " " + l5Opps + " " + (g.rationale || "") + " " +
+      (g.awayInj || []).map(function(x) { return (x.p || "") + " " + (x.note || ""); }).join(" ") + " " +
+      (g.homeInj || []).map(function(x) { return (x.p || "") + " " + (x.note || ""); }).join(" ")).toLowerCase();
     if (hay.indexOf(q) === -1) return false;
   }
   return true;
@@ -142,30 +175,55 @@ function renderPickCardsHtml() {
   var picks = getMyPicksMap();
   var hidden = isProfileHiddenFromViewer(activeProfile, null);
   var userLocked = isCurrentProfileManuallyLocked();
-  var detailed = (SIMPLE_CARD_LAYOUT_STYLE === "detailed");
+  var cmp = null;
+  try { cmp = resolveCompareTargetDescriptor(); } catch (e) {}
+  var openPanels = (SIMPLE_CARD_LAYOUT_STYLE === "detailed");
   var html = "";
 
   for (var i = 0; i < GAMES.length; i++) {
     var g = GAMES[i];
     var myPick = hidden ? null : getResolvedPickForGame(picks, g, false);
-    if (!gamePassesSimpleFilter(g, myPick, q)) continue;
+    var ownInfo = null;
+    try { ownInfo = getGamePoolOwnership(g); } catch (e1) {}
+    var h2h = h2hPickForGame(cmp, g);
+    if (!gamePassesPicksFilter(g, myPick, q, ownInfo, h2h)) continue;
+
     var commishLocked = isGameLockedByCommissioner(g.id);
     var locked = commishLocked || userLocked;
     var k = parseKickParts(g.kick);
     var matchup = g.away + " at " + g.home;
+    var flags = countInjuryFlags(g);
+    var commonMap = getCommonOpponentsMap(g.away, g.home);
+    var commonCount = Object.keys(commonMap).length;
+    var ls = LIVE_SCORES[g.id];
 
-    var extras = "";
-    if (detailed) {
-      var flags = countInjuryFlags(g);
-      var commonMap = getCommonOpponentsMap(g.away, g.home);
-      var injLabel = "Injuries" + (flags.out ? " · " + flags.out + " out" : (flags.q ? " · " + flags.q + " questionable" : ""));
-      extras =
-        '<div class="pick-card-extras">' +
-          '<button type="button" class="link-btn" onclick="toggleCardIdx(' + g.id + ', 3)">' + injLabel + '</button>' +
-          '<button type="button" class="link-btn" onclick="toggleCardIdx(' + g.id + ', 2)">Last 5</button>' +
-        '</div>' +
-        '<div id="inj-' + g.id + '" class="dual-panel ' + (showAllInj ? '' : 'hidden') + '">' + renderInjColumn(g.away, g.awayInj) + renderInjColumn(g.home, g.homeInj) + '</div>' +
-        '<div id="l5-' + g.id + '" class="dual-panel ' + (showAllL5 ? '' : 'hidden') + '">' + renderL5Column(g.away, g.awayRec, commonMap) + renderL5Column(g.home, g.homeRec, commonMap) + '</div>';
+    // Pool split + head-to-head, always visible.
+    var infoParts = [];
+    if (ownInfo && ownInfo.total) {
+      infoParts.push('<span class="card-info-item"><span class="card-info-label">Pool</span> ' +
+        escapeShellHtml(g.awayCode) + ' ' + ownInfo.awayPct + '% · ' + escapeShellHtml(g.homeCode) + ' ' + ownInfo.homePct + '%</span>');
+    }
+    if (h2h) {
+      var isDiff = !!(myPick && h2h.pick && !isSameTeamPick(myPick, h2h.pick, g));
+      infoParts.push('<span class="card-info-item"><span class="card-info-label">' + escapeShellHtml(h2h.name) + '</span> ' + escapeShellHtml(h2h.text) +
+        (isDiff ? ' <span class="diff-tag">Diff</span>' : '') + '</span>');
+    }
+    var poolBar = (ownInfo && ownInfo.total)
+      ? '<div class="pool-bar" aria-hidden="true"><span style="width:' + ownInfo.awayPct + '%"></span></div>'
+      : '';
+
+    // Advanced-only flags on the meta row.
+    var advFlags = "";
+    if (!SIMPLE_UI_MODE) {
+      if (g.sway) advFlags += '<span class="card-flag">Sway</span>';
+      if (g.cliffTrap) advFlags += '<span class="card-flag">Trap</span>';
+      if (ownInfo && ownInfo.isHighLeverage) advFlags += '<span class="card-flag">Leverage ' + escapeShellHtml(ownInfo.bestLevCode) + '</span>';
+    }
+
+    var injLabel = "Injuries" + (flags.out ? " · " + flags.out + " out" : (flags.q ? " · " + flags.q + " questionable" : ""));
+    var fieldHtml = "";
+    if (!SIMPLE_UI_MODE && ((ls && (ls.inProgress || ls.completed)) || DEMO_FIELD_PREVIEW)) {
+      try { fieldHtml = '<div class="card-field">' + renderInteractiveFieldTrackerHtml(g, ls || null) + '</div>'; } catch (e2) {}
     }
 
     html +=
@@ -173,15 +231,26 @@ function renderPickCardsHtml() {
         '<button type="button" class="pick-card-meta" onclick="openGameDetail(' + g.id + ')" aria-label="Details for ' + escapeShellHtml(matchup) + '">' +
           gameStatusHtml(g) +
           '<span class="pick-card-net">' +
+            advFlags +
             (commishLocked ? '<span class="lock-flag"><i data-lucide="lock"></i>Locked</span>' : '') +
             escapeShellHtml(k.net) + '<i data-lucide="chevron-right"></i>' +
           '</span>' +
         '</button>' +
         '<div class="pick-card-teams">' +
-          teamPickButtonHtml(g, true, myPick, locked) +
-          teamPickButtonHtml(g, false, myPick, locked) +
+          teamPickButtonHtml(g, true, myPick, locked, ownInfo) +
+          teamPickButtonHtml(g, false, myPick, locked, ownInfo) +
         '</div>' +
-        extras +
+        poolBar +
+        (infoParts.length ? '<div class="card-info">' + infoParts.join("") + '</div>' : '') +
+        '<div class="pick-card-extras">' +
+          '<button type="button" class="link-btn" onclick="toggleCardIdx(' + g.id + ', 3)">' + injLabel + '</button>' +
+          '<button type="button" class="link-btn" onclick="toggleCardIdx(' + g.id + ', 2)">Last 5' + (commonCount ? ' · ' + commonCount + ' common' : '') + '</button>' +
+          (!SIMPLE_UI_MODE ? '<button type="button" class="link-btn" onclick="toggleCardIdx(' + g.id + ', 1)">Insights</button>' : '') +
+        '</div>' +
+        '<div id="inj-' + g.id + '" class="dual-panel ' + ((showAllInj || openPanels) ? '' : 'hidden') + '">' + renderInjColumn(g.away, g.awayInj) + renderInjColumn(g.home, g.homeInj) + '</div>' +
+        '<div id="l5-' + g.id + '" class="dual-panel ' + ((showAllL5 || openPanels) ? '' : 'hidden') + '">' + renderL5Column(g.away, g.awayRec, commonMap) + renderL5Column(g.home, g.homeRec, commonMap) + '</div>' +
+        (!SIMPLE_UI_MODE ? renderInsightsPanel(g) : '') +
+        fieldHtml +
       '</article>';
   }
   if (!html) {
@@ -353,9 +422,21 @@ function renderGameDetailSheet() {
     ? '<button type="button" class="tool-btn" onclick="closeGameDetail(); openFieldTheaterModal(' + g.id + ')"><i data-lucide="radio"></i><span>Open GameCast</span></button>'
     : '<p class="muted-note">GameCast opens at kickoff.</p>';
 
+  var sheetOwn = null;
+  try { sheetOwn = getGamePoolOwnership(g); } catch (e3) {}
   var insightsHtml = "";
   if (!SIMPLE_UI_MODE) {
-    insightsHtml = '<section class="sheet-section"><h3 class="sheet-h">Insights</h3>' +
+    var recLine = [];
+    if (g.rec) recLine.push('<div class="kv"><span>Recommended (Gemini)</span><strong>' + escapeShellHtml(g.rec) + '</strong></div>');
+    if (g.grokPick || g.rec) recLine.push('<div class="kv"><span>Recommended (Grok)</span><strong>' + escapeShellHtml(g.grokPick || g.rec) + '</strong></div>');
+    insightsHtml = (g.sway || g.cliffTrap
+        ? '<section class="sheet-section"><h3 class="sheet-h">Sway alert</h3>' +
+            (g.sway ? '<p><strong>' + escapeShellHtml(g.sway.title || "") + '</strong> ' + escapeShellHtml(g.sway.detail || "") + '</p>' : '') +
+            (g.cliffTrap ? '<p class="sheet-note">' + escapeShellHtml(g.cliffTrap) + '</p>' : '') +
+          '</section>'
+        : '') +
+      '<section class="sheet-section"><h3 class="sheet-h">Picks to consider</h3>' + recLine.join("") + '</section>' +
+      '<section class="sheet-section"><h3 class="sheet-h">Insights</h3>' +
       renderInsightsPanel(g).replace(/\sid="ins-\d+"/, "").replace(/\bhidden\b/, "") +
       (g.rationale ? '<p class="sheet-note">' + g.rationale + '</p>' : '') +
     '</section>';
@@ -363,7 +444,7 @@ function renderGameDetailSheet() {
 
   body.innerHTML =
     '<p class="sheet-meta">' + escapeShellHtml([(k.day ? k.day + " " : "") + k.time, k.net, g.mondayPoolLine || g.poolLine].filter(Boolean).join(" · ")) + '</p>' +
-    '<div class="pick-card-teams sheet-teams">' + teamPickButtonHtml(g, true, myPick, locked) + teamPickButtonHtml(g, false, myPick, locked) + '</div>' +
+    '<div class="pick-card-teams sheet-teams">' + teamPickButtonHtml(g, true, myPick, locked, sheetOwn) + teamPickButtonHtml(g, false, myPick, locked, sheetOwn) + '</div>' +
     '<section class="sheet-section"><h3 class="sheet-h">Head-to-head</h3>' + (h2hHtml || '<p class="muted-note">Pick a compare target in Advanced mode.</p>') + ownHtml + '</section>' +
     '<section class="sheet-section"><h3 class="sheet-h">Injuries and outs</h3><div class="dual-panel">' + renderInjColumn(g.away, g.awayInj) + renderInjColumn(g.home, g.homeInj) + '</div></section>' +
     '<section class="sheet-section"><h3 class="sheet-h">Last 5</h3><div class="dual-panel">' + renderL5Column(g.away, g.awayRec, commonMap) + renderL5Column(g.home, g.homeRec, commonMap) + '</div></section>' +
@@ -378,19 +459,16 @@ document.addEventListener("keydown", function(ev) {
 });
 
 // ---------- Hook into the existing render flow ----------
-var _picksUiPrevRenderGames = renderGames;
+var _picksUiPrevRenderGames = renderGames; // kept for reference; both modes now use the cards below
 renderGames = function() {
-  if (!SIMPLE_UI_MODE) {
-    _picksUiPrevRenderGames.apply(this, arguments);
-  } else {
-    ensureMondayLockedOddsOnGames();
-    syncSubpanelToggleButtons();
-    syncManualLockButtonUI();
-    renderMultiBuyInEntryStrip();
-    renderCommishActiveEditBar();
-    var container = document.getElementById("games-container");
-    if (container) container.innerHTML = renderPickCardsHtml();
-  }
+  ensureWatchlistDefaults();
+  ensureMondayLockedOddsOnGames();
+  syncSubpanelToggleButtons();
+  syncManualLockButtonUI();
+  renderMultiBuyInEntryStrip();
+  renderCommishActiveEditBar();
+  var container = document.getElementById("games-container");
+  if (container) container.innerHTML = renderPickCardsHtml();
   var bCond = document.getElementById("btn-simple-style-condensed");
   var bDet = document.getElementById("btn-simple-style-detailed");
   if (bCond) bCond.setAttribute("aria-checked", SIMPLE_CARD_LAYOUT_STYLE === "condensed" ? "true" : "false");
@@ -399,16 +477,9 @@ renderGames = function() {
   renderGameDetailSheet();
 };
 
-var _picksUiPrevUpdateCard = updateSingleGameCardPickUI;
 updateSingleGameCardPickUI = function(g) {
-  if (SIMPLE_UI_MODE) {
-    renderGames();
-    return true;
-  }
-  var r = _picksUiPrevUpdateCard.apply(this, arguments);
-  updatePicksHead();
-  renderGameDetailSheet();
-  return r;
+  renderGames();
+  return true;
 };
 
 var _picksUiPrevSyncLock = syncManualLockButtonUI;

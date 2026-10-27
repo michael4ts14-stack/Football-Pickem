@@ -878,10 +878,7 @@ switchMainView = function(mode) {
     return;
   }
   if (SIMPLE_UI_MODE && mode === "cards") {
-    if (currentMainView === "cards" && SIMPLE_CARD_LAYOUT_STYLE === "condensed") {
-      SIMPLE_CARD_LAYOUT_STYLE = "detailed";
-      safeSetStorage("sat_simple_card_style_v16", "detailed");
-    }
+    // Re-selecting Picks no longer flips the card layout; that lives in the Picks ⋯ menu.
     _origSwitchMainViewV166("cards");
     syncSimpleModeTabHighlights();
     return;
