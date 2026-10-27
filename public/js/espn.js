@@ -247,6 +247,8 @@ async function syncAllLiveTrackingData(saveToCloudAfter) {
         for (var d = 0; d < teamsList.length; d++) {
           var t = teamsList[d].team;
           if (t && t.id) {
+            // Display-only: colour + short code for the logo fallback circles on the Picks screen.
+            ESPN_TEAM_INFO[t.id] = { color: t.color ? "#" + t.color : "", abbr: t.abbreviation || "" };
             if (t.location) {
               ESPN_TEAM_MAP[t.location.toLowerCase()] = t.id;
               ESPN_TEAM_MAP[normalizeTeamKey(t.location)] = t.id;

@@ -145,57 +145,43 @@ function renderSimpleGuestAccountBar() {
   var myPicks = (state[activeProfile] && state[activeProfile].picks) ? state[activeProfile].picks : {};
   var cStats = countMatchingPicksForSlate(myPicks, GAMES);
 
-  // Update lock deadline pill
+  // Lock line in the Picks head
   var lockPill = document.getElementById("simple-lock-deadline-pill");
   if (lockPill) {
     var lockedNow = isGameLockedByCommissioner(1);
+    lockPill.className = "lock-text";
     if (cfg.lockMode === "friday_9pm_cst") {
-      lockPill.className = "badge " + (lockedNow ? "badge-3x" : "badge-ev");
-      lockPill.textContent = lockedNow ? "🔒 Locked (Fri 9:00 PM CST Passed)" : "🔓 Editable Until Fri 9:00 PM CST";
+      lockPill.textContent = lockedNow ? "Locked" : "Locks Fri 9:00 PM CT";
     } else if (cfg.lockMode === "global_locked") {
-      lockPill.className = "badge badge-3x";
-      lockPill.textContent = "🔒 Slate Locked by Commissioner";
+      lockPill.textContent = "Locked by the commissioner";
+    } else if (cfg.lockMode === "rolling_kickoff") {
+      lockPill.textContent = "Each game locks at kickoff";
     } else {
-      lockPill.className = "badge badge-ev";
-      lockPill.textContent = "🔓 Picks Open (" + cStats.matched + "/" + GAMES.length + " Selected)";
+      lockPill.textContent = "Picks open";
     }
   }
 
   var recLog = cfg.savedReceiptsLog && cfg.savedReceiptsLog[activeProfile];
   var recTxtEl = document.getElementById("simple-receipt-status-text");
   if (recTxtEl) {
-    if (recLog && recLog.sentAt) {
-      recTxtEl.innerHTML = "✅ <strong>Receipt Emailed (" + recLog.sentAt + ")</strong> — You can still change any pick until <strong>Fri 9:00 PM CST</strong>!";
-      recTxtEl.style.color = "var(--win)";
-    } else {
-      recTxtEl.innerHTML = "💡 Change your picks as many times as you want all week — final lock is <strong>Friday 9:00 PM CST</strong>.";
-      recTxtEl.style.color = "var(--text)";
-    }
+    recTxtEl.textContent = (recLog && recLog.sentAt)
+      ? ("Submitted " + recLog.sentAt + ". You can still change picks until Fri 9:00 PM CT.")
+      : "";
+    recTxtEl.style.color = "";
   }
 
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey && !GUEST_BROWSING_MODE) {
-    var bMeta = getProfileMetaByKey(AUTH_SESSION.boundProfileKey);
-    el.innerHTML =
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-        '<span class="badge badge-ev" style="font-size:0.72rem;padding:3px 9px;">🔐 Signed In: ' + bMeta.name + '</span>' +
-        '<span style="font-size:0.73rem;color:var(--text);">Picks Ready: <strong style="color:var(--text);">' + cStats.matched + ' / ' + GAMES.length + '</strong> • Saved to Cloud Firestore</span>' +
-      '</div>' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
-        '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);font-weight:800;" onclick="openAuthModal()">⚙️ My Account / Switch</button>' +
-        '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);font-weight:800;" onclick="openUserAndPrivacyModal()">🔒 Pick Privacy</button>' +
-      '</div>';
+    // Signed in: the avatar and More > Account cover account and privacy.
+    el.innerHTML = "";
   } else {
     var isGuestSim = (GUEST_BROWSING_MODE || activeProfile === "test");
     el.innerHTML =
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-        '<span class="badge badge-2x" style="font-size:0.72rem;padding:3px 9px;">' + (isGuestSim ? '👋 Guest Picking Mode (' + cStats.matched + '/' + GAMES.length + ' Picked)' : '🔓 Not Signed In (' + getProfileMetaByKey(activeProfile).name + ')') + '</span>' +
-        '<span style="font-size:0.73rem;color:var(--text);">Make your picks first as a Guest, or sign in / create an account anytime!</span>' +
-      '</div>' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
-        (!isGuestSim ? '<button type="button" class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--warn);font-weight:800;" onclick="startGuestPickingMode()">👋 Continue as Guest</button>' : '') +
-        '<button type="button" class="btn-sm" style="background:var(--raised);border:none;color:var(--text);font-weight:900;padding:6px 12px;" onclick="openAuthModalCarryingGuestPicks(\'signin\')">🔑 Login</button>' +
-        '<button type="button" class="btn-sm" style="background:var(--raised);border:none;color:var(--text);font-weight:900;padding:6px 12px;" onclick="openAuthModalCarryingGuestPicks(\'signup\')">✨ Make an Account (Keep My ' + cStats.matched + ' Picks)</button>' +
-      '</div>';
+      '<span>' + (isGuestSim ? 'Picking as a guest' : 'Not signed in') + '</span>' +
+      '<span class="account-note-links">' +
+        '<button type="button" class="link-btn" onclick="openAuthModalCarryingGuestPicks(\'signin\')">Sign in</button>' +
+        '<button type="button" class="link-btn" onclick="openAuthModalCarryingGuestPicks(\'signup\')" title="Your picks carry over to the new account">Create account</button>' +
+        (!isGuestSim ? '<button type="button" class="link-btn" onclick="startGuestPickingMode()">Guest</button>' : '') +
+      '</span>';
   }
 }
 
@@ -274,7 +260,7 @@ async function saveAndSendPickConfirmationReceipt() {
     ) : '') +
     '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">' +
       '<input type="email" id="receipt-email-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.75rem;" placeholder="Enter email address for confirmation receipt..." value="' + (userEmail || "").replace(/"/g, '&quot;') + '" />' +
-      '<button type="button" class="btn-sm" style="background:var(--legacy-accent);color:var(--on-accent);border:none;font-weight:800;padding:6px 12px;" onclick="sendReceiptToCustomEmail()">📨 Send Email Receipt</button>' +
+      '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;padding:6px 12px;" onclick="sendReceiptToCustomEmail()">📨 Send Email Receipt</button>' +
       '<button type="button" class="btn-sm" onclick="copyPicksToClipboard()">📋 Copy Receipt Text</button>' +
     '</div>' +
     '<textarea readonly rows="8" class="search-input" style="width:100%;font-family:monospace;font-size:0.71rem;color:var(--text);">' +
@@ -742,7 +728,7 @@ function renderCommissionerModalBody() {
             '<input type="text" id="custom-swap-away-' + g.id + '" class="search-input" style="width:98px;min-width:0;padding:3px 6px;font-size:0.68rem;" placeholder="Away Team" value="' + g.away.replace(/"/g, '&quot;') + '" />' +
             '<span style="font-size:0.66rem;color:var(--muted);">at</span>' +
             '<input type="text" id="custom-swap-home-' + g.id + '" class="search-input" style="width:98px;min-width:0;padding:3px 6px;font-size:0.68rem;" placeholder="Home Team" value="' + g.home.replace(/"/g, '&quot;') + '" />' +
-            '<button type="button" class="btn-sm" style="padding:2px 7px;font-size:0.66rem;background:var(--green);color:var(--on-accent);border:none;font-weight:800;" onclick="applyCustomGameSwapInline(' + g.id + ')">✓ Swap</button>' +
+            '<button type="button" class="btn-sm" style="padding:2px 7px;font-size:0.66rem;background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="applyCustomGameSwapInline(' + g.id + ')">✓ Swap</button>' +
           '</div>' +
         '</td>' +
         '<td><input type="text" class="search-input" style="min-width:135px;padding:4px 7px;font-size:0.72rem;" value="' + (g.poolLine || "").replace(/"/g, '&quot;') + '" onchange="commishUpdateGameSpread(' + g.id + ', this.value)" title="Format: Favorite -Spread (e.g. Texas -10.5). Automatically recalculates 1x/2x/3x multiplier!" /></td>' +
@@ -766,7 +752,7 @@ function renderCommissionerModalBody() {
         '<div style="margin-top:10px;padding:10px;background:var(--raised);border:1px solid var(--border);border-radius:10px;">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' +
             '<strong style="font-size:0.78rem;color:var(--win);">🏈 ESPN Automated Candidate Games (' + ESPN_CANDIDATE_SLATE_GAMES.length + ' Found — Top 26 Pre-Checked, or Check/Uncheck Any Game You Want!):</strong>' +
-            '<button type="button" class="btn-sm" style="background:var(--green);color:var(--on-accent);border:none;font-weight:900;" onclick="commishPublishSelectedEspnSlate()">🚀 Publish Checked Games as Active Slate</button>' +
+            '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="commishPublishSelectedEspnSlate()">🚀 Publish Checked Games as Active Slate</button>' +
           '</div>' +
           '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;max-height:210px;overflow-y:auto;">' + candItems + '</div>' +
         '</div>';
@@ -882,7 +868,7 @@ function renderCommissionerModalBody() {
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
           '<input type="text" id="commish-new-player-name" class="search-input" style="width:175px;min-width:0;padding:5px 8px;font-size:0.74rem;" placeholder="New Player Name (e.g. Alex B)" />' +
           '<input type="number" id="commish-new-player-pts" class="search-input" style="width:85px;min-width:0;padding:5px 8px;font-size:0.74rem;" placeholder="Prior Pts" value="0" />' +
-          '<button type="button" class="btn-sm" style="background:var(--green);color:var(--on-accent);border:none;font-weight:800;" onclick="commishAddPoolMember()">➕ Add Player to Pool</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="commishAddPoolMember()">➕ Add Player to Pool</button>' +
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;">' +
           '<label style="font-size:0.72rem;color:var(--muted);">Entry Fee ($):</label>' +
@@ -906,14 +892,14 @@ function renderCommissionerModalBody() {
         '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Appears at the very top of the app for all connected users (leave blank to clear):</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
           '<input type="text" id="commish-banner-input" class="search-input" style="flex:1;padding:7px 10px;font-size:0.78rem;" placeholder="e.g. Week 8 Picks Lock Friday at 9:00 PM CST! Everyone\'s picks reveal Saturday morning." value="' + String(cfg.announcementBanner || "").replace(/"/g, '&quot;') + '" />' +
-          '<button type="button" class="btn-sm" style="background:var(--amber);color:var(--on-accent);border:none;font-weight:900;" onclick="commishSaveBanner()">📌 Publish Banner</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="commishSaveBanner()">📌 Publish Banner</button>' +
           '<button type="button" class="btn-sm" onclick="document.getElementById(\'commish-banner-input\').value=\'\'; commishSaveBanner();">Clear</button>' +
         '</div>' +
       '</div>' +
       '<div class="side-box">' +
         '<div class="side-title">' +
           '<span>📝 Auto-Generated Top 5 Weekly Winners & Overall Standings Post</span>' +
-          '<button type="button" class="btn-sm" style="background:var(--legacy-accent);color:var(--on-accent);border:none;font-weight:800;" onclick="copyCommishRecapPost()">📋 Copy Recap & Standings Post</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="copyCommishRecapPost()">📋 Copy Recap & Standings Post</button>' +
         '</div>' +
         '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Automatically lists the <strong>Top 5 Weekly Winners</strong> (who gained the most points that week) plus the full 89-player Overall Standings table:</div>' +
         '<textarea id="commish-recap-textarea" rows="12" class="search-input" style="width:100%;font-family:monospace;font-size:0.72rem;color:var(--text);">' + recapText + '</textarea>' +

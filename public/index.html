@@ -39,65 +39,49 @@
 <nav class="app-sidebar" aria-label="Main">
   <div class="app-brand">
     <span class="app-brand-name">Separated at Turf</span>
-    <span class="app-brand-sub">Pick'em</span>
+    <span class="app-brand-sub">College Pick'em '26</span>
   </div>
   <div class="nav-list">
-    <button type="button" id="tab-mode-cards" class="mode-tab-btn active" onclick="switchMainView('cards')"><i data-lucide="list-checks"></i><span>Picks</span></button>
-    <button type="button" id="tab-mode-live" class="mode-tab-btn live-tab" onclick="switchMainView('live')"><i data-lucide="radio"></i><span>Live</span></button>
-    <button type="button" id="tab-mode-standings" class="mode-tab-btn standings-tab" onclick="switchMainView('standings')"><i data-lucide="trophy"></i><span>Standings</span></button>
+    <button type="button" id="tab-mode-cards" class="mode-tab-btn active" onclick="switchMainView('cards')"><i data-lucide="square-check"></i><span>Picks</span></button>
+    <button type="button" id="tab-mode-live" class="mode-tab-btn live-tab" onclick="switchMainView('live')"><i data-lucide="activity"></i><span>Live</span></button>
+    <button type="button" id="tab-mode-standings" class="mode-tab-btn standings-tab" onclick="switchMainView('standings')"><i data-lucide="chart-no-axes-column"></i><span>Standings</span></button>
     <button type="button" id="tab-mode-condensed" class="mode-tab-btn adv-only" onclick="switchMainView('condensed')"><i data-lucide="table-2"></i><span>Table</span></button>
   </div>
   <div class="nav-group-label">More</div>
-  <div class="nav-list">
-    <button type="button" class="nav-item commish-only-hidden" id="nav-more-weeks" onclick="openMoreSection('weeks')"><i data-lucide="history"></i><span>Past weeks</span></button>
-    <button type="button" class="nav-item" onclick="openEvSimulatorDrawer()"><i data-lucide="dices"></i><span>Simulator</span></button>
-    <button type="button" class="nav-item" data-more-section="export" onclick="openMoreSection('export')"><i data-lucide="download"></i><span>Export</span></button>
-    <button type="button" class="nav-item" onclick="openAuthModal()"><i data-lucide="circle-user"></i><span>Account</span></button>
-    <button type="button" class="nav-item" data-more-section="settings" onclick="openMoreSection('settings')"><i data-lucide="settings"></i><span>Settings</span></button>
-    <button type="button" class="nav-item commish-only-hidden" id="nav-more-commish" onclick="openCommissionerModal('submissions')"><i data-lucide="crown"></i><span>Commissioner</span></button>
+  <div class="nav-list nav-list-plain">
+    <button type="button" class="nav-item commish-only-hidden" id="nav-more-weeks" onclick="openMoreSection('weeks')">Past weeks</button>
+    <button type="button" class="nav-item" onclick="openEvSimulatorDrawer()">EV Simulator</button>
+    <button type="button" class="nav-item" data-more-section="export" onclick="openMoreSection('export')">Export</button>
+    <button type="button" class="nav-item" onclick="openAuthModal()">Account</button>
+    <button type="button" class="nav-item commish-only-hidden" id="nav-more-commish" onclick="openCommissionerModal('submissions')">Commissioner</button>
+    <button type="button" class="nav-item" data-more-section="settings" onclick="openMoreSection('settings')">Settings</button>
+  </div>
+  <div class="sidebar-foot">
+    <div class="bot-status commish-only-hidden" id="bot-sync-pill" title="Gmail/ESPN bot status">Bot …</div>
+    <button type="button" id="btn-toggle-desktop-rail" class="link-btn rail-toggle" onclick="toggleDesktopSidebarCollapse()" aria-pressed="false" aria-label="Hide side panel">Hide side panel</button>
   </div>
 </nav>
 
 <div class="app-body">
-<header class="topbar app-header">
-  <div class="app-header-left">
-    <span class="app-header-mark" aria-hidden="true">SAT</span>
-    <span class="app-header-title" id="sheet-title-brand">Week 8</span>
-  </div>
-  <div class="app-header-right">
-    <span id="live-sync-badge" class="sync-pill" role="button" tabindex="0" onclick="syncAllLiveTrackingData(true)" title="Tap to sync live ESPN scores and injuries">Live</span>
-    <div class="mini-stat commish-only-hidden" id="bot-sync-pill" title="Gmail/ESPN bot status">Bot …</div>
-    <button type="button" id="btn-open-review-checklist" class="btn-sm hdr-btn" onclick="openReviewChecklistModal()" title="Review every pick before you lock or submit"><i data-lucide="clipboard-check"></i><span>Review <span id="top-review-count">0/0</span></span></button>
-    <button type="button" id="btn-simple-mode-toggle" class="btn-sm hdr-btn" onclick="toggleSimpleUiMode()" aria-pressed="false" title="Switch between Simple and Advanced mode"><i data-lucide="sliders-horizontal"></i><span class="adv-label">Advanced: OFF</span></button>
-    <button type="button" id="btn-commish-console" class="btn-sm hdr-icon-btn commish-only-hidden" onclick="openCommissionerModal('submissions')" aria-label="Commissioner console" title="Commissioner console"><i data-lucide="crown"></i></button>
-    <button type="button" id="btn-toggle-desktop-rail" class="btn-sm hdr-icon-btn" onclick="toggleDesktopSidebarCollapse()" aria-label="Hide side panel" aria-pressed="false" title="Hide or show the side panel"><i data-lucide="panel-right"></i></button>
-    <button type="button" class="mini-stat hdr-profile" id="top-profile-pill" onclick="openMoreSection('account')" title="Your account and entries">
-      <i data-lucide="circle-user"></i><strong id="top-profile-name">Michael A</strong><span id="top-profile-instance-tag"></span>
-    </button>
-  </div>
-</header>
 
 <div id="commish-announcement-banner">
   <span id="commish-announcement-text"></span>
   <button type="button" class="btn-sm" onclick="dismissCommishBanner()" aria-label="Dismiss announcement"><i data-lucide="x"></i></button>
 </div>
 
-<!-- Advanced only: pick-mix summary (moves into the Picks header in step 4) -->
-<div class="app-subbar">
-  <div class="risk-meter-pill" id="top-risk-meter" role="button" tabindex="0" onclick="openEvSimulatorDrawer()" title="Open the EV and probability simulator">
-    <span>1x <strong id="rm-chalk">25</strong></span>
-    <span>2x <strong id="rm-2x">1</strong></span>
-    <span>3x <strong id="rm-3x">0</strong></span>
-    <span>Max <strong id="top-ceiling">27</strong></span>
-    <span>EV <strong id="top-ev">17.8</strong></span>
-  </div>
-</div>
 
 <div class="layout" id="main-layout">
 
   <main id="app-content" tabindex="-1">
     <!-- VIEW 1: DEDICATED LIVE SATURDAY SCOREBOARD TAB (CST/CDT + POSSESSION TRACKER) -->
     <div id="live-tracker-view-container" class="live-tab-wrap hidden">
+      <header class="page-head">
+        <div>
+          <p class="eyebrow week-eyebrow">Week</p>
+          <h1 class="page-title">Live Scores</h1>
+        </div>
+        <span id="live-sync-badge" class="sync-pill" role="button" tabindex="0" onclick="syncAllLiveTrackingData(true)" title="Tap to sync live ESPN scores and injuries">Live</span>
+      </header>
       <div class="condensed-toolbar">
         <div>
           <strong style="font-size:0.95rem;color:var(--text);">🔴 Live Saturday Game Tracker & Possession Radar (CST/CDT)</strong>
@@ -143,6 +127,12 @@
 
     <!-- VIEW 2: CONDENSED BOTH PICKS + WATCHLIST TABLE VIEW -->
     <div id="condensed-view-container" class="condensed-wrap hidden">
+      <header class="page-head">
+        <div>
+          <p class="eyebrow week-eyebrow">Week</p>
+          <h1 class="page-title">Picks Table</h1>
+        </div>
+      </header>
       <div class="condensed-toolbar">
         <div>
           <strong style="font-size:0.92rem;color:var(--text);">📋 Condensed Master Pick Sheet — Zero-Scroll Mobile Cards & Table</strong>
@@ -189,6 +179,12 @@
 
     <!-- VIEW 3: POOL STANDINGS, AUTOMATED GRADING & WATCHLIST HUB -->
     <div id="standings-view-container" class="standings-wrap hidden">
+      <header class="page-head">
+        <div>
+          <p class="eyebrow">Separated at Turf</p>
+          <h1 class="page-title">Standings</h1>
+        </div>
+      </header>
       <div class="condensed-toolbar">
         <div>
           <strong style="font-size:0.96rem;color:var(--text);">🏆 Pool Standings, Master CSV Auto-Grader & Watchlist Command Center</strong>
@@ -261,49 +257,108 @@
 
     <!-- VIEW 4: FULL RESEARCH CARDS & CONDENSED SIMPLE VIEW -->
     <div id="full-cards-wrapper">
-      <div id="simple-mode-tiebreaker-bar">
-        <div id="simple-guest-account-strip" class="simple-guest-banner"></div>
-        <div id="multi-buyin-entry-strip" class="entry-switcher-bar" style="display:none;"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;width:100%;">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <span style="font-size:0.82rem;font-weight:900;color:var(--win);">✨ Simple Picks</span>
-            <div style="display:inline-flex;background:var(--bg);padding:2px;border-radius:7px;border:1px solid var(--border-muted);gap:2px;">
-              <button type="button" id="btn-simple-style-condensed" class="btn-sm active" style="padding:4px 8px;font-size:0.69rem;border:none;" onclick="setSimpleCardLayoutStyle('condensed')">⚡ Condensed View</button>
-              <button type="button" id="btn-simple-style-detailed" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border:none;" onclick="setSimpleCardLayoutStyle('detailed')">🃏 Cards + Injuries/L5</button>
-            </div>
-            <span id="simple-lock-deadline-pill" class="badge badge-ev" style="font-size:0.68rem;">🔒 Monday Odds Locked</span>
-            <span id="simple-receipt-status-text" style="font-size:0.7rem;color:var(--text);">Editable until Fri 9:00 PM CST</span>
+      <header class="page-head picks-head">
+        <div class="picks-head-title">
+          <p class="eyebrow"><span class="eyebrow-phone" id="picks-eyebrow">Separated at Turf</span><span class="eyebrow-desk" id="picks-eyebrow-lock"></span></p>
+          <h1 class="page-title"><span id="sheet-title-brand">Week 8</span> Picks</h1>
+        </div>
+        <button type="button" class="avatar-btn" id="top-profile-pill" onclick="openMoreSection('account')" aria-label="Your account">
+          <span id="top-profile-initials" aria-hidden="true">?</span>
+          <span class="sr-only"><span id="top-profile-name">Michael A</span> <span id="top-profile-instance-tag"></span></span>
+        </button>
+        <div class="picks-progress">
+          <div class="picks-progress-row">
+            <span id="picks-progress-text"><strong>0</strong> of 0 picked</span>
+            <span id="simple-lock-deadline-pill" class="lock-text"></span>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <label style="font-size:0.72rem;font-weight:800;color:var(--text);">🎯 Tie-Breaker:</label>
-            <input type="text" id="simple-tiebreaker-input" value="28-24" class="search-input" style="width:84px;min-width:0;padding:5px 7px;font-weight:800;text-align:center;" oninput="syncSimpleTiebreakerInput(this.value)" />
-            <button type="button" id="btn-simple-manual-lock" class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--warn);font-weight:900;padding:6px 10px;" onclick="toggleManualUserPickLock()">🔒 Lock Picks</button>
-            <button type="button" class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--text);font-weight:800;padding:6px 10px;" onclick="openReviewChecklistModal()">✅ Review Checklist</button>
-            <button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;padding:6px 11px;" onclick="saveAndSendPickConfirmationReceipt()">💾 Save & Receipt</button>
+          <div class="progress" role="progressbar" aria-label="Games picked" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" id="picks-progress-bar-wrap"><span id="picks-progress-bar"></span></div>
+        </div>
+        <button type="button" class="btn-submit submit-desk" id="btn-submit-desk" onclick="saveAndSendPickConfirmationReceipt()">Submit</button>
+      </header>
+
+      <p id="simple-receipt-status-text" class="receipt-note"></p>
+      <div id="simple-guest-account-strip" class="account-note"></div>
+      <div id="multi-buyin-entry-strip" class="entry-switcher-bar" style="display:none;"></div>
+      <div id="sandbox-note" class="sandbox-note" hidden></div>
+
+      <!-- Advanced only: pick mix -->
+      <div class="risk-meter-pill adv-block" id="top-risk-meter" role="button" tabindex="0" onclick="openEvSimulatorDrawer()" title="Open the EV and probability simulator">
+        <span>1x <strong id="rm-chalk">0</strong></span>
+        <span>2x <strong id="rm-2x">0</strong></span>
+        <span>3x <strong id="rm-3x">0</strong></span>
+        <span>Max <strong id="top-ceiling">0</strong></span>
+        <span>EV <strong id="top-ev">0</strong></span>
+      </div>
+
+      <div class="picks-toolbar">
+        <div class="chip-row" role="toolbar" aria-label="Filter games">
+          <button class="btn-sm active" id="flt-all" onclick="setFilter('all')">All</button>
+          <button class="btn-sm" id="flt-missing" onclick="setFilter('missing')">Missing</button>
+          <button class="btn-sm" id="flt-2x" onclick="setFilter('2x')">2x Dogs (+7.5–14)</button>
+          <button class="btn-sm" id="flt-3x" onclick="setFilter('3x')">3x Dogs (+14.5+)</button>
+          <button class="btn-sm" id="flt-inj" onclick="setFilter('inj')">Injuries</button>
+          <button class="btn-sm" id="flt-plusev" onclick="setFilter('plusev')">+EV</button>
+          <button class="btn-sm" id="flt-leverage" onclick="setFilter('leverage')">Leverage</button>
+          <button class="btn-sm" id="flt-sway" onclick="setFilter('sway')">Sways</button>
+          <button class="btn-sm" id="flt-diffs" onclick="setFilter('diffs')">H2H Diffs</button>
+        </div>
+        <div class="picks-tools">
+          <button type="button" class="icon-btn" id="btn-picks-search" onclick="togglePicksSearch()" aria-label="Search games" aria-expanded="false"><i data-lucide="search"></i></button>
+          <div class="menu-wrap">
+            <button type="button" class="tool-btn" id="btn-quick-picks" onclick="toggleMenu('menu-quick-picks', this)" aria-haspopup="true" aria-expanded="false"><i data-lucide="zap"></i><span>Quick picks</span></button>
+            <div class="menu" id="menu-quick-picks" role="menu" hidden>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('optimal')"><span>Optimal EV</span><small>Best +EV dogs plus the sharp favorites</small></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('safe')"><span>Safe core</span><small>Max win %: the likelier winner every game</small></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('aggressive')"><span>Underdog chaser</span><small>Live 2x / 3x dogs</small></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('chalk')"><span>All favorites</span><small>Every sheet favorite</small></button>
+              <button type="button" role="menuitem" class="menu-item adv-block" onclick="closeMenus(); copyOtherProfile()"><span>Copy compare target's picks</span><small>Advanced: copy from your head-to-head pick</small></button>
+            </div>
+          </div>
+          <div class="menu-wrap">
+            <button type="button" class="icon-btn" id="btn-picks-more" onclick="toggleMenu('menu-picks-more', this)" aria-haspopup="true" aria-expanded="false" aria-label="More pick options"><i data-lucide="ellipsis"></i></button>
+            <div class="menu menu-right" id="menu-picks-more" role="menu" hidden>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); openReviewChecklistModal()"><span>Review all picks</span></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); toggleManualUserPickLock()"><span id="menu-lock-label">Lock picks</span></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); copyPicksToClipboard()"><span>Copy picks</span></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); printCheckmarkSheet()"><span>Print pick sheet</span></button>
+              <div class="menu-sep" role="separator"></div>
+              <div class="menu-label">Card layout</div>
+              <button type="button" role="menuitemradio" id="btn-simple-style-condensed" class="btn-sm active" onclick="closeMenus(); setSimpleCardLayoutStyle('condensed')">Clean cards</button>
+              <button type="button" role="menuitemradio" id="btn-simple-style-detailed" class="btn-sm" onclick="closeMenus(); setSimpleCardLayoutStyle('detailed')">Cards + Injuries / Last 5</button>
+              <div class="menu-sep" role="separator"></div>
+              <div class="menu-label">Expand on every card</div>
+              <button type="button" role="menuitemcheckbox" id="btn-toggle-all-l5" class="btn-sm" onclick="toggleAllSubpanels('l5')">Last 5</button>
+              <button type="button" role="menuitemcheckbox" id="btn-toggle-all-inj" class="btn-sm" onclick="toggleAllSubpanels('inj')">Injuries</button>
+              <button type="button" role="menuitemcheckbox" id="btn-toggle-all-ins" class="btn-sm" onclick="toggleAllSubpanels('ins')">Insights</button>
+              <div class="menu-sep" role="separator"></div>
+              <button type="button" role="menuitemcheckbox" id="btn-simple-mode-toggle" class="btn-sm" onclick="closeMenus(); toggleSimpleUiMode()" aria-pressed="false"><span class="adv-label">Advanced: OFF</span></button>
+            </div>
           </div>
         </div>
       </div>
-      <div class="controls-bar">
-        <div class="search-row">
-          <input type="text" id="team-search" class="search-input" placeholder="🔍 Search team, code (Cincy, Bama), opponent, injury..." oninput="renderGames()" />
-          <button class="btn-sm" onclick="clearSearch()">✕</button>
-          <button id="btn-toggle-all-ins" class="btn-sm" onclick="toggleAllSubpanels('ins')">🧠 Insights</button>
-          <button id="btn-toggle-all-l5" class="btn-sm" onclick="toggleAllSubpanels('l5')">📅 Last 5</button>
-          <button id="btn-toggle-all-inj" class="btn-sm" onclick="toggleAllSubpanels('inj')">🚑 Injuries</button>
-        </div>
-        <div class="filter-row">
-          <button class="btn-sm active" id="flt-all" onclick="setFilter('all')">All 23</button>
-          <button class="btn-sm" id="flt-plusev" onclick="setFilter('plusev')">🔥 Best Value / +EV</button>
-          <button class="btn-sm" id="flt-leverage" onclick="setFilter('leverage')" style="border-color:var(--border);color:var(--text);">💎 Best Leverage</button>
-          <button class="btn-sm" id="flt-2x" onclick="setFilter('2x')">2x Dogs (+7.5–14)</button>
-          <button class="btn-sm" id="flt-3x" onclick="setFilter('3x')">3x Dogs (+14.5+)</button>
-          <button class="btn-sm" id="flt-sway" onclick="setFilter('sway')">🚨 Sways</button>
-          <button class="btn-sm" id="flt-diffs" onclick="setFilter('diffs')">⚔️ H2H Diffs</button>
-          <button class="btn-sm" id="flt-inj" onclick="setFilter('inj')">🚑 Injuries / Outs</button>
-        </div>
+      <div class="picks-search hidden" id="picks-search-row">
+        <i data-lucide="search"></i>
+        <input type="text" id="team-search" class="search-input" placeholder="Search team, code, opponent, injury" aria-label="Search games" oninput="renderGames()" />
+        <button type="button" class="icon-btn" onclick="clearSearch(); togglePicksSearch(false)" aria-label="Clear search"><i data-lucide="x"></i></button>
       </div>
 
       <div class="games-list" id="games-container"></div>
+
+      <section class="tb-card" aria-labelledby="tb-card-title">
+        <div class="tb-card-text">
+          <h2 class="tb-card-title" id="tb-card-title">Tie-breaker</h2>
+          <p class="tb-card-sub" id="tb-card-matchup">Total points, highest score first (e.g. 28-24)</p>
+        </div>
+        <input type="text" id="simple-tiebreaker-input" value="28-24" class="search-input tb-input" inputmode="numeric" aria-label="Tie-breaker score, highest first" oninput="syncSimpleTiebreakerInput(this.value)" />
+        <div class="tb-card-actions">
+          <button type="button" id="btn-open-review-checklist" class="tool-btn" onclick="openReviewChecklistModal()"><i data-lucide="clipboard-check"></i><span>Review <span id="top-review-count">0/0</span></span></button>
+          <button type="button" id="btn-simple-manual-lock" class="tool-btn" onclick="toggleManualUserPickLock()">Lock picks</button>
+        </div>
+      </section>
+
+      <div class="submit-bar">
+        <button type="button" class="btn-submit" id="btn-submit-picks" onclick="saveAndSendPickConfirmationReceipt()">Submit</button>
+      </div>
     </div>
     <!-- MORE (phone tab / desktop "More" group). Rendered by renderMoreView() in shell.js -->
     <div id="more-view-container" class="more-wrap hidden"></div>
@@ -484,10 +539,10 @@
 
 <!-- Phone bottom tab bar (< 900px). #mnav-* ids are driven by switchMainView(). -->
 <nav class="mobile-bottom-nav" aria-label="Main">
-  <button type="button" id="mnav-cards" class="m-nav-btn active" onclick="handleMobileNavClick('cards')"><i data-lucide="list-checks"></i><span>Picks</span></button>
-  <button type="button" id="mnav-live" class="m-nav-btn" onclick="handleMobileNavClick('live')"><i data-lucide="radio"></i><span>Live</span></button>
-  <button type="button" id="mnav-standings" class="m-nav-btn" onclick="handleMobileNavClick('standings')"><i data-lucide="trophy"></i><span>Standings</span></button>
-  <button type="button" id="mnav-drawer" class="m-nav-btn" onclick="handleMobileNavClick('more')"><i data-lucide="ellipsis"></i><span>More</span></button>
+  <button type="button" id="mnav-cards" class="m-nav-btn active" onclick="handleMobileNavClick('cards')"><i data-lucide="square-check"></i><span>Picks</span></button>
+  <button type="button" id="mnav-live" class="m-nav-btn" onclick="handleMobileNavClick('live')"><i data-lucide="activity"></i><span>Live</span></button>
+  <button type="button" id="mnav-standings" class="m-nav-btn" onclick="handleMobileNavClick('standings')"><i data-lucide="chart-no-axes-column"></i><span>Standings</span></button>
+  <button type="button" id="mnav-drawer" class="m-nav-btn" onclick="handleMobileNavClick('more')"><i data-lucide="menu"></i><span>More</span></button>
   <button type="button" id="mnav-condensed" class="m-nav-btn" onclick="handleMobileNavClick('condensed')" hidden>Table</button>
 </nav>
 
@@ -614,6 +669,17 @@
   </div>
 </div>
 
+<!-- GAME DETAIL SHEET (bottom sheet on phones, side panel on desktop) -->
+<div id="detail-sheet-backdrop" class="sheet-backdrop" hidden onclick="if (event.target === this) closeGameDetail()">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="detail-sheet-title">
+    <div class="sheet-head">
+      <h2 class="sheet-title" id="detail-sheet-title">Game details</h2>
+      <button type="button" class="icon-btn" id="detail-sheet-close" onclick="closeGameDetail()" aria-label="Close"><i data-lucide="x"></i></button>
+    </div>
+    <div class="sheet-body" id="detail-sheet-body"></div>
+  </div>
+</div>
+
 <!-- COMPACT 26-GAME REVIEW CHECKLIST MODAL -->
 <div id="review-checklist-backdrop" onclick="closeReviewChecklistModal()">
   <div id="review-checklist-box" onclick="event.stopPropagation()">
@@ -654,6 +720,7 @@
 <script src="/js/simple-mode-commissioner.js?v=2026-10-27b"></script>
 <script src="/js/commissioner-admin.js?v=2026-10-27b"></script>
 <script src="/js/shell.js?v=2026-10-27b"></script>
+<script src="/js/picks-ui.js?v=2026-10-27b"></script>
 <script src="/js/boot.js?v=2026-10-27b"></script>
 </body>
 </html>

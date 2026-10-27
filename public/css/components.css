@@ -316,7 +316,7 @@
     justify-content: center;
     gap: 10px;
     background: var(--text);
-    color: var(--on-accent);
+    color: var(--bg);
     border: 1px solid var(--border);
     border-radius: 9px;
     padding: 10px 14px;

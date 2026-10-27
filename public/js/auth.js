@@ -761,7 +761,7 @@ function openAuthModal() {
         '<div style="display:grid;grid-template-columns:1fr 95px auto;gap:6px;align-items:center;">' +
           '<input type="text" id="auth-edit-display-name" class="search-input" style="min-width:0;padding:6px 8px;font-size:0.76rem;" value="' + boundMeta.name.replace(/"/g, '&quot;') + '" placeholder="Your Display Name" />' +
           '<input type="number" id="auth-edit-prior-pts" class="search-input" style="min-width:0;padding:6px 8px;font-size:0.76rem;" value="' + (boundMeta.priorPts || 0) + '" placeholder="Prior Pts" title="Starting / Prior Season Points (0 for new players)" />' +
-          '<button type="button" class="btn-sm" style="background:var(--legacy-accent);color:var(--on-accent);border:none;font-weight:800;padding:6px 10px;" onclick="saveCustomInstanceDisplayName()">Save</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;padding:6px 10px;" onclick="saveCustomInstanceDisplayName()">Save</button>' +
         '</div>' +
       '</div>' +
       '<div style="background:var(--panel-alt);padding:9px 11px;border-radius:9px;border:1px solid var(--border-muted);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
@@ -793,7 +793,7 @@ function openAuthModal() {
         '<button type="button" class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;padding:8px 14px;" onclick="signOutAccountInstance()">🚪 Sign Out of Instance</button>' +
         '<div style="display:flex;gap:6px;">' +
           '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--warn);font-weight:800;padding:8px 12px;" onclick="switchProfile(\'test\'); closeAuthModal();">🧪 My Sandbox Sim</button>' +
-          '<button type="button" class="btn-sm" style="background:var(--green);color:var(--on-accent);border:none;font-weight:900;padding:8px 16px;" onclick="switchProfile(\'' + AUTH_SESSION.boundProfileKey + '\'); closeAuthModal();">🏈 Go to My Picks (' + boundMeta.shortName + ')</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;padding:8px 16px;" onclick="switchProfile(\'' + AUTH_SESSION.boundProfileKey + '\'); closeAuthModal();">🏈 Go to My Picks (' + boundMeta.shortName + ')</button>' +
         '</div>' +
       '</div>';
   } else {

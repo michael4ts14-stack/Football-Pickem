@@ -14,6 +14,16 @@ Status: **Approved 2026-10-27.** Step 1 (tokens + shell) built; awaiting screens
    already hidden from non-commissioners by `syncCommissionerVisibilityDOM()`, which hides the
    whole Standings toolbar.)
 
+6. **Accent is red** (#d22b2b, text #ff5c5c dark / #b3141f light) instead of gold; picked teams are solid
+   red with white text. Layout follows the owner's mockups (Pickem_App_Redesign.pdf): no top header
+   bar, each screen has its own page head, the sidebar More group is plain text.
+
+Found during step 2:
+- `pickSide()` never clears a pick (tapping the picked team re-saves it). "Tap again to clear" would
+  change how picks are saved, so it is **not** implemented; switching teams works as before.
+- `hardResetToDefaults()` ("Reset Optimal Picks") overwrites the built-in Michael and Kinyion
+  profiles, not the viewer's picks, so it stays in Import Hub › Cloud & Reset only (commissioner).
+
 Found during step 1: **Past weeks** (the archive select and Season archive box) has always been
 commissioner-only, so the new "Past weeks" entry keeps that rule.
 
@@ -64,36 +74,36 @@ the item is verified at 390px and 1280px after that step.
 
 | ☐ | Feature | Handler / ID | Today | New home | Step |
 |---|---|---|---|---|---|
-| ☐ | Game cards render | `renderGames()` · `#games-container` | Cards view | P: one card per game (time + network, then away and home buttons) | 2 |
-| ☐ | Pick away / home | `pickSide(id, side)` | Card buttons | Team buttons (tap = pick, tap again = clear, `aria-pressed`) | 2 |
+| ☑ | Game cards render | `renderGames()` · `#games-container` | Cards view | P: one card per game (time + network, then away and home buttons) | 2 |
+| ☑ | Pick away / home | `pickSide(id, side)` | Card buttons | Team buttons (tap = pick, tap again = clear, `aria-pressed`) | 2 |
 | ☐ | Pick for any profile (table) | `pickSideForProfile(prof, id, side)` | Condensed table | Table view (ADV) | 4 |
-| ☐ | Simple layout style: Condensed vs "Cards + Injuries/L5" | `setSimpleCardLayoutStyle('condensed'\|'detailed')` · `#btn-simple-style-condensed/-detailed` · localStorage `sat_simple_card_style_v16` | Simple bar | New card is the default. "Cards + Injuries/L5" becomes a "Show details inline" switch in PH ⋯ and Settings; the same data is always one tap away in DS | 2/3 |
-| ☐ | Condensed view (simple) | `switchMainView('condensed')` in simple mode → cards + condensed style | Tab | Same as the row above (the clean list *is* the condensed view) | 2 |
-| ☐ | Team search | `#team-search` · `renderGames()` · `clearSearch()` | Controls bar | Search icon in PH → inline search field | 2 |
+| ☑ | Simple layout style: Condensed vs "Cards + Injuries/L5" | `setSimpleCardLayoutStyle('condensed'\|'detailed')` · `#btn-simple-style-condensed/-detailed` · localStorage `sat_simple_card_style_v16` | Simple bar | New card is the default. "Cards + Injuries/L5" becomes a "Show details inline" switch in PH ⋯ and Settings; the same data is always one tap away in DS | 2/3 |
+| ☑ | Condensed view (simple) | `switchMainView('condensed')` in simple mode → cards + condensed style | Tab | Same as the row above (the clean list *is* the condensed view) | 2 |
+| ☑ | Team search | `#team-search` · `renderGames()` · `clearSearch()` | Controls bar | Search icon in PH → inline search field | 2 |
 | ☐ | Expand all Insights (ADV) | `toggleAllSubpanels('ins')` · `#btn-toggle-all-ins` | Controls bar | PH ⋯ menu (ADV) | 4 |
-| ☐ | Expand all Last 5 | `toggleAllSubpanels('l5')` · `#btn-toggle-all-l5` | Controls bar | PH ⋯ menu | 2 |
-| ☐ | Expand all Injuries | `toggleAllSubpanels('inj')` · `#btn-toggle-all-inj` | Controls bar | PH ⋯ menu | 2 |
-| ☐ | Per-card Insights / Last 5 / Injuries toggles | `toggleCardIdx(idx, type)` | Card | DS sections (and inline when "Show details inline" is on) | 3 |
+| ☑ | Expand all Last 5 | `toggleAllSubpanels('l5')` · `#btn-toggle-all-l5` | Controls bar | PH ⋯ menu | 2 |
+| ☑ | Expand all Injuries | `toggleAllSubpanels('inj')` · `#btn-toggle-all-inj` | Controls bar | PH ⋯ menu | 2 |
+| ☑ | Per-card Insights / Last 5 / Injuries toggles | `toggleCardIdx(idx, type)` | Card | DS sections (and inline when "Show details inline" is on) | 3 |
 | ☐ | Team / opponent details popup | `openOppModal()` / `closeOppModal()` · `#opp-modal-backdrop`, `#modal-team-title`, `#modal-team-body` | Tap opponent name | Opens as a sheet; IDs kept | 3 |
 | ☐ | Opponent hover tooltip | `#opp-tooltip` | Hover | Kept (desktop hover only) | 3 |
-| ☐ | Focus / scroll to a game | `focusGame(id)` | Sway feed, sim swing badges | Kept; scrolls to the card and highlights it | 2 |
-| ☐ | Game detail | (new wrapper over existing panels) | — | DS: Injuries/Outs, Last 5, H2H info, Insights (ADV), GameCast entry | 3 |
-| ☐ | Commissioner lock per game respected | `isGameLockedByCommissioner()` | Card disabled state | Locked team buttons show a lock icon and "Locked" | 2 |
+| ☑ | Focus / scroll to a game | `focusGame(id)` | Sway feed, sim swing badges | Kept; scrolls to the card and highlights it | 2 |
+| ☑ | Game detail | (new wrapper over existing panels) | — | DS: Injuries/Outs, Last 5, H2H info, Insights (ADV), GameCast entry | 3 |
+| ☑ | Commissioner lock per game respected | `isGameLockedByCommissioner()` | Card disabled state | Locked team buttons show a lock icon and "Locked" | 2 |
 
 ## C. Pick filters (chip row above the list)
 
 | ☐ | Filter | Handler / ID | Today | New home | Step |
 |---|---|---|---|---|---|
-| ☐ | All | `setFilter('all')` · `#flt-all` | Filter row | Chip | 2 |
-| ☐ | 2x Dogs (+7.5–14) | `setFilter('2x')` · `#flt-2x` | Filter row | Chip | 2 |
-| ☐ | 3x Dogs (+14.5+) | `setFilter('3x')` · `#flt-3x` | Filter row | Chip | 2 |
-| ☐ | Injuries / Outs | `setFilter('inj')` · `#flt-inj` | Filter row | Chip | 2 |
+| ☑ | All | `setFilter('all')` · `#flt-all` | Filter row | Chip | 2 |
+| ☑ | 2x Dogs (+7.5–14) | `setFilter('2x')` · `#flt-2x` | Filter row | Chip | 2 |
+| ☑ | 3x Dogs (+14.5+) | `setFilter('3x')` · `#flt-3x` | Filter row | Chip | 2 |
+| ☑ | Injuries / Outs | `setFilter('inj')` · `#flt-inj` | Filter row | Chip | 2 |
 | ☐ | +EV / Best Value | `setFilter('plusev')` · `#flt-plusev` | ADV | Chip (ADV) | 4 |
 | ☐ | Best Leverage | `setFilter('leverage')` · `#flt-leverage` | ADV | Chip (ADV) | 4 |
 | ☐ | Sways | `setFilter('sway')` · `#flt-sway` | ADV | Chip (ADV) | 4 |
 | ☐ | H2H Diffs | `setFilter('diffs')` · `#flt-diffs` (also the sidebar "⚔️ Diffs" button) | ADV | Chip (ADV) | 4 |
 | ☐ | `ev` filter key | listed in `setFilter`'s list, no button today | — | No change (no button) | — |
-| ☐ | **Missing** | ⚠️ **No such pick filter exists today.** "Missing" only exists in the Commissioner submissions list (`setCommishSubFilter('missing')`) | — | **Question 3** | 2 |
+| ☑ | **Missing** (new) | `setFilter('missing')` · `#flt-missing` | — | Chip (both modes) | 2 |
 | ☐ | Live: All N Games | `setLiveTabFilter('all')` · `#lflt-all` | Live toolbar | L chip | 5 |
 | ☐ | Live: In Progress Only | `setLiveTabFilter('active')` · `#lflt-active` | Live toolbar | L chip | 5 |
 | ☐ | Live: 4Q / Red-Zone Sweats | `setLiveTabFilter('sweat')` · `#lflt-sweat` | Live toolbar | L chip | 5 |
@@ -103,11 +113,11 @@ the item is verified at 390px and 1280px after that step.
 
 | ☐ | Feature | Handler | Today | New home | Step |
 |---|---|---|---|---|---|
-| ☐ | ★ Optimal EV (both label variants) | `applyPreset('optimal')` | Sidebar + EV drawer | QP + Simulator | 2 |
-| ☐ | Safe Core (Max Win %) | `applyPreset('safe')` | Sidebar + EV drawer | QP + Simulator | 2 |
-| ☐ | Chaser (BYU + GT 2x / Live 2x/3x Dogs) | `applyPreset('aggressive')` | Sidebar + EV drawer | QP + Simulator | 2 |
-| ☐ | All Sheet Favorites | `applyPreset('chalk')` | Sidebar + EV drawer | QP + Simulator | 2 |
-| ☐ | Reset Optimal Picks | `hardResetToDefaults()` | Import Hub › Cloud & Reset | QP (confirm step, red) + kept in Import Hub | 2 |
+| ☑ | ★ Optimal EV (both label variants) | `applyPreset('optimal')` | Sidebar + EV drawer | QP + Simulator | 2 |
+| ☑ | Safe Core (Max Win %) | `applyPreset('safe')` | Sidebar + EV drawer | QP + Simulator | 2 |
+| ☑ | Chaser (BYU + GT 2x / Live 2x/3x Dogs) | `applyPreset('aggressive')` | Sidebar + EV drawer | QP + Simulator | 2 |
+| ☑ | All Sheet Favorites | `applyPreset('chalk')` | Sidebar + EV drawer | QP + Simulator | 2 |
+| ☐ | Reset Optimal Picks | `hardResetToDefaults()` | Import Hub › Cloud & Reset | Stays in Import Hub only (resets the built-in profiles, see Decisions) | 8 |
 | ☐ | Commish: Optimal EV / All Favorites / Underdog Chaser / Auto-Pick for a player | `commishAutoSelectPlayerPicks(key, 'optimal'\|'chalk'\|'aggressive')` | Commish edit bar + submissions | Commish edit bar + console (CM) | 8 |
 | ☐ | Commish: Auto-Fill Missing | `commishAutoFillMissingPlayers('chalk')` | Console › Submissions | Console › Submissions (CM) | 8 |
 
@@ -115,16 +125,16 @@ the item is verified at 390px and 1280px after that step.
 
 | ☐ | Feature | Handler / ID | Today | New home | Step |
 |---|---|---|---|---|---|
-| ☐ | Progress "X of Y picked" | `#top-review-count` (kept) + new progress bar | Top "Review (n/N)" | PH | 2 |
-| ☐ | Lock time / status text | `#simple-lock-deadline-pill`, `#simple-receipt-status-text` | Simple bar | PH subtitle | 2 |
-| ☐ | **Submit picks** (Save & Receipt) | `saveAndSendPickConfirmationReceipt()` | Simple bar "💾 Save & Receipt" | Sticky "Submit X of Y" (phone bottom / desktop header), see **Question 4** | 2 |
+| ☑ | Progress "X of Y picked" | `#top-review-count` (kept) + new progress bar | Top "Review (n/N)" | PH | 2 |
+| ☑ | Lock time / status text | `#simple-lock-deadline-pill`, `#simple-receipt-status-text` | Simple bar | PH subtitle | 2 |
+| ☑ | **Submit picks** (Save & Receipt) | `saveAndSendPickConfirmationReceipt()` | Simple bar "💾 Save & Receipt" | Sticky "Submit X of Y" (phone bottom / desktop header), see **Question 4** | 2 |
 | ☐ | Save & Email Receipt | `closeReviewChecklistModal(); saveAndSendPickConfirmationReceipt()` | Review checklist | Review sheet | 2 |
 | ☐ | Send Email Receipt to custom address | `sendReceiptToCustomEmail()` · `#receipt-email-input` | Receipt modal | Receipt sheet | 2 |
-| ☐ | Copy Picks / Copy List / Copy Receipt Text | `copyPicksToClipboard()` · `#copy-status` | Sidebar, review, receipt | QP "Copy picks" + review + receipt | 2 |
-| ☐ | Lock Picks / Unlock | `toggleManualUserPickLock()` · `#btn-simple-manual-lock` | Simple bar + review | PH ⋯ menu + review sheet ("Lock picks" / "Unlock picks to edit") | 2 |
-| ☐ | Review Checklist (official N-game) | `openReviewChecklistModal()` / `closeReviewChecklistModal()` · `#btn-open-review-checklist`, `#review-checklist-*` | Top bar + simple bar | PH "Review" button → full sheet | 2 |
+| ☑ | Copy Picks / Copy List / Copy Receipt Text | `copyPicksToClipboard()` · `#copy-status` | Sidebar, review, receipt | QP "Copy picks" + review + receipt | 2 |
+| ☑ | Lock Picks / Unlock | `toggleManualUserPickLock()` · `#btn-simple-manual-lock` | Simple bar + review | PH ⋯ menu + review sheet ("Lock picks" / "Unlock picks to edit") | 2 |
+| ☑ | Review Checklist (official N-game) | `openReviewChecklistModal()` / `closeReviewChecklistModal()` · `#btn-open-review-checklist`, `#review-checklist-*` | Top bar + simple bar | PH "Review" button → full sheet | 2 |
 | ☐ | Flip / Pick from review | `flipPickFromReviewChecklist(id)` | Review checklist | Review sheet | 2 |
-| ☐ | Tie-breaker score | `#tiebreaker-input`, `#simple-tiebreaker-input`, `syncSimpleTiebreakerInput()`, `saveCurrentState()` | Sidebar + simple bar + review | Card at the bottom of the Picks list + review sheet | 2 |
+| ☑ | Tie-breaker score | `#tiebreaker-input`, `#simple-tiebreaker-input`, `syncSimpleTiebreakerInput()`, `saveCurrentState()` | Sidebar + simple bar + review | Card at the bottom of the Picks list + review sheet | 2 |
 | ☐ | Tie-breaker game select | `setTiebreakerGame()` · `#tiebreaker-game-select`, `#tiebreaker-box-title` | Sidebar | Tie-breaker card (P) | 2 |
 | ☐ | Vegas implied score calculator + Apply | `recalcImpliedTiebreaker()`, `applyCalculatedTiebreaker()` · `#calc-ou`, `#calc-spread`, `#calc-result-text` | Sidebar | Tie-breaker card, collapsible "Calculator" | 2 |
 | ☐ | Make an Account & Keep My Picks (guest) | `openAuthModalCarryingGuestPicks()` | Receipt + guest strip | Same | 2 |
@@ -202,7 +212,7 @@ the item is verified at 390px and 1280px after that step.
 | ☐ | Weekly Finish Odds / Season Standings Odds | `setMonteCarloSimMode()` | Standings | S segmented (ADV) | 6 |
 | ☐ | Re-Run 5,000 Sims | `runMonteCarloPoolSimulation()` | Standings | S | 6 |
 | ☐ | Insights | `toggleAllSubpanels('ins')`, card insights | Cards (ADV) | DS + PH ⋯ (ADV) | 4 |
-| ☐ | Sandbox sim | `switchProfile('test')` | Sidebar/drawer/auth | PH profile switcher + M›Simulator | 2 |
+| ☑ | Sandbox sim | `switchProfile('test')` | Sidebar/drawer/auth | PH profile switcher + M›Simulator | 2 |
 | ☐ | Interactive / Test Demo Sim | `setGameDriveViewMode(id,'demo')` | Cards/theater | GC | 5 |
 
 ## K. Standings & exports
@@ -241,7 +251,7 @@ the item is verified at 390px and 1280px after that step.
 | ☐ | Edit display name / prior pts + Save | `saveCustomInstanceDisplayName()` · `#auth-edit-display-name`, `#auth-edit-prior-pts` | Auth modal | Same | 7 |
 | ☐ | Sign Out of Instance | `signOutAccountInstance()` | Auth modal | M›Account (red confirm) | 7 |
 | ☐ | Profile PIN modal | `submitPinModal()` / `closePinModal()` / `unlockProfileWithPrompt()` · `#pin-modal-*` | Modal | Same, restyled | 7 |
-| ☐ | Guest strip: Continue as Guest / Login / Make an Account (Keep My N Picks) / My Account / Switch / Pick Privacy | `renderSimpleGuestAccountBar()`, `startGuestPickingMode()`, `openAuthModalCarryingGuestPicks()` · `#simple-guest-account-strip` | Above picks | Slim banner above the Picks list | 2 |
+| ☑ | Guest strip: Continue as Guest / Login / Make an Account (Keep My N Picks) / My Account / Switch / Pick Privacy | `renderSimpleGuestAccountBar()`, `startGuestPickingMode()`, `openAuthModalCarryingGuestPicks()` · `#simple-guest-account-strip` | Above picks | Slim banner above the Picks list | 2 |
 | ☐ | Commish Login | `quickSignInAsVerifiedCommissioner()` | Drawer | M›Account | 7 |
 | ☐ | Admin instance override (CM) | `toggleAdminInstanceOverride()` | Auth modal | Same (CM) | 7 |
 | ☐ | Reset Player Password (CM) | `commissionerResetPlayerPassword()` · `#commish-reset-email-input` | Auth modal | Same + Console › Roster | 7/8 |

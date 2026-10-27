@@ -146,7 +146,7 @@ function renderMoreView() {
     : "Not signed in · picks are saved on this device";
 
   var html =
-    '<div class="page-head"><h1 class="page-title">More</h1></div>' +
+    '<header class="page-head"><div><p class="eyebrow">Separated at Turf</p><h1 class="page-title">More</h1></div></header>' +
 
     '<section class="list-section" id="more-sec-account" aria-labelledby="more-h-account">' +
       '<h2 class="section-label" id="more-h-account">Account</h2>' +
@@ -199,11 +199,23 @@ function renderMoreView() {
           '<h2 class="section-label" id="more-h-commish">Commissioner</h2>' +
           '<div class="list-card">' +
             moreRowHtml({ icon: "crown", title: "Commissioner console", sub: "Submissions, master sheet, slate, locks, roster, banner, admins", onclick: "openCommissionerModal('submissions')" }) +
+            '<div class="list-row static" id="more-bot-slot">' + iconHtml("bot") + '<span class="list-row-text"><span class="list-row-title">Gmail / ESPN bot</span></span></div>' +
           '</div>' +
         '</section>'
       : '');
 
   box.innerHTML = html;
+  placeBotStatusPill();
+}
+
+// One bot-status element: sidebar footer on desktop, More > Commissioner on phones.
+function placeBotStatusPill() {
+  var pill = document.getElementById("bot-sync-pill");
+  if (!pill) return;
+  var slot = document.getElementById("more-bot-slot");
+  var foot = document.querySelector(".app-sidebar .sidebar-foot");
+  if (slot && window.innerWidth < 900) slot.appendChild(pill);
+  else if (foot && pill.parentNode !== foot) foot.insertBefore(pill, foot.firstChild);
 }
 
 // ---------- Desktop right rail ----------
@@ -232,11 +244,11 @@ function renderRightRail() {
   }
   top5El.innerHTML =
     '<div class="rail-card-head"><h2 class="rail-title">Season standings</h2>' +
-      '<button type="button" class="link-btn" onclick="switchMainView(\'standings\')">See all</button></div>' +
+      '<button type="button" class="link-btn" onclick="switchMainView(\'standings\')">View all</button></div>' +
     (listHtml ? '<ol class="rail-list">' + listHtml + '</ol>' : '<p class="muted-note">Standings appear once the pool syncs.</p>');
 
-  // Last week: most recent archived week before the current one.
-  var lastHtml = '<p class="muted-note">No past weeks archived yet.</p>';
+  // Last week: most recent archived week before the current one, as one sentence.
+  var lastHtml = '<p class="rail-summary">No past weeks archived yet.</p>';
   var lastTitle = "Last week";
   try {
     var curNum = parseInt(state.currentWeek, 10) || 0;
@@ -248,22 +260,32 @@ function renderRightRail() {
       if (!best || snap.weekNum > best.weekNum) best = snap;
     }
     if (best) {
-      lastTitle = best.weekLabel || ("Week " + best.weekNum);
-      var members = (best.poolMembers || []).filter(function(pm) { return pm && !pm.awaitingSheet; });
-      var topPm = null, mine = null;
-      for (var m = 0; m < members.length; m++) {
-        var pts = Math.max(members[m].finalPts || 0, members[m].livePts || 0);
-        if (!topPm || pts > topPm.pts) topPm = { name: standardizeParticipantName(members[m].name), pts: pts };
-        if (myName && standardizeParticipantName(members[m].name).toLowerCase() === myName) mine = pts;
+      var scored = (best.poolMembers || []).filter(function(pm) { return pm && !pm.awaitingSheet; }).map(function(pm) {
+        return { name: standardizeParticipantName(pm.name), pts: Math.max(pm.finalPts || 0, pm.livePts || 0) };
+      }).sort(function(x, y) { return y.pts - x.pts; });
+      var mine = null, myPlace = 0;
+      for (var m = 0; m < scored.length; m++) {
+        if (myName && scored[m].name.toLowerCase() === myName) {
+          mine = scored[m].pts;
+          myPlace = 1 + scored.filter(function(o) { return o.pts > mine; }).length;
+          break;
+        }
       }
-      lastHtml = '<dl class="rail-stats">' +
-        (topPm ? '<div><dt>Top score</dt><dd>' + escapeShellHtml(topPm.name) + ' · ' + topPm.pts + ' pts</dd></div>' : '') +
-        (mine !== null ? '<div><dt>You</dt><dd>' + mine + ' pts</dd></div>' : '') +
-        '<div><dt>Games</dt><dd>' + ((best.games || []).length) + '</dd></div>' +
-      '</dl>';
+      var top = scored[0];
+      var sentence = (mine !== null)
+        ? 'You scored <strong>' + mine + ' pts</strong> in ' + escapeShellHtml(best.weekLabel || ("Week " + best.weekNum)) + ', ' + ordinalSuffix(myPlace) + ' best in the pool.'
+        : (top ? escapeShellHtml(top.name) + ' had the top score in ' + escapeShellHtml(best.weekLabel || ("Week " + best.weekNum)) + ' with <strong>' + top.pts + ' pts</strong>.' : 'No scores recorded.');
+      lastHtml = '<p class="rail-summary">' + sentence + '</p>';
     }
   } catch (e3) {}
-  lastEl.innerHTML = '<div class="rail-card-head"><h2 class="rail-title">' + escapeShellHtml(lastTitle) + '</h2></div>' + lastHtml;
+  var syncLabel = (document.getElementById("live-sync-badge") || {}).textContent || "";
+  lastEl.innerHTML = '<div class="rail-card-head"><h2 class="rail-title">' + escapeShellHtml(lastTitle) + '</h2></div>' + lastHtml +
+    (syncLabel ? '<p class="rail-sync"><span class="status-dot" aria-hidden="true"></span>' + escapeShellHtml(syncLabel.replace(/^[^A-Za-z0-9]+/, "")) + '</p>' : '');
+}
+
+function ordinalSuffix(n) {
+  var s = ["th", "st", "nd", "rd"], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
 var _shellOrigRenderAll = renderAll;
