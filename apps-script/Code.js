@@ -888,7 +888,7 @@ function saveProcessedIds_(props, processedIds) {
 // missing or unreadable.
 function fetchFirestoreDoc_(docPath) {
   try {
-    var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/" + docPath, { muteHttpExceptions: true });
+    var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/" + docPath, { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
     if (res.getResponseCode() !== 200) return null;
     var json = JSON.parse(res.getContentText());
     return json && json.fields ? fromFirestoreValue({ mapValue: { fields: json.fields } }) : null;
@@ -1806,7 +1806,7 @@ function fromFirestoreValue(fVal) {
 
 function fetchFirebaseNode(subPath) {
   try {
-    var res = UrlFetchApp.fetch(FIRESTORE_DOC_URL, { muteHttpExceptions: true });
+    var res = UrlFetchApp.fetch(FIRESTORE_DOC_URL, { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
     var code = res.getResponseCode();
     if (code !== 200) {
       recordBotError_("GET shared_state -> HTTP " + code + ": " + String(res.getContentText()).slice(0, 200));
@@ -2450,6 +2450,13 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
   };
 }
 
+// Firestore calls are made as the script owner (OAuth token with the datastore scope from
+// appsscript.json). Owner/IAM-authenticated REST calls are not subject to security rules,
+// so the bot keeps working when the rules stop accepting anonymous writes.
+function firestoreAuthHeaders_() {
+  return { Authorization: "Bearer " + ScriptApp.getOAuthToken() };
+}
+
 // Every Firestore write goes through here. Returns true only on HTTP 2xx; failures are
 // logged and collected so they show up in live_games/bot_status instead of vanishing.
 function patchFirestoreDocUrl(docUrl, dataObj) {
@@ -2466,6 +2473,7 @@ function patchFirestoreDocUrl(docUrl, dataObj) {
       method: "patch",
       contentType: "application/json",
       payload: JSON.stringify(fsDoc),
+      headers: firestoreAuthHeaders_(),
       muteHttpExceptions: true
     });
     var code = res.getResponseCode();

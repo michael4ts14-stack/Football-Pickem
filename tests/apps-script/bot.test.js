@@ -365,3 +365,12 @@ test("real Week 9 Google Form: all 23 games, including the neutral-site 'vs.' ga
   assert.deepStrictEqual([games[10].away, games[10].awayCode], ["Arizona State", "ArizSt"]);
   assert.strictEqual(games[22].id, 23);
 });
+
+test("Firestore requests carry the owner's OAuth token; ESPN requests don't", () => {
+  const h = loadBot({ cloud: baseCloud({ customGames: realSlate }), espnBody: espnBoard(realSlate, "in") });
+  h.ctx.pollEspnLiveGamesSubMinute();
+  const fs = h.calls.filter((c) => c.url.indexOf("firestore.googleapis.com") !== -1);
+  const espn = h.calls.filter((c) => c.url.indexOf("espn.com") !== -1);
+  assert.ok(fs.length > 0 && fs.every((c) => c.params.headers && c.params.headers.Authorization === "Bearer test-oauth-token"));
+  assert.ok(espn.length > 0 && espn.every((c) => !c.params.headers));
+});
