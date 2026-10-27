@@ -13,6 +13,13 @@
   })();
 </script>
 <meta name="theme-color" content="#0e0f11" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="SAT Pick'em" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" />
@@ -23,12 +30,12 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="/css/tokens.css?v=2026-10-27c" />
-<link rel="stylesheet" href="/css/base.css?v=2026-10-27c" />
-<link rel="stylesheet" href="/css/views.css?v=2026-10-27c" />
-<link rel="stylesheet" href="/css/components.css?v=2026-10-27c" />
-<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-27c" />
-<link rel="stylesheet" href="/css/app.css?v=2026-10-27c" />
+<link rel="stylesheet" href="/css/tokens.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/base.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/views.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/components.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/app.css?v=2026-10-27d" />
 </head>
 <body>
 <a class="skip-link" href="#app-content">Skip to content</a>
@@ -257,6 +264,12 @@
         <button type="button" class="btn-submit submit-desk" id="btn-submit-desk" onclick="saveAndSendPickConfirmationReceipt()">Submit</button>
       </header>
 
+      <div id="install-line" class="install-line" hidden>
+        <i data-lucide="download"></i>
+        <span>Get the app: install SAT Pick'em on this device.</span>
+        <button type="button" class="link-btn" onclick="promptInstallApp()">Install</button>
+        <button type="button" class="icon-btn" onclick="hideInstallHeaderLine(true)" aria-label="Dismiss"><i data-lucide="x"></i></button>
+      </div>
       <p id="simple-receipt-status-text" class="receipt-note"></p>
       <div id="simple-guest-account-strip" class="account-note"></div>
       <div id="multi-buyin-entry-strip" class="entry-switcher-bar" style="display:none;"></div>
@@ -694,42 +707,47 @@
     <div id="review-checklist-body"></div>
   </div>
 </div>
-<script src="/js/00-boot-guard.js?v=2026-10-27c"></script>
-<script src="/js/config.js?v=2026-10-27c"></script>
-<script src="/js/data/teams.js?v=2026-10-27c"></script>
-<script src="/js/data/default-slate.js?v=2026-10-27c"></script>
-<script src="/js/state-globals.js?v=2026-10-27c"></script>
-<script src="/js/data/week7-official.js?v=2026-10-27c"></script>
-<script src="/js/data/code-gs-source.js?v=2026-10-27c"></script>
-<script src="/js/state.js?v=2026-10-27c"></script>
-<script src="/js/team-match.js?v=2026-10-27c"></script>
-<script src="/js/firestore.js?v=2026-10-27c"></script>
-<script src="/js/picks.js?v=2026-10-27c"></script>
-<script src="/js/espn.js?v=2026-10-27c"></script>
-<script src="/js/profiles.js?v=2026-10-27c"></script>
-<script src="/js/auth.js?v=2026-10-27c"></script>
-<script src="/js/import-hub.js?v=2026-10-27c"></script>
-<script src="/js/render/condensed.js?v=2026-10-27c"></script>
-<script src="/js/import-sheet-grading.js?v=2026-10-27c"></script>
-<script src="/js/render/field-tracker.js?v=2026-10-27c"></script>
-<script src="/js/demo-sim.js?v=2026-10-27c"></script>
-<script src="/js/render/field.js?v=2026-10-27c"></script>
-<script src="/js/render/theater.js?v=2026-10-27c"></script>
-<script src="/js/live/live-feed.js?v=2026-10-27c"></script>
-<script src="/js/live-scores.js?v=2026-10-27c"></script>
-<script src="/js/leverage.js?v=2026-10-27c"></script>
-<script src="/js/simulator.js?v=2026-10-27c"></script>
-<script src="/js/archive.js?v=2026-10-27c"></script>
-<script src="/js/simple-mode-commissioner.js?v=2026-10-27c"></script>
-<script src="/js/commissioner-admin.js?v=2026-10-27c"></script>
-<script src="/js/shell.js?v=2026-10-27c"></script>
-<script src="/js/live/situation.js?v=2026-10-27c"></script>
-<script src="/js/picks-ui.js?v=2026-10-27c"></script>
-<script src="/js/matchups-ui.js?v=2026-10-27c"></script>
-<script src="/js/live-ui.js?v=2026-10-27c"></script>
-<script src="/js/standings-ui.js?v=2026-10-27c"></script>
-<script src="/js/dialogs-ui.js?v=2026-10-27c"></script>
-<script src="/js/player-sheet.js?v=2026-10-27c"></script>
-<script src="/js/boot.js?v=2026-10-27c"></script>
+<script src="/js/00-boot-guard.js?v=2026-10-27d"></script>
+<script src="/js/config.js?v=2026-10-27d"></script>
+<script src="/js/data/teams.js?v=2026-10-27d"></script>
+<script src="/js/data/default-slate.js?v=2026-10-27d"></script>
+<script src="/js/state-globals.js?v=2026-10-27d"></script>
+<script src="/js/data/week7-official.js?v=2026-10-27d"></script>
+<script src="/js/data/code-gs-source.js?v=2026-10-27d"></script>
+<script src="/js/state.js?v=2026-10-27d"></script>
+<script src="/js/team-match.js?v=2026-10-27d"></script>
+<script src="/js/firestore.js?v=2026-10-27d"></script>
+<script src="/js/picks.js?v=2026-10-27d"></script>
+<script src="/js/espn.js?v=2026-10-27d"></script>
+<script src="/js/profiles.js?v=2026-10-27d"></script>
+<script src="/js/auth.js?v=2026-10-27d"></script>
+<script src="/js/import-hub.js?v=2026-10-27d"></script>
+<script src="/js/render/condensed.js?v=2026-10-27d"></script>
+<script src="/js/import-sheet-grading.js?v=2026-10-27d"></script>
+<script src="/js/render/field-tracker.js?v=2026-10-27d"></script>
+<script src="/js/demo-sim.js?v=2026-10-27d"></script>
+<script src="/js/render/field.js?v=2026-10-27d"></script>
+<script src="/js/render/theater.js?v=2026-10-27d"></script>
+<script src="/js/live/live-feed.js?v=2026-10-27d"></script>
+<script src="/js/live-scores.js?v=2026-10-27d"></script>
+<script src="/js/leverage.js?v=2026-10-27d"></script>
+<script src="/js/simulator.js?v=2026-10-27d"></script>
+<script src="/js/archive.js?v=2026-10-27d"></script>
+<script src="/js/simple-mode-commissioner.js?v=2026-10-27d"></script>
+<script src="/js/commissioner-admin.js?v=2026-10-27d"></script>
+<script src="/js/shell.js?v=2026-10-27d"></script>
+<script src="/js/live/situation.js?v=2026-10-27d"></script>
+<script src="/js/picks-ui.js?v=2026-10-27d"></script>
+<script src="/js/matchups-ui.js?v=2026-10-27d"></script>
+<script src="/js/live-ui.js?v=2026-10-27d"></script>
+<script src="/js/standings-ui.js?v=2026-10-27d"></script>
+<script src="/js/dialogs-ui.js?v=2026-10-27d"></script>
+<script src="/js/player-sheet.js?v=2026-10-27d"></script>
+<script src="/js/boot.js?v=2026-10-27d"></script>
+<div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>
+  <span>Update available</span>
+  <button type="button" id="pwa-update-reload" class="link-btn">Reload</button>
+</div>
+<script src="/js/pwa.js?v=2026-10-27d"></script>
 </body>
 </html>
