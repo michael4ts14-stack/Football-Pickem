@@ -1282,12 +1282,14 @@ function parsePoolSpreadsheetGrid(grid, gamesList, currentCloud) {
     if (matchedGames === 0 || matchedGames < Math.floor(numGames * 0.4)) continue;
     seenNames[lowName] = true;
 
+    // Only a plain number counts as points (parseFloat("28-24") would read a tiebreaker as 28).
+    var isPtsCell = function(v) { return v !== undefined && v !== null && /^\d+(\.\d+)?$/.test(String(v).trim()); };
     var priorPts = 0;
-    if (priorPtsCol !== -1 && row[priorPtsCol]) {
+    if (priorPtsCol !== -1 && isPtsCell(row[priorPtsCol])) {
       priorPts = parseFloat(row[priorPtsCol]) || 0;
-    } else if (row[36] && /^\d+(\.\d+)?$/.test(String(row[36]).trim())) {
+    } else if (isPtsCell(row[36])) {
       priorPts = parseFloat(row[36]) || 0;
-    } else if (row[numGames + 1]) {
+    } else if (isPtsCell(row[numGames + 1])) {
       priorPts = parseFloat(row[numGames + 1]) || 0;
     }
 
