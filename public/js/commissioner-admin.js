@@ -382,10 +382,10 @@ function commishAutoSelectPlayerPicks(memberName, strategy) {
     var g = GAMES[i];
     var pick = g.rec;
     if (strategy === "chalk" || strategy === "safe") {
-      pick = (g.awayProb >= g.homeProb) ? g.away : g.home;
+      pick = (getTeamWinProb(g, "away") >= getTeamWinProb(g, "home")) ? g.away : g.home;
     } else if (strategy === "dogs" || strategy === "aggressive") {
       var dog = g.awayPts > 1 ? g.away : (g.homePts > 1 ? g.home : null);
-      var dogProb = (dog === g.away) ? g.awayProb : g.homeProb;
+      var dogProb = (dog === g.away) ? getTeamWinProb(g, "away") : getTeamWinProb(g, "home");
       pick = (dog && dogProb >= 0.25) ? dog : g.rec;
     } else if (strategy === "random") {
       pick = (Math.random() < 0.5) ? g.away : g.home;

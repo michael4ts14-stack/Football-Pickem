@@ -44,7 +44,7 @@ function renderFieldTheaterModalContent(gameId) {
     var me = getProfileMetaByKey(activeProfile);
     parts.push(me.shortName + ": " + theaterPickText(state[activeProfile].picks, g, isProfileHiddenFromViewer(activeProfile, g.id), true));
     var cmp = null;
-    try { cmp = resolveCompareTargetDescriptor(); } catch (e) {}
+    try { cmp = SIMPLE_UI_MODE ? null : resolveCompareTargetDescriptor(); } catch (e) {}
     if (cmp) parts.push(cmp.shortName + ": " + (cmp.hasPicks ? theaterPickText(cmp.picks, g, cmp.isHiddenForGame(g.id), !cmp.isPoolMember) : "No sheet yet"));
     subEl.textContent = parts.join(" · ");
   }

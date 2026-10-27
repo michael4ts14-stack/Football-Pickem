@@ -64,7 +64,6 @@ svg.lucide { width: 18px; height: 18px; stroke-width: 2; flex-shrink: 0; }
 .nav-list-plain .nav-item { min-height: 40px; color: var(--text); }
 .sidebar-foot { margin-top: auto; padding: 16px 10px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .bot-status { font-size: 13px; color: var(--text-muted); }
-@media (max-width: 1199px) { .rail-toggle { display: none; } }
 
 /* Announcement banner (display is set by renderCommishAnnouncementBanner) */
 #commish-announcement-banner {
@@ -78,21 +77,42 @@ svg.lucide { width: 18px; height: 18px; stroke-width: 2; flex-shrink: 0; }
   display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: start;
   max-width: calc(var(--content-max) + 32px); margin: 0 auto; padding: 8px 16px 24px;
 }
-@media (min-width: 900px) { #main-layout.layout { padding: 28px 32px 40px; } }
+@media (min-width: 900px) { #main-layout.layout { padding: 28px 32px 40px; max-width: calc(var(--content-max) + 64px); } }
 #app-content { min-width: 0; outline: none; }
 .app-rail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .app-rail .rail-card { display: none; }
+.app-rail .rail-head { display: none; }
 body.simple-ui-mode .app-rail { display: none; }
-@media (min-width: 1200px) {
-  #main-layout.layout {
+/* Desktop: the right rail is an overlay panel opened from the page header, so it never
+   squeezes the picks. At 1600px+ it can be pinned open as a column. */
+.page-head .rail-open-btn { display: none; }
+@media (min-width: 900px) {
+  .page-head .rail-open-btn { display: inline-flex; }
+  .app-rail, body.simple-ui-mode .app-rail { display: none; }
+  .app-rail.is-open, body.simple-ui-mode .app-rail.is-open {
+    display: flex; position: fixed; top: 0; right: 0; bottom: 0; z-index: 1400;
+    width: min(calc(var(--rail-w) + 40px), 92vw); overflow-y: auto;
+    padding: 16px 20px 24px; background: var(--bg); border-left: 1px solid var(--border);
+  }
+  .app-rail.is-open .rail-card, .app-rail.is-open .rail-head { display: block; }
+  .rail-backdrop { position: fixed; inset: 0; z-index: 1390; background: var(--overlay); }
+  .rail-backdrop[hidden] { display: none; }
+}
+.rail-head-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rail-head-title { font-family: var(--font-head); font-size: 22px; font-weight: 600; }
+.rail-head-actions { display: flex; gap: 4px; }
+.rail-head .icon-btn[aria-pressed="true"] svg.lucide { color: var(--accent-text); }
+@media (min-width: 1600px) {
+  body.rail-pinned #main-layout.layout {
     grid-template-columns: minmax(0, 1fr) var(--rail-w);
     max-width: calc(var(--content-max) + var(--rail-w) + 88px);
   }
-  .app-rail { position: sticky; top: 28px; max-height: calc(100vh - 56px); overflow-y: auto; padding-top: 112px; }
-  .app-rail .rail-card { display: block; }
-  body.simple-ui-mode .app-rail { display: flex; }
-  #main-layout.layout.sidebar-collapsed { grid-template-columns: minmax(0, 1fr); max-width: calc(var(--content-max) + 64px); }
-  #main-layout.layout.sidebar-collapsed .app-rail { display: none; }
+  body.rail-pinned .app-rail {
+    display: flex; position: sticky; top: 28px; max-height: calc(100vh - 56px); overflow-y: auto;
+    width: auto; padding: 0; background: transparent; border: 0;
+  }
+  body.rail-pinned .app-rail .rail-card, body.rail-pinned .app-rail .rail-head { display: block; }
+  body.rail-pinned .rail-close-btn, body.rail-pinned .page-head .rail-open-btn, body.rail-pinned .rail-backdrop { display: none; }
 }
 .app-rail .sidebar { position: static; max-height: none; overflow: visible; padding-right: 0; }
 
@@ -155,7 +175,7 @@ body.simple-ui-mode .app-rail { display: none; }
 }
 .picks-head .submit-desk { display: none; }
 @media (min-width: 900px) {
-  .picks-head { grid-template-columns: minmax(0, 1fr) 190px auto; align-items: end; }
+  .picks-head { grid-template-columns: minmax(0, 1fr) 190px auto auto; align-items: end; }
   .eyebrow-phone { display: none; }
   .eyebrow-desk { display: inline; }
   .avatar-btn { display: none; }
@@ -262,7 +282,7 @@ body.simple-ui-mode #flt-sway, body.simple-ui-mode #flt-diffs { display: none; }
 
 /* ---------- Pick cards ---------- */
 #games-container.games-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-@media (min-width: 900px) { #games-container.games-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+@media (min-width: 900px) { #games-container.games-list { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 12px; } }
 .pick-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px 10px 10px; min-width: 0; }
 .pick-card-meta {
   display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; min-height: 40px;
@@ -580,7 +600,7 @@ button.list-row:hover { background: var(--raised); }
 .live-window { margin: 18px 4px 8px; }
 .live-window:first-child { margin-top: 0; }
 #live-scoreboard-groups .live-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-@media (min-width: 900px) { #live-scoreboard-groups .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 900px) { #live-scoreboard-groups .live-grid { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); } }
 .live-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; min-width: 0; }
 .live-card-btn { display: block; width: 100%; padding: 12px 14px 10px; background: none; border: 0; color: var(--text); text-align: left; cursor: pointer; }
 .live-card-btn:hover { background: var(--raised); }
@@ -920,3 +940,62 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
   background: var(--raised); color: var(--text); font-size: 15px; box-shadow: 0 4px 16px #0006; white-space: nowrap; }
 .pwa-update-bar[hidden] { display: none; }
 @media (min-width: 900px) { .pwa-update-bar { bottom: 20px; } }
+
+/* ---------- Desktop layout: narrow lists, sticky tie-breaker bar ---------- */
+@media (min-width: 900px) {
+  #standings-view-container, #more-view-container { max-width: var(--content-narrow); }
+  .tb-card {
+    position: sticky; bottom: 0; z-index: 30;
+    grid-template-columns: minmax(0, 1fr) 140px auto; gap: 12px 20px;
+    border-radius: 10px 10px 0 0; box-shadow: 0 -8px 20px #00000059;
+  }
+  .tb-card-actions { grid-column: auto; flex-wrap: nowrap; }
+}
+
+/* ---------- Desktop sidebar: 64px icon rail; hover or keyboard focus expands it as an
+   overlay (content doesn't move); the pin keeps it open as a normal column. ---------- */
+.app-brand-mark, .app-sidebar .rail-only { display: none; }
+@media (min-width: 900px) {
+  .app-shell { display: block; padding-left: var(--sidebar-rail-w); }
+  body.sidebar-pinned .app-shell { padding-left: var(--sidebar-w); }
+  .app-sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; height: 100vh; z-index: 1300;
+    width: var(--sidebar-w); overflow-x: hidden; transition: width 150ms ease-out;
+  }
+  .app-sidebar.is-expanded { box-shadow: 12px 0 32px #0000008c; }
+  .app-sidebar .nav-item svg.lucide { width: 20px; height: 20px; color: var(--text-muted); flex-shrink: 0; }
+  .app-sidebar .nav-item.active svg.lucide { color: var(--accent-text); }
+  .sidebar-pin-btn[aria-pressed="true"] svg.lucide { color: var(--accent-text); }
+  .sidebar-foot { align-items: stretch; }
+
+  .app-sidebar.is-rail { width: var(--sidebar-rail-w); padding: 20px 8px 16px; }
+  .app-sidebar.is-rail .app-brand { padding: 0 0 18px; align-items: center; }
+  .app-sidebar.is-rail .app-brand-mark { display: block; font-family: var(--font-head); font-weight: 700; font-size: 20px; color: var(--accent-text); }
+  .app-sidebar.is-rail .app-brand-name, .app-sidebar.is-rail .app-brand-sub,
+  .app-sidebar.is-rail .nav-group-label, .app-sidebar.is-rail .bot-status,
+  .app-sidebar.is-rail .nav-list-plain .nav-item:not(#nav-more-commish) { display: none; }
+  .app-sidebar.is-rail .rail-only { display: flex; }
+  .app-sidebar.is-rail .mode-tab-btn, .app-sidebar.is-rail .nav-item { justify-content: center; padding: 0; }
+  .app-sidebar.is-rail .mode-tab-btn > span, .app-sidebar.is-rail .nav-item > span {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .app-sidebar.is-rail .nav-list-plain { margin-top: 2px; }
+}
+@media (prefers-reduced-motion: reduce) { .app-sidebar { transition: none; } }
+
+/* ---------- Send to Separated at Turf ---------- */
+.official-form-slot { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.official-form-slot:empty { display: none; }
+.tool-btn.is-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tool-btn.is-primary svg.lucide { color: var(--on-accent); }
+.form-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; font-size: 13px; color: var(--text-muted); white-space: nowrap; }
+.form-chip svg.lucide { width: 14px; height: 14px; color: var(--win); }
+.form-chip.is-changed { color: var(--text); border-color: var(--warn); }
+.form-name-field { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 14px; font-size: 14px; color: var(--text-muted); }
+.form-name-field .search-input { min-height: 44px; font-size: 16px; }
+.form-summary-line { font-size: 16px; margin: 0 0 10px; }
+.form-problems { margin: 0 0 14px; padding-left: 18px; color: var(--text); font-size: 14px; line-height: 1.45; }
+.form-problems li::marker { color: var(--loss); }
+#official-form-summary .btn-submit { width: 100%; }
+#official-form-summary .btn-submit[disabled] { opacity: 0.6; cursor: not-allowed; }
+.form-commish-note { margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; }

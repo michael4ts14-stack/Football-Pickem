@@ -30,14 +30,19 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="/css/tokens.css?v=2026-10-27d" />
-<link rel="stylesheet" href="/css/base.css?v=2026-10-27d" />
-<link rel="stylesheet" href="/css/views.css?v=2026-10-27d" />
-<link rel="stylesheet" href="/css/components.css?v=2026-10-27d" />
-<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-27d" />
-<link rel="stylesheet" href="/css/app.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/tokens.css?v=2026-10-27e" />
+<link rel="stylesheet" href="/css/base.css?v=2026-10-27e" />
+<link rel="stylesheet" href="/css/views.css?v=2026-10-27e" />
+<link rel="stylesheet" href="/css/components.css?v=2026-10-27e" />
+<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-27e" />
+<link rel="stylesheet" href="/css/app.css?v=2026-10-27e" />
 </head>
-<body>
+<body class="simple-ui-mode">
+<script>
+  // Simple mode from the first paint. Only someone who switched to Advanced ("0") starts there;
+  // initSimpleModeAndCommish() applies the same rule again at boot.
+  try { if (localStorage.getItem("sat_simple_ui_mode_v16") === "0") document.body.classList.remove("simple-ui-mode"); } catch (e) {}
+</script>
 <a class="skip-link" href="#app-content">Skip to content</a>
 <span id="cloud-status-text" class="hidden">V16 COMMAND CENTER (`football-pickem-46206`)</span>
 
@@ -45,27 +50,29 @@
 <!-- Desktop sidebar (>= 900px). The #tab-mode-* ids are driven by switchMainView(). -->
 <nav class="app-sidebar" aria-label="Main">
   <div class="app-brand">
+    <span class="app-brand-mark" aria-hidden="true">SAT</span>
     <span class="app-brand-name">Separated at Turf</span>
     <span class="app-brand-sub">College Pick'em '26</span>
   </div>
   <div class="nav-list">
-    <button type="button" id="tab-mode-cards" class="mode-tab-btn active" onclick="switchMainView('cards')"><i data-lucide="square-check"></i><span>Picks</span></button>
-    <button type="button" id="tab-mode-live" class="mode-tab-btn live-tab" onclick="switchMainView('live')"><i data-lucide="activity"></i><span>Live</span></button>
-    <button type="button" id="tab-mode-standings" class="mode-tab-btn standings-tab" onclick="switchMainView('standings')"><i data-lucide="chart-no-axes-column"></i><span>Standings</span></button>
+    <button type="button" id="tab-mode-cards" class="mode-tab-btn active" onclick="switchMainView('cards')" title="Picks"><i data-lucide="square-check"></i><span>Picks</span></button>
+    <button type="button" id="tab-mode-live" class="mode-tab-btn live-tab" onclick="switchMainView('live')" title="Live"><i data-lucide="activity"></i><span>Live</span></button>
+    <button type="button" id="tab-mode-standings" class="mode-tab-btn standings-tab" onclick="switchMainView('standings')" title="Standings"><i data-lucide="chart-no-axes-column"></i><span>Standings</span></button>
     <button type="button" id="tab-mode-condensed" class="mode-tab-btn" onclick="switchMainView('condensed')" hidden>Table</button>
+    <button type="button" id="nav-rail-more" class="nav-item rail-only" onclick="switchMainView('more')" title="More"><i data-lucide="menu"></i><span>More</span></button>
   </div>
   <div class="nav-group-label">More</div>
   <div class="nav-list nav-list-plain">
-    <button type="button" class="nav-item commish-only-hidden" id="nav-more-weeks" onclick="openMoreSection('weeks')">Past weeks</button>
-    <button type="button" class="nav-item" onclick="openEvSimulatorDrawer()">EV Simulator</button>
-    <button type="button" class="nav-item" data-more-section="export" onclick="openMoreSection('export')">Export</button>
-    <button type="button" class="nav-item" onclick="openAuthModal()">Account</button>
-    <button type="button" class="nav-item commish-only-hidden" id="nav-more-commish" onclick="openCommissionerModal('submissions')">Commissioner</button>
-    <button type="button" class="nav-item" data-more-section="settings" onclick="openMoreSection('settings')">Settings</button>
+    <button type="button" class="nav-item commish-only-hidden" id="nav-more-weeks" onclick="openMoreSection('weeks')"><i data-lucide="history"></i><span>Past weeks</span></button>
+    <button type="button" class="nav-item" onclick="openEvSimulatorDrawer()"><i data-lucide="dices"></i><span>EV Simulator</span></button>
+    <button type="button" class="nav-item" data-more-section="export" onclick="openMoreSection('export')"><i data-lucide="share-2"></i><span>Export</span></button>
+    <button type="button" class="nav-item" onclick="openAuthModal()"><i data-lucide="circle-user"></i><span>Account</span></button>
+    <button type="button" class="nav-item commish-only-hidden" id="nav-more-commish" onclick="openCommissionerModal('submissions')" title="Commissioner"><i data-lucide="crown"></i><span>Commissioner</span></button>
+    <button type="button" class="nav-item" data-more-section="settings" onclick="openMoreSection('settings')"><i data-lucide="settings"></i><span>Settings</span></button>
   </div>
   <div class="sidebar-foot">
+    <button type="button" class="nav-item sidebar-pin-btn" id="sidebar-pin-btn" onclick="toggleSidebarPinned()" aria-pressed="false" title="Keep the menu open"><i data-lucide="pin"></i><span>Keep menu open</span></button>
     <div class="bot-status commish-only-hidden" id="bot-sync-pill" title="Gmail/ESPN bot status">Bot …</div>
-    <button type="button" id="btn-toggle-desktop-rail" class="link-btn rail-toggle" onclick="toggleDesktopSidebarCollapse()" aria-pressed="false" aria-label="Hide side panel">Hide side panel</button>
   </div>
 </nav>
 
@@ -139,7 +146,7 @@
       <div class="condensed-toolbar">
         <div>
           <strong style="font-size:0.92rem;color:var(--text);">Condensed Master Pick Sheet — Zero-Scroll Mobile Cards & Table</strong>
-          <div style="font-size:0.73rem;color:var(--muted);">Tap any team button to flip Michael's, Kinyion's, Test Sim's, or Watchlist Rivals' picks (fits 100% on phone screens with zero horizontal scrolling).</div>
+          <div style="font-size:0.73rem;color:var(--muted);">Tap any team button to flip Michael's, Kinyon's, Test Sim's, or Watchlist Rivals' picks (fits 100% on phone screens with zero horizontal scrolling).</div>
         </div>
         <div class="cond-toolbar">
           <div class="segmented cond-view-toggle-bar" role="group" aria-label="Layout">
@@ -169,7 +176,7 @@
               <th>Matchup (CST)</th>
               <th>Sheet Line</th>
               <th>Michael</th>
-              <th>Kinyion</th>
+              <th>Kinyon</th>
               <th>Test Sim</th>
               <th>Watchlist Rivals (Tap to Set)</th>
               <th>Status / Grade / Swing</th>
@@ -365,7 +372,17 @@
   </main>
 
   <!-- Desktop right rail (>= 1200px): season top 5, last week, and the Advanced tools that used to be the left sidebar -->
+  <div class="rail-backdrop" id="rail-backdrop" hidden onclick="closeRailPanel()"></div>
   <aside class="app-rail" id="app-rail" aria-label="Season summary">
+    <div class="rail-head">
+      <div class="rail-head-row">
+        <h2 class="rail-head-title">Season</h2>
+        <div class="rail-head-actions">
+          <button type="button" class="icon-btn rail-pin-btn" id="rail-pin-btn" onclick="toggleRailPinned()" aria-pressed="false" aria-label="Keep this panel open" title="Keep this panel open (wide screens)"><i data-lucide="pin"></i></button>
+          <button type="button" class="icon-btn rail-close-btn" onclick="closeRailPanel()" aria-label="Close"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+    </div>
     <section class="rail-card" id="rail-season-top5"></section>
     <section class="rail-card" id="rail-last-week"></section>
     <aside class="sidebar" id="main-sidebar">
@@ -402,7 +419,7 @@
               <td id="h2h-m-ceil">27</td><td id="h2h-m-ev">17.8</td><td id="h2h-m-live" style="color:var(--green);font-weight:800;">0</td><td id="h2h-m-dogs">0-0</td>
             </tr>
             <tr>
-              <td><strong style="color:var(--text);">Kinyion</strong></td>
+              <td><strong style="color:var(--text);">Kinyon</strong></td>
               <td id="h2h-k-ceil">27</td><td id="h2h-k-ev">17.5</td><td id="h2h-k-live" style="color:var(--green);font-weight:800;">0</td><td id="h2h-k-dogs">0-0</td>
             </tr>
             <tr id="h2h-row-test">
@@ -707,47 +724,50 @@
     <div id="review-checklist-body"></div>
   </div>
 </div>
-<script src="/js/00-boot-guard.js?v=2026-10-27d"></script>
-<script src="/js/config.js?v=2026-10-27d"></script>
-<script src="/js/data/teams.js?v=2026-10-27d"></script>
-<script src="/js/data/default-slate.js?v=2026-10-27d"></script>
-<script src="/js/state-globals.js?v=2026-10-27d"></script>
-<script src="/js/data/week7-official.js?v=2026-10-27d"></script>
-<script src="/js/data/code-gs-source.js?v=2026-10-27d"></script>
-<script src="/js/state.js?v=2026-10-27d"></script>
-<script src="/js/team-match.js?v=2026-10-27d"></script>
-<script src="/js/firestore.js?v=2026-10-27d"></script>
-<script src="/js/picks.js?v=2026-10-27d"></script>
-<script src="/js/espn.js?v=2026-10-27d"></script>
-<script src="/js/profiles.js?v=2026-10-27d"></script>
-<script src="/js/auth.js?v=2026-10-27d"></script>
-<script src="/js/import-hub.js?v=2026-10-27d"></script>
-<script src="/js/render/condensed.js?v=2026-10-27d"></script>
-<script src="/js/import-sheet-grading.js?v=2026-10-27d"></script>
-<script src="/js/render/field-tracker.js?v=2026-10-27d"></script>
-<script src="/js/demo-sim.js?v=2026-10-27d"></script>
-<script src="/js/render/field.js?v=2026-10-27d"></script>
-<script src="/js/render/theater.js?v=2026-10-27d"></script>
-<script src="/js/live/live-feed.js?v=2026-10-27d"></script>
-<script src="/js/live-scores.js?v=2026-10-27d"></script>
-<script src="/js/leverage.js?v=2026-10-27d"></script>
-<script src="/js/simulator.js?v=2026-10-27d"></script>
-<script src="/js/archive.js?v=2026-10-27d"></script>
-<script src="/js/simple-mode-commissioner.js?v=2026-10-27d"></script>
-<script src="/js/commissioner-admin.js?v=2026-10-27d"></script>
-<script src="/js/shell.js?v=2026-10-27d"></script>
-<script src="/js/live/situation.js?v=2026-10-27d"></script>
-<script src="/js/picks-ui.js?v=2026-10-27d"></script>
-<script src="/js/matchups-ui.js?v=2026-10-27d"></script>
-<script src="/js/live-ui.js?v=2026-10-27d"></script>
-<script src="/js/standings-ui.js?v=2026-10-27d"></script>
-<script src="/js/dialogs-ui.js?v=2026-10-27d"></script>
-<script src="/js/player-sheet.js?v=2026-10-27d"></script>
-<script src="/js/boot.js?v=2026-10-27d"></script>
+<script src="/js/00-boot-guard.js?v=2026-10-27e"></script>
+<script src="/js/config.js?v=2026-10-27e"></script>
+<script src="/js/data/teams.js?v=2026-10-27e"></script>
+<script src="/js/data/default-slate.js?v=2026-10-27e"></script>
+<script src="/js/state-globals.js?v=2026-10-27e"></script>
+<script src="/js/win-prob.js?v=2026-10-27e"></script>
+<script src="/js/data/week7-official.js?v=2026-10-27e"></script>
+<script src="/js/data/code-gs-source.js?v=2026-10-27e"></script>
+<script src="/js/state.js?v=2026-10-27e"></script>
+<script src="/js/team-match.js?v=2026-10-27e"></script>
+<script src="/js/firestore.js?v=2026-10-27e"></script>
+<script src="/js/picks.js?v=2026-10-27e"></script>
+<script src="/js/espn.js?v=2026-10-27e"></script>
+<script src="/js/profiles.js?v=2026-10-27e"></script>
+<script src="/js/auth.js?v=2026-10-27e"></script>
+<script src="/js/import-hub.js?v=2026-10-27e"></script>
+<script src="/js/render/condensed.js?v=2026-10-27e"></script>
+<script src="/js/import-sheet-grading.js?v=2026-10-27e"></script>
+<script src="/js/render/field-tracker.js?v=2026-10-27e"></script>
+<script src="/js/demo-sim.js?v=2026-10-27e"></script>
+<script src="/js/render/field.js?v=2026-10-27e"></script>
+<script src="/js/render/theater.js?v=2026-10-27e"></script>
+<script src="/js/live/live-feed.js?v=2026-10-27e"></script>
+<script src="/js/live-scores.js?v=2026-10-27e"></script>
+<script src="/js/leverage.js?v=2026-10-27e"></script>
+<script src="/js/simulator.js?v=2026-10-27e"></script>
+<script src="/js/archive.js?v=2026-10-27e"></script>
+<script src="/js/simple-mode-commissioner.js?v=2026-10-27e"></script>
+<script src="/js/commissioner-admin.js?v=2026-10-27e"></script>
+<script src="/js/shell.js?v=2026-10-27e"></script>
+<script src="/js/live/situation.js?v=2026-10-27e"></script>
+<script src="/js/picks-ui.js?v=2026-10-27e"></script>
+<script src="/js/matchups-ui.js?v=2026-10-27e"></script>
+<script src="/js/live-ui.js?v=2026-10-27e"></script>
+<script src="/js/standings-ui.js?v=2026-10-27e"></script>
+<script src="/js/dialogs-ui.js?v=2026-10-27e"></script>
+<script src="/js/player-sheet.js?v=2026-10-27e"></script>
+<script src="/js/official-form.js?v=2026-10-27e"></script>
+<script src="/js/layout.js?v=2026-10-27e"></script>
+<script src="/js/boot.js?v=2026-10-27e"></script>
 <div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>
   <span>Update available</span>
   <button type="button" id="pwa-update-reload" class="link-btn">Reload</button>
 </div>
-<script src="/js/pwa.js?v=2026-10-27d"></script>
+<script src="/js/pwa.js?v=2026-10-27e"></script>
 </body>
 </html>

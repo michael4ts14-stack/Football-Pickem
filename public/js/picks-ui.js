@@ -91,7 +91,7 @@ function pickStatusWordHtml(sit) {
 function teamPickButtonHtml(g, isAway, pickedName, isLocked, ownInfo) {
   var name = isAway ? g.away : g.home;
   var pts = isAway ? (g.mondayAwayPts || g.awayPts || 1) : (g.mondayHomePts || g.homePts || 1);
-  var prob = isAway ? g.awayProb : g.homeProb;
+  var prob = isAway ? getTeamWinProb(g, "away") : getTeamWinProb(g, "home");
   var rec = parseTeamRecord(isAway ? g.awayRec : g.homeRec);
   var spread = spreadForTeam(g, name);
   var subParts = [];
@@ -99,13 +99,15 @@ function teamPickButtonHtml(g, isAway, pickedName, isLocked, ownInfo) {
   if (rec.record) subParts.push(rec.record);
   if (spread) subParts.push(spread);
 
-  // Stats line: win % + multiplier for everyone; EV and leverage in Advanced mode.
+  // Stats line: the multiplier for everyone (win % lives only in the ESPN bar under the game);
+  // EV and leverage in Advanced mode, marked "est." when ESPN has no predictor yet.
   var stats = [];
-  if (typeof prob === "number") stats.push('<span>' + Math.round(prob * 100) + '% win</span>');
   if (!SIMPLE_UI_MODE) {
-    if (typeof prob === "number") stats.push('<span>EV ' + (prob * (isAway ? g.awayPts : g.homePts)).toFixed(2) + '</span>');
+    var estimated = isWinProbEstimated(g);
+    var estTip = estimated ? ' title="Estimated from the spread; ESPN data not available yet."' : '';
+    stats.push('<span' + estTip + '>EV ' + (prob * pts).toFixed(2) + (estimated ? ' est.' : '') + '</span>');
     var lev = ownInfo ? (isAway ? ownInfo.awayLev : ownInfo.homeLev) : 0;
-    if (lev >= 10) stats.push('<span>+' + lev + '% lev</span>');
+    if (lev >= 10) stats.push('<span' + estTip + '>+' + lev + '% lev' + (estimated ? ' est.' : '') + '</span>');
   }
 
   var picked = !!pickedName && isSameTeamPick(pickedName, name, g);
@@ -114,7 +116,7 @@ function teamPickButtonHtml(g, isAway, pickedName, isLocked, ownInfo) {
   var injIcon = injText
     ? '<span class="inj-icon' + (inj.out ? ' is-out' : '') + '" title="Injuries: ' + injText + '"><i data-lucide="bandage"></i></span>'
     : '';
-  var label = (picked ? "Picked: " : "Pick ") + name + ", " + pts + "x" + (typeof prob === "number" ? ", " + Math.round(prob * 100) + "% to win" : "") + (injText ? ", injuries: " + injText : "");
+  var label = (picked ? "Picked: " : "Pick ") + name + ", " + pts + "x" + (injText ? ", injuries: " + injText : "");
   return '<button type="button" class="team-pick ' + (isAway ? 'is-away' : 'is-home') + (picked ? ' is-picked' : '') + (isLocked ? ' is-locked' : '') + '"' +
       ' aria-pressed="' + picked + '" aria-label="' + escapeShellHtml(label) + '" onclick="pickSide(' + g.id + ', ' + (isAway ? 1 : 2) + ')">' +
     teamLogoHtml(g, isAway) +
@@ -170,7 +172,7 @@ function gamePassesPicksFilter(g, myPick, q, ownInfo, h2h) {
     if (!(g.keyInjHeader || computeKeyInjHeaderFromLists(g)) && flags.out === 0 && flags.q === 0) return false;
   }
   if (currentFilter === "plusev" || currentFilter === "ev") {
-    var awayEV = g.awayProb * g.awayPts, homeEV = g.homeProb * g.homePts;
+    var awayEV = getTeamWinProb(g, "away") * g.awayPts, homeEV = getTeamWinProb(g, "home") * g.homePts;
     var plusEvDog = (g.awayPts > 1 && awayEV >= 0.65) || (g.homePts > 1 && homeEV >= 0.65);
     var tier = String(g.tier || "");
     if (!(plusEvDog || tier.indexOf("Multiplier") !== -1 || tier.indexOf("Sharp") !== -1 || tier.indexOf("Contrarian") !== -1)) return false;
@@ -226,7 +228,8 @@ function renderPickCardsHtml() {
       infoParts.push('<span class="card-info-item"><span class="card-info-label">Pool</span> ' +
         escapeShellHtml(g.awayCode) + ' ' + ownInfo.awayPct + '% · ' + escapeShellHtml(g.homeCode) + ' ' + ownInfo.homePct + '%</span>');
     }
-    if (h2h) {
+    // Head-to-head is an Advanced feature, and only with a chosen target (h2h is null without one).
+    if (h2h && !SIMPLE_UI_MODE) {
       var isDiff = !!(myPick && h2h.pick && !isSameTeamPick(myPick, h2h.pick, g));
       infoParts.push('<span class="card-info-item"><span class="card-info-label">' + escapeShellHtml(h2h.name) + '</span> ' + escapeShellHtml(h2h.text) +
         (isDiff ? ' <span class="diff-tag">Diff</span>' : '') + '</span>');
@@ -277,7 +280,9 @@ function renderPickCardsHtml() {
       '</article>';
   }
   if (!html) {
-    html = '<p class="empty-note">' + (currentFilter === "missing" ? "Every game has a pick." : "No games match that filter.") + '</p>';
+    html = (currentFilter === "diffs" && !cmp)
+      ? compareChooserHtml("Pick someone to see where your picks differ")
+      : '<p class="empty-note">' + (currentFilter === "missing" ? "Every game has a pick." : "No games match that filter.") + '</p>';
   }
   return html;
 }
@@ -431,7 +436,7 @@ function renderGameDetailSheet() {
   // Head-to-head: your compare target's pick on this game (respects their privacy settings).
   var h2hHtml = "";
   try {
-    var cmp = resolveCompareTargetDescriptor();
+    var cmp = SIMPLE_UI_MODE ? null : resolveCompareTargetDescriptor();
     if (cmp) {
       var cmpHidden = cmp.isHiddenForGame ? cmp.isHiddenForGame(g.id) : false;
       var cmpPick = (!cmpHidden && cmp.hasPicks) ? getResolvedPickForGame(cmp.picks, g, !cmp.isPoolMember) : null;

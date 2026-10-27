@@ -18,8 +18,7 @@ function loadDeviceAuthSession() {
     } catch (e) {}
   }
   // Restore per-device compareTargetKey & Test Sim so another user's cloud sync never alters your screen view
-  var savedCmp = safeGetStorage("sat_device_compare_target_v16");
-  if (savedCmp) state.compareTargetKey = savedCmp;
+  state.compareTargetKey = safeGetStorage(COMPARE_TARGET_STORAGE_KEY) || "";
   var savedTest = safeGetStorage("sat_device_test_sim_v16");
   if (savedTest) {
     try {
@@ -45,9 +44,6 @@ function saveDeviceAuthSession() {
     safeSetStorage("sat_auth_session_v16", "");
   }
   safeSetStorage("sat_device_active_profile_v16", activeProfile);
-  if (state.compareTargetKey) {
-    safeSetStorage("sat_device_compare_target_v16", state.compareTargetKey);
-  }
 }
 
 function isAccountInstanceLocked() {
@@ -88,8 +84,8 @@ function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerU
     return { profileKey: "michael", linkedMemberName: "Michael A", displayName: "Michael A" };
   }
   if (lowMember === "kinyion c" || lowMember === "kinyion") {
-    state.kinyion.linkedMemberName = "Kinyion C";
-    return { profileKey: "kinyion", linkedMemberName: "Kinyion C", displayName: "Kinyion C" };
+    state.kinyion.linkedMemberName = "Kinyon C";
+    return { profileKey: "kinyion", linkedMemberName: "Kinyon C", displayName: "Kinyon C" };
   }
 
   // Check if a custom profile already exists for this leaderboard member or uid
@@ -193,7 +189,7 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
     } else if (email.indexOf("michael") !== -1) {
       targetMember = "Michael A";
     } else if (email.indexOf("kinyion") !== -1 || email.indexOf("kenyon") !== -1) {
-      targetMember = "Kinyion C";
+      targetMember = "Kinyon C";
     } else {
       targetMember = dispName;
     }
@@ -270,9 +266,7 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
 
   SESSION_UNLOCKED_PROFILES[bKey] = true;
   activeProfile = bKey;
-  if (state.compareTargetKey === bKey) {
-    state.compareTargetKey = (bKey === "michael") ? "kinyion" : "michael";
-  }
+  if (state.compareTargetKey === bKey) { state.compareTargetKey = ""; safeSetStorage(COMPARE_TARGET_STORAGE_KEY, ""); }
 
   saveDeviceAuthSession();
   regradeAllPoolMembersLive();
@@ -999,9 +993,7 @@ function switchProfile(prof) {
     return;
   }
   activeProfile = prof;
-  if (state.compareTargetKey === prof) {
-    state.compareTargetKey = (myKey === "michael") ? "kinyion" : "michael";
-  }
+  if (state.compareTargetKey === prof) { state.compareTargetKey = ""; safeSetStorage(COMPARE_TARGET_STORAGE_KEY, ""); }
   saveDeviceAuthSession();
   syncActiveProfileControlsUI();
   updateAuthUI();
@@ -1011,7 +1003,8 @@ function switchProfile(prof) {
 
 function copyOtherProfile() {
   var cmpDesc = resolveCompareTargetDescriptor();
-  var sourceName = cmpDesc ? cmpDesc.name : "Compare Target";
+  if (!cmpDesc) { showAppToast("Choose someone to compare with first."); return; }
+  var sourceName = cmpDesc.name;
   var sourcePicks = (cmpDesc && cmpDesc.picks) ? cmpDesc.picks : null;
   if (cmpDesc && !cmpDesc.isPoolMember && isProfileHiddenFromViewer(cmpDesc.key, null)) {
     unlockProfileWithPrompt(cmpDesc.key, function() {
@@ -1039,10 +1032,10 @@ function applyPreset(type) {
     if (type === "optimal") {
       state[activeProfile].picks[g.id] = g.rec;
     } else if (type === "safe" || type === "chalk") {
-      state[activeProfile].picks[g.id] = g.awayProb > g.homeProb ? g.away : g.home;
+      state[activeProfile].picks[g.id] = getTeamWinProb(g, "away") > getTeamWinProb(g, "home") ? g.away : g.home;
     } else if (type === "aggressive") {
       var dog = g.awayPts > 1 ? g.away : (g.homePts > 1 ? g.home : null);
-      var dogProb = dog === g.away ? g.awayProb : g.homeProb;
+      var dogProb = dog === g.away ? getTeamWinProb(g, "away") : getTeamWinProb(g, "home");
       if (dog && dogProb >= 0.27) state[activeProfile].picks[g.id] = dog;
       else state[activeProfile].picks[g.id] = g.rec;
     }

@@ -134,7 +134,7 @@ renderLiveScoreboardTab = function() {
     var situation = fieldMiniBarHtml(g, ls) || ((ls.inProgress && (ls.downDistanceText || ls.possessionText))
       ? '<div class="live-situation">' + escapeShellHtml([ls.downDistanceText, ls.possessionText].filter(Boolean).join(" · ")) + '</div>'
       : '');
-    var h2hLine = h2h
+    var h2hLine = (h2h && !SIMPLE_UI_MODE)
       ? '<div class="card-info"><span class="card-info-item"><span class="card-info-label">' + escapeShellHtml(h2h.name) + '</span> ' + escapeShellHtml(h2h.text) +
           (isDiff ? ' <span class="diff-tag">Diff</span>' : '') + '</span></div>'
       : '';
@@ -169,7 +169,9 @@ renderLiveScoreboardTab = function() {
     html += '<h2 class="section-label live-window">' + escapeShellHtml(order[w].replace(/\bCST\b/g, "CT")) + '</h2>' +
       '<div class="live-grid">' + windows[order[w]].join("") + '</div>';
   }
-  container.innerHTML = html || '<p class="empty-note">No games match that filter.</p>';
+  container.innerHTML = html || ((liveTabFilter === "diff" && !cmp)
+    ? compareChooserHtml("Pick someone to see your head-to-head swing games")
+    : '<p class="empty-note">No games match that filter.</p>');
 
   var setText = function(id, txt) { var el = document.getElementById(id); if (el) el.textContent = txt; };
   var actMeta = getProfileMetaByKey(activeProfile);
@@ -178,7 +180,7 @@ renderLiveScoreboardTab = function() {
   setText("live-tab-m-label", actMeta.shortName || actMeta.name);
   setText("live-tab-m-pts", mLivePts + " pts");
   setText("live-tab-m-rec", "(" + mWinCnt + " leading or won)");
-  setText("live-tab-k-label", cmp ? (cmp.shortName || cmp.name) : "Rival");
+  setText("live-tab-k-label", cmp ? (cmp.shortName || cmp.name) : "Compare");
   setText("live-tab-k-pts", (cmp && !cmp.hasPicks) ? "No sheet yet" : (kLivePts + " pts"));
   setText("live-tab-k-rec", (cmp && !cmp.hasPicks) ? "" : ("(" + kWinCnt + " leading or won · " + diffCnt + " diffs)"));
 

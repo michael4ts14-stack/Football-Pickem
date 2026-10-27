@@ -177,7 +177,7 @@ function openUserAndPrivacyModal() {
       '<div style="font-size:0.82rem;font-weight:800;color:var(--text);margin-bottom:6px;">⚔️ Read-Only Head-to-Head Comparison Target</div>' +
       '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Select any other signed-in user or any of the 89 pool leaderboard members to compare picks against side-by-side (read-only):</div>' +
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
-        '<span style="font-size:0.76rem;color:var(--text);font-weight:800;">Currently Comparing vs: <span style="color:var(--warn);">' + (cmpDesc ? cmpDesc.name : 'Kinyion C') + '</span></span>' +
+        '<span style="font-size:0.76rem;color:var(--text);font-weight:800;">Currently Comparing vs: <span style="color:var(--warn);">' + (cmpDesc ? cmpDesc.name : 'Nobody yet') + '</span></span>' +
         '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);font-weight:800;" onclick="closeOppModal(); switchMainView(\'condensed\');">📋 Open Side-by-Side Comparison</button>' +
       '</div>' +
     '</div>';

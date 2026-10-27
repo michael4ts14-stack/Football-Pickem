@@ -15,7 +15,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
   var cmpDesc = resolveCompareTargetDescriptor();
   var sig = [
     activeProfile,
-    cmpDesc ? cmpDesc.key : "kinyion",
+    cmpDesc ? cmpDesc.key : "none",
     MONTE_CARLO_MODE,
     state.currentWeek || 8,
     countScoredGamesInLiveScores(),
@@ -37,7 +37,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
     var g = GAMES[i];
     gameAwayPts[i] = g.awayPts || 1;
     gameHomePts[i] = g.homePts || 1;
-    gameAwayProb[i] = g.awayProb || 0.5;
+    gameAwayProb[i] = getTeamWinProb(g, "away") || 0.5;
     var ls = LIVE_SCORES[g.id];
     if (ls && ls.completed && ls.awayScore !== ls.homeScore) {
       gameLockedResult[i] = (ls.awayScore > ls.homeScore) ? 1 : 0;
@@ -53,7 +53,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
       var gm = GAMES[idx];
       var p = getResolvedPickForGame(picksMap, gm, allowFallback);
       if (!p) {
-        arr[idx] = (gm.awayProb >= gm.homeProb) ? 1 : 0;
+        arr[idx] = (getTeamWinProb(gm, "away") >= getTeamWinProb(gm, "home")) ? 1 : 0;
       } else {
         validCnt++;
         arr[idx] = isSameTeamPick(p, gm.away, gm) ? 1 : 0;
@@ -362,13 +362,16 @@ function renderMonteCarloSimulatorBox() {
       '<div class="mc-kpi-card" style="border-color:var(--border);">' +
         '<div class="metric-label">📊 Expected Pool Rank</div>' +
         '<div class="metric-val" style="color:var(--legacy-accent);">' + (actHidden ? '🔒' : ('#' + sim.active.avgRank)) + ' <span style="font-size:0.78rem;color:var(--muted);">of ' + sim.contendersCount + '</span></div>' +
-        '<div class="metric-sub">' + (sim.compare ? (cmpDesc.shortName + ' Proj Rank: #' + sim.compare.avgRank) : '') + '</div>' +
+        '<div class="metric-sub">' + (sim.compare && cmpDesc ? (cmpDesc.shortName + ' Proj Rank: #' + sim.compare.avgRank) : '') + '</div>' +
       '</div>' +
+      // Head-to-head odds only when you chose someone to compare with.
+      (!cmpDesc ? '' : (
       '<div class="mc-kpi-card" style="border-color:var(--border);">' +
-        '<div class="metric-label">⚔️ Beat ' + (cmpDesc ? cmpDesc.shortName : 'Rival') + ' H2H Odds</div>' +
+        '<div class="metric-label">⚔️ Beat ' + (cmpDesc ? cmpDesc.shortName : 'a rival') + ' H2H Odds</div>' +
         '<div class="metric-val" style="color:var(--text);">' + ((actHidden || cmpHidden) ? '🔒' : (sim.h2hWinPct + '%')) + '</div>' +
         '<div class="metric-sub">' + ((actHidden || cmpHidden) ? 'Locked' : ('Lose: ' + sim.h2hLossPct + '% • Tie: ' + sim.h2hTiePct + '%')) + '</div>' +
-      '</div>' +
+      '</div>'
+      )) +
     '</div>' +
     '<div style="margin:8px 0;padding:8px 10px;background:var(--bg);border:1px solid var(--border-muted);border-radius:8px;font-size:0.73rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">' +
       '<span style="font-weight:800;color:var(--text);">🎯 Top 3 Root-For Leverage Games (Biggest Boost to Your Top-5 Finish Odds):</span>' +

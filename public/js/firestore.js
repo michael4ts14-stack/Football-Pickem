@@ -334,7 +334,7 @@ function applyRemoteCloudData(data, sourceLabel) {
   renderSwayFeed();
   renderAll();
   var nowStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  document.getElementById("cloud-status-text").textContent = "🔥 Firebase Live Sync (" + sourceLabel + " • " + nowStr + ") — Michael, Kinyion & Pool Synced!";
+  document.getElementById("cloud-status-text").textContent = "🔥 Firebase Live Sync (" + sourceLabel + " • " + nowStr + ") — Michael, Kinyon & Pool Synced!";
   isApplyingRemoteUpdate = false;
 
   if ((neededClean || slateChanged || cloudLbStale) && !window._pushedSlateCleanup) {

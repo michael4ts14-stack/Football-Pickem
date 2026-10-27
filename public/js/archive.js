@@ -266,7 +266,7 @@ function renderSeasonArchiveHub() {
         (isCurrent ? '<span class="badge badge-ev">Active View</span>' : '<span class="badge badge-1x">Archived</span>') +
       '</div>' +
       '<div style="color:var(--muted);">Slate: <strong>' + gList.length + ' Games</strong> (' + firstMatchup + '...) • Graded: <strong>' + compCount + '/' + gList.length + '</strong></div>' +
-      '<div style="color:var(--text);">👤 Michael: <strong style="color:var(--text);">' + mPts + '</strong> • 👤 Kinyion: <strong style="color:var(--text);">' + kPts + '</strong></div>' +
+      '<div style="color:var(--text);">👤 Michael: <strong style="color:var(--text);">' + mPts + '</strong> • 👤 Kinyon: <strong style="color:var(--text);">' + kPts + '</strong></div>' +
       '<div style="margin-top:4px;display:flex;gap:6px;">' +
         (isCurrent
           ? '<button type="button" class="btn-sm" style="width:100%;border-color:var(--border);color:var(--win);font-weight:800;" onclick="saveCurrentWeekToArchive(true)">💾 Update Snapshot in Firestore</button>'
