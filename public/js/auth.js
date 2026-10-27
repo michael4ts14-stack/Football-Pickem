@@ -84,8 +84,8 @@ function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerU
     return { profileKey: "michael", linkedMemberName: "Michael A", displayName: "Michael A" };
   }
   if (lowMember === "kinyion c" || lowMember === "kinyion") {
-    state.kinyion.linkedMemberName = "Kinyion C";
-    return { profileKey: "kinyion", linkedMemberName: "Kinyion C", displayName: "Kinyion C" };
+    state.kinyion.linkedMemberName = "Kinyon C";
+    return { profileKey: "kinyion", linkedMemberName: "Kinyon C", displayName: "Kinyon C" };
   }
 
   // Check if a custom profile already exists for this leaderboard member or uid
@@ -189,7 +189,7 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
     } else if (email.indexOf("michael") !== -1) {
       targetMember = "Michael A";
     } else if (email.indexOf("kinyion") !== -1 || email.indexOf("kenyon") !== -1) {
-      targetMember = "Kinyion C";
+      targetMember = "Kinyon C";
     } else {
       targetMember = dispName;
     }

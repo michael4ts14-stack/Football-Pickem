@@ -22,6 +22,8 @@ function standardizeParticipantName(rawName) {
     low.indexOf("kinyion") === 0 ||
     low.indexOf("kenyon") === 0
   ) {
+    // Matching key, not display text: pool sheets and stored keys use this spelling. The screen
+    // shows "Kinyon C" (see fixDisplaySpelling in shell.js). Don't change it without migrating data.
     return "Kinyion C";
   }
   return clean;
@@ -425,7 +427,7 @@ function syncOfficialWeek7EmailSheetToFirebase() {
   renderAll();
   var stEl = document.getElementById("gas-bot-status");
   if (stEl) {
-    stEl.textContent = "✓ Loaded all 89 participants + Michael A & Kinyion C's official Week 7 picks from 'College Pick\'em \'26 - Week 7.xlsx' and synced to Firebase!";
+    stEl.textContent = "✓ Loaded all 89 participants + Michael A & Kinyon C's official Week 7 picks from 'College Pick\'em \'26 - Week 7.xlsx' and synced to Firebase!";
   }
   document.getElementById("cloud-status-text").textContent = "🔥 Synced all 89 Week 7 Pool Entries from Gmail .xlsx Attachment to Firebase!";
 }

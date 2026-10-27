@@ -2,7 +2,8 @@ var state = {
   currentWeek: 8,
   weekLabel: "Week 8",
   michael: Object.assign(JSON.parse(JSON.stringify(WEEK7_OFFICIAL_MICHAEL)), { linkedMemberName: "Michael A" }),
-  kinyion: Object.assign(JSON.parse(JSON.stringify(WEEK7_OFFICIAL_KINYION)), { linkedMemberName: "Kinyion C" }),
+  // Internal key is 'kinyion' (legacy spelling). Display name is 'Kinyon'. Do not rename the key.
+  kinyion: Object.assign(JSON.parse(JSON.stringify(WEEK7_OFFICIAL_KINYION)), { linkedMemberName: "Kinyon C" }),
   test: { picks: {}, tiebreaker: "28-24", target: 20, linkedMemberName: "" },
   customUsers: [],
   compareTargetKey: "", // nobody is compared until the person picks someone
@@ -68,7 +69,7 @@ function getLinkedMemberNameForProfile(profKey) {
     return (state.michael && state.michael.linkedMemberName !== undefined) ? state.michael.linkedMemberName : "Michael A";
   }
   if (profKey === "kinyion") {
-    return (state.kinyion && state.kinyion.linkedMemberName !== undefined) ? state.kinyion.linkedMemberName : "Kinyion C";
+    return (state.kinyion && state.kinyion.linkedMemberName !== undefined) ? state.kinyion.linkedMemberName : "Kinyon C";
   }
   if (profKey === "test") {
     return (state.test && state.test.linkedMemberName) ? state.test.linkedMemberName : "";
@@ -207,7 +208,7 @@ function ensureMultiUserAndPrivacyState() {
   if (!state.customUsers || !Array.isArray(state.customUsers)) state.customUsers = [];
   if (!state.profilePrivacy || typeof state.profilePrivacy !== "object") state.profilePrivacy = {};
   if (state.michael && state.michael.linkedMemberName === undefined) state.michael.linkedMemberName = "Michael A";
-  if (state.kinyion && state.kinyion.linkedMemberName === undefined) state.kinyion.linkedMemberName = "Kinyion C";
+  if (state.kinyion && state.kinyion.linkedMemberName === undefined) state.kinyion.linkedMemberName = "Kinyon C";
   var allProfs = getAllUserProfiles();
   for (var i = 0; i < allProfs.length; i++) {
     var pk = allProfs[i].key;
@@ -225,15 +226,15 @@ function ensureMultiUserAndPrivacyState() {
 
 function getAllUserProfiles() {
   var mLinked = (state.michael && state.michael.linkedMemberName !== undefined) ? state.michael.linkedMemberName : "Michael A";
-  var kLinked = (state.kinyion && state.kinyion.linkedMemberName !== undefined) ? state.kinyion.linkedMemberName : "Kinyion C";
+  var kLinked = (state.kinyion && state.kinyion.linkedMemberName !== undefined) ? state.kinyion.linkedMemberName : "Kinyon C";
   var tLinked = (state.test && state.test.linkedMemberName) ? state.test.linkedMemberName : "";
 
   var mLb = findLeaderboardEntryByName(mLinked || "Michael A");
-  var kLb = findLeaderboardEntryByName(kLinked || "Kinyion C");
+  var kLb = findLeaderboardEntryByName(kLinked || "Kinyon C");
 
   var list = [
     { key: "michael", name: "Michael A", shortName: "Michael", icon: "👤", color: "#38bdf8", tabClass: "active-michael", btnClass: "m-active", selClass: "selected-michael", tagClass: "p-tag-m", priorPts: mLb ? (parseFloat(mLb.priorPts) || 111) : 111, defaultRank: mLb && mLb.rank ? mLb.rank : "T-64th", linkedMemberName: mLinked, isBuiltIn: true },
-    { key: "kinyion", name: "Kinyion", shortName: "Kinyion", icon: "👤", color: "#c084fc", tabClass: "active-kinyion", btnClass: "k-active", selClass: "selected-kinyion", tagClass: "p-tag-k", priorPts: kLb ? (parseFloat(kLb.priorPts) || 112) : 112, defaultRank: kLb && kLb.rank ? kLb.rank : "T-57th", linkedMemberName: kLinked, isBuiltIn: true },
+    { key: "kinyion", name: "Kinyon", shortName: "Kinyon", icon: "👤", color: "#c084fc", tabClass: "active-kinyion", btnClass: "k-active", selClass: "selected-kinyion", tagClass: "p-tag-k", priorPts: kLb ? (parseFloat(kLb.priorPts) || 112) : 112, defaultRank: kLb && kLb.rank ? kLb.rank : "T-57th", linkedMemberName: kLinked, isBuiltIn: true },
     { key: "test", name: "Test Sim", shortName: "Test", icon: "🧪", color: "#f59e0b", tabClass: "active-test", btnClass: "t-active", selClass: "selected-test", tagClass: "p-tag-test", priorPts: 0, defaultRank: "Sandbox", linkedMemberName: tLinked, isBuiltIn: true, isSandbox: true }
   ];
   if (state.customUsers && Array.isArray(state.customUsers)) {

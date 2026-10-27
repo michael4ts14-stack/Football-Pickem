@@ -47,8 +47,36 @@ function refreshIcons() {
 // and the printable pick sheet (which uses checkbox glyphs) are left alone.
 var UI_EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}]/gu;
 var UI_EMOJI_TEST = /[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
+// Display-only spelling fix. Pool sheets and the matching key spell him "Kinyion C"
+// (standardizeParticipantName); his name is Kinyon. Data, keys and Firestore keep their
+// spelling; only text on screen (and tooltips / accessible names) changes.
+var DISPLAY_SPELLING_FIXES = [[/\bKinyion\b/g, "Kinyon"]];
+var DISPLAY_SPELLING_TEST = /\bKinyion\b/;
+function fixDisplaySpelling(str) {
+  for (var i = 0; i < DISPLAY_SPELLING_FIXES.length; i++) str = str.replace(DISPLAY_SPELLING_FIXES[i][0], DISPLAY_SPELLING_FIXES[i][1]);
+  return str;
+}
+function fixDisplaySpellingAttrs(el) {
+  var attrs = ["title", "aria-label", "placeholder"];
+  for (var i = 0; i < attrs.length; i++) {
+    var v = el.getAttribute && el.getAttribute(attrs[i]);
+    if (v && DISPLAY_SPELLING_TEST.test(v)) el.setAttribute(attrs[i], fixDisplaySpelling(v));
+  }
+}
+
 function scrubEmojiText(node) {
   if (!node) return;
+  if (node.nodeType === 3 && DISPLAY_SPELLING_TEST.test(node.nodeValue)) {
+    var pn = node.parentNode;
+    if (pn && !(pn.closest && pn.closest("textarea, script, style"))) node.nodeValue = fixDisplaySpelling(node.nodeValue);
+  }
+  if (node.nodeType === 1) {
+    fixDisplaySpellingAttrs(node);
+    if (node.querySelectorAll) {
+      var withAttrs = node.querySelectorAll("[title], [aria-label], [placeholder]");
+      for (var a = 0; a < withAttrs.length; a++) fixDisplaySpellingAttrs(withAttrs[a]);
+    }
+  }
   if (node.nodeType === 3) {
     var t = node.nodeValue;
     if (!UI_EMOJI_TEST.test(t)) return;

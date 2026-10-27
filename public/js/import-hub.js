@@ -28,7 +28,7 @@ function openUnifiedImportModal(defaultTab) {
       '<div style="background:var(--raised);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:0.75rem;">' +
         '<div id="gas-modal-dynamic-title" style="font-weight:800;color:var(--win);margin-bottom:4px;">✅ ' + activeWk + ' Email Attachment Auto-Scraped & Pre-Loaded!</div>' +
         '<div id="gas-modal-dynamic-desc" style="color:var(--text);">Active file: <strong><code>' + activeFile + '</code></strong> — all <strong>' + participantCount + ' participants</strong>, their 26 picks, Prior Season Points, and Tiebreakers are loaded!</div>' +
-        '<button class="btn-sm" style="margin-top:8px;background:var(--accent);color:var(--on-accent);font-weight:800;width:100%;padding:7px;" onclick="syncCurrentLoadedSheetToFirebase()">⚡ Sync All ' + participantCount + ' ' + activeWk + ' Picks + Michael & Kinyion to Firebase Now</button>' +
+        '<button class="btn-sm" style="margin-top:8px;background:var(--accent);color:var(--on-accent);font-weight:800;width:100%;padding:7px;" onclick="syncCurrentLoadedSheetToFirebase()">⚡ Sync All ' + participantCount + ' ' + activeWk + ' Picks + Michael & Kinyon to Firebase Now</button>' +
       '</div>' +
       '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px;">' +
         '<strong>🔗 Deployed Google Apps Script Web App URL</strong> (triggers <code>runMasterPickemEmailBot()</code> live):' +
@@ -49,7 +49,7 @@ function openUnifiedImportModal(defaultTab) {
     '<div id="hub-pane-csv" class="hidden">' +
       '<div class="csv-dropzone" onclick="document.getElementById(\'csv-master-file-input\').click()">' +
         '<div style="font-size:1.05rem;font-weight:800;color:var(--win);margin-bottom:4px;">📂 Upload Pool Master CSV / TSV File</div>' +
-        '<div style="font-size:0.73rem;color:var(--muted);">Select a <code>.csv</code> or <code>.tsv</code> export from Excel / Google Sheets. Auto-detects Game #1–26 columns, Prior Season Points, Tiebreakers, and standardizes Michael A & Kinyion C.</div>' +
+        '<div style="font-size:0.73rem;color:var(--muted);">Select a <code>.csv</code> or <code>.tsv</code> export from Excel / Google Sheets. Auto-detects Game #1–26 columns, Prior Season Points, Tiebreakers, and standardizes Michael A & Kinyon C.</div>' +
         '<input type="file" id="csv-master-file-input" accept=".csv,.tsv,.txt" style="display:none;" onchange="handleMasterCsvFileUpload(this.files[0])" />' +
       '</div>' +
       '<div id="csv-import-status" style="font-size:0.76rem;color:var(--green);margin-bottom:8px;font-weight:700;"></div>' +
@@ -72,7 +72,7 @@ function openUnifiedImportModal(defaultTab) {
     '<!-- TAB 4: EMAIL / STANDINGS -->' +
     '<div id="hub-pane-email" class="hidden">' +
       '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:8px;">' +
-        'Paste a <strong>Google Form Confirmation Email</strong> (to auto-fill picks for Michael, Kinyion, or a Watchlist Rival) OR paste <strong>Weekly Pool Standings</strong> rows:' +
+        'Paste a <strong>Google Form Confirmation Email</strong> (to auto-fill picks for Michael, Kinyon, or a Watchlist Rival) OR paste <strong>Weekly Pool Standings</strong> rows:' +
       '</div>' +
       '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">' +
         '<label style="font-size:0.74rem;font-weight:700;color:var(--text);">Target Profile for Pick Import:</label>' +
@@ -100,7 +100,7 @@ function openUnifiedImportModal(defaultTab) {
         '<div style="color:var(--text);margin-bottom:10px;">' + cloudStatusMsg + '</div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
           '<button class="btn-sm" style="background:var(--accent);color:var(--text);border:none;font-weight:800;padding:8px;" onclick="pullFromFirebaseCloud(); closeOppModal();">☁️ Force Firebase Pull</button>' +
-          '<button class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;padding:8px;" onclick="confirmDanger(\'Reset Michael and Kinyion to the recommended picks? This overwrites both profiles and saves to the cloud.\', \'Reset picks\', function() { hardResetToDefaults(); closeOppModal(); })">Reset Optimal Picks</button>' +
+          '<button class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;padding:8px;" onclick="confirmDanger(\'Reset Michael and Kinyon to the recommended picks? This overwrites both profiles and saves to the cloud.\', \'Reset picks\', function() { hardResetToDefaults(); closeOppModal(); })">Reset Optimal Picks</button>' +
         '</div>' +
       '</div>' +
     '</div>';
