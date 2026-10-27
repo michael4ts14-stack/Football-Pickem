@@ -80,6 +80,13 @@ function gameStatusHtml(g) {
   return '<span class="game-status">' + escapeShellHtml((k.day ? k.day + " " : "") + k.time) + '</span>';
 }
 
+// "Leading" / "Trailing" / "Won" / "Lost" for your pick, from getGameSituation.
+var PICK_STATUS_WORDS = { leading: ["Leading", "is-win"], trailing: ["Trailing", "is-loss"], tied: ["Tied", ""], won: ["Won", "is-win"], lost: ["Lost", "is-loss"] };
+function pickStatusWordHtml(sit) {
+  var w = sit && PICK_STATUS_WORDS[sit.myPickStatus];
+  return w ? '<span class="pick-status ' + w[1] + '">' + w[0] + '</span>' : '';
+}
+
 // ---------- Pick cards ----------
 function teamPickButtonHtml(g, isAway, pickedName, isLocked, ownInfo) {
   var name = isAway ? g.away : g.home;
@@ -245,6 +252,7 @@ function renderPickCardsHtml() {
       '<article class="pick-card' + (myPick ? '' : ' is-missing') + '" id="game-card-' + g.id + '" aria-label="' + escapeShellHtml(matchup) + '">' +
         '<button type="button" class="pick-card-meta" onclick="openGameDetail(' + g.id + ')" aria-label="Details for ' + escapeShellHtml(matchup) + '">' +
           gameStatusHtml(g) +
+          pickStatusWordHtml(getGameSituation(ls, g, myPick ? picks : null)) +
           '<span class="pick-card-net">' +
             (typeof upsetAlertFor === "function" && upsetAlertFor(g, ownInfo) ? '<span class="card-flag is-alert">Upset alert</span>' : '') +
             advFlags +
@@ -443,7 +451,8 @@ function renderGameDetailSheet() {
   }
 
   var gamecastHtml = (ls && (ls.inProgress || ls.completed)) || DEMO_FIELD_PREVIEW
-    ? '<button type="button" class="tool-btn" onclick="closeGameDetail(); openFieldTheaterModal(' + g.id + ')"><i data-lucide="radio"></i><span>Open GameCast</span></button>'
+    ? fieldMountHtml(g, "sheet") + (ls && ls.inProgress ? fieldMiniTextLineHtml(g, ls) : '') +
+      '<button type="button" class="tool-btn" onclick="closeGameDetail(); openFieldTheaterModal(' + g.id + ')"><i data-lucide="radio"></i><span>Drives and plays</span></button>'
     : '<p class="muted-note">GameCast opens at kickoff.</p>';
 
   var sheetOwn = null;
@@ -479,13 +488,14 @@ function renderGameDetailSheet() {
   body.innerHTML =
     '<p class="sheet-meta">' + escapeShellHtml([(k.day ? k.day + " " : "") + k.time, k.net, g.mondayPoolLine || g.poolLine].filter(Boolean).join(" · ")) + '</p>' +
     '<div class="pick-card-teams sheet-teams">' + teamPickButtonHtml(g, true, myPick, locked, sheetOwn) + teamPickButtonHtml(g, false, myPick, locked, sheetOwn) + '</div>' +
+    (ls && ls.inProgress ? '<section class="sheet-section"><h3 class="sheet-h">Live</h3>' + gamecastHtml + '</section>' : '') +
     (typeof matchupSheetSectionsHtml === "function" ? matchupSheetSectionsHtml(g) : '') +
     '<section class="sheet-section"><h3 class="sheet-h">Injuries and outs</h3><div class="dual-panel">' + renderInjColumn(g.away, g.awayInj) + renderInjColumn(g.home, g.homeInj) + '</div></section>' +
     '<section class="sheet-section"><h3 class="sheet-h">Last 5</h3>' + ((typeof matchupLastFiveHtml === "function" && matchupLastFiveHtml(g)) || ('<div class="dual-panel">' + renderL5Column(g.away, g.awayRec, commonMap) + renderL5Column(g.home, g.homeRec, commonMap) + '</div>')) + '</section>' +
     (gameInfoHtml ? '<section class="sheet-section"><h3 class="sheet-h">Game info</h3>' + gameInfoHtml + '</section>' : '') +
     '<section class="sheet-section"><h3 class="sheet-h">Pool</h3>' + (h2hHtml || '') + ownHtml + upsetHtml + recordHtml + '</section>' +
     insightsHtml +
-    '<section class="sheet-section"><h3 class="sheet-h">GameCast</h3>' + gamecastHtml + '</section>';
+    (ls && ls.inProgress ? '' : '<section class="sheet-section"><h3 class="sheet-h">GameCast</h3>' + gamecastHtml + '</section>');
 }
 
 document.addEventListener("keydown", function(ev) {

@@ -9,7 +9,6 @@
 // --force     full refresh even if one ran in the last 20 hours
 // Auth: if GOOGLE_SERVICE_ACCOUNT_JSON is set, Firestore calls use that service account;
 // otherwise they are unauthenticated (allowed while firestore.rules leaves live_games open).
-import { createSign } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import {
   seasonStatsFromSummary, extraStatsFromTeamFeed, computeNationalRanks, matchupEdges,
@@ -17,8 +16,7 @@ import {
   lastFiveFromSummary, gameInfoFromSummary, teamHeadersFromSummary, compact,
 } from "./matchups-lib.mjs";
 
-const PROJECT = "football-pickem-46206";
-const FS = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
+import { fetchJson, initFirestoreAuth, readDoc, patchDoc } from "../lib/firestore-rest.mjs";
 const SITE = "https://site.api.espn.com/apis/site/v2/sports/football/college-football";
 const CORE = "https://sports.core.api.espn.com/v2/sports/football/leagues/college-football";
 const FULL_REFRESH_EVERY_MS = 20 * 60 * 60 * 1000;
@@ -35,21 +33,6 @@ const WEEK_ARG = weekIdx >= 0 ? parseInt(args[weekIdx + 1], 10) : 0;
 
 const log = (...a) => console.log(...a);
 let espnCalls = 0, espnFailures = 0;
-
-// ---------- HTTP ----------
-async function fetchJson(url, opts = {}, tries = 3) {
-  for (let i = 0; i < tries; i++) {
-    try {
-      const res = await fetch(url, { ...opts, signal: AbortSignal.timeout(20000) });
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (e) {
-      if (i === tries - 1) throw new Error(`${url.slice(0, 140)}: ${e.message}`);
-      await new Promise((r) => setTimeout(r, 800 * (i + 1)));
-    }
-  }
-}
 
 async function espn(path) {
   espnCalls++;
@@ -75,77 +58,14 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
-// ---------- Firestore REST ----------
-let accessToken = null;
-async function getAccessToken() {
-  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
-  if (!raw) return null;
-  const sa = JSON.parse(raw);
-  const now = Math.floor(Date.now() / 1000);
-  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
-  const unsigned = b64({ alg: "RS256", typ: "JWT" }) + "." + b64({
-    iss: sa.client_email, scope: "https://www.googleapis.com/auth/datastore",
-    aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600,
-  });
-  const sig = createSign("RSA-SHA256").update(unsigned).sign(sa.private_key, "base64url");
-  const res = await fetchJson("https://oauth2.googleapis.com/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${unsigned}.${sig}`,
-  });
-  return res.access_token;
-}
-const authHeaders = () => (accessToken ? { Authorization: `Bearer ${accessToken}` } : {});
-
-function toFs(v) {
-  if (v === null || v === undefined) return { nullValue: null };
-  if (typeof v === "boolean") return { booleanValue: v };
-  if (typeof v === "number") return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
-  if (typeof v === "string") return { stringValue: v };
-  if (Array.isArray(v)) return { arrayValue: { values: v.map(toFs) } };
-  const fields = {};
-  for (const [k, x] of Object.entries(v)) if (x !== undefined) fields[k] = toFs(x);
-  return { mapValue: { fields } };
-}
-function fromFs(f) {
-  if (!f || typeof f !== "object") return null;
-  if ("nullValue" in f) return null;
-  if ("booleanValue" in f) return f.booleanValue;
-  if ("integerValue" in f) return parseInt(f.integerValue, 10);
-  if ("doubleValue" in f) return f.doubleValue;
-  if ("stringValue" in f) return f.stringValue;
-  if ("timestampValue" in f) return f.timestampValue;
-  if ("arrayValue" in f) return (f.arrayValue.values || []).map(fromFs);
-  if ("mapValue" in f) {
-    const o = {};
-    for (const [k, x] of Object.entries(f.mapValue.fields || {})) o[k] = fromFs(x);
-    return o;
-  }
-  return null;
-}
-async function readDoc(path, fieldMask) {
-  const q = fieldMask ? "?" + fieldMask.map((f) => "mask.fieldPaths=" + encodeURIComponent(f)).join("&") : "";
-  const doc = await fetchJson(`${FS}/${path}${q}`, { headers: authHeaders() });
-  return doc && doc.fields ? fromFs({ mapValue: { fields: doc.fields } }) : null;
-}
-async function patchDoc(path, data) {
-  const mask = Object.keys(data).map((k) => "updateMask.fieldPaths=" + encodeURIComponent(k)).join("&");
-  const res = await fetch(`${FS}/${path}?${mask}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: JSON.stringify(toFs(data).mapValue),
-  });
-  if (!res.ok) throw new Error(`PATCH ${path} -> HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
-}
-
 // ---------- Build ----------
 function eventIdsFromScoreboard(sb) {
   return ((sb && sb.events) || []).map((e) => String(e.id));
 }
 
 async function main() {
-  accessToken = await getAccessToken().catch((e) => { log("Service account auth failed:", e.message); return null; });
-  log(accessToken ? "Firestore: using service account" : "Firestore: unauthenticated");
+  const authed = await initFirestoreAuth().catch((e) => { log("Service account auth failed:", e.message); return false; });
+  log(authed ? "Firestore: using service account" : "Firestore: unauthenticated");
 
   const shared = await readDoc("pickem_v14/shared_state", ["currentWeek", "customGames"]);
   const week = WEEK_ARG || (shared && parseInt(shared.currentWeek, 10)) || 0;

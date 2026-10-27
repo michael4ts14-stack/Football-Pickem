@@ -1,0 +1,43 @@
+name: Live drives (ESPN -> Firestore)
+
+# Writes live_games/week_N_drives_<gameId> (drives, last plays, down & distance, win
+# probability) while slate games are on, so browsers stop fetching ESPN game summaries on
+# every poll. A run polls every 30s for up to 14 minutes and a new one starts every 15, so
+# there is always one going on game days. With nothing on or about to start, a run exits in
+# a few seconds. Browsers fall back to ESPN for one open game if this data goes stale.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: "How long to keep polling"
+        default: "14"
+  push:
+    branches: [claude/sat-ui-redesign-main]
+    paths: ["tools/live/**", "tools/lib/**", "tests/live/**", ".github/workflows/live.yml"]
+
+concurrency:
+  group: live-drives
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: node --test "tests/live/*.test.mjs"
+      # Pushes to the work branch only prove the job runs: one quick round, nothing written.
+      - name: Dry run (branch push)
+        if: github.event_name == 'push'
+        run: node tools/live/build-live.mjs --dry-run --minutes 0.5
+      - name: Poll ESPN and write to Firestore
+        if: github.event_name != 'push'
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: node tools/live/build-live.mjs --minutes ${{ inputs.minutes || '14' }}

@@ -408,3 +408,49 @@ tabs. Destructive actions go through one shared `confirmDanger(message, onConfir
 **Verification after every step.** Playwright run at 390×844 and 1280×800 (screenshots of each
 screen, plus a console-error capture), and the existing `tests/client/smoke.js` and
 `scenarios.js` must still pass. Then this checklist gets ticked.
+
+---
+
+# Round 2: Live game day + Standings (audit 2026-10-27)
+
+Status: **built on claude/sat-ui-redesign-main, verified in the local harness (390 / 1280 px), not yet deployed.**
+☑ = verified after the rebuild.
+
+## Live
+
+| ☑ | Feature | Lives today (handler) | After the rebuild |
+|---|---|---|---|
+| ☑ | Live Games / In Progress Only | Live chips `#lflt-all`, `#lflt-active` → `setLiveTabFilter()` (live-ui.js) | Same chips; filter is `isSweatGame(getGameSituation())` |
+| ☑ | 4Q / Red-Zone Sweats filter | Live chip `#lflt-sweat`; rule duplicated in live-ui.js:104 and dead legacy live-scores.js:802/1002 | Same chip, `getGameSituation().closeLate \|\| crunchTime` |
+| ☑ | Sways filter | Picks chip `#flt-sway` (Advanced). Pre-game sheet sways (`g.sway`, `g.cliffTrap`), not a live state | Unchanged (it isn't live data) |
+| ☑ | H2H swings filter | Live chip `#lflt-diff` (Advanced) | Unchanged |
+| ☑ | Sync Live ESPN | Live head "Synced Ns ago" button, Settings drawer | Same (scoreboard poll stays in the browser; drives come from Firestore) |
+| ☑ | Live sync indicator | Live head dot + age; right rail line | Same, timed from the server write |
+| ☑ | Force Firebase Pull | Import Hub › Cloud & Reset (commissioner) | Unchanged |
+| ☑ | ESPN GameCast & Drive Theater / Big View | `openFieldTheaterModal()` from a started live card, the detail sheet and the field's "Big View" button | Same entry points; render/field.js, drive chart, win probability, plays |
+| ☑ | Live Drive / Final Drive / Last Scoring Drive | `setGameDriveViewMode()` in the field tracker + Theater | Same; drives from live_games/week_N_drives_&lt;id&gt; (tools/live), ESPN fallback for the open game |
+| ☑ | Interactive / Test Demo Sim | `setGameDriveViewMode(id,'demo')` | Same, controls stay in demo-sim.js |
+| ☑ | Simulate Next Play / Jump to Red Zone / Trigger TD Play / Flip Possession / Auto-Sim | `simulateNextDemoPlay()`, `toggleDemoAutoLoop()` | Same, drive the new renderer |
+| ☑ | Field Sim toggle | Settings drawer (Advanced) → `toggleDemoFieldPreview()` | Same |
+| ☑ | Hide Field | `toggleFieldTrackerAccordion()` | Same |
+| ☑ | Rail / Hide Rail | Sidebar footer "Hide side panel" → `toggleDesktopSidebarCollapse()` | Unchanged |
+| ☑ | Sandbox Sim | Guest / `test` profile | Unchanged |
+| ☑ | Live winning / losing on pick cards | **Gap found:** the old research cards marked the leading/trailing team; the new pick cards only show "Final · 24–17" / live clock | Restore: "Leading / Trailing / Won / Lost" word on the picked team, from `myPickStatus` |
+| ☑ | Field trackers on Advanced pick cards | `renderInteractiveFieldTrackerHtml()` in picks-ui.js (Advanced, live games or Field Sim) | Mini bar + Field / Big view buttons (field.js) |
+
+## Standings
+
+| ☑ | Feature | Lives today | After the rebuild |
+|---|---|---|---|
+| ☑ | Week / Season | Segmented control (standings-ui.js) | Same |
+| ☑ | Player search | `#leaderboard-search-input` | Same; always searches everyone |
+| ☑ | H2H compare | Advanced: `#standings-compare-select`; rows in the full table | Player sheet "Compare H2H" |
+| ☑ | Watchlist (3 rivals) | Advanced: `#standings-watchlist-box` editor (`updateWatchlistMeta`). **Pool-wide**: only a commissioner's edits sync (`canWriteSharedPoolState`) | Per-player Rivals (star in the player sheet). The pool-wide watchlist editor moved to Console › Submissions |
+| ☑ | Top 5 weekly winners | Advanced: `#top5-weekly-winners-container` | Compact "Weekly winners" card, both modes |
+| ☑ | Full breakdown table | Advanced: `#pool-leaderboard-table` | "Table" toggle (Advanced), sticky name column, sortable |
+| ☑ | Weekly Finish Odds / Season Standings Odds / Re-Run 5,000 Sims | Advanced: `#monte-carlo-sim-container`. **Runs on every Standings render** when scores change (cache key changes), plus a 1,500-sim run on every scoreboard update (live-scores.js:411) | Collapsed "Finish odds" (Advanced), runs only while open; the scoreboard no longer runs 1,500 sims per update |
+| ☑ | Season archive | Commissioner: `#season-archive-hub-container`, also More › Past weeks sheet | More › Past weeks only |
+| ☑ | Import Pool Data / Bot, New Week Reset | Commissioner: Standings toolbar; Console | Console / More › Import hub (Standings toolbar and Command Center header removed) |
+| ☑ | Automated grading cards | Advanced: `#automated-grading-cards` | Console › Submissions |
+| ☑ | Import Standings, Email / Standings | Import Hub › Email | Unchanged (Console) |
+| ☑ | Copy Recap & Standings Post | Console › Banner & Recap | Unchanged |

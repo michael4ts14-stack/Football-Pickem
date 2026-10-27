@@ -30,12 +30,12 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="/css/tokens.css?v=2026-10-27b" />
-<link rel="stylesheet" href="/css/base.css?v=2026-10-27b" />
-<link rel="stylesheet" href="/css/views.css?v=2026-10-27b" />
-<link rel="stylesheet" href="/css/components.css?v=2026-10-27b" />
-<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-27b" />
-<link rel="stylesheet" href="/css/app.css?v=2026-10-27b" />
+<link rel="stylesheet" href="/css/tokens.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/base.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/views.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/components.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-27d" />
+<link rel="stylesheet" href="/css/app.css?v=2026-10-27d" />
 </head>
 <body>
 <a class="skip-link" href="#app-content">Skip to content</a>
@@ -194,69 +194,48 @@
           <button type="button" id="st-scope-week" aria-pressed="false" onclick="setStandingsScope('week')"><span class="week-eyebrow">Week</span></button>
           <button type="button" id="st-scope-season" aria-pressed="true" onclick="setStandingsScope('season')">Season</button>
         </div>
+        <div class="segmented adv-block" role="group" aria-label="Standings layout">
+          <button type="button" id="st-layout-list" aria-pressed="true" onclick="setStandingsLayout('list')">List</button>
+          <button type="button" id="st-layout-table" aria-pressed="false" onclick="setStandingsLayout('table')">Table</button>
+        </div>
         <label class="standings-search">
           <i data-lucide="search"></i>
           <input type="text" id="leaderboard-search-input" class="search-input" placeholder="Find a player" aria-label="Find a player" oninput="renderStandingsAndGradingView()" />
         </label>
       </div>
-      <div class="standings-table" id="standings-list" role="table" aria-label="Standings"></div>
+      <section class="spot-card" id="standings-your-spot" aria-live="polite"></section>
+      <section class="standings-table st-rivals" id="standings-rivals" role="table" aria-label="Rivals" hidden></section>
+      <div class="standings-table" role="table" aria-label="Standings">
+        <div class="st-row st-head" id="standings-list-head" role="row">
+          <span role="columnheader">#</span><span role="columnheader">Player</span>
+          <span role="columnheader" class="num">Pts</span><span role="columnheader" class="num">Back</span>
+        </div>
+        <div id="standings-list" role="rowgroup"></div>
+      </div>
       <p class="muted-note standings-count" id="leaderboard-count-label"></p>
-      <div class="condensed-toolbar">
-        <div>
-          <strong style="font-size:0.96rem;color:var(--text);">Pool Standings, Master CSV Auto-Grader & Watchlist Command Center</strong>
-          <div style="font-size:0.73rem;color:var(--muted);">Import the entire pool's CSV/Excel pick sheet, auto-grade all participants live by multiplier tier (1x, 2x, 3x), and track real-time standings.</div>
-        </div>
-        <div id="standings-toolbar-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <div style="display:inline-flex;align-items:center;gap:5px;background:var(--raised);border:1px solid var(--border);padding:3px 7px;border-radius:7px;">
-            <span style="font-size:0.7rem;font-weight:800;color:var(--text);">H2H Grade vs:</span>
-            <select id="standings-compare-select" class="compare-select" style="max-width:165px;padding:3px 6px;" onchange="setCompareTarget(this.value)" title="Select any User Profile or Pool Member to compare grading cards against"></select>
+      <section class="ww-card" id="standings-weekly-winners" hidden></section>
+      <div class="st-table-wrap" id="standings-table-view" hidden></div>
+
+      <!-- Finish odds (Advanced): the 5,000-trial simulation only runs while this is open -->
+      <details class="finish-odds adv-block" id="finish-odds" ontoggle="onFinishOddsToggle(this)">
+        <summary><span>Finish odds</span><i data-lucide="chevron-down"></i></summary>
+        <div class="mc-sim-box" id="monte-carlo-sim-container"></div>
+      </details>
+
+      <!-- Commissioner pieces parked here; the Console (Submissions tab) and More › Past weeks show them -->
+      <div id="console-parking" hidden>
+        <div class="grading-grid" id="automated-grading-cards"></div>
+        <div class="side-box" id="season-archive-hub-container"></div>
+        <!-- Custom Pool Member Watchlist Configuration -->
+        <div id="standings-watchlist-box" class="side-box" style="margin-bottom:14px;">
+          <div class="side-title">
+            <span>Custom Pool Member Watchlist (Track Up to 3 Key Rivals)</span>
+            <span style="color:var(--accent);font-size:0.7rem;">Auto-Syncs to Firebase</span>
           </div>
-          <button class="btn-sm" style="background:var(--raised);color:var(--text);font-weight:800;border:none;" onclick="openUnifiedImportModal('csv')">Import Pool Data / Bot</button>
-        </div>
-      </div>
-
-      <!-- Automated Weekly Grading Summary Cards -->
-      <div class="grading-grid" id="automated-grading-cards"></div>
-
-      <!-- Monte Carlo Pool Finish Simulator (5,000 Trials) -->
-      <div class="mc-sim-box" id="monte-carlo-sim-container"></div>
-
-      <!-- Multi-Week Season History Archive -->
-      <div class="side-box" style="margin-bottom:14px;" id="season-archive-hub-container"></div>
-
-      <!-- Custom Pool Member Watchlist Configuration -->
-      <div id="standings-watchlist-box" class="side-box" style="margin-bottom:14px;">
-        <div class="side-title">
-          <span>Custom Pool Member Watchlist (Track Up to 3 Key Rivals)</span>
-          <span style="color:var(--accent);font-size:0.7rem;">Auto-Syncs to Firebase</span>
-        </div>
-        <div style="font-size:0.73rem;color:var(--muted);margin-bottom:8px;">
-          Rename your 3 tracked pool opponents below or import their confirmation email picks. You can also tap their picks in the <strong>Both Picks</strong> table!
-        </div>
-        <div id="watchlist-editor-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
-      </div>
-
-      <!-- Top 5 Weekly Winners Podium (Visible in both Simple & Advanced Modes!) -->
-      <div id="top5-weekly-winners-container" class="top5-weekly-box adv-block"></div>
-
-      <!-- Full breakdown (Advanced): prior, live, final, total and multiplier columns -->
-      <div class="side-box adv-block">
-        <div class="side-title"><span>Full breakdown</span></div>
-        <div style="overflow-x:auto;">
-          <table class="condensed-table" id="pool-leaderboard-table">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Participant Name</th>
-                <th>Prior Season Pts</th>
-                <th>Live Weekly Pts (In-Progress)</th>
-                <th>Final Weekly Pts</th>
-                <th>New Live Total</th>
-                <th>Status / Multiplier Breakdown</th>
-              </tr>
-            </thead>
-            <tbody id="pool-leaderboard-tbody"></tbody>
-          </table>
+          <div style="font-size:0.73rem;color:var(--muted);margin-bottom:8px;">
+            Rename your 3 tracked pool opponents below or import their confirmation email picks. You can also tap their picks in the <strong>Both Picks</strong> table!
+          </div>
+          <div id="watchlist-editor-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
         </div>
       </div>
     </div>
@@ -625,11 +604,11 @@
   <div id="field-theater-modal" onclick="event.stopPropagation()">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">
       <div>
-        <h3 id="theater-modal-title" style="font-size:1.1rem;font-weight:900;color:var(--text);">ESPN GameCast & Drive Theater</h3>
-        <div id="theater-modal-subtitle" style="font-size:0.76rem;color:var(--muted);">Interactive HD Field Tracker • Real ESPN Drive Telemetry & Live Animation</div>
+        <h3 id="theater-modal-title" style="color:var(--text);">GameCast</h3>
+        <div id="theater-modal-subtitle" style="font-size:14px;color:var(--text-muted);"></div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
-        <button class="btn-sm" onclick="closeFieldTheaterModal()" style="background:var(--loss);color:var(--text);border:none;font-weight:800;">Close Big View</button>
+        <button class="btn-sm" onclick="closeFieldTheaterModal()" style="background:var(--loss);color:var(--text);border:none;font-weight:800;">Close</button>
       </div>
     </div>
     <div id="theater-modal-body"></div>
@@ -728,43 +707,47 @@
     <div id="review-checklist-body"></div>
   </div>
 </div>
-<script src="/js/00-boot-guard.js?v=2026-10-27b"></script>
-<script src="/js/config.js?v=2026-10-27b"></script>
-<script src="/js/data/teams.js?v=2026-10-27b"></script>
-<script src="/js/data/default-slate.js?v=2026-10-27b"></script>
-<script src="/js/state-globals.js?v=2026-10-27b"></script>
-<script src="/js/data/week7-official.js?v=2026-10-27b"></script>
-<script src="/js/data/code-gs-source.js?v=2026-10-27b"></script>
-<script src="/js/state.js?v=2026-10-27b"></script>
-<script src="/js/team-match.js?v=2026-10-27b"></script>
-<script src="/js/firestore.js?v=2026-10-27b"></script>
-<script src="/js/picks.js?v=2026-10-27b"></script>
-<script src="/js/espn.js?v=2026-10-27b"></script>
-<script src="/js/profiles.js?v=2026-10-27b"></script>
-<script src="/js/auth.js?v=2026-10-27b"></script>
-<script src="/js/import-hub.js?v=2026-10-27b"></script>
-<script src="/js/render/condensed.js?v=2026-10-27b"></script>
-<script src="/js/import-sheet-grading.js?v=2026-10-27b"></script>
-<script src="/js/render/field-tracker.js?v=2026-10-27b"></script>
-<script src="/js/demo-sim.js?v=2026-10-27b"></script>
-<script src="/js/render/theater.js?v=2026-10-27b"></script>
-<script src="/js/live-scores.js?v=2026-10-27b"></script>
-<script src="/js/leverage.js?v=2026-10-27b"></script>
-<script src="/js/simulator.js?v=2026-10-27b"></script>
-<script src="/js/archive.js?v=2026-10-27b"></script>
-<script src="/js/simple-mode-commissioner.js?v=2026-10-27b"></script>
-<script src="/js/commissioner-admin.js?v=2026-10-27b"></script>
-<script src="/js/shell.js?v=2026-10-27b"></script>
-<script src="/js/picks-ui.js?v=2026-10-27b"></script>
-<script src="/js/matchups-ui.js?v=2026-10-27b"></script>
-<script src="/js/live-ui.js?v=2026-10-27b"></script>
-<script src="/js/standings-ui.js?v=2026-10-27b"></script>
-<script src="/js/dialogs-ui.js?v=2026-10-27b"></script>
-<script src="/js/boot.js?v=2026-10-27b"></script>
+<script src="/js/00-boot-guard.js?v=2026-10-27d"></script>
+<script src="/js/config.js?v=2026-10-27d"></script>
+<script src="/js/data/teams.js?v=2026-10-27d"></script>
+<script src="/js/data/default-slate.js?v=2026-10-27d"></script>
+<script src="/js/state-globals.js?v=2026-10-27d"></script>
+<script src="/js/data/week7-official.js?v=2026-10-27d"></script>
+<script src="/js/data/code-gs-source.js?v=2026-10-27d"></script>
+<script src="/js/state.js?v=2026-10-27d"></script>
+<script src="/js/team-match.js?v=2026-10-27d"></script>
+<script src="/js/firestore.js?v=2026-10-27d"></script>
+<script src="/js/picks.js?v=2026-10-27d"></script>
+<script src="/js/espn.js?v=2026-10-27d"></script>
+<script src="/js/profiles.js?v=2026-10-27d"></script>
+<script src="/js/auth.js?v=2026-10-27d"></script>
+<script src="/js/import-hub.js?v=2026-10-27d"></script>
+<script src="/js/render/condensed.js?v=2026-10-27d"></script>
+<script src="/js/import-sheet-grading.js?v=2026-10-27d"></script>
+<script src="/js/render/field-tracker.js?v=2026-10-27d"></script>
+<script src="/js/demo-sim.js?v=2026-10-27d"></script>
+<script src="/js/render/field.js?v=2026-10-27d"></script>
+<script src="/js/render/theater.js?v=2026-10-27d"></script>
+<script src="/js/live/live-feed.js?v=2026-10-27d"></script>
+<script src="/js/live-scores.js?v=2026-10-27d"></script>
+<script src="/js/leverage.js?v=2026-10-27d"></script>
+<script src="/js/simulator.js?v=2026-10-27d"></script>
+<script src="/js/archive.js?v=2026-10-27d"></script>
+<script src="/js/simple-mode-commissioner.js?v=2026-10-27d"></script>
+<script src="/js/commissioner-admin.js?v=2026-10-27d"></script>
+<script src="/js/shell.js?v=2026-10-27d"></script>
+<script src="/js/live/situation.js?v=2026-10-27d"></script>
+<script src="/js/picks-ui.js?v=2026-10-27d"></script>
+<script src="/js/matchups-ui.js?v=2026-10-27d"></script>
+<script src="/js/live-ui.js?v=2026-10-27d"></script>
+<script src="/js/standings-ui.js?v=2026-10-27d"></script>
+<script src="/js/dialogs-ui.js?v=2026-10-27d"></script>
+<script src="/js/player-sheet.js?v=2026-10-27d"></script>
+<script src="/js/boot.js?v=2026-10-27d"></script>
 <div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>
   <span>Update available</span>
   <button type="button" id="pwa-update-reload" class="link-btn">Reload</button>
 </div>
-<script src="/js/pwa.js?v=2026-10-27a"></script>
+<script src="/js/pwa.js?v=2026-10-27d"></script>
 </body>
 </html>

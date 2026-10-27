@@ -1,18 +1,15 @@
 // ============================================================================
-// BIG-SCREEN GAMECAST THEATER MODAL (Full-Size Field + All Drives Selector)
+// GAMECAST THEATER: full field, down & distance, drive chart, win probability
+// and the play list for one game. Drawing lives in render/field.js.
 // ============================================================================
 function openFieldTheaterModal(gameId, event) {
   if (event && event.stopPropagation) event.stopPropagation();
   ACTIVE_THEATER_GAME_ID = gameId;
   var backdrop = document.getElementById("field-theater-backdrop");
   if (backdrop) backdrop.style.display = "flex";
-  var ls = LIVE_SCORES[gameId];
-  if (ls && ls.eventId && !SUMMARY_PBP_CACHE[gameId]) {
-    fetchGameDriveSummary(gameId, ls.eventId).then(function() {
-      if (ACTIVE_THEATER_GAME_ID === gameId) renderFieldTheaterModalContent(gameId);
-      renderAll();
-    });
-  }
+  // Drives come from Firestore; only if that copy is missing or stale is this one game
+  // fetched from ESPN (at most every 30s, see live-feed.js).
+  loadGameDrives(gameId, true);
   renderFieldTheaterModalContent(gameId);
 }
 
@@ -20,6 +17,11 @@ function closeFieldTheaterModal() {
   ACTIVE_THEATER_GAME_ID = null;
   var backdrop = document.getElementById("field-theater-backdrop");
   if (backdrop) backdrop.style.display = "none";
+}
+
+function theaterPickText(picks, g, hidden, allowRec) {
+  if (hidden) return "Hidden";
+  return getResolvedPickForGame(picks, g, allowRec) || "No pick";
 }
 
 function renderFieldTheaterModalContent(gameId) {
@@ -36,77 +38,50 @@ function renderFieldTheaterModalContent(gameId) {
 
   var titleEl = document.getElementById("theater-modal-title");
   var subEl = document.getElementById("theater-modal-subtitle");
-  if (titleEl) {
-    titleEl.textContent = "🏈 #" + g.id + " " + g.away + " (" + ls.awayScore + ") at " + g.home + " (" + ls.homeScore + ") — " + (ls.completed ? "FINAL" : (ls.inProgress ? "LIVE (" + ls.detail + ")" : g.kick));
-  }
+  if (titleEl) titleEl.textContent = g.away + " " + (ls.awayScore || 0) + " – " + g.home + " " + (ls.homeScore || 0);
   if (subEl) {
-    var actMetaTh = getProfileMetaByKey(activeProfile);
-    var cmpTargetTh = resolveCompareTargetDescriptor();
-    var actHidTh = isProfileHiddenFromViewer(activeProfile, g.id);
-    var cmpHidTh = cmpTargetTh ? cmpTargetTh.isHiddenForGame(g.id) : false;
-    var actPickTh = actHidTh ? "🔒 Hidden" : (getResolvedPickForGame(state[activeProfile].picks, g, true) || g.rec);
-    var cmpPickTh = !cmpTargetTh ? "—" : (cmpHidTh ? "🔒 Hidden" : (cmpTargetTh.hasPicks ? (getResolvedPickForGame(cmpTargetTh.picks, g, !cmpTargetTh.isPoolMember) || "—") : "⏳ No Sheet"));
-    subEl.textContent = "Sheet Spread: " + g.poolLine + " • Live Vegas: " + g.liveLine + " • " + actMetaTh.shortName + " Pick: " + actPickTh + (cmpTargetTh ? (" • " + cmpTargetTh.shortName + " Pick: " + cmpPickTh) : "");
+    var parts = [ls.completed ? "Final" : (ls.inProgress ? (ls.detail || "Live") : g.kick)];
+    var me = getProfileMetaByKey(activeProfile);
+    parts.push(me.shortName + ": " + theaterPickText(state[activeProfile].picks, g, isProfileHiddenFromViewer(activeProfile, g.id), true));
+    var cmp = null;
+    try { cmp = resolveCompareTargetDescriptor(); } catch (e) {}
+    if (cmp) parts.push(cmp.shortName + ": " + (cmp.hasPicks ? theaterPickText(cmp.picks, g, cmp.isHiddenForGame(g.id), !cmp.isPoolMember) : "No sheet yet"));
+    subEl.textContent = parts.join(" · ");
   }
 
-  var pbpCache = SUMMARY_PBP_CACHE[g.id];
-  var driveOptionsHtml = "";
-  if (pbpCache && pbpCache.allDrives && pbpCache.allDrives.length > 0) {
-    driveOptionsHtml = '<select class="search-input" style="max-width:340px;padding:5px 9px;font-size:0.76rem;font-weight:700;" onchange="setGameDriveViewMode(' + g.id + ', this.value)">';
-    driveOptionsHtml += '<option value="final" ' + (tel.activeMode === "final" ? "selected" : "") + '>🏁 Final Drive (Drive #' + pbpCache.finalDrive.driveIndex + ' — ' + pbpCache.finalDrive.teamCode + ' ' + pbpCache.finalDrive.result + ')</option>';
-    if (pbpCache.lastScoringDrive) {
-      driveOptionsHtml += '<option value="scoring" ' + (tel.activeMode === "scoring" ? "selected" : "") + '>🔥 Last Scoring Drive (Drive #' + pbpCache.lastScoringDrive.driveIndex + ' — ' + pbpCache.lastScoringDrive.teamCode + ' ' + pbpCache.lastScoringDrive.result + ')</option>';
+  var cache = SUMMARY_PBP_CACHE[g.id];
+  var driveSelect = "";
+  if (cache && cache.allDrives && cache.allDrives.length) {
+    var opt = function(val, label) { return '<option value="' + val + '"' + (tel.activeMode === val ? ' selected' : '') + '>' + fieldEsc(label) + '</option>'; };
+    driveSelect = '<select class="compare-select theater-drive-select" aria-label="Choose a drive" onchange="setGameDriveViewMode(' + g.id + ', this.value)">';
+    if (ls.inProgress) driveSelect += opt("live", "Live drive");
+    driveSelect += opt("final", (ls.inProgress ? "Current" : "Final") + " drive (#" + cache.finalDrive.driveIndex + " " + cache.finalDrive.teamCode + " " + cache.finalDrive.result + ")");
+    if (cache.lastScoringDrive) driveSelect += opt("scoring", "Last scoring drive (#" + cache.lastScoringDrive.driveIndex + " " + cache.lastScoringDrive.teamCode + " " + cache.lastScoringDrive.result + ")");
+    for (var d = cache.allDrives.length - 1; d >= 0; d--) {
+      var dv = cache.allDrives[d];
+      driveSelect += opt("drive_" + dv.driveIndex, "Drive " + dv.driveIndex + ": " + dv.teamCode + " · " + dv.description + " · " + dv.result);
     }
-    for (var d = pbpCache.allDrives.length - 1; d >= 0; d--) {
-      var drvItem = pbpCache.allDrives[d];
-      var valKey = "drive_" + drvItem.driveIndex;
-      driveOptionsHtml += '<option value="' + valKey + '" ' + (tel.activeMode === valKey ? "selected" : "") + '>Drive #' + drvItem.driveIndex + ': ' + drvItem.teamCode + ' (' + drvItem.description + ' — ' + drvItem.result + ')</option>';
-    }
-    driveOptionsHtml += '<option value="demo" ' + (tel.activeMode === "demo" ? "selected" : "") + '>🎮 Interactive Demo Simulator</option>';
-    driveOptionsHtml += '</select>';
-  }
-
-  var modeBtnsHtml = '<div class="field-mode-pills">';
-  if (ls && ls.completed) {
-    modeBtnsHtml += '<button class="field-mode-btn ' + (tel.activeMode === "final" ? "active" : "") + '" onclick="setGameDriveViewMode(' + g.id + ', \'final\', event)">🏁 Final Drive</button>';
-    modeBtnsHtml += '<button class="field-mode-btn ' + (tel.activeMode === "scoring" ? "active" : "") + '" onclick="setGameDriveViewMode(' + g.id + ', \'scoring\', event)">🔥 Last Scoring Drive</button>';
-  }
-  modeBtnsHtml += '<button class="field-mode-btn ' + (tel.activeMode === "demo" ? "demo-active" : "") + '" onclick="setGameDriveViewMode(' + g.id + ', \'demo\', event)">🎮 Interactive Demo Sim</button>';
-  modeBtnsHtml += '</div>';
-
-  var demoSimBar = "";
-  if (tel.bannerType === "demo") {
-    demoSimBar =
-      '<div class="demo-sim-controls" style="margin-bottom:12px;padding:10px 12px;">' +
-        '<span style="font-size:0.82rem;font-weight:800;color:#6ee7b7;">🎮 Live Animation Test Controls:</span>' +
-        '<div class="demo-btn-group" style="display:flex;gap:8px;flex-wrap:wrap;">' +
-          '<button class="demo-sim-btn primary" style="padding:6px 12px;font-size:0.78rem;" onclick="simulateNextDemoPlay(' + g.id + ', \'next\', event)">▶ Simulate Next Play</button>' +
-          '<button class="demo-sim-btn" style="padding:6px 12px;font-size:0.78rem;" onclick="toggleDemoAutoLoop(' + g.id + ', event)">' + (DEMO_AUTO_TIMER ? '⏸ Stop Auto-Sim' : '⚡ Auto-Play Drive (Every 2.4s)') + '</button>' +
-          '<button class="demo-sim-btn" style="padding:6px 12px;font-size:0.78rem;" onclick="simulateNextDemoPlay(' + g.id + ', \'redzone\', event)">🚨 Jump to Red Zone</button>' +
-          '<button class="demo-sim-btn" style="padding:6px 12px;font-size:0.78rem;" onclick="simulateNextDemoPlay(' + g.id + ', \'bigplay\', event)">💣 Trigger TD Play</button>' +
-          '<button class="demo-sim-btn" style="padding:6px 12px;font-size:0.78rem;" onclick="simulateNextDemoPlay(' + g.id + ', \'reset\', event)">🔄 Flip Possession / New Drive</button>' +
-        '</div>' +
-      '</div>';
+    driveSelect += opt("demo", "Demo sim");
+    driveSelect += '</select>';
   }
 
   var possTeam = tel.possessionSide === "away" ? g.away : g.home;
+  var stat = function(label, val, sub) {
+    return '<div class="theater-stat"><div class="theater-stat-label">' + label + '</div><div class="theater-stat-val">' + fieldEsc(val) + '</div>' +
+      (sub ? '<div class="theater-stat-sub">' + fieldEsc(sub) + '</div>' : '') + '</div>';
+  };
 
   bodyEl.innerHTML =
-    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px;">' +
-      modeBtnsHtml +
-      driveOptionsHtml +
+    '<div class="theater-toolbar">' + fieldModePillsHtml(g, ls, tel) + driveSelect + '</div>' +
+    (tel.bannerType === "demo" && typeof demoSimControlsHtml === "function" ? demoSimControlsHtml(g) : '') +
+    '<div class="theater-stats">' +
+      stat("Ball", possTeam, tel.driveResult) +
+      stat("Spot", tel.possessionText || "", "Started at " + formatYl100ToSpotText(tel.startYl100, g)) +
+      stat("Down", tel.downDistanceText || tel.driveResult || "", tel.clockStr || "") +
+      stat("Drive", String(tel.driveDesc || "").split("•")[0].trim(), "") +
     '</div>' +
-    demoSimBar +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-bottom:12px;">' +
-      '<div class="metric-card"><div class="metric-label">Possession Team</div><div class="metric-val" style="color:#facc15;font-size:1.05rem;">🏈 ' + possTeam + '</div><div class="metric-sub">' + tel.driveResult + '</div></div>' +
-      '<div class="metric-card"><div class="metric-label">Ball Location</div><div class="metric-val" style="color:#38bdf8;font-size:1.05rem;">' + tel.possessionText + '</div><div class="metric-sub">Started at ' + formatYl100ToSpotText(tel.startYl100, g) + '</div></div>' +
-      '<div class="metric-card"><div class="metric-label">Situation / Result</div><div class="metric-val" style="color:#fff;font-size:1.0rem;">' + (tel.downDistanceText || tel.driveResult) + '</div><div class="metric-sub">' + (tel.clockStr || '') + '</div></div>' +
-      '<div class="metric-card"><div class="metric-label">Drive Summary</div><div class="metric-val" style="color:#34d399;font-size:1.0rem;">' + tel.driveDesc.split("•")[0] + '</div><div class="metric-sub">' + (tel.driveDesc.split("•")[1] || 'ESPN Drive Log') + '</div></div>' +
-    '</div>' +
-    '<div class="field-svg-wrap" style="margin-bottom:12px;border:2px solid #38bdf866;border-radius:10px;">' +
-      buildFieldSvgMarkup(g, tel, 255, true) +
-    '</div>' +
-    '<div style="font-size:0.82rem;font-weight:800;color:#fff;margin-bottom:6px;">📋 Drive Play-by-Play Timeline (Most Recent First):</div>' +
-    '<div class="pbp-timeline" style="gap:7px;">' + buildPlaysListHtml(tel, g, ls) + '</div>';
+    fieldMountHtml(g, "theater") +
+    fieldDriveChartHtml(g) +
+    fieldWinProbHtml(g) +
+    '<section class="theater-section"><h4 class="theater-h">Plays <span class="theater-h-sub">most recent first</span></h4>' + buildPlaysListHtml(tel, g, ls) + '</section>';
 }
-

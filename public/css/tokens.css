@@ -18,6 +18,15 @@ html[data-theme="dark"] {
   --warn: #e09b2d;             /* stale-sync dot and "Questionable" only */
   --overlay: #000000b3;        /* sheet / modal backdrop */
   --logo-ring: #ffffff2e;      /* 1px ring so dark logos show on black */
+  --live: #e5534b;             /* live dot only */
+  --alert: #d9a441;            /* crunch-time edge only: the one persistent live accent */
+  --redzone-tint: #e5534b1f;   /* field shading inside the 20 */
+  --field-bg: #17241b;
+  --field-line: #ffffff1f;
+  --field-num: #ffffff59;
+  --field-los: #ffffff;
+  --field-first-down: var(--accent);
+  --field-ball-outline: #0b0c0d;
   --print-bg: #ffffff;         /* printed pick sheet is always black on white */
   --print-text: #000000;
   --print-shade: #e5e5e5;
@@ -51,4 +60,8 @@ html[data-theme="light"] {
   --warn: #975a00;
   --overlay: #0000007a;
   --logo-ring: #0000001f;
+  --live: #c2372f;
+  --alert: #a86f00;
+  --redzone-tint: #c2372f1a;
+  /* the field stays dark green in both themes */
 }

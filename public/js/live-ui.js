@@ -33,6 +33,15 @@ function getMyPoolRankLabel() {
   return "";
 }
 
+// Situation words from getGameSituation ("Red zone", "Crunch time", ...). Text, never colour alone.
+function situationTagsHtml(sit) {
+  var html = "";
+  for (var i = 0; sit && i < sit.tags.length; i++) {
+    html += '<span class="card-flag sit-' + sit.tags[i].key + '">' + escapeShellHtml(sit.tags[i].label) + '</span>';
+  }
+  return html;
+}
+
 function liveResultFor(pick, g, ls) {
   // Returns { word, cls } for your pick on this game, or null when there is nothing to grade yet.
   if (!pick || !ls || !(ls.inProgress || ls.completed)) return null;
@@ -50,7 +59,15 @@ function liveResultFor(pick, g, ls) {
   return { word: "Tied", cls: "" };
 }
 
-function liveTeamRowHtml(g, isAway, ls, myPick, myHidden) {
+// Small football for "has the ball". The words are in the aria-label, so the icon is never the only signal.
+var POSSESSION_ICON_SVG = '<svg viewBox="0 0 20 12" width="16" height="10" aria-hidden="true" focusable="false">' +
+  '<ellipse cx="10" cy="6" rx="9" ry="5" fill="currentColor"/>' +
+  '<path d="M6 6h8M8 4.6v2.8M10 4.6v2.8M12 4.6v2.8" stroke="var(--surface)" stroke-width="1" fill="none"/></svg>';
+
+// Last score we drew per game, so a change gets one 1.5s highlight (none on first draw).
+var LIVE_DRAWN_SCORES = {};
+
+function liveTeamRowHtml(g, isAway, ls, myPick, myHidden, flash) {
   var name = isAway ? g.away : g.home;
   var score = isAway ? ls.awayScore : ls.homeScore;
   var other = isAway ? ls.homeScore : ls.awayScore;
@@ -59,11 +76,11 @@ function liveTeamRowHtml(g, isAway, ls, myPick, myHidden) {
   var isMine = !myHidden && myPick && isSameTeamPick(myPick, name, g);
   var hasBall = ls.inProgress && ls.possessionSide === (isAway ? "away" : "home");
   var pts = isAway ? g.awayPts : g.homePts;
-  return '<div class="live-team' + (losing ? ' is-behind' : '') + '">' +
+  return '<div class="live-team' + (losing ? ' is-behind' : '') + (flash ? ' score-changed' : '') + '">' +
     teamLogoHtml(g, isAway) +
     '<span class="live-team-name">' + escapeShellHtml(name) +
       (pts > 1 ? ' <span class="mult-badge mult-' + pts + '">' + pts + 'x</span>' : '') +
-      (hasBall ? ' <span class="ball-tag">Ball</span>' : '') +
+      (hasBall ? ' <span class="poss-icon" role="img" aria-label="Has the ball" title="Has the ball">' + POSSESSION_ICON_SVG + '</span>' : '') +
       (isMine ? ' <span class="your-pick">· Your pick</span>' : '') +
     '</span>' +
     '<span class="live-score">' + (started ? score : '') + '</span>' +
@@ -101,7 +118,8 @@ renderLiveScoreboardTab = function() {
       if (leader && myPick && !myHidden && isSameTeamPick(leader, myPick, g)) { mLivePts += isSameTeamPick(myPick, g.away, g) ? g.awayPts : g.homePts; mWinCnt++; }
       if (leader && h2h && h2h.pick && isSameTeamPick(leader, h2h.pick, g)) { kLivePts += isSameTeamPick(h2h.pick, g.away, g) ? g.awayPts : g.homePts; kWinCnt++; }
     }
-    var isSweat = ls.inProgress && ((ls.period >= 4 && Math.abs(ls.awayScore - ls.homeScore) <= 8) || ls.isRedZone);
+    var sit = getGameSituation(ls, g, myHidden ? null : myPicks);
+    var isSweat = isSweatGame(sit);
     if (liveTabFilter === "active" && !ls.inProgress) continue;
     if (liveTabFilter === "sweat" && !isSweat) continue;
     if (liveTabFilter === "diff" && !isDiff) continue;
@@ -112,11 +130,10 @@ renderLiveScoreboardTab = function() {
       : (ls.inProgress
           ? '<span class="live-status is-live"><span class="live-dot" aria-hidden="true"></span>' + escapeShellHtml(ls.detail || "Live") + '</span>'
           : '<span class="live-status">' + escapeShellHtml((k.day ? k.day + " " : "") + k.time + (k.net ? " · " + k.net : "")) + '</span>');
-    var tags = (ls.isRedZone && ls.inProgress ? '<span class="card-flag">Red zone</span>' : '') +
-      (isSweat && !ls.isRedZone ? '<span class="card-flag">Close 4Q</span>' : '');
-    var situation = (ls.inProgress && (ls.downDistanceText || ls.possessionText))
+    var tags = situationTagsHtml(sit);
+    var situation = fieldMiniBarHtml(g, ls) || ((ls.inProgress && (ls.downDistanceText || ls.possessionText))
       ? '<div class="live-situation">' + escapeShellHtml([ls.downDistanceText, ls.possessionText].filter(Boolean).join(" · ")) + '</div>'
-      : '';
+      : '');
     var h2hLine = h2h
       ? '<div class="card-info"><span class="card-info-item"><span class="card-info-label">' + escapeShellHtml(h2h.name) + '</span> ' + escapeShellHtml(h2h.text) +
           (isDiff ? ' <span class="diff-tag">Diff</span>' : '') + '</span></div>'
@@ -125,13 +142,18 @@ renderLiveScoreboardTab = function() {
     var action = started ? ('openFieldTheaterModal(' + g.id + ')') : ('openGameDetail(' + g.id + ')');
     var actionLabel = (started ? "Open GameCast: " : "Details: ") + g.away + " at " + g.home;
 
+    var prevDrawn = LIVE_DRAWN_SCORES[g.id];
+    var flashAway = !!(prevDrawn && (ls.inProgress || ls.completed) && prevDrawn.a !== ls.awayScore);
+    var flashHome = !!(prevDrawn && (ls.inProgress || ls.completed) && prevDrawn.h !== ls.homeScore);
+    if (ls.inProgress || ls.completed) LIVE_DRAWN_SCORES[g.id] = { a: ls.awayScore, h: ls.homeScore };
+
     var cardHtml =
-      '<article class="live-card' + (ls.inProgress ? ' is-live' : '') + '">' +
+      '<article class="live-card' + (ls.inProgress ? ' is-live' : '') + (ls.completed ? ' is-final' : '') + (sit.crunchTime ? ' is-crunch' : '') + '">' +
         '<button type="button" class="live-card-btn" onclick="' + action + '" aria-label="' + escapeShellHtml(actionLabel) + '">' +
           '<div class="live-card-top">' + status + '<span class="live-card-right">' + tags +
             (res ? '<span class="live-result ' + res.cls + '">' + res.word + '</span>' : '') + '</span></div>' +
-          liveTeamRowHtml(g, true, ls, myPick, myHidden) +
-          liveTeamRowHtml(g, false, ls, myPick, myHidden) +
+          liveTeamRowHtml(g, true, ls, myPick, myHidden, flashAway) +
+          liveTeamRowHtml(g, false, ls, myPick, myHidden, flashHome) +
           situation +
         '</button>' +
         h2hLine +
