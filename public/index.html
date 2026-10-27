@@ -45,25 +45,28 @@
 <!-- Desktop sidebar (>= 900px). The #tab-mode-* ids are driven by switchMainView(). -->
 <nav class="app-sidebar" aria-label="Main">
   <div class="app-brand">
+    <span class="app-brand-mark" aria-hidden="true">SAT</span>
     <span class="app-brand-name">Separated at Turf</span>
     <span class="app-brand-sub">College Pick'em '26</span>
   </div>
   <div class="nav-list">
-    <button type="button" id="tab-mode-cards" class="mode-tab-btn active" onclick="switchMainView('cards')"><i data-lucide="square-check"></i><span>Picks</span></button>
-    <button type="button" id="tab-mode-live" class="mode-tab-btn live-tab" onclick="switchMainView('live')"><i data-lucide="activity"></i><span>Live</span></button>
-    <button type="button" id="tab-mode-standings" class="mode-tab-btn standings-tab" onclick="switchMainView('standings')"><i data-lucide="chart-no-axes-column"></i><span>Standings</span></button>
+    <button type="button" id="tab-mode-cards" class="mode-tab-btn active" onclick="switchMainView('cards')" title="Picks"><i data-lucide="square-check"></i><span>Picks</span></button>
+    <button type="button" id="tab-mode-live" class="mode-tab-btn live-tab" onclick="switchMainView('live')" title="Live"><i data-lucide="activity"></i><span>Live</span></button>
+    <button type="button" id="tab-mode-standings" class="mode-tab-btn standings-tab" onclick="switchMainView('standings')" title="Standings"><i data-lucide="chart-no-axes-column"></i><span>Standings</span></button>
     <button type="button" id="tab-mode-condensed" class="mode-tab-btn" onclick="switchMainView('condensed')" hidden>Table</button>
+    <button type="button" id="nav-rail-more" class="nav-item rail-only" onclick="switchMainView('more')" title="More"><i data-lucide="menu"></i><span>More</span></button>
   </div>
   <div class="nav-group-label">More</div>
   <div class="nav-list nav-list-plain">
-    <button type="button" class="nav-item commish-only-hidden" id="nav-more-weeks" onclick="openMoreSection('weeks')">Past weeks</button>
-    <button type="button" class="nav-item" onclick="openEvSimulatorDrawer()">EV Simulator</button>
-    <button type="button" class="nav-item" data-more-section="export" onclick="openMoreSection('export')">Export</button>
-    <button type="button" class="nav-item" onclick="openAuthModal()">Account</button>
-    <button type="button" class="nav-item commish-only-hidden" id="nav-more-commish" onclick="openCommissionerModal('submissions')">Commissioner</button>
-    <button type="button" class="nav-item" data-more-section="settings" onclick="openMoreSection('settings')">Settings</button>
+    <button type="button" class="nav-item commish-only-hidden" id="nav-more-weeks" onclick="openMoreSection('weeks')"><i data-lucide="history"></i><span>Past weeks</span></button>
+    <button type="button" class="nav-item" onclick="openEvSimulatorDrawer()"><i data-lucide="dices"></i><span>EV Simulator</span></button>
+    <button type="button" class="nav-item" data-more-section="export" onclick="openMoreSection('export')"><i data-lucide="share-2"></i><span>Export</span></button>
+    <button type="button" class="nav-item" onclick="openAuthModal()"><i data-lucide="circle-user"></i><span>Account</span></button>
+    <button type="button" class="nav-item commish-only-hidden" id="nav-more-commish" onclick="openCommissionerModal('submissions')" title="Commissioner"><i data-lucide="crown"></i><span>Commissioner</span></button>
+    <button type="button" class="nav-item" data-more-section="settings" onclick="openMoreSection('settings')"><i data-lucide="settings"></i><span>Settings</span></button>
   </div>
   <div class="sidebar-foot">
+    <button type="button" class="nav-item sidebar-pin-btn" id="sidebar-pin-btn" onclick="toggleSidebarPinned()" aria-pressed="false" title="Keep the menu open"><i data-lucide="pin"></i><span>Keep menu open</span></button>
     <div class="bot-status commish-only-hidden" id="bot-sync-pill" title="Gmail/ESPN bot status">Bot …</div>
   </div>
 </nav>

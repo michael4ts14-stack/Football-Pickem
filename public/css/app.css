@@ -952,3 +952,33 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
   .tb-card-actions { grid-column: auto; flex-wrap: nowrap; }
 }
 
+/* ---------- Desktop sidebar: 64px icon rail; hover or keyboard focus expands it as an
+   overlay (content doesn't move); the pin keeps it open as a normal column. ---------- */
+.app-brand-mark, .app-sidebar .rail-only { display: none; }
+@media (min-width: 900px) {
+  .app-shell { display: block; padding-left: var(--sidebar-rail-w); }
+  body.sidebar-pinned .app-shell { padding-left: var(--sidebar-w); }
+  .app-sidebar {
+    position: fixed; left: 0; top: 0; bottom: 0; height: 100vh; z-index: 1300;
+    width: var(--sidebar-w); overflow-x: hidden; transition: width 150ms ease-out;
+  }
+  .app-sidebar.is-expanded { box-shadow: 12px 0 32px #0000008c; }
+  .app-sidebar .nav-item svg.lucide { width: 20px; height: 20px; color: var(--text-muted); flex-shrink: 0; }
+  .app-sidebar .nav-item.active svg.lucide { color: var(--accent-text); }
+  .sidebar-pin-btn[aria-pressed="true"] svg.lucide { color: var(--accent-text); }
+  .sidebar-foot { align-items: stretch; }
+
+  .app-sidebar.is-rail { width: var(--sidebar-rail-w); padding: 20px 8px 16px; }
+  .app-sidebar.is-rail .app-brand { padding: 0 0 18px; align-items: center; }
+  .app-sidebar.is-rail .app-brand-mark { display: block; font-family: var(--font-head); font-weight: 700; font-size: 20px; color: var(--accent-text); }
+  .app-sidebar.is-rail .app-brand-name, .app-sidebar.is-rail .app-brand-sub,
+  .app-sidebar.is-rail .nav-group-label, .app-sidebar.is-rail .bot-status,
+  .app-sidebar.is-rail .nav-list-plain .nav-item:not(#nav-more-commish) { display: none; }
+  .app-sidebar.is-rail .rail-only { display: flex; }
+  .app-sidebar.is-rail .mode-tab-btn, .app-sidebar.is-rail .nav-item { justify-content: center; padding: 0; }
+  .app-sidebar.is-rail .mode-tab-btn > span, .app-sidebar.is-rail .nav-item > span {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  .app-sidebar.is-rail .nav-list-plain { margin-top: 2px; }
+}
+@media (prefers-reduced-motion: reduce) { .app-sidebar { transition: none; } }

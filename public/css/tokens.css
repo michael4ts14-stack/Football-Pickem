@@ -39,6 +39,7 @@ html[data-theme="dark"] {
   --header-h: 56px;
   --tabbar-h: 60px;
   --sidebar-w: 224px;
+  --sidebar-rail-w: 64px;      /* desktop sidebar collapsed to icons */
   --rail-w: 300px;
   --content-max: 2000px;       /* Picks, Live, Table: fill the screen up to this */
   --content-narrow: 960px;     /* Standings, More: lists stay readable */
