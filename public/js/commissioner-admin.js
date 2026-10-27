@@ -108,6 +108,9 @@ function syncCommissionerVisibilityDOM() {
   var commishBtn = document.getElementById("btn-commish-console");
   if (commishBtn) commishBtn.classList.toggle("commish-only-hidden", !isCommish);
 
+  var botPill = document.getElementById("bot-sync-pill");
+  if (botPill) botPill.classList.toggle("commish-only-hidden", !isCommish);
+
   var archRow = document.getElementById("drawer-commish-archive-row");
   if (archRow) archRow.classList.toggle("commish-only-hidden", !isCommish);
 

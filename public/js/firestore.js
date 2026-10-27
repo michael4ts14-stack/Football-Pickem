@@ -28,6 +28,15 @@ function startFirebaseRealtimeListeners() {
       }, function(err) {});
     } catch (e) {}
 
+    // Apps Script bot heartbeat (written by Code.js every run): drives the 🤖 status pill.
+    try {
+      fsDb.collection("live_games").doc("bot_status").onSnapshot(function(doc) {
+        BOT_STATUS = (doc && doc.exists) ? doc.data() : null;
+        renderBotSyncPill();
+      }, function(errBot) {});
+      setInterval(renderBotSyncPill, 60000);
+    } catch (eBot) {}
+
     // Dedicated Per-User Instance Collection (`pickem_v14_users/{profileKey}`)
     // Every user writes their own picks to their own document so 80+ users can pick simultaneously
     // with zero document contention and real-time updates across all connected browsers!
@@ -398,6 +407,42 @@ function pushProfileToFirebase(profKey) {
       }).catch(function() {});
     } catch (e) {}
   }
+}
+
+var BOT_STATUS = null;
+
+function formatAgo(iso) {
+  var ms = Date.now() - new Date(iso).getTime();
+  if (!iso || isNaN(ms)) return "never";
+  var min = Math.max(0, Math.round(ms / 60000));
+  if (min < 60) return min + "m ago";
+  if (min < 48 * 60) return Math.round(min / 60) + "h ago";
+  return Math.round(min / 1440) + "d ago";
+}
+
+// Commissioner-only pill: when the Gmail bot last finished a run with no failed reads/writes.
+function renderBotSyncPill() {
+  var el = document.getElementById("bot-sync-pill");
+  if (!el) return;
+  var gmail = BOT_STATUS && BOT_STATUS.gmail;
+  var espn = BOT_STATUS && BOT_STATUS.espn;
+  if (!gmail) {
+    el.textContent = "🤖 Bot: no data";
+    el.style.color = "#94a3b8";
+    return;
+  }
+  var lastOk = gmail.lastSuccessAt;
+  var staleMs = lastOk ? (Date.now() - new Date(lastOk).getTime()) : Infinity;
+  var hasErrors = gmail.ok === false;
+  el.textContent = (hasErrors ? "🤖 ⚠ " : "🤖 ✓ ") + formatAgo(lastOk);
+  el.style.color = hasErrors ? "#f87171" : (staleMs > 15 * 60 * 1000 ? "#fbbf24" : "#34d399");
+  var lines = [
+    "Gmail bot — last clean run: " + (lastOk ? new Date(lastOk).toLocaleString() : "never"),
+    "Last run: " + (gmail.lastRunAt ? new Date(gmail.lastRunAt).toLocaleString() : "—")
+  ];
+  if (gmail.errors && gmail.errors.length) lines.push("Errors: " + gmail.errors.join(" | "));
+  if (espn) lines.push("ESPN poller: " + (espn.ok ? "ok" : "failing") + (espn.errors && espn.errors.length ? " — " + espn.errors[0] : ""));
+  el.title = lines.join("\n");
 }
 
 // Highest currentWeek seen in any shared_state snapshot this session.

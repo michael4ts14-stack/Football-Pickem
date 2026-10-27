@@ -109,6 +109,10 @@ function serve() {
   }, r3.liveWeek);
   check("returning restores the live week", r4.week === r3.liveWeek && r4.first === r3.liveFirst && r4.viewing === null && r4.pending === null && r4.selected === "week_" + r3.liveWeek, r4);
 
+  // 5. Commissioner bot-status pill reads live_games/bot_status.
+  const pill = await page.evaluate(() => { const el = document.getElementById("bot-sync-pill"); return el ? { text: el.textContent, title: el.title } : null; });
+  check("bot status pill shows the last clean bot run", pill && /^🤖 [✓⚠] (\d+[mhd] ago|never)$/.test(pill.text) && /Gmail bot/.test(pill.title), pill);
+
   check("no page errors", pageErrors.length === 0, pageErrors);
 
   let failed = 0;
