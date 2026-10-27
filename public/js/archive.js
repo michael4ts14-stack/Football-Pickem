@@ -1,0 +1,225 @@
+// ============================================================================
+// FEATURE C: MULTI-WEEK SEASON HISTORY ARCHIVE (FIRESTORE + LOCAL SNAPSHOTS)
+// ============================================================================
+function buildOfficialWeek7ArchiveEntry() {
+  var wk7Members = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_POOL_MEMBERS));
+  for (var i = 0; i < wk7Members.length; i++) {
+    var m = wk7Members[i];
+    if (m.wk7PriorPts !== undefined) m.priorPts = m.wk7PriorPts;
+    m.awaitingSheet = false;
+  }
+  return {
+    weekNum: 7,
+    weekLabel: "Week 7",
+    archivedAt: "2026-10-18T04:00:00.000Z",
+    tiebreakerGameId: 1,
+    games: JSON.parse(JSON.stringify(DEFAULT_WEEK7_GAMES)),
+    michael: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_MICHAEL)),
+    kinyion: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_KINYION)),
+    watchlist: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_WATCHLIST)),
+    poolMembers: wk7Members,
+    liveScores: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_LIVE_SCORES))
+  };
+}
+
+function ensureWeekArchivesState() {
+  if (!state.weekArchives || typeof state.weekArchives !== "object") {
+    state.weekArchives = {};
+  }
+  if (!state.weekArchives["week_7"]) {
+    state.weekArchives["week_7"] = buildOfficialWeek7ArchiveEntry();
+  }
+  populateWeekArchiveDropdown();
+}
+
+function saveCurrentWeekToArchive(notifyToast) {
+  ensureWeekArchivesState();
+  var wkNum = parseInt(state.currentWeek, 10) || 8;
+  if (typeof isHardcodedWeek7Slate === "function" && isHardcodedWeek7Slate(GAMES)) {
+    wkNum = 7;
+  } else if (GAMES && GAMES[0] && (GAMES[0].away === "Pittsburgh" || GAMES[0].home === "Miami")) {
+    wkNum = 8;
+  }
+  var key = "week_" + wkNum;
+  state.weekArchives[key] = {
+    weekNum: wkNum,
+    weekLabel: state.weekLabel || ("Week " + wkNum),
+    archivedAt: new Date().toISOString(),
+    tiebreakerGameId: state.tiebreakerGameId || null,
+    games: JSON.parse(JSON.stringify(GAMES)),
+    michael: JSON.parse(JSON.stringify(state.michael || {})),
+    kinyion: JSON.parse(JSON.stringify(state.kinyion || {})),
+    test: JSON.parse(JSON.stringify(state.test || {})),
+    customUsers: JSON.parse(JSON.stringify(state.customUsers || [])),
+    watchlist: JSON.parse(JSON.stringify(state.watchlist || [])),
+    leaderboard: JSON.parse(JSON.stringify(state.leaderboard || [])),
+    poolMembers: JSON.parse(JSON.stringify(state.poolMembers || [])),
+    liveScores: JSON.parse(JSON.stringify(LIVE_SCORES || {}))
+  };
+  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  if (fsDb && !isApplyingRemoteUpdate) {
+    try {
+      fsDb.collection("pickem_v14").doc("shared_state").set({
+        weekArchives: state.weekArchives,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (e) {}
+  }
+  populateWeekArchiveDropdown();
+  if (notifyToast) {
+    showAppToast("💾 Archived " + (state.weekLabel || ("Week " + wkNum)) + " to Season History (" + GAMES.length + " games)!");
+  }
+  if (currentMainView === "standings") {
+    renderSeasonArchiveHub();
+  }
+}
+
+function switchWeekArchive(weekKey) {
+  ensureWeekArchivesState();
+  var targetSnap = state.weekArchives[weekKey];
+  if (!targetSnap) return;
+
+  // Auto-save the currently active week ONLY if games were completed/scored and not unplayed Week 9
+  var curKey = "week_" + (parseInt(state.currentWeek, 10) || 8);
+  if (curKey !== weekKey && typeof countScoredGamesInLiveScores === "function" && countScoredGamesInLiveScores() > 0 && curKey !== "week_9") {
+    saveCurrentWeekToArchive(false);
+  }
+
+  isApplyingRemoteUpdate = true;
+  clearAllSlateCaches();
+  GAMES = JSON.parse(JSON.stringify(targetSnap.games || DEFAULT_WEEK7_GAMES));
+  state.currentWeek = parseInt(targetSnap.weekNum, 10) || 8;
+  state.weekLabel = targetSnap.weekLabel || ("Week " + state.currentWeek);
+  state.tiebreakerGameId = targetSnap.tiebreakerGameId || null;
+
+  if (targetSnap.michael) state.michael = JSON.parse(JSON.stringify(targetSnap.michael));
+  if (targetSnap.kinyion) state.kinyion = JSON.parse(JSON.stringify(targetSnap.kinyion));
+  if (targetSnap.watchlist) state.watchlist = JSON.parse(JSON.stringify(targetSnap.watchlist));
+  if (targetSnap.poolMembers) state.poolMembers = JSON.parse(JSON.stringify(targetSnap.poolMembers));
+  if (targetSnap.leaderboard) state.leaderboard = JSON.parse(JSON.stringify(targetSnap.leaderboard));
+
+  LIVE_SCORES = JSON.parse(JSON.stringify(targetSnap.liveScores || {}));
+  state.liveScores = LIVE_SCORES;
+  MONTE_CARLO_CACHE = null;
+
+  var brandEl = document.getElementById("sheet-title-brand");
+  if (brandEl) {
+    brandEl.textContent = "🏈 " + state.weekLabel + (state.currentWeek === 7 ? " (Archive)" : " (CST)");
+  }
+
+  regradeAllPoolMembersLive();
+  syncActiveProfileControlsUI();
+  renderSwayFeed();
+  populateWeekArchiveDropdown();
+  renderAll();
+  isApplyingRemoteUpdate = false;
+  showAppToast("📚 Loaded " + state.weekLabel + " from Season Archive!");
+}
+
+function populateWeekArchiveDropdown() {
+  var sel = document.getElementById("week-archive-select");
+  if (!sel) return;
+  if (!state.weekArchives || typeof state.weekArchives !== "object") return;
+
+  var curWk = parseInt(state.currentWeek, 10) || 8;
+  var curKey = "week_" + curWk;
+  var keys = Object.keys(state.weekArchives);
+  if (keys.indexOf(curKey) === -1) keys.push(curKey);
+
+  keys.sort(function(a, b) {
+    var na = parseInt(a.replace("week_", ""), 10) || 0;
+    var nb = parseInt(b.replace("week_", ""), 10) || 0;
+    return nb - na;
+  });
+
+  var html = "";
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var snap = state.weekArchives[k];
+    var wNum = parseInt(k.replace("week_", ""), 10) || curWk;
+    var lbl = (snap && snap.weekLabel) ? snap.weekLabel : ("Week " + wNum);
+    var gmCount = (snap && snap.games && snap.games.length) ? snap.games.length : GAMES.length;
+    var tag = (wNum === 7) ? "Archived • 89 Graded" : ("Active • " + gmCount + " Games");
+    html += '<option value="' + k + '"' + (k === curKey ? ' selected' : '') + '>📚 ' + lbl + ' (' + tag + ')</option>';
+  }
+  sel.innerHTML = html;
+}
+
+function renderSeasonArchiveHub() {
+  var box = document.getElementById("season-archive-hub-container");
+  if (!box) return;
+  ensureWeekArchivesState();
+
+  var curKey = "week_" + (parseInt(state.currentWeek, 10) || 8);
+  var keys = Object.keys(state.weekArchives).sort(function(a, b) {
+    return (parseInt(b.replace("week_", ""), 10) || 0) - (parseInt(a.replace("week_", ""), 10) || 0);
+  });
+
+  var cardsHtml = "";
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    var snap = state.weekArchives[k];
+    if (!snap) continue;
+    var isCurrent = (k === curKey);
+    var gList = snap.games || [];
+    var lsMap = snap.liveScores || {};
+    var compCount = 0;
+    for (var gid in lsMap) {
+      if (lsMap[gid] && lsMap[gid].completed) compCount++;
+    }
+    var mPts = "—", kPts = "—";
+    if (snap.weekNum === 7) {
+      mPts = "15 pts (96→111)";
+      kPts = "17 pts (95→112)";
+    } else if (isCurrent) {
+      var mG = calcProfileMetrics("michael");
+      var kG = calcProfileMetrics("kinyion");
+      mPts = Math.max(mG.liveProjectedPts, mG.finalWonPts) + " pts (" + mG.ev.toFixed(1) + " EV)";
+      kPts = Math.max(kG.liveProjectedPts, kG.finalWonPts) + " pts (" + kG.ev.toFixed(1) + " EV)";
+    }
+    var firstMatchup = (gList[0] ? (gList[0].awayCode + " @ " + gList[0].homeCode) : "26 Games");
+
+    cardsHtml += '<div class="archive-week-card' + (isCurrent ? ' active-wk' : '') + '">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<strong style="font-size:0.82rem;color:#fff;">📚 ' + (snap.weekLabel || ("Week " + snap.weekNum)) + '</strong>' +
+        (isCurrent ? '<span class="badge badge-ev">Active View</span>' : '<span class="badge badge-1x">Archived</span>') +
+      '</div>' +
+      '<div style="color:var(--muted);">Slate: <strong>' + gList.length + ' Games</strong> (' + firstMatchup + '...) • Graded: <strong>' + compCount + '/' + gList.length + '</strong></div>' +
+      '<div style="color:#cbd5e1;">👤 Michael: <strong style="color:#38bdf8;">' + mPts + '</strong> • 👤 Kinyion: <strong style="color:#c084fc;">' + kPts + '</strong></div>' +
+      '<div style="margin-top:4px;display:flex;gap:6px;">' +
+        (isCurrent
+          ? '<button type="button" class="btn-sm" style="width:100%;border-color:#34d399;color:#6ee7b7;font-weight:800;" onclick="saveCurrentWeekToArchive(true)">💾 Update Snapshot in Firestore</button>'
+          : '<button type="button" class="btn-sm" style="width:100%;background:var(--accent);color:#000;border:none;font-weight:800;" onclick="switchWeekArchive(\'' + k + '\')">📂 Load ' + (snap.weekLabel || ("Week " + snap.weekNum)) + ' Slate & Grades</button>') +
+      '</div>' +
+    '</div>';
+  }
+
+  box.innerHTML =
+    '<div class="side-title" style="flex-wrap:wrap;gap:6px;">' +
+      '<span>📚 Multi-Week Season History Archive (Synced to Cloud Firestore)</span>' +
+      '<button type="button" class="btn-sm" style="padding:3px 9px;font-size:0.69rem;border-color:#38bdf8;color:#7dd3fc;" onclick="saveCurrentWeekToArchive(true)">💾 Snapshot Current Week</button>' +
+    '</div>' +
+    '<div style="font-size:0.73rem;color:var(--muted);">Switch between any archived week and your active week at any time from the top bar or below. Importing a new weekly PDF/CSV automatically snapshots the prior week first.</div>' +
+    '<div class="archive-week-strip">' + cardsHtml + '</div>';
+}
+
+function renderAll() {
+  var lfltBtn = document.getElementById("lflt-all");
+  if (lfltBtn) lfltBtn.textContent = "All " + GAMES.length + " Games";
+  var fltBtn = document.getElementById("flt-all");
+  if (fltBtn) fltBtn.textContent = "All " + GAMES.length;
+
+  updateScoreboard(true);
+  if (typeof renderSimpleGuestAccountBar === "function") renderSimpleGuestAccountBar();
+  if (currentMainView === "condensed") {
+    renderCondensedTable();
+  } else if (currentMainView === "live") {
+    renderLiveScoreboardTab();
+  } else if (currentMainView === "standings") {
+    renderStandingsAndGradingView();
+  } else {
+    renderGames();
+  }
+}
+
+

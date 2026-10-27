@@ -1,0 +1,8 @@
+{
+  "name": "pickem-client-smoke",
+  "private": true,
+  "description": "Headless smoke test for public/: loads the app in Edge with Firestore writes blocked.",
+  "dependencies": {
+    "puppeteer-core": "23.11.1"
+  }
+}
