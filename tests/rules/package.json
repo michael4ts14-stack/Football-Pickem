@@ -1,0 +1,9 @@
+{
+  "name": "pickem-rules-tests",
+  "private": true,
+  "description": "Firestore security rules tests. Run from repo root: firebase emulators:exec --config tests/rules/firebase.json --only firestore --project demo-pickem \"node --test tests/rules/\"",
+  "dependencies": {
+    "@firebase/rules-unit-testing": "4.0.1",
+    "firebase": "11.1.0"
+  }
+}

@@ -1,26 +1,48 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Commissioner = a signed-in account whose email Google/Firebase has VERIFIED and that is
+    // either hardcoded here or listed in pickem_v14_commissioners/roles. Without the
+    // email_verified check anyone could create an email/password account named
+    // commissioner@separatedatturf.com and get commissioner rights.
+    // (The Apps Script bot writes with an OAuth token, which bypasses these rules.)
+    function hasVerifiedEmail() {
+      return request.auth != null && request.auth.token.email != null && request.auth.token.email_verified == true;
+    }
+    function rolesDoc() {
+      return get(/databases/$(database)/documents/pickem_v14_commissioners/roles).data;
+    }
     function isVerifiedCommissioner() {
-      return request.auth != null && (
+      return hasVerifiedEmail() && (
         request.auth.token.email.lower() == 'michael4ts14@gmail.com' ||
         request.auth.token.email.lower() == 'commissioner@separatedatturf.com' ||
-        request.auth.token.email.lower() == 'commissioner@separatedatturt.com' ||
         (exists(/databases/$(database)/documents/pickem_v14_commissioners/roles) && (
-          request.auth.token.email.lower() == get(/databases/$(database)/documents/pickem_v14_commissioners/roles).data.primaryCommissionerEmail.lower() ||
-          get(/databases/$(database)/documents/pickem_v14_commissioners/roles).data.authorizedEmails[request.auth.token.email.lower()] == true
+          request.auth.token.email.lower() == rolesDoc().get('primaryCommissionerEmail', '').lower() ||
+          rolesDoc().get('authorizedEmails', {}).get(request.auth.token.email.lower(), false) == true
         ))
       );
     }
 
-    match /pickem_v14/shared_state {
-      allow read: if true;
-      allow write: if isVerifiedCommissioner() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['customGames', 'commissionerConfig', 'weekArchives', 'officialSheetSyncedForWeek']);
+    // Pool-wide fields only the commissioner (or the bot) may change. Players may change
+    // their own profile entry, customUsers, profilePrivacy and updatedAt.
+    function touchesPoolFields() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'customGames', 'commissionerConfig', 'weekArchives', 'officialSheetSyncedForWeek',
+        'poolMembers', 'leaderboard', 'liveScores', 'watchlist', 'currentWeek', 'weekLabel',
+        'tiebreakerGameId', 'fridayNightRevealOverride', 'deletedPicksByMember',
+        'lastScrapedFile', 'scrapedAt', 'standingsUpdatedAt'
+      ]);
     }
 
+    match /pickem_v14/shared_state {
+      allow read: if true;
+      allow write: if isVerifiedCommissioner() || (request.auth != null && resource != null && !touchesPoolFields());
+    }
+
+    // Live scores, archives and bot status are written only by the Apps Script bot.
     match /live_games/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isVerifiedCommissioner();
     }
 
     match /pickem_v14_commissioners/{docId} {
@@ -28,9 +50,17 @@ service cloud.firestore {
       allow write: if isVerifiedCommissioner();
     }
 
+    // A player's own pick document. Once a document is owned (ownerUid set to the player's
+    // uid or email), only that player or a commissioner can change it.
+    function ownsUserDoc() {
+      return resource == null
+        || resource.data.get('ownerUid', '') == ''
+        || resource.data.get('ownerUid', '') == request.auth.uid
+        || (request.auth.token.email != null && resource.data.get('ownerUid', '') == request.auth.token.email);
+    }
     match /pickem_v14_users/{profileKey} {
       allow read: if true;
-      allow write: if request.auth != null || isVerifiedCommissioner();
+      allow write: if isVerifiedCommissioner() || (request.auth != null && ownsUserDoc());
     }
 
     match /pickem_v14_accounts/{docId} {
@@ -39,4 +69,3 @@ service cloud.firestore {
     }
   }
 }
-
