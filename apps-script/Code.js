@@ -2088,24 +2088,21 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
   var seenEventIds = {};
   var nowDt = new Date();
   var dateStrToday = Utilities.formatDate(nowDt, "America/Chicago", "yyyyMMdd");
-  var yesterdayDt = new Date(nowDt.getTime() - 86400000);
-  var dateStrYest = Utilities.formatDate(yesterdayDt, "America/Chicago", "yyyyMMdd");
-  var tomorrowDt = new Date(nowDt.getTime() + 86400000);
-  var dateStrTom = Utilities.formatDate(tomorrowDt, "America/Chicago", "yyyyMMdd");
-  var rollingDates = dateStrYest + "-" + dateStrTom;
 
-  // groups=80 (FBS) includes every game with an FBS team; dates covers live/recent games,
-  // week covers the rest of the slate (e.g. future kickoffs for scheduling).
+  // groups=80 (FBS) includes every game with an FBS team. The week query covers the whole
+  // slate; today's date covers live games if ESPN's week number differs from the pool's.
+  // (ESPN answers a YYYYMMDD-YYYYMMDD date range with HTTP 400 when combined with groups.)
   var urls = [
-    ESPN_SB_BASE_URL + "?groups=80&limit=300&dates=" + rollingDates,
-    ESPN_SB_BASE_URL + "?groups=80&limit=300&seasontype=2&week=" + curWeek
+    ESPN_SB_BASE_URL + "?groups=80&limit=300&seasontype=2&week=" + curWeek,
+    ESPN_SB_BASE_URL + "?groups=80&limit=300&dates=" + dateStrToday
   ];
   var scoreboardOkCount = 0;
+  var scoreboardFailures = [];
   try {
     var sbResps = UrlFetchApp.fetchAll(urls.map(function(u) { return { url: u, muteHttpExceptions: true }; }));
     for (var r = 0; r < sbResps.length; r++) {
       if (sbResps[r].getResponseCode() !== 200) {
-        Logger.log("ESPN scoreboard HTTP " + sbResps[r].getResponseCode() + ": " + urls[r]);
+        scoreboardFailures.push("HTTP " + sbResps[r].getResponseCode() + " " + urls[r].split("?")[1]);
         continue;
       }
       scoreboardOkCount++;
@@ -2127,11 +2124,11 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
       }
     }
   } catch (eFetch) {
-    Logger.log("ESPN scoreboard fetch error: " + eFetch.message);
+    scoreboardFailures.push("threw: " + eFetch.message);
   }
   if (scoreboardOkCount === 0) {
     // ESPN outage: keep the last good live state in Firestore untouched.
-    recordBotError_("ESPN scoreboard unavailable (all " + urls.length + " requests failed); live state left unchanged");
+    recordBotError_("ESPN scoreboard unavailable (" + scoreboardFailures.join("; ").slice(0, 220) + "); live state left unchanged");
     return { ok: false, week: curWeek, skippedReason: "ESPN unavailable", inProgressCount: 0, gamesMap: {} };
   }
 
