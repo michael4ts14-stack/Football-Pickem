@@ -108,7 +108,7 @@ function isFridayNightOrWeekendCST() {
 // The redesign uses text labels, not emoji, in the UI. Messages built elsewhere still carry them.
 function stripUiEmoji(text) {
   return String(text == null ? "" : text)
-    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u{FE0F}\u{200D}\u{20E3}]/gu, "")
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}]/gu, "")
     .replace(/\s{2,}/g, " ")
     .trim();
 }

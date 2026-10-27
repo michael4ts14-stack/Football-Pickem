@@ -41,8 +41,50 @@ function refreshIcons() {
     } catch (e) {}
   });
 }
+// ---------- Emoji clean-up ----------
+// Older render functions still put emoji in their labels. The redesign uses text (and Lucide
+// icons) instead, so emoji are removed from on-screen text as it is rendered. Inputs, textareas
+// and the printable pick sheet (which uses checkbox glyphs) are left alone.
+var UI_EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}\u{20E3}]/gu;
+var UI_EMOJI_TEST = /[\u{1F000}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}]/u;
+function scrubEmojiText(node) {
+  if (!node) return;
+  if (node.nodeType === 3) {
+    var t = node.nodeValue;
+    if (!UI_EMOJI_TEST.test(t)) return;
+    var p = node.parentNode;
+    if (!p || p.closest && p.closest("textarea, script, style, #print-sheet-area")) return;
+    var cleaned = t.replace(UI_EMOJI_RE, "").replace(/ {2,}/g, " ");
+    if (!cleaned.trim()) {
+      // A symbol-only label such as "✕" on a close button: keep it readable.
+      var btn = p.closest && p.closest("button");
+      if (btn && /[\u2715\u2716\u274C]/.test(t)) { cleaned = "Close"; }
+      else if (btn && !btn.textContent.replace(t, "").trim()) { return; }
+    } else if (/^\s/.test(t) === false) {
+      cleaned = cleaned.replace(/^\s+/, "");
+    }
+    if (cleaned !== t) node.nodeValue = cleaned;
+    return;
+  }
+  if (node.nodeType !== 1) return;
+  var tag = node.nodeName;
+  if (tag === "TEXTAREA" || tag === "SCRIPT" || tag === "STYLE" || node.id === "print-sheet-area") return;
+  var walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT, null);
+  var list = [], n;
+  while ((n = walker.nextNode())) list.push(n);
+  for (var i = 0; i < list.length; i++) scrubEmojiText(list[i]);
+}
+
 if (window.MutationObserver) {
-  new MutationObserver(refreshIcons).observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(function(muts) {
+    for (var i = 0; i < muts.length; i++) {
+      var m = muts[i];
+      if (m.type === "characterData") scrubEmojiText(m.target);
+      for (var j = 0; j < m.addedNodes.length; j++) scrubEmojiText(m.addedNodes[j]);
+    }
+    refreshIcons();
+  }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  scrubEmojiText(document.body);
 }
 
 function iconHtml(name) {
