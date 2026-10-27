@@ -310,3 +310,11 @@ test("processed email IDs are saved as each message finishes", () => {
   const saved = JSON.parse(h.userProps.getProperty("PROCESSED_MSG_IDS"));
   assert.ok(saved["m-ok"], "first message stays processed even though the run crashed later");
 });
+
+test("when ESPN refuses the bot (HTTP 403) the poller backs off 30 min", () => {
+  const h = loadBot({ cloud: baseCloud({ customGames: realSlate }), espnStatus: 403 });
+  h.ctx.pollEspnLiveGamesSubMinute();
+  const next = parseInt(h.scriptProps.getProperty("ESPN_NEXT_POLL_AT"), 10);
+  assert.ok(next > Date.now() + 25 * 60 * 1000, "next poll deferred");
+  assert.match(botStatusWrites(h).pop().espn.errors[0], /HTTP 403/);
+});

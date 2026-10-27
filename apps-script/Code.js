@@ -2110,6 +2110,10 @@ function pollEspnLiveGamesLocked_() {
   if (res && res.ok && res.inProgressCount === 0) {
     next = nowMs + ESPN_IDLE_POLL_MS;
     if (res.nextKickoffMs) next = Math.min(next, res.nextKickoffMs - ESPN_PREGAME_WINDOW_MS);
+  } else if (res && res.skippedReason === "ESPN unavailable") {
+    // ESPN refuses requests from Apps Script servers (HTTP 403); retrying every
+    // minute only burns the daily trigger-runtime quota.
+    next = nowMs + ESPN_IDLE_POLL_MS;
   }
   if (next > nowMs) props.setProperty("ESPN_NEXT_POLL_AT", String(next));
   else props.deleteProperty("ESPN_NEXT_POLL_AT");
