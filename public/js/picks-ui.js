@@ -213,7 +213,9 @@ function renderPickCardsHtml() {
 
     // Pool split + head-to-head, always visible.
     var infoParts = [];
-    if (ownInfo && ownInfo.total) {
+    // Pool split stays hidden until the game locks (Friday 9 PM CT by default).
+    var showPoolSplit = commishLocked && ownInfo && ownInfo.total;
+    if (showPoolSplit) {
       infoParts.push('<span class="card-info-item"><span class="card-info-label">Pool</span> ' +
         escapeShellHtml(g.awayCode) + ' ' + ownInfo.awayPct + '% · ' + escapeShellHtml(g.homeCode) + ' ' + ownInfo.homePct + '%</span>');
     }
@@ -222,7 +224,7 @@ function renderPickCardsHtml() {
       infoParts.push('<span class="card-info-item"><span class="card-info-label">' + escapeShellHtml(h2h.name) + '</span> ' + escapeShellHtml(h2h.text) +
         (isDiff ? ' <span class="diff-tag">Diff</span>' : '') + '</span>');
     }
-    var poolBar = (ownInfo && ownInfo.total)
+    var poolBar = showPoolSplit
       ? '<div class="pool-bar" aria-hidden="true"><span style="width:' + ownInfo.awayPct + '%"></span></div>'
       : '';
 
@@ -421,12 +423,14 @@ function renderGameDetailSheet() {
     }
   } catch (e) {}
   var ownHtml = "";
-  if (!SIMPLE_UI_MODE) {
+  if (isGameLockedByCommissioner(g.id)) {
     try {
       var own = getGamePoolOwnership(g);
       ownHtml = '<div class="kv"><span>Pool split (' + escapeShellHtml(own.sourceLabel) + ')</span><strong>' +
         escapeShellHtml(g.awayCode) + ' ' + own.awayPct + '% · ' + escapeShellHtml(g.homeCode) + ' ' + own.homePct + '%</strong></div>';
     } catch (e2) {}
+  } else {
+    ownHtml = '<p class="muted-note">Pool split shows once picks lock.</p>';
   }
 
   var gamecastHtml = (ls && (ls.inProgress || ls.completed)) || DEMO_FIELD_PREVIEW

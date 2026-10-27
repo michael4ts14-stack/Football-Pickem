@@ -105,10 +105,19 @@ function isFridayNightOrWeekendCST() {
   return false;
 }
 
+// The redesign uses text labels, not emoji, in the UI. Messages built elsewhere still carry them.
+function stripUiEmoji(text) {
+  return String(text == null ? "" : text)
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u{FE0F}\u{200D}\u{20E3}]/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
 function showAppToast(msg, durationMs) {
   var el = document.getElementById("app-toast-banner");
   if (!el) return;
-  el.textContent = msg;
+  el.textContent = stripUiEmoji(msg);
+  el.setAttribute("role", "status");
   el.style.display = "block";
   if (window._appToastTimer) clearTimeout(window._appToastTimer);
   window._appToastTimer = setTimeout(function() {
@@ -399,18 +408,18 @@ function populateCompareTargetSelectors() {
     state.compareTargetKey = curTarget;
   }
 
-  var opts = '<optgroup label="👤 Linked App Users (Live Sync)">';
+  var opts = '<optgroup label="App users">';
   for (var i = 0; i < allProfs.length; i++) {
     var pf = allProfs[i];
     if (pf.key === myKey || pf.isSandbox) continue;
     var isHidden = isProfileHiddenFromViewer(pf.key, null);
     var sel = (curTarget === pf.key) ? " selected" : "";
-    opts += '<option value="' + pf.key + '"' + sel + '>' + pf.icon + ' ' + pf.name + (isHidden ? ' (🔒 Hidden Pre-Kickoff)' : ' (⚡ Live Picks)') + '</option>';
+    opts += '<option value="' + pf.key + '"' + sel + '>' + pf.name + (isHidden ? ' (hidden until kickoff)' : '') + '</option>';
   }
   opts += '</optgroup>';
 
   if (state.poolMembers && state.poolMembers.length > 0) {
-    opts += '<optgroup label="🏆 All 89 Pool Leaderboard Participants">';
+    opts += '<optgroup label="Pool members">';
     var sortedPm = state.poolMembers.slice().sort(function(a, b) {
       return (parseFloat(b.priorPts) || 0) - (parseFloat(a.priorPts) || 0);
     });
@@ -419,7 +428,7 @@ function populateCompareTargetSelectors() {
       var pmKey = "pm:" + pm.name;
       var hasSheet = !pm.awaitingSheet && pm.picks && hasSubmittedPicksForCurrentSlate(pm.picks, GAMES);
       var selPm = (curTarget === pmKey) ? " selected" : "";
-      opts += '<option value="' + pmKey + '"' + selPm + '>🏆 ' + pm.name + ' (' + (pm.priorPts || 0) + 'p' + (hasSheet ? ' • ✓ Sheet In' : ' • ⏳ Pre-Sheet') + ')</option>';
+      opts += '<option value="' + pmKey + '"' + selPm + '>' + pm.name + ' (' + (pm.priorPts || 0) + ' pts' + (hasSheet ? '' : ', no sheet yet') + ')</option>';
     }
     opts += '</optgroup>';
   }
