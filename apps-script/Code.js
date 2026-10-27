@@ -608,6 +608,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
         continue;
       }
       stats.scannedMessages++;
+      var keepUnprocessed = false;
 
       // SENDER & SELF-SCRAPE GUARD (MANDATORY FIX 3)
       var mySelfEmail = String(Session.getActiveUser().getEmail() || "").toLowerCase().trim();
@@ -767,7 +768,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           for (var rw = 0; rw < resetWl.length; rw++) {
             resetWl[rw].picks = {};
           }
-          patchFirebaseNode("", {
+          var rolledOver = patchFirebaseNode("", {
             customGames: scrapedGames,
             currentWeek: newWkNum,
             weekLabel: newWkLabel,
@@ -777,12 +778,13 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             watchlist: resetWl,
             scrapedAt: new Date().toISOString()
           });
+          if (!rolledOver) {
+            // shared_state still shows the old week: don't advance week_state either, and
+            // leave this email unprocessed so the rollover is retried on the next run.
+            recordBotError_("Week rollover to " + newWkLabel + " failed to save; will retry");
+            keepUnprocessed = true;
+          } else {
           try {
-            PropertiesService.getScriptProperties().setProperty("ACTIVE_SLATE_CACHE_JSON", JSON.stringify({
-              currentWeek: newWkNum,
-              weekLabel: newWkLabel,
-              games: scrapedGames
-            }));
             PropertiesService.getScriptProperties().deleteProperty("LAST_LIVE_STATE_HASH");
           } catch (eProp) {}
 
@@ -795,6 +797,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           syncEspnLiveStateToFirestore(true, scrapedGames, newWkNum);
           stats.importedGames = scrapedGames.length;
           Logger.log("✓ Pushed " + scrapedGames.length + " new weekly games (" + newWkLabel + "), archived outgoing week, & initialized live_games/week_state!");
+          }
           } else {
             Logger.log("ℹ️ Skipping slate reset: Week " + newWkNum + " is not greater than active Week " + curWkNum);
           }
@@ -905,7 +908,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
         }
       }
 
-      processedIds[msgId] = new Date().toISOString();
+      if (!keepUnprocessed) processedIds[msgId] = new Date().toISOString();
     }
   }
 
@@ -2015,6 +2018,7 @@ function pollEspnLiveGamesSubMinute() {
   }
   try {
     var res = pollEspnLiveGamesLocked_();
+    if (res.idle) return res;
     var latest = res.latest || {};
     writeBotStatus_("espn", {
       week: latest.week || null,
@@ -2022,6 +2026,7 @@ function pollEspnLiveGamesSubMinute() {
       inProgressCount: latest.inProgressCount || 0,
       completedCount: latest.completedCount || 0,
       wroteToFirestore: !!latest.wroteToFirestore,
+      skippedReason: latest.skippedReason || null,
       passesRun: res.passesRun
     });
     return res;
@@ -2034,57 +2039,48 @@ function pollEspnLiveGamesSubMinute() {
   }
 }
 
+// One ESPN pass per trigger run (the old 3-pass/40s-sleep loop burned most of the
+// consumer account's 90 min/day trigger runtime). When nothing is live, the next real
+// poll is deferred: every 30 min normally, every minute from 15 min before a kickoff.
+var ESPN_IDLE_POLL_MS = 30 * 60 * 1000;
+var ESPN_PREGAME_WINDOW_MS = 15 * 60 * 1000;
+
 function pollEspnLiveGamesLocked_() {
-  var passResults = [];
-  for (var pass = 0; pass < 3; pass++) {
-    if (pass > 0) {
-      Utilities.sleep(20000);
-    }
-    var res = syncEspnLiveStateToFirestore(false);
-    passResults.push(res);
-    // If no games are actively in progress on pass 1, exit immediately (<0.5s runtime, 0 extra polls)
-    if (!res || res.inProgressCount === 0) {
-      break;
-    }
+  var props = PropertiesService.getScriptProperties();
+  var nextAt = parseInt(props.getProperty("ESPN_NEXT_POLL_AT") || "0", 10);
+  var nowMs = Date.now();
+  if (nextAt > nowMs) {
+    return { ok: true, passesRun: 0, idle: true, nextPollAt: new Date(nextAt).toISOString() };
   }
-  return {
-    ok: true,
-    passesRun: passResults.length,
-    latest: passResults[passResults.length - 1]
-  };
+  var res = syncEspnLiveStateToFirestore(false);
+  var next = 0;
+  if (res && res.ok && res.inProgressCount === 0) {
+    next = nowMs + ESPN_IDLE_POLL_MS;
+    if (res.nextKickoffMs) next = Math.min(next, res.nextKickoffMs - ESPN_PREGAME_WINDOW_MS);
+  }
+  if (next > nowMs) props.setProperty("ESPN_NEXT_POLL_AT", String(next));
+  else props.deleteProperty("ESPN_NEXT_POLL_AT");
+  return { ok: true, passesRun: 1, latest: res };
 }
 
 function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride) {
   var scriptProps = PropertiesService.getScriptProperties();
-  var activeGames = gamesOverride || null;
-  var curWeek = weekNumOverride || 8;
+  var activeGames = (gamesOverride && gamesOverride.length) ? gamesOverride : null;
+  var curWeek = parseInt(weekNumOverride, 10) || 0;
 
-  if (!activeGames || !activeGames.length) {
-    try {
-      var cachedJson = scriptProps.getProperty("ACTIVE_SLATE_CACHE_JSON");
-      if (cachedJson) {
-        var parsedCache = JSON.parse(cachedJson);
-        if (parsedCache && Array.isArray(parsedCache.games) && parsedCache.games.length > 0) {
-          activeGames = parsedCache.games;
-          if (!weekNumOverride && parsedCache.currentWeek) curWeek = parsedCache.currentWeek;
-        }
-      }
-    } catch (eCache) {}
+  // Single source of truth: the active week and slate always come from shared_state.
+  // No cached copy, no hardcoded Week 7/8 fallback: if we can't read it, we don't write.
+  if (!activeGames || !curWeek) {
+    var cloudState = fetchFirebaseNode("");
+    if (!cloudState) {
+      return { ok: false, skippedReason: "could not read shared_state", inProgressCount: 0, gamesMap: {} };
+    }
+    if (!activeGames) activeGames = (cloudState.customGames && cloudState.customGames.length) ? cloudState.customGames : null;
+    if (!curWeek) curWeek = parseInt(cloudState.currentWeek, 10) || 0;
   }
-
-  if (!activeGames || !activeGames.length) {
-    var cloudState = fetchFirebaseNode("") || {};
-    activeGames = (cloudState.customGames && cloudState.customGames.length)
-      ? cloudState.customGames
-      : getDefaultWeek7GamesFallback();
-    curWeek = weekNumOverride || cloudState.currentWeek || 8;
-    try {
-      scriptProps.setProperty("ACTIVE_SLATE_CACHE_JSON", JSON.stringify({
-        currentWeek: curWeek,
-        weekLabel: "Week " + curWeek,
-        games: activeGames
-      }));
-    } catch (eSaveCache) {}
+  if (!activeGames || !curWeek) {
+    recordBotError_("ESPN sync skipped: shared_state has no customGames/currentWeek");
+    return { ok: false, skippedReason: "no active slate/week", inProgressCount: 0, gamesMap: {} };
   }
 
   // Fetch ESPN College Football Scoreboard (FBS group 80 + all groups + active week + rolling dates)
@@ -2098,17 +2094,21 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
   var dateStrTom = Utilities.formatDate(tomorrowDt, "America/Chicago", "yyyyMMdd");
   var rollingDates = dateStrYest + "-" + dateStrTom;
 
+  // groups=80 (FBS) includes every game with an FBS team; dates covers live/recent games,
+  // week covers the rest of the slate (e.g. future kickoffs for scheduling).
   var urls = [
-    ESPN_SB_BASE_URL + "?groups=80&limit=300",
-    ESPN_SB_BASE_URL + "?limit=300",
-    ESPN_SB_BASE_URL + "?groups=80&limit=300&seasontype=2&week=" + curWeek,
-    ESPN_SB_BASE_URL + "?limit=300&seasontype=2&week=" + curWeek,
-    ESPN_SB_BASE_URL + "?groups=80&limit=300&dates=" + rollingDates
+    ESPN_SB_BASE_URL + "?groups=80&limit=300&dates=" + rollingDates,
+    ESPN_SB_BASE_URL + "?groups=80&limit=300&seasontype=2&week=" + curWeek
   ];
+  var scoreboardOkCount = 0;
   try {
     var sbResps = UrlFetchApp.fetchAll(urls.map(function(u) { return { url: u, muteHttpExceptions: true }; }));
     for (var r = 0; r < sbResps.length; r++) {
-      if (sbResps[r].getResponseCode() !== 200) continue;
+      if (sbResps[r].getResponseCode() !== 200) {
+        Logger.log("ESPN scoreboard HTTP " + sbResps[r].getResponseCode() + ": " + urls[r]);
+        continue;
+      }
+      scoreboardOkCount++;
       var data = JSON.parse(sbResps[r].getContentText() || "{}");
       var evs = data.events || [];
       for (var e = 0; e < evs.length; e++) {
@@ -2129,11 +2129,17 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
   } catch (eFetch) {
     Logger.log("ESPN scoreboard fetch error: " + eFetch.message);
   }
+  if (scoreboardOkCount === 0) {
+    // ESPN outage: keep the last good live state in Firestore untouched.
+    recordBotError_("ESPN scoreboard unavailable (all " + urls.length + " requests failed); live state left unchanged");
+    return { ok: false, week: curWeek, skippedReason: "ESPN unavailable", inProgressCount: 0, gamesMap: {} };
+  }
 
   var gamesMap = {};
   var summaryQueue = [];
   var inProgressCount = 0;
   var completedCount = 0;
+  var nextKickoffMs = 0;
 
   for (var i = 0; i < activeGames.length; i++) {
     var g = activeGames[i];
@@ -2187,6 +2193,10 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
     var isComp = (stType.completed === true);
     if (isInProg) inProgressCount++;
     if (isComp) completedCount++;
+    if (!isInProg && !isComp && matched.ev.date) {
+      var kickMs = new Date(matched.ev.date).getTime();
+      if (kickMs && (!nextKickoffMs || kickMs < nextKickoffMs)) nextKickoffMs = kickMs;
+    }
 
     var qtr = (compObj.status && compObj.status.period) ? compObj.status.period : 0;
     var clk = stType.shortDetail || (isComp ? "Final" : "Scheduled");
@@ -2224,7 +2234,9 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
       lastScoringDrive: null
     };
 
-    if (isInProg || isComp) {
+    // Play-by-play summaries: live games every pass; finished games only on a forced
+    // sync (week rollover archive), not every minute for the rest of the weekend.
+    if (isInProg || (isComp && forceWrite)) {
       summaryQueue.push({
         gidKey: gidKey,
         game: g,
@@ -2313,22 +2325,42 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
   var newHash = curWeek + "__" + digestParts.join("||");
   var prevHash = scriptProps.getProperty("LAST_LIVE_STATE_HASH") || "";
 
+  // Guards: never overwrite good scores with an empty map, and never move
+  // live_games/week_state to an older week than it already shows.
+  var highestWeek = parseInt(scriptProps.getProperty("LIVE_STATE_HIGHEST_WEEK") || "0", 10);
+  var skippedReason = null;
+  if (sortedKeys.length === 0) {
+    skippedReason = "no slate games matched ESPN events";
+  } else if (curWeek < highestWeek && !weekNumOverride) {
+    skippedReason = "refusing to move week_state back from Week " + highestWeek + " to Week " + curWeek;
+    recordBotError_(skippedReason);
+  }
+
   var wroteToFirestore = false;
-  if (forceWrite || (sortedKeys.length > 0 && newHash !== prevHash)) {
+  if (!skippedReason && (forceWrite || newHash !== prevHash)) {
     var liveDocPayload = {
       currentWeek: curWeek,
       weekLabel: "Week " + curWeek,
       games: gamesMap,
       updatedAt: new Date().toISOString()
     };
-    patchFirestoreDocUrl(FIRESTORE_LIVE_STATE_URL, liveDocPayload);
-    scriptProps.setProperty("LAST_LIVE_STATE_HASH", newHash);
-    wroteToFirestore = true;
-    Logger.log("✓ Pushed live_games/week_state (" + sortedKeys.length + " games, " + inProgressCount + " live, " + completedCount + " final)");
+    if (curWeek < highestWeek) {
+      // Rollover archive pass for the outgoing week: keep week_state's week as-is.
+      delete liveDocPayload.currentWeek;
+      delete liveDocPayload.weekLabel;
+    }
+    wroteToFirestore = patchFirestoreDocUrl(FIRESTORE_LIVE_STATE_URL, liveDocPayload);
+    if (wroteToFirestore) {
+      scriptProps.setProperty("LAST_LIVE_STATE_HASH", newHash);
+      if (curWeek > highestWeek) scriptProps.setProperty("LIVE_STATE_HIGHEST_WEEK", String(curWeek));
+      Logger.log("✓ Pushed live_games/week_state (" + sortedKeys.length + " games, " + inProgressCount + " live, " + completedCount + " final)");
+    }
   }
 
   return {
     ok: true,
+    skippedReason: skippedReason,
+    nextKickoffMs: nextKickoffMs,
     week: curWeek,
     matchedGames: sortedKeys.length,
     inProgressCount: inProgressCount,
