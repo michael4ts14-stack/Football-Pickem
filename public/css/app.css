@@ -60,6 +60,7 @@ svg.lucide { width: 18px; height: 18px; stroke-width: 2; flex-shrink: 0; }
 .app-sidebar .mode-tab-btn.active,
 .app-sidebar .nav-item.active { background: var(--raised); color: var(--accent-text); font-weight: 600; }
 .app-sidebar .mode-tab-btn.active svg.lucide { color: var(--accent-text); }
+.app-sidebar .mode-tab-btn[hidden] { display: none; }
 .nav-list-plain .nav-item { min-height: 40px; color: var(--text); }
 .sidebar-foot { margin-top: auto; padding: 16px 10px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .bot-status { font-size: 13px; color: var(--text-muted); }
@@ -189,8 +190,9 @@ body.simple-ui-mode .app-rail { display: none; }
 .entry-add .search-input { width: 150px; min-width: 0; min-height: 36px; padding: 0 10px; }
 
 /* Advanced-only pick mix */
+.adv-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 20px; margin-bottom: 14px; }
 .risk-meter-pill {
-  display: inline-flex; flex-wrap: wrap; gap: 16px; align-items: center; margin-bottom: 12px;
+  display: inline-flex; flex-wrap: wrap; gap: 16px; align-items: center;
   background: transparent; border: 0; padding: 0; font-size: 14px; color: var(--text-muted); cursor: pointer;
 }
 .risk-meter-pill strong { color: var(--text); font-family: var(--font-head); font-size: 18px; font-weight: 700; margin-left: 3px; }
@@ -499,3 +501,60 @@ button.list-row:hover { background: var(--raised); }
 .team-pick-name-row { display: flex; align-items: center; min-width: 0; }
 .team-pick.is-home .team-pick-name-row { flex-direction: row-reverse; }
 .team-pick.is-home .inj-icon { margin-left: 0; margin-right: 5px; }
+
+/* ---------- Advanced table view ---------- */
+.cond-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; width: 100%; }
+.cond-toolbar .segmented .cond-mode-pill { background: transparent; border: 0; color: var(--text-muted); min-height: 36px; padding: 0 14px; border-radius: var(--radius-btn); font-weight: 600; font-size: 14px; cursor: pointer; }
+.cond-toolbar .segmented .cond-mode-pill.active { background: var(--raised); color: var(--text); }
+.cond-scope { font-size: 13px; color: var(--text-muted); }
+.compare-field, .check-field { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-muted); cursor: pointer; }
+.compare-field .compare-select { min-height: 36px; max-width: 190px; padding: 0 8px; }
+.condensed-toolbar { margin-bottom: 14px; }
+.cond-desktop-table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; }
+.condensed-table { font-size: 14px; }
+.condensed-table th { background: var(--surface); color: var(--text-muted); font-size: 12px; font-weight: 600; letter-spacing: 0.06em; padding: 10px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.condensed-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.condensed-table tr:last-child td { border-bottom: 0; }
+.condensed-table tr.diff-row { background: var(--raised); }
+.cond-btn { min-height: 36px; min-width: 52px; padding: 0 10px; border-radius: var(--radius-btn); border: 1px solid var(--border); background: var(--raised); color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; }
+.cond-btn.m-active, .cond-btn.k-active, .cond-btn.t-active, .cond-btn[class*="-active"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.cond-btn.w-active { background: var(--raised); border-color: var(--text-muted); color: var(--text); }
+.swing-pill { border-radius: 4px; font-size: 12px; font-weight: 600; padding: 2px 7px; background: var(--raised); color: var(--text-muted); border: 0; }
+.swing-pill.swing-diff { color: var(--text); border: 1px solid var(--text-muted); }
+.cond-live { color: var(--text); font-weight: 600; margin-left: 4px; }
+.cond-pool { font-size: 12px; color: var(--text-muted); }
+.cond-mult { font-family: var(--font-head); font-weight: 700; color: var(--text); }
+.cond-locked-pill { font-size: 12px; color: var(--text-muted); }
+.cond-m-card { background: var(--surface); border: 1px solid var(--border); border-left-width: 1px; border-radius: 10px; padding: 12px; }
+.cond-m-card.diff-card { border-color: var(--text-muted); }
+.cond-m-card.mult-2x-card, .cond-m-card.mult-3x-card { border-left-color: var(--border); }
+.cond-m-num { background: transparent; color: var(--text-muted); padding: 0; font-weight: 600; }
+.cond-m-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.cond-m-line-pill { background: transparent; border: 0; color: var(--text-muted); font-size: 13px; padding: 0; }
+.cond-m-prof-box { background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; }
+.cond-m-prof-label { color: var(--text-muted); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; display: flex; justify-content: space-between; margin-bottom: 6px; }
+.cond-m-value { text-align: center; font-weight: 600; font-size: 14px; color: var(--text); padding: 6px 0; }
+.cond-m-value.is-muted { color: var(--text-muted); font-weight: 500; font-size: 13px; }
+.cond-m-btn-pair .cond-btn { flex: 1; }
+.cond-m-rivals-label { color: var(--text-muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ---------- Advanced tools in the right rail (the old sidebar) ---------- */
+.app-rail .side-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.app-rail .side-title {
+  font-family: var(--font-head); font-size: 18px; font-weight: 700; text-transform: none; letter-spacing: 0;
+  color: var(--text); margin-bottom: 10px; gap: 8px; flex-wrap: wrap;
+}
+.app-rail .side-title .btn-sm, .app-rail .btn-sm { font-family: var(--font-body); font-size: 12px; font-weight: 500; padding: 4px 8px; }
+.app-rail .metric-card { background: var(--raised); border: 0; border-radius: var(--radius-btn); }
+.app-rail .metric-label { font-size: 11px; letter-spacing: 0.06em; color: var(--text-muted); }
+.app-rail .metric-val { font-family: var(--font-head); font-size: 20px; color: var(--text) !important; }
+.app-rail .preset-btn { background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius-btn); color: var(--text); font-size: 13px; font-weight: 500; min-height: 40px; }
+.app-rail .preset-btn:hover { border-color: var(--text-muted); }
+.app-rail .h2h-table th { color: var(--text-muted); font-weight: 500; }
+.app-rail .h2h-table td strong { color: var(--text) !important; }
+.app-rail .sway-item { background: var(--raised); border-left: 2px solid var(--warn); border-radius: var(--radius-btn); }
+.app-rail .sway-item.critical { border-left-color: var(--loss); }
+.app-rail .tb-calc-box { background: var(--raised); border: 0; border-radius: var(--radius-btn); }
+.dist-bar { background: var(--text-muted); }
+.dist-bar-wrap { background: var(--raised); }
+.instance-lock-banner { background: var(--raised) !important; border: 0 !important; color: var(--text) !important; }

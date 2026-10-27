@@ -18,6 +18,10 @@ Status: **Approved 2026-10-27.** Step 1 (tokens + shell) built; awaiting screens
    red with white text. Layout follows the owner's mockups (Pickem_App_Redesign.pdf): no top header
    bar, each screen has its own page head, the sidebar More group is plain text.
 
+7. **Pool split** (per-card %, bar, detail sheet, table view) shows only once a game is locked
+   (Friday 9 PM CT by default). Advanced EV and leverage tags still use the early ownership data.
+8. **Injuries** show only as a small icon on each team button; the full list is in the game detail sheet.
+
 Found during step 2:
 - `pickSide()` never clears a pick (tapping the picked team re-saves it). "Tap again to clear" would
   change how picks are saved, so it is **not** implemented; switching teams works as before.
@@ -67,7 +71,7 @@ the item is verified at 390px and 1280px after that step.
 | ☑ | Profile pill (name + instance tag) | `#top-profile-pill`, `#top-profile-name`, `#top-profile-instance-tag` | Top bar | Header avatar button → M›Account | 1 |
 | ☑ | Bot status pill (CM) | `#bot-sync-pill` | Top bar | Header (CM only) + M›Commissioner | 1 |
 | ☐ | Live sync badge (tap = sync) | `syncAllLiveTrackingData(true)` · `#live-sync-badge` | Top bar | Live header "Synced Ns ago" indicator (tap = sync) | 5 |
-| ☐ | Risk meter (1x/2x/3x/Max/EV) | `#top-risk-meter`, `#rm-chalk/-2x/-3x`, `#top-ceiling`, `#top-ev` | Top bar (ADV) | PH second line (ADV) | 4 |
+| ☑ | Risk meter (1x/2x/3x/Max/EV) | `#top-risk-meter`, `#rm-chalk/-2x/-3x`, `#top-ceiling`, `#top-ev` | Top bar (ADV) | PH second line (ADV) | 4 |
 | ☑ | Hidden cloud status text | `#cloud-status-text` | Hidden | Kept hidden | 1 |
 
 ## B. Picks screen — game list
@@ -76,11 +80,11 @@ the item is verified at 390px and 1280px after that step.
 |---|---|---|---|---|---|
 | ☑ | Game cards render | `renderGames()` · `#games-container` | Cards view | P: one card per game (time + network, then away and home buttons) | 2 |
 | ☑ | Pick away / home | `pickSide(id, side)` | Card buttons | Team buttons (tap = pick, tap again = clear, `aria-pressed`) | 2 |
-| ☐ | Pick for any profile (table) | `pickSideForProfile(prof, id, side)` | Condensed table | Table view (ADV) | 4 |
+| ☑ | Pick for any profile (table) | `pickSideForProfile(prof, id, side)` | Condensed table | Table view (ADV) | 4 |
 | ☑ | Simple layout style: Condensed vs "Cards + Injuries/L5" | `setSimpleCardLayoutStyle('condensed'\|'detailed')` · `#btn-simple-style-condensed/-detailed` · localStorage `sat_simple_card_style_v16` | Simple bar | New card is the default. "Cards + Injuries/L5" becomes a "Show details inline" switch in PH ⋯ and Settings; the same data is always one tap away in DS | 2/3 |
 | ☑ | Condensed view (simple) | `switchMainView('condensed')` in simple mode → cards + condensed style | Tab | Same as the row above (the clean list *is* the condensed view) | 2 |
 | ☑ | Team search | `#team-search` · `renderGames()` · `clearSearch()` | Controls bar | Search icon in PH → inline search field | 2 |
-| ☐ | Expand all Insights (ADV) | `toggleAllSubpanels('ins')` · `#btn-toggle-all-ins` | Controls bar | PH ⋯ menu (ADV) | 4 |
+| ☑ | Expand all Insights (ADV) | `toggleAllSubpanels('ins')` · `#btn-toggle-all-ins` | Controls bar | PH ⋯ menu (ADV) | 4 |
 | ☑ | Expand all Last 5 | `toggleAllSubpanels('l5')` · `#btn-toggle-all-l5` | Controls bar | PH ⋯ menu | 2 |
 | ☑ | Expand all Injuries | `toggleAllSubpanels('inj')` · `#btn-toggle-all-inj` | Controls bar | PH ⋯ menu | 2 |
 | ☑ | Per-card Insights / Last 5 / Injuries toggles | `toggleCardIdx(idx, type)` | Card | DS sections (and inline when "Show details inline" is on) | 3 |
@@ -98,10 +102,10 @@ the item is verified at 390px and 1280px after that step.
 | ☑ | 2x Dogs (+7.5–14) | `setFilter('2x')` · `#flt-2x` | Filter row | Chip | 2 |
 | ☑ | 3x Dogs (+14.5+) | `setFilter('3x')` · `#flt-3x` | Filter row | Chip | 2 |
 | ☑ | Injuries / Outs | `setFilter('inj')` · `#flt-inj` | Filter row | Chip | 2 |
-| ☐ | +EV / Best Value | `setFilter('plusev')` · `#flt-plusev` | ADV | Chip (ADV) | 4 |
-| ☐ | Best Leverage | `setFilter('leverage')` · `#flt-leverage` | ADV | Chip (ADV) | 4 |
-| ☐ | Sways | `setFilter('sway')` · `#flt-sway` | ADV | Chip (ADV) | 4 |
-| ☐ | H2H Diffs | `setFilter('diffs')` · `#flt-diffs` (also the sidebar "⚔️ Diffs" button) | ADV | Chip (ADV) | 4 |
+| ☑ | +EV / Best Value | `setFilter('plusev')` · `#flt-plusev` | ADV | Chip (ADV) | 4 |
+| ☑ | Best Leverage | `setFilter('leverage')` · `#flt-leverage` | ADV | Chip (ADV) | 4 |
+| ☑ | Sways | `setFilter('sway')` · `#flt-sway` | ADV | Chip (ADV) | 4 |
+| ☑ | H2H Diffs | `setFilter('diffs')` · `#flt-diffs` (also the sidebar "⚔️ Diffs" button) | ADV | Chip (ADV) | 4 |
 | ☐ | `ev` filter key | listed in `setFilter`'s list, no button today | — | No change (no button) | — |
 | ☑ | **Missing** (new) | `setFilter('missing')` · `#flt-missing` | — | Chip (both modes) | 2 |
 | ☐ | Live: All N Games | `setLiveTabFilter('all')` · `#lflt-all` | Live toolbar | L chip | 5 |
@@ -148,28 +152,28 @@ the item is verified at 390px and 1280px after that step.
 | ☐ | My Official Picks / My Sandbox Sim switch | `switchProfile(getMyInstanceProfileKey())` / `switchProfile('test')` · `#tab-michael`, `#tab-test`, `#dynamic-profile-tabs`, `#prof-sub-*` | Sidebar, auth, drawer | PH profile switcher ("My picks ▾ / Sandbox"). Sandbox shows a clear "Sandbox — not submitted" banner | 2 |
 | ☐ | Multi-buy-in entry switcher | `switchLinkedBuyInEntry()` · `#multi-buyin-entry-strip` | Simple bar + drawer | Same PH switcher (lists each entry) | 2 |
 | ☐ | Add Buy-In | `addLinkedBuyInEntryFromInput()` · `#inline-buyin-entry-input`, `#drawer-new-buyin-input` | Drawer | M›Account | 7 |
-| ☐ | Copy other profile's picks | `copyOtherProfile()` | Sidebar | QP (ADV) | 4 |
+| ☑ | Copy other profile's picks | `copyOtherProfile()` | Sidebar | QP (ADV) | 4 |
 | ☐ | Hide My Picks (quick lock) | `toggleQuickLockActiveProfile()` · `#btn-quick-hide-active`, `#active-privacy-status-pill` | Sidebar + drawer | M›Settings › Privacy | 7 |
 | ☐ | Blind mode / Spy Shield (same function) | `toggleBlindMode()` · `#btn-sidebar-blind`, `#btn-blind-mode` | Sidebar + drawer | M›Settings › Privacy | 7 |
 | ☐ | Pick Privacy / Full Pick Privacy & H2H Settings | `openUserAndPrivacyModal()` | Sidebar, drawer, guest strip | M›Settings › Privacy (opens the existing modal content) | 7 |
 | ☐ | Privacy options: reveal at kickoff / auto-unhide on sheet / auto-unhide Friday night | `toggleProfilePrivacyOption()` | Privacy modal | Same modal | 7 |
 | ☐ | Toggle Privacy (account modal) | `toggleQuickLockActiveProfile(); openAuthModal()` | Auth modal | Same | 7 |
-| ☐ | Compare vs (H2H target), 4 selects | `setCompareTarget()` · `#sidebar-compare-select`, `#live-compare-select`, `#cond-compare-select`, `#standings-compare-select` · localStorage `sat_device_compare_target_v16` | Sidebar, Live, Condensed, Standings | One "Compare with ▾" control per screen (ADV); all four IDs kept | 4/5/6 |
+| ☑ | Compare vs (H2H target), 4 selects | `setCompareTarget()` · `#sidebar-compare-select`, `#live-compare-select`, `#cond-compare-select`, `#standings-compare-select` · localStorage `sat_device_compare_target_v16` | Sidebar, Live, Condensed, Standings | One "Compare with ▾" control per screen (ADV); all four IDs kept | 4/5/6 |
 | ☐ | Compare H2H (from leaderboard row) | `setCompareTarget(name)` | Standings rows | Standings row action | 6 |
-| ☐ | H2H table (Ceiling / EV / Live / Final per profile) | `#h2h-dynamic-tbody`, `#h2h-m-*`, `#h2h-k-*`, `#h2h-t-*`, `#h2h-row-test` | Sidebar | ADV: "Head-to-head" block at top of Table view + RR (desktop) | 4 |
-| ☐ | H2H diff count | `#h2h-diffs`, `#h2h-diffs-label` | Sidebar | ADV chip badge on "Diffs" | 4 |
-| ☐ | Open Side-by-Side Comparison | `switchMainView('condensed')` | Sidebar + privacy modal | ADV: Picks › Table toggle | 4 |
+| ☑ | H2H table (Ceiling / EV / Live / Final per profile) | `#h2h-dynamic-tbody`, `#h2h-m-*`, `#h2h-k-*`, `#h2h-t-*`, `#h2h-row-test` | Sidebar | ADV: "Head-to-head" block at top of Table view + RR (desktop) | 4 |
+| ☑ | H2H diff count | `#h2h-diffs`, `#h2h-diffs-label` | Sidebar | ADV chip badge on "Diffs" | 4 |
+| ☑ | Open Side-by-Side Comparison | `switchMainView('condensed')` | Sidebar + privacy modal | ADV: Picks › Table toggle | 4 |
 | ☐ | Link profile to leaderboard name | `linkUserProfileToLeaderboard()` | Privacy modal | Same | 7 |
 
 ## G. Advanced: Condensed / Table / matrix
 
 | ☐ | Feature | Handler / ID | Today | New home | Step |
 |---|---|---|---|---|---|
-| ☐ | Condensed master pick sheet | `renderCondensedTable()` · `#condensed-view-container`, `#condensed-mobile-list`, `#condensed-tbody`, `#condensed-thead-row` | Tab | Picks › Cards/Table toggle (ADV). Table scrolls inside its own box | 4 |
-| ☐ | Mobile Cards / Full Table | `setCondensedLayoutMode('cards'\|'table')` · `#btn-cond-layout-cards/-table`, `#btn-cond-col-scope` | Condensed toolbar | Segmented control inside Table view | 4 |
-| ☐ | Diff Only | `#chk-cond-diff-only` | Condensed toolbar | Switch in Table view | 4 |
-| ☐ | Watchlist rival pick toggles | `toggleWatchlistPick()` | Condensed table | Table view | 4 |
-| ☐ | Print Sheet / Print | `printCheckmarkSheet()` · `#print-sheet-area` | Condensed + sidebar | M›Export + Table view header | 4/7 |
+| ☑ | Condensed master pick sheet | `renderCondensedTable()` · `#condensed-view-container`, `#condensed-mobile-list`, `#condensed-tbody`, `#condensed-thead-row` | Tab | Picks › Cards/Table toggle (ADV). Table scrolls inside its own box | 4 |
+| ☑ | Mobile Cards / Full Table | `setCondensedLayoutMode('cards'\|'table')` · `#btn-cond-layout-cards/-table`, `#btn-cond-col-scope` | Condensed toolbar | Segmented control inside Table view | 4 |
+| ☑ | Diff Only | `#chk-cond-diff-only` | Condensed toolbar | Switch in Table view | 4 |
+| ☑ | Watchlist rival pick toggles | `toggleWatchlistPick()` | Condensed table | Table view | 4 |
+| ☑ | Print Sheet / Print | `printCheckmarkSheet()` · `#print-sheet-area` | Condensed + sidebar | M›Export + Table view header | 4/7 |
 
 ## H. Old left sidebar ("Sticky Command Rail"): where each block goes
 
@@ -177,11 +181,11 @@ the item is verified at 390px and 1280px after that step.
 |---|---|---|---|---|
 | ☐ | Instance banner | `#sidebar-instance-banner` | M›Account | 7 |
 | ☐ | Pool Member Watchlist summary (3 rivals) | `#sidebar-watchlist-summary` | RR (desktop) + Standings › Watchlist (phone) | 6 |
-| ☐ | Live Outright Scoreboard: Max Ceiling, Expected EV, Hit Target Odds, Likely Range | `#stat-ceiling`, `#stat-dogs-sub`, `#stat-ev`, `#stat-target-prob`, `#stat-target-label`, `#stat-range` | Simulator (ADV) | 4 |
-| ☐ | Target weekly score slider + distribution chart | `updateTargetSlider()` · `#target-slider`, `#slider-val`, `#dist-chart` | Simulator (ADV) | 4 |
-| ☐ | Quick Strategy Presets | `applyPreset()` | QP | 2 |
+| ☑ | Live Outright Scoreboard: Max Ceiling, Expected EV, Hit Target Odds, Likely Range | `#stat-ceiling`, `#stat-dogs-sub`, `#stat-ev`, `#stat-target-prob`, `#stat-target-label`, `#stat-range` | Simulator (ADV) | 4 |
+| ☑ | Target weekly score slider + distribution chart | `updateTargetSlider()` · `#target-slider`, `#slider-val`, `#dist-chart` | Simulator (ADV) | 4 |
+| ☑ | Quick Strategy Presets | `applyPreset()` | QP | 2 |
 | ☐ | Official Tie-Breaker box | see §E | Picks tie-breaker card | 2 |
-| ☐ | Sheet Sway & Injury Radar feed | `#sway-feed-list`, `#sway-count-badge`, `focusGame()` | ADV: "Sways" chip shows count; feed in RR (desktop) / Simulator › Insights (phone) | 4 |
+| ☑ | Sheet Sway & Injury Radar feed | `#sway-feed-list`, `#sway-count-badge`, `focusGame()` | ADV: "Sways" chip shows count; feed in RR (desktop) / Simulator › Insights (phone) | 4 |
 
 ## I. Live & GameCast / Drive Theater
 
@@ -211,7 +215,7 @@ the item is verified at 390px and 1280px after that step.
 | ☐ | Monte Carlo pool sim | `runMonteCarloPoolSimulation(5000, true)` · `#monte-carlo-sim-container` | Standings | S (ADV) + Simulator | 6 |
 | ☐ | Weekly Finish Odds / Season Standings Odds | `setMonteCarloSimMode()` | Standings | S segmented (ADV) | 6 |
 | ☐ | Re-Run 5,000 Sims | `runMonteCarloPoolSimulation()` | Standings | S | 6 |
-| ☐ | Insights | `toggleAllSubpanels('ins')`, card insights | Cards (ADV) | DS + PH ⋯ (ADV) | 4 |
+| ☑ | Insights | `toggleAllSubpanels('ins')`, card insights | Cards (ADV) | DS + PH ⋯ (ADV) | 4 |
 | ☑ | Sandbox sim | `switchProfile('test')` | Sidebar/drawer/auth | PH profile switcher + M›Simulator | 2 |
 | ☐ | Interactive / Test Demo Sim | `setGameDriveViewMode(id,'demo')` | Cards/theater | GC | 5 |
 

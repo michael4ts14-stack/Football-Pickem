@@ -99,6 +99,8 @@ switchMainView = function(mode) {
   if (currentMainView === "condensed") {
     var mCards = document.getElementById("mnav-cards");
     if (mCards) mCards.className = "m-nav-btn active";
+    var tCards = document.getElementById("tab-mode-cards");
+    if (tCards) tCards.className = "mode-tab-btn active";
   }
   syncNavAriaCurrent();
   return result;
@@ -161,7 +163,6 @@ function renderMoreView() {
       '<h2 class="section-label" id="more-h-tools">Tools</h2>' +
       '<div class="list-card">' +
         (isCommish ? moreRowHtml({ icon: "history", title: "Past weeks", sub: "Load an archived week's slate and grades", onclick: "openMoreSection('weeks')" }) : '') +
-        (!SIMPLE_UI_MODE ? moreRowHtml({ icon: "table-2", title: "Table view", sub: "Side-by-side picks vs. your head-to-head target", onclick: "switchMainView('condensed')" }) : '') +
         moreRowHtml({ icon: "dices", title: "EV simulator", sub: "Expected points and 5,000-trial finish odds", onclick: "openEvSimulatorDrawer()" }) +
       '</div>' +
     '</section>' +
