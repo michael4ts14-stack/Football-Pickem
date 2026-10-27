@@ -863,3 +863,16 @@ button.st-row.is-me { background: var(--raised); font-weight: 600; }
   .theater-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .demo-btn-group { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
 }
+
+/* ---------- Player sheet ---------- */
+.pp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; }
+.pp-actions .tool-btn.is-on svg.lucide { color: var(--accent-text); fill: currentColor; }
+.pp-actions .tool-btn[disabled] { opacity: 0.6; cursor: default; }
+.kv .pp-total { font-family: var(--font-head); font-size: 20px; color: var(--text); }
+.pp-list { list-style: none; margin: 0; padding: 0; }
+.pp-row { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 40px; border-top: 1px solid var(--border); font-size: 15px; }
+.pp-row:first-child { border-top: 0; }
+.pp-game { color: var(--text-muted); font-size: 13px; }
+.pp-pick { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-pick.is-hidden { color: var(--text-muted); }
+.pp-row .pick-status { margin-left: 0; }

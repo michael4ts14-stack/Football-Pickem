@@ -108,6 +108,7 @@ function computeStandingsRows() {
     r.tied = countEq(list, "pts", r.pts) > 1;
     r.back = list.length ? list[0].pts - r.pts : 0;
     r.seasonRank = countAbove(list, "seasonPts", r.seasonPts) + 1;
+    r.seasonTied = countEq(list, "seasonPts", r.seasonPts) > 1;
     r.lastWeekRank = countAbove(list, "priorPts", r.priorPts) + 1;
     r.movement = r.lastWeekRank - r.seasonRank; // + moved up
     r.index = i;
@@ -288,9 +289,6 @@ function renderWeeklyWinners(list) {
   }
   el.innerHTML = html + '</ol>';
 }
-
-// Until the player sheet exists, a tap on a row does nothing harmful.
-if (typeof openPlayerSheet !== "function") { var openPlayerSheet = function() {}; }
 
 var _standingsUiPrevRender = renderStandingsAndGradingView;
 renderStandingsAndGradingView = function() {
