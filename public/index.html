@@ -13,6 +13,13 @@
   })();
 </script>
 <meta name="theme-color" content="#0e0f11" />
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="SAT Pick'em" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" />
@@ -278,6 +285,12 @@
         <button type="button" class="btn-submit submit-desk" id="btn-submit-desk" onclick="saveAndSendPickConfirmationReceipt()">Submit</button>
       </header>
 
+      <div id="install-line" class="install-line" hidden>
+        <i data-lucide="download"></i>
+        <span>Get the app: install SAT Pick'em on this device.</span>
+        <button type="button" class="link-btn" onclick="promptInstallApp()">Install</button>
+        <button type="button" class="icon-btn" onclick="hideInstallHeaderLine(true)" aria-label="Dismiss"><i data-lucide="x"></i></button>
+      </div>
       <p id="simple-receipt-status-text" class="receipt-note"></p>
       <div id="simple-guest-account-strip" class="account-note"></div>
       <div id="multi-buyin-entry-strip" class="entry-switcher-bar" style="display:none;"></div>
@@ -748,5 +761,10 @@
 <script src="/js/standings-ui.js?v=2026-10-27b"></script>
 <script src="/js/dialogs-ui.js?v=2026-10-27b"></script>
 <script src="/js/boot.js?v=2026-10-27b"></script>
+<div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>
+  <span>Update available</span>
+  <button type="button" id="pwa-update-reload" class="link-btn">Reload</button>
+</div>
+<script src="/js/pwa.js?v=2026-10-27a"></script>
 </body>
 </html>

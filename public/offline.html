@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0e0f11" />
+<title>Offline · SAT Pick'em</title>
+<style>
+  :root { --bg: #0e0f11; --surface: #17181b; --border: #2a2c31; --text: #ececee; --muted: #9a9ca3; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font-family: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center;
+    padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); }
+  img { width: 88px; height: 88px; border-radius: 20px; }
+  h1 { margin: 6px 0 0; font-family: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif; font-size: 32px; font-weight: 700; }
+  p { margin: 0; max-width: 320px; color: var(--muted); font-size: 16px; line-height: 1.45; }
+  button { margin-top: 8px; min-height: 48px; padding: 0 28px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: 600 16px inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/icons/icon-192.png" alt="" />
+  <h1>You're offline</h1>
+  <p>Picks, scores and standings need a connection. This page reloads by itself when you're back online.</p>
+  <button type="button" onclick="location.reload()">Try again</button>
+</main>
+<script>
+  window.addEventListener("online", function() { location.reload(); });
+</script>
+</body>
+</html>
