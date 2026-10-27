@@ -192,8 +192,17 @@
           <input type="text" id="leaderboard-search-input" class="search-input" placeholder="Find a player" aria-label="Find a player" oninput="renderStandingsAndGradingView()" />
         </label>
       </div>
-      <div class="standings-table" id="standings-list" role="table" aria-label="Standings"></div>
+      <section class="spot-card" id="standings-your-spot" aria-live="polite"></section>
+      <section class="standings-table st-rivals" id="standings-rivals" role="table" aria-label="Rivals" hidden></section>
+      <div class="standings-table" role="table" aria-label="Standings">
+        <div class="st-row st-head" id="standings-list-head" role="row">
+          <span role="columnheader">#</span><span role="columnheader">Player</span>
+          <span role="columnheader" class="num">Pts</span><span role="columnheader" class="num">Back</span>
+        </div>
+        <div id="standings-list" role="rowgroup"></div>
+      </div>
       <p class="muted-note standings-count" id="leaderboard-count-label"></p>
+      <section class="ww-card" id="standings-weekly-winners" hidden></section>
       <div class="condensed-toolbar">
         <div>
           <strong style="font-size:0.96rem;color:var(--text);">Pool Standings, Master CSV Auto-Grader & Watchlist Command Center</strong>
