@@ -280,6 +280,8 @@ function isGameStartedOrFinal(gameId) {
 }
 
 function getMyInstanceProfileKey() {
+  // Signed-out visitors are guests: their only profile is the local sandbox, never a pool member's.
+  if (typeof AUTH_SESSION !== "undefined" && !AUTH_SESSION) return "test";
   if (AUTH_SESSION && AUTH_SESSION.adminUnlock && activeProfile && activeProfile !== "test") {
     return activeProfile;
   }

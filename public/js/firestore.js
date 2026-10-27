@@ -368,6 +368,9 @@ function pushProfileToFirebase(profKey) {
     safeSetStorage("sat_device_test_sim_v16", JSON.stringify(state.test || {}));
     return;
   }
+  // Without a signed-in account nothing but the local sandbox is saved, so a visitor can
+  // never overwrite a pool member's picks.
+  if (!AUTH_SESSION) return;
   var profObj = state[profKey];
   if (!profObj) return;
   var meta = getProfileMetaByKey(profKey);

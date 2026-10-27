@@ -34,6 +34,13 @@ Status: **Approved 2026-10-27.** Step 1 (tokens + shell) built; awaiting screens
 12. **Emoji** are removed from on-screen text as it renders (inputs, textareas and the print sheet
     are left alone); copied/emailed text is unchanged.
 
+13. **Signed-out visitors are guests** (owner approved 2026-10-27). They start in guest mode on
+    the local sandbox; `getMyInstanceProfileKey()` returns "test" when nobody is signed in, so they
+    can't see hidden picks or change anyone's privacy; `pushProfileToFirebase()` writes nothing
+    without a signed-in account. Guest picks carry into an account only if made in this guest
+    session or via "Create account". Before this, a signed-out visitor was put on the built-in
+    "Michael A" profile and could save picks to it.
+
 Found during step 2:
 - `pickSide()` never clears a pick (tapping the picked team re-saves it). "Tap again to clear" would
   change how picks are saved, so it is **not** implemented; switching teams works as before.

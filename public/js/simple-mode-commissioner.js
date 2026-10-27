@@ -92,7 +92,9 @@ getAutoUnhideReason = function(profKey, gameId) {
 // automatically carry over into their newly created or signed-in account!
 var _origBindAuthenticatedAccountToProfile = bindAuthenticatedAccountToProfile;
 bindAuthenticatedAccountToProfile = async function(authUser, chosenMemberName) {
-  var hadGuestDraft = (GUEST_BROWSING_MODE || window._carryOverGuestPicksOnAuth) && state.test && state.test.picks && Object.keys(state.test.picks).length > 0;
+  // Only picks made as a guest in this session (or an explicit "Create account") carry over, so older
+  // sandbox experiments on a shared device never overwrite an account's real picks.
+  var hadGuestDraft = (window._guestPicksTouched || window._carryOverGuestPicksOnAuth) && state.test && state.test.picks && Object.keys(state.test.picks).length > 0;
   var guestPicksCopy = hadGuestDraft ? JSON.parse(JSON.stringify(state.test.picks)) : null;
   var guestTbCopy = (hadGuestDraft && state.test.tiebreaker) ? state.test.tiebreaker : null;
 
@@ -100,6 +102,7 @@ bindAuthenticatedAccountToProfile = async function(authUser, chosenMemberName) {
 
   GUEST_BROWSING_MODE = false;
   window._carryOverGuestPicksOnAuth = false;
+  window._guestPicksTouched = false;
 
   if (guestPicksCopy && AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
     var bKey = AUTH_SESSION.boundProfileKey;
@@ -178,7 +181,7 @@ function renderSimpleGuestAccountBar() {
     el.innerHTML =
       '<span>' + (isGuestSim ? 'Picking as a guest' : 'Not signed in') + '</span>' +
       '<span class="account-note-links">' +
-        '<button type="button" class="link-btn" onclick="openAuthModalCarryingGuestPicks(\'signin\')">Sign in</button>' +
+        '<button type="button" class="link-btn" onclick="AUTH_MODAL_MODE = \'signin\'; openAuthModal()">Sign in</button>' +
         '<button type="button" class="link-btn" onclick="openAuthModalCarryingGuestPicks(\'signup\')" title="Your picks carry over to the new account">Create account</button>' +
         (!isGuestSim ? '<button type="button" class="link-btn" onclick="startGuestPickingMode()">Guest</button>' : '') +
       '</span>';
