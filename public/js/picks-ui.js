@@ -102,16 +102,31 @@ function teamPickButtonHtml(g, isAway, pickedName, isLocked, ownInfo) {
   }
 
   var picked = !!pickedName && isSameTeamPick(pickedName, name, g);
-  var label = (picked ? "Picked: " : "Pick ") + name + ", " + pts + "x" + (typeof prob === "number" ? ", " + Math.round(prob * 100) + "% to win" : "");
+  var inj = countTeamInjuries(isAway ? g.awayInj : g.homeInj);
+  var injText = [inj.out ? inj.out + " out" : "", inj.q ? inj.q + " questionable" : ""].filter(Boolean).join(", ");
+  var injIcon = injText
+    ? '<span class="inj-icon' + (inj.out ? ' is-out' : '') + '" title="Injuries: ' + injText + '"><i data-lucide="bandage"></i></span>'
+    : '';
+  var label = (picked ? "Picked: " : "Pick ") + name + ", " + pts + "x" + (typeof prob === "number" ? ", " + Math.round(prob * 100) + "% to win" : "") + (injText ? ", injuries: " + injText : "");
   return '<button type="button" class="team-pick ' + (isAway ? 'is-away' : 'is-home') + (picked ? ' is-picked' : '') + (isLocked ? ' is-locked' : '') + '"' +
       ' aria-pressed="' + picked + '" aria-label="' + escapeShellHtml(label) + '" onclick="pickSide(' + g.id + ', ' + (isAway ? 1 : 2) + ')">' +
     teamLogoHtml(g, isAway) +
     '<span class="team-pick-text">' +
-      '<span class="team-pick-name">' + escapeShellHtml(name) + '</span>' +
+      '<span class="team-pick-name-row"><span class="team-pick-name">' + escapeShellHtml(name) + '</span>' + injIcon + '</span>' +
       '<span class="team-pick-sub">' + escapeShellHtml(subParts.join(" · ")) + '</span>' +
       '<span class="team-pick-stats"><span class="mult-badge mult-' + pts + '">' + pts + 'x</span>' + stats.join("") + '</span>' +
     '</span>' +
   '</button>';
+}
+
+function countTeamInjuries(list) {
+  var out = 0, q = 0;
+  (list || []).forEach(function(it) {
+    if (!it) return;
+    if (it.st === "OUT") out++;
+    else if (it.st === "QUESTIONABLE") q++;
+  });
+  return { out: out, q: q };
 }
 
 function countInjuryFlags(g) {
@@ -192,7 +207,6 @@ function renderPickCardsHtml() {
     var locked = commishLocked || userLocked;
     var k = parseKickParts(g.kick);
     var matchup = g.away + " at " + g.home;
-    var flags = countInjuryFlags(g);
     var commonMap = getCommonOpponentsMap(g.away, g.home);
     var commonCount = Object.keys(commonMap).length;
     var ls = LIVE_SCORES[g.id];
@@ -220,7 +234,6 @@ function renderPickCardsHtml() {
       if (ownInfo && ownInfo.isHighLeverage) advFlags += '<span class="card-flag">Leverage ' + escapeShellHtml(ownInfo.bestLevCode) + '</span>';
     }
 
-    var injLabel = "Injuries" + (flags.out ? " · " + flags.out + " out" : (flags.q ? " · " + flags.q + " questionable" : ""));
     var fieldHtml = "";
     if (!SIMPLE_UI_MODE && ((ls && (ls.inProgress || ls.completed)) || DEMO_FIELD_PREVIEW)) {
       try { fieldHtml = '<div class="card-field">' + renderInteractiveFieldTrackerHtml(g, ls || null) + '</div>'; } catch (e2) {}
@@ -243,11 +256,9 @@ function renderPickCardsHtml() {
         poolBar +
         (infoParts.length ? '<div class="card-info">' + infoParts.join("") + '</div>' : '') +
         '<div class="pick-card-extras">' +
-          '<button type="button" class="link-btn" onclick="toggleCardIdx(' + g.id + ', 3)">' + injLabel + '</button>' +
           '<button type="button" class="link-btn" onclick="toggleCardIdx(' + g.id + ', 2)">Last 5' + (commonCount ? ' · ' + commonCount + ' common' : '') + '</button>' +
           (!SIMPLE_UI_MODE ? '<button type="button" class="link-btn" onclick="toggleCardIdx(' + g.id + ', 1)">Insights</button>' : '') +
         '</div>' +
-        '<div id="inj-' + g.id + '" class="dual-panel ' + ((showAllInj || openPanels) ? '' : 'hidden') + '">' + renderInjColumn(g.away, g.awayInj) + renderInjColumn(g.home, g.homeInj) + '</div>' +
         '<div id="l5-' + g.id + '" class="dual-panel ' + ((showAllL5 || openPanels) ? '' : 'hidden') + '">' + renderL5Column(g.away, g.awayRec, commonMap) + renderL5Column(g.home, g.homeRec, commonMap) + '</div>' +
         (!SIMPLE_UI_MODE ? renderInsightsPanel(g) : '') +
         fieldHtml +

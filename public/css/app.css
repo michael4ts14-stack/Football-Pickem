@@ -490,3 +490,12 @@ button.list-row:hover { background: var(--raised); }
 @media print {
   .app-sidebar, .app-rail, #commish-announcement-banner, .submit-bar { display: none !important; }
 }
+
+/* Small injury marker next to a team name; full list lives in the game detail sheet */
+.inj-icon { display: inline-flex; vertical-align: -2px; margin-left: 5px; color: var(--warn); }
+.inj-icon.is-out { color: var(--loss); }
+.inj-icon svg.lucide { width: 14px; height: 14px; }
+.team-pick.is-picked .inj-icon { color: var(--on-accent); }
+.team-pick-name-row { display: flex; align-items: center; min-width: 0; }
+.team-pick.is-home .team-pick-name-row { flex-direction: row-reverse; }
+.team-pick.is-home .inj-icon { margin-left: 0; margin-right: 5px; }
