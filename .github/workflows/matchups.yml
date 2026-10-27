@@ -1,0 +1,49 @@
+name: Matchup data (ESPN -> Firestore)
+
+# Builds live_games/week_N_matchups for the Picks detail sheet. Runs on GitHub's servers
+# because ESPN often refuses Google's Apps Script servers. Hourly runs exit in seconds unless
+# a daily refresh is due (every 20 h) or a game is about 2 hours from kickoff.
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Full refresh now"
+        type: boolean
+        default: false
+  push:
+    branches: [claude/sat-ui-redesign-main]
+    paths: ["tools/matchups/**", "tests/matchups/**", ".github/workflows/matchups.yml"]
+
+concurrency:
+  group: matchups
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: node --test "tests/matchups/*.test.mjs"
+      # Pushes to the work branch only prove ESPN answers GitHub's servers: nothing is written.
+      - name: Dry run (branch push)
+        if: github.event_name == 'push'
+        run: node tools/matchups/build-matchups.mjs --dry-run --force --out matchups-preview.json
+      - name: Upload preview
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: matchups-preview
+          path: matchups-preview.json
+      - name: Build and write to Firestore
+        if: github.event_name != 'push'
+        env:
+          # Optional. Needed once firestore.rules stop allowing open writes to live_games.
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+        run: node tools/matchups/build-matchups.mjs ${{ inputs.force && '--force' || '' }}

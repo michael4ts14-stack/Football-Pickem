@@ -246,6 +246,7 @@ function renderPickCardsHtml() {
         '<button type="button" class="pick-card-meta" onclick="openGameDetail(' + g.id + ')" aria-label="Details for ' + escapeShellHtml(matchup) + '">' +
           gameStatusHtml(g) +
           '<span class="pick-card-net">' +
+            (typeof upsetAlertFor === "function" && upsetAlertFor(g, ownInfo) ? '<span class="card-flag is-alert">Upset alert</span>' : '') +
             advFlags +
             (commishLocked ? '<span class="lock-flag"><i data-lucide="lock"></i>Locked</span>' : '') +
             escapeShellHtml(k.net) + '<i data-lucide="chevron-right"></i>' +
@@ -255,6 +256,7 @@ function renderPickCardsHtml() {
           teamPickButtonHtml(g, true, myPick, locked, ownInfo) +
           teamPickButtonHtml(g, false, myPick, locked, ownInfo) +
         '</div>' +
+        (typeof matchupCardLineHtml === "function" ? matchupCardLineHtml(g) : '') +
         poolBar +
         (infoParts.length ? '<div class="card-info">' + infoParts.join("") + '</div>' : '') +
         '<div class="pick-card-extras">' +
@@ -446,6 +448,16 @@ function renderGameDetailSheet() {
 
   var sheetOwn = null;
   try { sheetOwn = getGamePoolOwnership(g); } catch (e3) {}
+  var gameInfoHtml = (typeof matchupGameInfoHtml === "function") ? matchupGameInfoHtml(g) : "";
+  var upset = (typeof upsetAlertFor === "function") ? upsetAlertFor(g, sheetOwn) : null;
+  var upsetHtml = upset ? '<div class="kv"><span>Upset alert</span><strong>' + Math.round(upset.poolPct) + '% of the pool on ' + escapeShellHtml(upset.team) + ', ESPN gives them ' + Math.round(upset.winPct) + '%</strong></div>' : '';
+  var recordHtml = "";
+  if (typeof mySeasonRecordPicking === "function") {
+    [g.away, g.home].forEach(function(team) {
+      var r = mySeasonRecordPicking(team);
+      if (r) recordHtml += '<div class="kv"><span>You picking ' + escapeShellHtml(team) + ' this season</span><strong>' + r.w + '–' + r.l + '</strong></div>';
+    });
+  }
   var insightsHtml = "";
   if (!SIMPLE_UI_MODE) {
     var recLine = [];
@@ -467,9 +479,11 @@ function renderGameDetailSheet() {
   body.innerHTML =
     '<p class="sheet-meta">' + escapeShellHtml([(k.day ? k.day + " " : "") + k.time, k.net, g.mondayPoolLine || g.poolLine].filter(Boolean).join(" · ")) + '</p>' +
     '<div class="pick-card-teams sheet-teams">' + teamPickButtonHtml(g, true, myPick, locked, sheetOwn) + teamPickButtonHtml(g, false, myPick, locked, sheetOwn) + '</div>' +
-    '<section class="sheet-section"><h3 class="sheet-h">Head-to-head</h3>' + (h2hHtml || '<p class="muted-note">Pick a compare target in Advanced mode.</p>') + ownHtml + '</section>' +
+    (typeof matchupSheetSectionsHtml === "function" ? matchupSheetSectionsHtml(g) : '') +
     '<section class="sheet-section"><h3 class="sheet-h">Injuries and outs</h3><div class="dual-panel">' + renderInjColumn(g.away, g.awayInj) + renderInjColumn(g.home, g.homeInj) + '</div></section>' +
-    '<section class="sheet-section"><h3 class="sheet-h">Last 5</h3><div class="dual-panel">' + renderL5Column(g.away, g.awayRec, commonMap) + renderL5Column(g.home, g.homeRec, commonMap) + '</div></section>' +
+    '<section class="sheet-section"><h3 class="sheet-h">Last 5</h3>' + ((typeof matchupLastFiveHtml === "function" && matchupLastFiveHtml(g)) || ('<div class="dual-panel">' + renderL5Column(g.away, g.awayRec, commonMap) + renderL5Column(g.home, g.homeRec, commonMap) + '</div>')) + '</section>' +
+    (gameInfoHtml ? '<section class="sheet-section"><h3 class="sheet-h">Game info</h3>' + gameInfoHtml + '</section>' : '') +
+    '<section class="sheet-section"><h3 class="sheet-h">Pool</h3>' + (h2hHtml || '') + ownHtml + upsetHtml + recordHtml + '</section>' +
     insightsHtml +
     '<section class="sheet-section"><h3 class="sheet-h">GameCast</h3>' + gamecastHtml + '</section>';
 }

@@ -41,6 +41,13 @@ Status: **Approved 2026-10-27.** Step 1 (tokens + shell) built; awaiting screens
     session or via "Create account". Before this, a signed-out visitor was put on the built-in
     "Michael A" profile and could save picks to it.
 
+14. **Matchup info** (owner's spec, 2026-10-27): built by a GitHub Actions job (ESPN refuses
+    Google's Apps Script servers) into `live_games/week_N_matchups`; browsers only read it. ATS is
+    calculated from ESPN closing lines; ranks are computed against all FBS teams. ESPN has no
+    college injury or head-to-head data, so injuries stay on the app's existing source (shown as
+    the card icon, per the owner's later preference over a "N OUT" tag) and head-to-head history
+    is not shown. Upset alert, like the pool split, only appears once a game is locked.
+
 Found during step 2:
 - `pickSide()` never clears a pick (tapping the picked team re-saves it). "Tap again to clear" would
   change how picks are saved, so it is **not** implemented; switching teams works as before.
