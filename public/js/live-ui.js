@@ -5,7 +5,13 @@
 // ============================================================================
 var LAST_LIVE_SYNC_AT = 0;
 
+function isSignedInUser() {
+  return !!(AUTH_SESSION && AUTH_SESSION.boundProfileKey && !GUEST_BROWSING_MODE);
+}
+
+// Your leaderboard name, or "" for a signed-out visitor (who is a guest, not the default profile).
 function getMyLeaderboardNameLower() {
+  if (!isSignedInUser()) return "";
   try {
     return standardizeParticipantName(getLinkedMemberNameForProfile(getMyInstanceProfileKey()) || "").toLowerCase();
   } catch (e) { return ""; }

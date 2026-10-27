@@ -300,9 +300,16 @@ function updatePicksHead() {
 
   var nameEl = document.getElementById("top-profile-name");
   var ini = document.getElementById("top-profile-initials");
-  if (ini && nameEl) ini.textContent = initialsFromName(nameEl.textContent);
   var av = document.getElementById("top-profile-pill");
-  if (av && nameEl) av.setAttribute("aria-label", "Account: " + nameEl.textContent);
+  var signedIn = isSignedInUser();
+  if (ini) {
+    if (signedIn && nameEl) ini.textContent = initialsFromName(nameEl.textContent);
+    else ini.innerHTML = '<i data-lucide="user-round"></i>';
+  }
+  if (av) {
+    av.classList.toggle("is-guest", !signedIn);
+    av.setAttribute("aria-label", signedIn && nameEl ? ("Account: " + nameEl.textContent) : "Guest: sign in or create an account");
+  }
 
   var tbTitle = document.getElementById("tb-card-matchup");
   if (tbTitle) {

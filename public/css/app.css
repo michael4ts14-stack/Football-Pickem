@@ -680,3 +680,5 @@ button.list-row:hover { background: var(--raised); }
   .hub-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hub-tab-btn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+.avatar-btn.is-guest { color: var(--text-muted); }
+.avatar-btn.is-guest svg.lucide { width: 22px; height: 22px; }
