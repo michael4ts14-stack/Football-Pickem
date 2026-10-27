@@ -84,14 +84,9 @@ function isVerifiedCommissioner() {
     var pRec = cfg.authorizedCommissioners[emailLow];
     if (!pRec || pRec.enabled !== false) return true;
   }
-  if (emailLow && cfg.authorizedCommissioners[emailLow] && cfg.authorizedCommissioners[emailLow].enabled !== false) {
-    return true;
-  }
-  var memberLow = standardizeParticipantName(AUTH_SESSION.linkedMemberName || AUTH_SESSION.displayName || "").toLowerCase();
-  if (memberLow && cfg.authorizedCommissioners[memberLow] && cfg.authorizedCommissioners[memberLow].enabled !== false) {
-    return true;
-  }
-  if (AUTH_SESSION.isCommissioner === true && cfg.authorizedCommissioners[emailLow || memberLow] && cfg.authorizedCommissioners[emailLow || memberLow].enabled !== false) {
+  // Email addresses only: a player name on the list never grants access, since anyone can
+  // create an account and link it to any player name.
+  if (emailLow && emailLow.indexOf("@") !== -1 && cfg.authorizedCommissioners[emailLow] && cfg.authorizedCommissioners[emailLow].enabled !== false) {
     return true;
   }
   return false;
@@ -182,10 +177,20 @@ function commishGrantRole(targetKeyRaw, roleLabel) {
   if (!assertCommissionerRole("Assign Commissioner Role")) return;
   var key = String(targetKeyRaw || "").trim().toLowerCase();
   if (!key) {
-    showAppToast("⚠️ Enter an email address or select a player to grant Commissioner access.");
+    showAppToast("Enter an email address or select a player to grant Commissioner access.");
     return;
   }
   var cfg = ensureCommissionerConfig();
+  // Access is granted by email only. A selected player name is swapped for the email on file.
+  if (key.indexOf("@") === -1) {
+    var onFile = (cfg.playerEmailsMap || {})[standardizeParticipantName(targetKeyRaw).toLowerCase()];
+    if (!onFile) {
+      showAppToast("No email on file for " + targetKeyRaw + ". Type their sign-in email instead.");
+      return;
+    }
+    roleLabel = (roleLabel || targetKeyRaw);
+    key = String(onFile).trim().toLowerCase();
+  }
   cfg.authorizedCommissioners[key] = {
     role: "co_commissioner",
     label: roleLabel || targetKeyRaw,
@@ -1345,7 +1350,7 @@ renderCommissionerModalBody = function() {
       roleRows += '<tr>' +
         '<td><strong>' + keyStr + '</strong></td>' +
         '<td>' + (rec.label || rec.role || "Commissioner") + '</td>' +
-        '<td><span class="badge ' + (isEnabled ? 'badge-ev' : 'badge-3x') + '">' + (isEnabled ? '✅ Active Commissioner' : '🚫 Suspended') + '</span></td>' +
+        '<td><span class="badge ' + (keyStr.indexOf("@") === -1 ? 'badge-3x' : (isEnabled ? 'badge-ev' : 'badge-3x')) + '">' + (keyStr.indexOf("@") === -1 ? 'Not used: names don\'t grant access, add their email' : (isEnabled ? 'Active' : 'Suspended')) + '</span></td>' +
         '<td style="display:flex;gap:5px;flex-wrap:wrap;">' +
           '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;" onclick="commishToggleRoleEnabled(\'' + safeKey + '\')">' + (isEnabled ? '⏸ Disable' : '▶ Enable') + '</button>' +
           '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;border-color:var(--border);color:var(--loss);" onclick="commishRevokeRole(\'' + safeKey + '\')">🚫 Revoke</button>' +
@@ -1372,9 +1377,9 @@ renderCommissionerModalBody = function() {
 
         '<div class="side-box">' +
           '<div class="side-title"><span>👑 Assign New Co-Commissioner</span></div>' +
-          '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Grant commissioner privileges by email address or pool member name:</div>' +
+          '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Grant commissioner access by sign-in email. Picking a player uses the email on file for them.</div>' +
           '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">' +
-            '<input type="text" id="commish-new-role-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.75rem;" placeholder="Email or Player Name..." />' +
+            '<input type="text" id="commish-new-role-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.75rem;" placeholder="Their sign-in email" />' +
             '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="commishGrantRole(document.getElementById(\'commish-new-role-input\').value, \'Co-Commissioner\')">➕ Grant Role</button>' +
           '</div>' +
           '<select class="search-input" style="width:100%;padding:5px 8px;font-size:0.73rem;" onchange="if(this.value){commishGrantRole(this.value, this.value + \' (Co-Commish)\'); this.value=\'\';}">' + memberOpts + '</select>' +
