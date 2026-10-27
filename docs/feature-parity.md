@@ -22,6 +22,10 @@ Status: **Approved 2026-10-27.** Step 1 (tokens + shell) built; awaiting screens
    (Friday 9 PM CT by default). Advanced EV and leverage tags still use the early ownership data.
 8. **Injuries** show only as a small icon on each team button; the full list is in the game detail sheet.
 
+9. **Live cards** no longer embed a field tracker for every game; tapping a started game opens
+   GameCast & Drive Theater (field, drives, red zone, Field Sim controls). Cards show the down &
+   distance line and a "Ball" tag for possession.
+
 Found during step 2:
 - `pickSide()` never clears a pick (tapping the picked team re-saves it). "Tap again to clear" would
   change how picks are saved, so it is **not** implemented; switching teams works as before.
@@ -70,7 +74,7 @@ the item is verified at 390px and 1280px after that step.
 | ☑ | Week title | `#sheet-title-brand` | Top bar | Sidebar app name + "Week N Picks" header | 1/2 |
 | ☑ | Profile pill (name + instance tag) | `#top-profile-pill`, `#top-profile-name`, `#top-profile-instance-tag` | Top bar | Header avatar button → M›Account | 1 |
 | ☑ | Bot status pill (CM) | `#bot-sync-pill` | Top bar | Header (CM only) + M›Commissioner | 1 |
-| ☐ | Live sync badge (tap = sync) | `syncAllLiveTrackingData(true)` · `#live-sync-badge` | Top bar | Live header "Synced Ns ago" indicator (tap = sync) | 5 |
+| ☑ | Live sync badge (tap = sync) | `syncAllLiveTrackingData(true)` · `#live-sync-badge` | Top bar | Live header "Synced Ns ago" indicator (tap = sync) | 5 |
 | ☑ | Risk meter (1x/2x/3x/Max/EV) | `#top-risk-meter`, `#rm-chalk/-2x/-3x`, `#top-ceiling`, `#top-ev` | Top bar (ADV) | PH second line (ADV) | 4 |
 | ☑ | Hidden cloud status text | `#cloud-status-text` | Hidden | Kept hidden | 1 |
 
@@ -108,10 +112,10 @@ the item is verified at 390px and 1280px after that step.
 | ☑ | H2H Diffs | `setFilter('diffs')` · `#flt-diffs` (also the sidebar "⚔️ Diffs" button) | ADV | Chip (ADV) | 4 |
 | ☐ | `ev` filter key | listed in `setFilter`'s list, no button today | — | No change (no button) | — |
 | ☑ | **Missing** (new) | `setFilter('missing')` · `#flt-missing` | — | Chip (both modes) | 2 |
-| ☐ | Live: All N Games | `setLiveTabFilter('all')` · `#lflt-all` | Live toolbar | L chip | 5 |
-| ☐ | Live: In Progress Only | `setLiveTabFilter('active')` · `#lflt-active` | Live toolbar | L chip | 5 |
-| ☐ | Live: 4Q / Red-Zone Sweats | `setLiveTabFilter('sweat')` · `#lflt-sweat` | Live toolbar | L chip | 5 |
-| ☐ | Live: H2H Swing Games | `setLiveTabFilter('diff')` · `#lflt-diff` | Live toolbar | L chip (ADV) | 5 |
+| ☑ | Live: All N Games | `setLiveTabFilter('all')` · `#lflt-all` | Live toolbar | L chip | 5 |
+| ☑ | Live: In Progress Only | `setLiveTabFilter('active')` · `#lflt-active` | Live toolbar | L chip | 5 |
+| ☑ | Live: 4Q / Red-Zone Sweats | `setLiveTabFilter('sweat')` · `#lflt-sweat` | Live toolbar | L chip | 5 |
+| ☑ | Live: H2H Swing Games | `setLiveTabFilter('diff')` · `#lflt-diff` | Live toolbar | L chip (ADV) | 5 |
 
 ## D. Pick strategies (→ "Quick picks" menu)
 
@@ -191,13 +195,13 @@ the item is verified at 390px and 1280px after that step.
 
 | ☐ | Feature | Handler / ID | Today | New home | Step |
 |---|---|---|---|---|---|
-| ☐ | Live scoreboard | `renderLiveScoreboardTab()` · `#live-tracker-view-container`, `#live-scoreboard-groups` | Live tab | L | 5 |
-| ☐ | Summary tiles (my pts, rival pts, in progress, completed, last sync) | `#live-tab-m-card/-label/-pts/-rec`, `#live-tab-k-*`, `#live-tab-inprog`, `#live-tab-final`, `#live-tab-clock` | Live | L tiles: Your record · Games in play · Pool rank. Rival tile in ADV. All IDs kept | 5 |
-| ☐ | Sync Live ESPN | `syncAllLiveTrackingData(true)` | Drawer + badge | L header sync button + M›Settings | 5 |
-| ☐ | Live polling | `pollLiveSaturdayScores()` | — | Unchanged | 5 |
+| ☑ | Live scoreboard | `renderLiveScoreboardTab()` · `#live-tracker-view-container`, `#live-scoreboard-groups` | Live tab | L | 5 |
+| ☑ | Summary tiles (my pts, rival pts, in progress, completed, last sync) | `#live-tab-m-card/-label/-pts/-rec`, `#live-tab-k-*`, `#live-tab-inprog`, `#live-tab-final`, `#live-tab-clock` | Live | L tiles: Your record · Games in play · Pool rank. Rival tile in ADV. All IDs kept | 5 |
+| ☑ | Sync Live ESPN | `syncAllLiveTrackingData(true)` | Drawer + badge | L header sync button + M›Settings | 5 |
+| ☑ | Live polling | `pollLiveSaturdayScores()` | — | Unchanged | 5 |
 | ☐ | 60s Auto-Poll | `toggleAutoPoll()` · `#chk-auto-poll` | Drawer | M›Settings › Live | 7 |
 | ☐ | Force Firebase Pull | `pullFromFirebaseCloud()` | Import Hub › Cloud | M›Settings › Data (and Import Hub) | 7 |
-| ☐ | Open GameCast & Drive Theater (Big View) | `openFieldTheaterModal(id)` / `closeFieldTheaterModal()` · `#field-theater-*`, `#theater-modal-*` | Card "Big View ⛶" | Tap live card → GC (sheet / side panel) | 5 |
+| ☑ | Open GameCast & Drive Theater (Big View) | `openFieldTheaterModal(id)` / `closeFieldTheaterModal()` · `#field-theater-*`, `#theater-modal-*` | Card "Big View ⛶" | Tap live card → GC (sheet / side panel) | 5 |
 | ☐ | Field tracker render + accordion (Hide Field) | `toggleFieldTrackerAccordion()` | Live cards | GC | 5 |
 | ☐ | Drive view: Live Drive / Final Drive / Last Scoring Drive / Interactive (Test) Demo Sim | `setGameDriveViewMode(id, mode)` | Cards + theater | GC segmented control | 5 |
 | ☐ | Load drive summary ("Tap to load") | `fetchGameDriveSummary()` | Cards | GC | 5 |

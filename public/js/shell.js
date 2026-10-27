@@ -279,9 +279,10 @@ function renderRightRail() {
       lastHtml = '<p class="rail-summary">' + sentence + '</p>';
     }
   } catch (e3) {}
-  var syncLabel = (document.getElementById("live-sync-badge") || {}).textContent || "";
+  var ageEl = document.getElementById("live-sync-age");
+  var syncLabel = (typeof LAST_LIVE_SYNC_AT !== "undefined" && LAST_LIVE_SYNC_AT && ageEl) ? ("Scores " + ageEl.textContent.toLowerCase()) : "";
   lastEl.innerHTML = '<div class="rail-card-head"><h2 class="rail-title">' + escapeShellHtml(lastTitle) + '</h2></div>' + lastHtml +
-    (syncLabel ? '<p class="rail-sync"><span class="status-dot" aria-hidden="true"></span>' + escapeShellHtml(syncLabel.replace(/^[^A-Za-z0-9]+/, "")) + '</p>' : '');
+    (syncLabel ? '<p class="rail-sync"><span class="status-dot" aria-hidden="true"></span><span id="rail-sync-text">' + escapeShellHtml(syncLabel) + '</span></p>' : '');
 }
 
 function ordinalSuffix(n) {
