@@ -548,6 +548,24 @@ function forceRescanLatestSpreadsheetEmail() {
 }
 
 function runMasterPickemEmailBot(forceRescan) {
+  if (!acquireRunLease_("gmail", 360)) {
+    Logger.log("⏭️ Gmail bot already running; skipping this run.");
+    return { ok: false, skipped: true, reason: "Gmail bot already running" };
+  }
+  try {
+    var stats = runMasterPickemEmailBotLocked_(forceRescan);
+    writeBotStatus_("gmail", stats);
+    return stats;
+  } catch (e) {
+    recordBotError_("Gmail bot crashed: " + e.message);
+    writeBotStatus_("gmail", {});
+    throw e;
+  } finally {
+    releaseRunLease_("gmail");
+  }
+}
+
+function runMasterPickemEmailBotLocked_(forceRescan) {
   var props = PropertiesService.getUserProperties();
   var processedIds = forceRescan ? {} : JSON.parse(props.getProperty("PROCESSED_MSG_IDS") || "{}");
   // Quota protection: prune old keys so UserProperties value never exceeds the 9KB limit
@@ -1710,6 +1728,11 @@ function fromFirestoreValue(fVal) {
 function fetchFirebaseNode(subPath) {
   try {
     var res = UrlFetchApp.fetch(FIRESTORE_DOC_URL, { muteHttpExceptions: true });
+    var code = res.getResponseCode();
+    if (code !== 200) {
+      recordBotError_("GET shared_state -> HTTP " + code + ": " + String(res.getContentText()).slice(0, 200));
+      return null;
+    }
     var json = JSON.parse(res.getContentText());
     if (!json || !json.fields) return {};
     var fullDoc = fromFirestoreValue({ mapValue: { fields: json.fields } }) || {};
@@ -1731,32 +1754,12 @@ function patchFirebaseNode(subPath, dataObj) {
     payloadObj = {};
     payloadObj[key] = dataObj;
   }
-  var topKeys = Object.keys(payloadObj || {});
-  if (topKeys.length === 0) return;
-  var maskParams = topKeys.map(function(k) {
-    return "updateMask.fieldPaths=" + encodeURIComponent(k);
-  }).join("&");
-  var fsDoc = toFirestoreValue(payloadObj).mapValue;
-  UrlFetchApp.fetch(FIRESTORE_DOC_URL + "?" + maskParams, {
-    method: "patch",
-    contentType: "application/json",
-    payload: JSON.stringify(fsDoc),
-    muteHttpExceptions: true
-  });
+  return patchFirestoreDocUrl(FIRESTORE_DOC_URL, payloadObj);
 }
 
 function patchFirestoreUserDoc(profKey, userObj) {
-  if (!profKey || !userObj) return;
-  var keys = Object.keys(userObj);
-  if (!keys.length) return;
-  var mask = keys.map(function(k) { return "updateMask.fieldPaths=" + encodeURIComponent(k); }).join("&");
-  var fsDoc = toFirestoreValue(userObj).mapValue;
-  UrlFetchApp.fetch(FIRESTORE_USERS_URL + "/" + encodeURIComponent(profKey) + "?" + mask, {
-    method: "patch",
-    contentType: "application/json",
-    payload: JSON.stringify(fsDoc),
-    muteHttpExceptions: true
-  });
+  if (!profKey || !userObj) return false;
+  return patchFirestoreDocUrl(FIRESTORE_USERS_URL + "/" + encodeURIComponent(profKey), userObj);
 }
 
 function resetProcessedEmailHistory() {
@@ -2006,6 +2009,32 @@ function parseBotSingleDrive(drv, g, awayTeamId, homeTeamId, awayAbbr, homeAbbr,
 // Sub-minute ESPN live poller: runs 3 passes (0s, 20s, 40s) inside a 1-minute Apps Script trigger
 // when live games are in progress so the SVG field graphics & play-by-play move on ESPN's exact cadence!
 function pollEspnLiveGamesSubMinute() {
+  if (!acquireRunLease_("espn", 360)) {
+    Logger.log("⏭️ ESPN poller already running; skipping this run.");
+    return { ok: false, skipped: true, reason: "ESPN poller already running" };
+  }
+  try {
+    var res = pollEspnLiveGamesLocked_();
+    var latest = res.latest || {};
+    writeBotStatus_("espn", {
+      week: latest.week || null,
+      matchedGames: latest.matchedGames || 0,
+      inProgressCount: latest.inProgressCount || 0,
+      completedCount: latest.completedCount || 0,
+      wroteToFirestore: !!latest.wroteToFirestore,
+      passesRun: res.passesRun
+    });
+    return res;
+  } catch (e) {
+    recordBotError_("ESPN poller crashed: " + e.message);
+    writeBotStatus_("espn", {});
+    throw e;
+  } finally {
+    releaseRunLease_("espn");
+  }
+}
+
+function pollEspnLiveGamesLocked_() {
   var passResults = [];
   for (var pass = 0; pass < 3; pass++) {
     if (pass > 0) {
@@ -2310,18 +2339,82 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
   };
 }
 
+// Every Firestore write goes through here. Returns true only on HTTP 2xx; failures are
+// logged and collected so they show up in live_games/bot_status instead of vanishing.
 function patchFirestoreDocUrl(docUrl, dataObj) {
-  if (!docUrl || !dataObj) return;
+  if (!docUrl || !dataObj) return false;
   var topKeys = Object.keys(dataObj);
-  if (topKeys.length === 0) return;
+  if (topKeys.length === 0) return false;
   var maskParams = topKeys.map(function(k) {
     return "updateMask.fieldPaths=" + encodeURIComponent(k);
   }).join("&");
   var fsDoc = toFirestoreValue(dataObj).mapValue;
-  UrlFetchApp.fetch(docUrl + "?" + maskParams, {
-    method: "patch",
-    contentType: "application/json",
-    payload: JSON.stringify(fsDoc),
-    muteHttpExceptions: true
-  });
+  var docName = docUrl.split("/documents/")[1] || docUrl;
+  try {
+    var res = UrlFetchApp.fetch(docUrl + "?" + maskParams, {
+      method: "patch",
+      contentType: "application/json",
+      payload: JSON.stringify(fsDoc),
+      muteHttpExceptions: true
+    });
+    var code = res.getResponseCode();
+    if (code >= 200 && code < 300) return true;
+    recordBotError_("PATCH " + docName + " [" + topKeys.join(",") + "] -> HTTP " + code + ": " + String(res.getContentText()).slice(0, 200));
+  } catch (e) {
+    recordBotError_("PATCH " + docName + " threw: " + e.message);
+  }
+  return false;
+}
+
+// ============================================================================
+// RUN GUARDS & BOT STATUS
+// ============================================================================
+var BOT_RUN_ERRORS = [];
+
+function recordBotError_(msg) {
+  Logger.log("❌ " + msg);
+  BOT_RUN_ERRORS.push(String(msg).slice(0, 300));
+}
+
+// One run at a time per job. Triggers can overlap (a 1-minute trigger whose run takes
+// longer than a minute, or a web-app call during a trigger run). The lease expires on
+// its own after ttlSec so a run killed by the 6-minute limit can't block forever.
+function acquireRunLease_(name, ttlSec) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return false;
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var key = "RUN_LEASE_" + name;
+    var until = parseInt(props.getProperty(key) || "0", 10);
+    if (until > Date.now()) return false;
+    props.setProperty(key, String(Date.now() + ttlSec * 1000));
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function releaseRunLease_(name) {
+  PropertiesService.getScriptProperties().deleteProperty("RUN_LEASE_" + name);
+}
+
+// Writes live_games/bot_status.<job> = { lastRunAt, lastSuccessAt, ok, errors, summary }.
+// lastSuccessAt only moves forward on runs with no failed reads/writes.
+function writeBotStatus_(job, summary) {
+  var nowIso = new Date().toISOString();
+  var props = PropertiesService.getScriptProperties();
+  var ok = BOT_RUN_ERRORS.length === 0;
+  if (ok) props.setProperty("LAST_SUCCESS_AT_" + job, nowIso);
+  var entry = {
+    lastRunAt: nowIso,
+    lastSuccessAt: props.getProperty("LAST_SUCCESS_AT_" + job) || null,
+    ok: ok,
+    errors: BOT_RUN_ERRORS.slice(0, 10),
+    summary: summary || {}
+  };
+  var payload = {};
+  payload[job] = entry;
+  var errorsBefore = BOT_RUN_ERRORS.length;
+  patchFirestoreDocUrl(FIRESTORE_BASE_URL + "/live_games/bot_status", payload);
+  BOT_RUN_ERRORS.length = errorsBefore;
 }
