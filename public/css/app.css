@@ -558,3 +558,53 @@ button.list-row:hover { background: var(--raised); }
 .dist-bar { background: var(--text-muted); }
 .dist-bar-wrap { background: var(--raised); }
 .instance-lock-banner { background: var(--raised) !important; border: 0 !important; color: var(--text) !important; }
+
+/* ---------- Live screen ---------- */
+.sync-status {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 4px;
+  background: none; border: 0; color: var(--text-muted); font-size: 15px; cursor: pointer;
+}
+.sync-status:hover { color: var(--text); }
+.status-dot.is-stale { background: var(--warn); }
+.status-dot.is-stale-bad { background: var(--loss); }
+.status-dot.is-off { background: var(--text-muted); }
+.live-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+.live-tile-stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
+.tile-label { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile-val { font-family: var(--font-head); font-weight: 700; font-size: 30px; line-height: 1.1; color: var(--text); }
+.live-adv { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-bottom: 14px; font-size: 14px; color: var(--text-muted); }
+.live-adv strong { color: var(--text); font-family: var(--font-head); font-size: 17px; }
+.live-window { margin: 18px 4px 8px; }
+.live-window:first-child { margin-top: 0; }
+#live-scoreboard-groups .live-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 900px) { #live-scoreboard-groups .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.live-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; min-width: 0; }
+.live-card-btn { display: block; width: 100%; padding: 12px 14px 10px; background: none; border: 0; color: var(--text); text-align: left; cursor: pointer; }
+.live-card-btn:hover { background: var(--raised); }
+.live-card .card-info { padding: 0 14px 10px; }
+.live-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 24px; margin-bottom: 6px; }
+.live-status { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.live-status.is-live { color: var(--text); }
+.live-card-right { display: inline-flex; align-items: center; gap: 6px; }
+.live-result { font-size: 15px; font-weight: 600; color: var(--text-muted); }
+.live-result.is-win { color: var(--win); }
+.live-result.is-loss { color: var(--loss); }
+.live-team { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; min-height: 48px; }
+.live-team .team-logo { width: 36px; height: 36px; }
+.live-team-name { font-size: 18px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-team.is-behind .live-team-name, .live-team.is-behind .live-score { color: var(--text-muted); }
+.your-pick { font-size: 14px; font-weight: 600; color: var(--accent-text); }
+.ball-tag { font-size: 11px; font-weight: 600; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--text-muted); color: var(--text); vertical-align: 2px; }
+.live-team-name .mult-badge { vertical-align: 2px; }
+.live-score { font-family: var(--font-head); font-weight: 700; font-size: 30px; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
+.live-situation { font-size: 13px; color: var(--text-muted); padding-top: 4px; }
+
+/* GameCast & Drive Theater window */
+#field-theater-backdrop { background: var(--overlay); }
+#field-theater-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+#theater-modal-title { font-family: var(--font-head); font-size: 24px !important; }
+#field-theater-modal .btn-sm[onclick*="closeFieldTheaterModal"] { background: var(--raised) !important; color: var(--text) !important; border: 1px solid var(--border) !important; }
+.field-mode-btn, .demo-sim-btn { background: var(--raised); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-btn); min-height: 36px; font-weight: 500; }
+.field-mode-btn.active, .field-mode-btn.demo-active { background: var(--text); color: var(--bg); border-color: var(--text); }
+.demo-sim-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.field-tracker-drawer, .drive-meta-strip, .pbp-item { background: var(--raised); border-color: var(--border); }

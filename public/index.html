@@ -75,51 +75,43 @@
   <main id="app-content" tabindex="-1">
     <!-- VIEW 1: DEDICATED LIVE SATURDAY SCOREBOARD TAB (CST/CDT + POSSESSION TRACKER) -->
     <div id="live-tracker-view-container" class="live-tab-wrap hidden">
-      <header class="page-head">
+      <header class="page-head live-head">
         <div>
           <p class="eyebrow week-eyebrow">Week</p>
           <h1 class="page-title">Live Scores</h1>
         </div>
-        <span id="live-sync-badge" class="sync-pill" role="button" tabindex="0" onclick="syncAllLiveTrackingData(true)" title="Tap to sync live ESPN scores and injuries">Live</span>
+        <button type="button" class="sync-status" id="live-sync-status" onclick="syncAllLiveTrackingData(true)" aria-live="polite">
+          <span class="status-dot" id="live-sync-dot" aria-hidden="true"></span><span id="live-sync-age">Sync scores</span>
+        </button>
+        <!-- Status text written by the ESPN sync code; shown as the tooltip above -->
+        <span class="sr-only"><span id="live-sync-badge" class="sync-pill">Live</span></span>
       </header>
-      <div class="condensed-toolbar">
-        <div>
-          <strong style="font-size:0.95rem;color:var(--text);">Live Saturday Game Tracker & Possession Radar (CST/CDT)</strong>
-          <div style="font-size:0.73rem;color:var(--muted);">Displays live scores, glowing team possession, down & distance, red-zone alerts, and live pick grading.</div>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-          <div style="display:inline-flex;align-items:center;gap:5px;background:var(--raised);border:1px solid var(--border);padding:3px 7px;border-radius:7px;">
-            <span style="font-size:0.7rem;font-weight:800;color:var(--text);">H2H vs:</span>
-            <select id="live-compare-select" class="compare-select" style="max-width:165px;padding:3px 6px;" onchange="setCompareTarget(this.value)" title="Select any User Profile or Pool Member to compare live games against"></select>
-          </div>
-          <button class="btn-sm active" id="lflt-all" onclick="setLiveTabFilter('all')">All 23 Games</button>
-          <button class="btn-sm" id="lflt-active" onclick="setLiveTabFilter('active')">In Progress Only</button>
-          <button class="btn-sm" id="lflt-sweat" onclick="setLiveTabFilter('sweat')">4Q / Red-Zone Sweats</button>
-          <button class="btn-sm" id="lflt-diff" onclick="setLiveTabFilter('diff')">H2H Swing Games</button>
-        </div>
+
+      <div class="live-tiles">
+        <div class="live-tile-stat"><div class="tile-label">Record</div><div class="tile-val" id="live-rec-val">0–0</div></div>
+        <div class="live-tile-stat"><div class="tile-label">In play</div><div class="tile-val" id="live-tab-inprog">0</div></div>
+        <div class="live-tile-stat"><div class="tile-label">Pool rank</div><div class="tile-val" id="live-rank-val">–</div></div>
       </div>
 
-      <div class="live-summary-strip">
-        <div class="live-summary-card" id="live-tab-m-card">
-          <div class="metric-label" id="live-tab-m-label">Michael Live / Final Pts</div>
-          <div class="metric-val" id="live-tab-m-pts" style="color:var(--text);">0 pts</div>
-          <div class="metric-sub" id="live-tab-m-rec">Leading/Won: 0 games</div>
+      <!-- Advanced: points vs your head-to-head target -->
+      <div class="live-adv adv-block">
+        <div class="live-adv-item" id="live-tab-m-card"><span id="live-tab-m-label">You</span> <strong id="live-tab-m-pts">0 pts</strong> <span id="live-tab-m-rec"></span></div>
+        <div class="live-adv-item" id="live-tab-k-card"><span id="live-tab-k-label">Rival</span> <strong id="live-tab-k-pts">0 pts</strong> <span id="live-tab-k-rec"></span></div>
+        <div class="live-adv-item"><span id="live-tab-final">Completed: 0 / 0</span></div>
+        <span id="live-tab-clock" class="sr-only">Ready</span>
+      </div>
+
+      <div class="picks-toolbar">
+        <div class="chip-row" role="toolbar" aria-label="Filter live games">
+          <button class="btn-sm active" id="lflt-all" onclick="setLiveTabFilter('all')">All</button>
+          <button class="btn-sm" id="lflt-active" onclick="setLiveTabFilter('active')">In progress</button>
+          <button class="btn-sm" id="lflt-sweat" onclick="setLiveTabFilter('sweat')">4Q / red zone</button>
+          <button class="btn-sm adv-only" id="lflt-diff" onclick="setLiveTabFilter('diff')">H2H swings</button>
         </div>
-        <div class="live-summary-card" id="live-tab-k-card">
-          <div class="metric-label" id="live-tab-k-label">Kinyion Live / Final Pts</div>
-          <div class="metric-val" id="live-tab-k-pts" style="color:var(--text);">0 pts</div>
-          <div class="metric-sub" id="live-tab-k-rec">Leading/Won: 0 games</div>
-        </div>
-        <div class="live-summary-card">
-          <div class="metric-label">Games In Progress</div>
-          <div class="metric-val" id="live-tab-inprog" style="color:var(--win);">0</div>
-          <div class="metric-sub" id="live-tab-final">Completed: 0 / 23</div>
-        </div>
-        <div class="live-summary-card">
-          <div class="metric-label">Last CST Sync</div>
-          <div class="metric-val" id="live-tab-clock" style="font-size:0.95rem;color:var(--warn);">Ready</div>
-          <div class="metric-sub">America/Chicago (CST/CDT)</div>
-        </div>
+        <label class="compare-field adv-block">
+          <span class="sr-only">Compare with</span>
+          <select id="live-compare-select" class="compare-select" onchange="setCompareTarget(this.value)" aria-label="Compare live games with"></select>
+        </label>
       </div>
 
       <div id="live-scoreboard-groups"></div>
@@ -722,6 +714,7 @@
 <script src="/js/commissioner-admin.js?v=2026-10-27b"></script>
 <script src="/js/shell.js?v=2026-10-27b"></script>
 <script src="/js/picks-ui.js?v=2026-10-27b"></script>
+<script src="/js/live-ui.js?v=2026-10-27b"></script>
 <script src="/js/boot.js?v=2026-10-27b"></script>
 </body>
 </html>
