@@ -318,3 +318,12 @@ test("when ESPN refuses the bot (HTTP 403) the poller backs off 30 min", () => {
   assert.ok(next > Date.now() + 25 * 60 * 1000, "next poll deferred");
   assert.match(botStatusWrites(h).pop().espn.errors[0], /HTTP 403/);
 });
+
+test("Firestore requests carry the owner's OAuth token; ESPN requests don't", () => {
+  const h = loadBot({ cloud: baseCloud({ customGames: realSlate }), espnBody: espnBoard(realSlate, "in") });
+  h.ctx.pollEspnLiveGamesSubMinute();
+  const fs = h.calls.filter((c) => c.url.indexOf("firestore.googleapis.com") !== -1);
+  const espn = h.calls.filter((c) => c.url.indexOf("espn.com") !== -1);
+  assert.ok(fs.length > 0 && fs.every((c) => c.params.headers && c.params.headers.Authorization === "Bearer test-oauth-token"));
+  assert.ok(espn.length > 0 && espn.every((c) => !c.params.headers));
+});

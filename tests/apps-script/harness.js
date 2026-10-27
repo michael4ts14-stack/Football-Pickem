@@ -90,7 +90,7 @@ function loadBot(opts) {
     Session: { getActiveUser: () => ({ getEmail: () => "michael4ts14@gmail.com" }) },
     GmailApp: { search: () => opts.threads || [] },
     MailApp: { sendEmail: () => {}, getRemainingDailyQuota: () => 100 },
-    ScriptApp: { getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyMinutes: () => ({ create: () => {} }) }) }) },
+    ScriptApp: { getOAuthToken: () => "test-oauth-token", getProjectTriggers: () => [], newTrigger: () => ({ timeBased: () => ({ everyMinutes: () => ({ create: () => {} }) }) }) },
     ContentService: {
       createTextOutput: (t) => ({ setMimeType: () => ({ text: t }) }),
       MimeType: { JSON: "json" },
