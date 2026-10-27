@@ -3,15 +3,39 @@
 // Supports 6 users now and scales to 80+ concurrent users without profile switching
 // or cross-user pick overwrites!
 // ============================================================================
+// Snapshots that arrive within this window are applied once (newest wins), so a burst of
+// writes from other devices causes one re-render instead of one per write.
+var REMOTE_APPLY_DEBOUNCE_MS = 200;
+var pendingSharedStateData = null;
+var pendingSharedStateTimer = null;
+var pendingUsersRenderTimer = null;
+
 function startFirebaseRealtimeListeners() {
   if (fsDb) {
     try {
       fsDb.collection("pickem_v14").doc("shared_state").onSnapshot(function(doc) {
-        if (doc && doc.exists) {
-          applyRemoteCloudData(doc.data(), "Cloud Firestore");
-        }
+        if (!doc || !doc.exists) return;
+        // Our own just-saved data echoing back before the server confirms it: already on screen.
+        if (doc.metadata && doc.metadata.hasPendingWrites) return;
+        pendingSharedStateData = doc.data();
+        if (pendingSharedStateTimer) return;
+        pendingSharedStateTimer = setTimeout(function() {
+          pendingSharedStateTimer = null;
+          var data = pendingSharedStateData;
+          pendingSharedStateData = null;
+          if (data) applyRemoteCloudData(data, "Cloud Firestore");
+        }, REMOTE_APPLY_DEBOUNCE_MS);
       }, function(err) {});
     } catch (e) {}
+
+    // Apps Script bot heartbeat (written by Code.js every run): drives the 🤖 status pill.
+    try {
+      fsDb.collection("live_games").doc("bot_status").onSnapshot(function(doc) {
+        BOT_STATUS = (doc && doc.exists) ? doc.data() : null;
+        renderBotSyncPill();
+      }, function(errBot) {});
+      setInterval(renderBotSyncPill, 60000);
+    } catch (eBot) {}
 
     // Dedicated Per-User Instance Collection (`pickem_v14_users/{profileKey}`)
     // Every user writes their own picks to their own document so 80+ users can pick simultaneously
@@ -35,7 +59,10 @@ function startFirebaseRealtimeListeners() {
           if (docId === "test") continue;
           if (docId === activeProfile && withinMyLocalEdit) continue;
 
-          var matchStats = countMatchingPicksForSlate(uData.picks, GAMES);
+          // While a past week is on screen, live picks belong to the parked live week.
+          var viewingArchive = typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY && LIVE_WEEK_SNAPSHOT;
+          var store = (viewingArchive && (docId === "michael" || docId === "kinyion")) ? LIVE_WEEK_SNAPSHOT : state;
+          var matchStats = countMatchingPicksForSlate(uData.picks, viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES);
           if (matchStats.total >= 5 && matchStats.matched < Math.ceil(matchStats.total * 0.5)) continue;
 
           // Register custom user metadata if this is one of the 80+ user accounts not yet in state.customUsers
@@ -72,22 +99,29 @@ function startFirebaseRealtimeListeners() {
             if ((Date.now() - lastLocalPickTs) < 4000) continue;
             delete state.deletedPicksByMember[linkedLow];
           }
-          state[docId] = Object.assign({}, state[docId] || {}, {
+          store[docId] = Object.assign({}, store[docId] || {}, {
             picks: isClearedDoc ? {} : uData.picks,
             _picksCleared: isClearedDoc,
-            tiebreaker: uData.tiebreaker || (state[docId] && state[docId].tiebreaker) || "28-24",
-            target: uData.target || (state[docId] && state[docId].target) || 20,
-            linkedMemberName: uData.linkedMemberName !== undefined ? uData.linkedMemberName : (state[docId] ? state[docId].linkedMemberName : "")
+            tiebreaker: uData.tiebreaker || (store[docId] && store[docId].tiebreaker) || "28-24",
+            target: uData.target || (store[docId] && store[docId].target) || 20,
+            linkedMemberName: uData.linkedMemberName !== undefined ? uData.linkedMemberName : (store[docId] ? store[docId].linkedMemberName : "")
           });
           anyRemoteApplied = true;
         }
 
-        if (anyRemoteApplied) {
-          isApplyingRemoteUpdate = true;
-          regradeAllPoolMembersLive();
-          safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-          renderAll();
-          isApplyingRemoteUpdate = false;
+        if (anyRemoteApplied && !pendingUsersRenderTimer) {
+          // State is already updated above; batch the expensive regrade + full re-render.
+          pendingUsersRenderTimer = setTimeout(function() {
+            pendingUsersRenderTimer = null;
+            isApplyingRemoteUpdate = true;
+            try {
+              regradeAllPoolMembersLive();
+              safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+              renderAll();
+            } finally {
+              isApplyingRemoteUpdate = false;
+            }
+          }, REMOTE_APPLY_DEBOUNCE_MS);
         }
       }, function(err2) {});
     } catch (e2) {}
@@ -101,6 +135,13 @@ function applyRemoteCloudData(data, sourceLabel) {
   //    overwrite an active Week 8+ slate already loaded in memory!
   var incomingGames = (data.customGames && Array.isArray(data.customGames) && data.customGames.length > 0) ? data.customGames : null;
   var incomingWkNum = Math.max(parseInt(data.currentWeek, 10) || 0, parseWeekNumFromLabel(data.weekLabel));
+  if (incomingWkNum > LAST_CLOUD_WEEK) LAST_CLOUD_WEEK = incomingWkNum;
+  if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) {
+    // Someone is looking at a past week: keep the newest snapshot and apply it when they
+    // return to the live week, instead of switching the screen out from under them.
+    PENDING_REMOTE_DATA = data;
+    return;
+  }
   var incomingIsWk7 = incomingGames ? isHardcodedWeek7Slate(incomingGames) : (incomingWkNum > 0 && incomingWkNum <= 7 && !data.leaderboard && !data.poolMembers);
   var currentIsCustomNewWeek = !isHardcodedWeek7Slate(GAMES) || hasLockedCustomSlate || (state.currentWeek && state.currentWeek >= 8);
 
@@ -304,8 +345,12 @@ function applyRemoteCloudData(data, sourceLabel) {
 
   // 3. AUTO-ENRICH NEW WEEK SLATE: When a new week arrives (or games still have Code.gs stub text),
   //    immediately run full ESPN schedule + insights + injury sync and save back to Firebase!
-  if ((slateChanged || needsEspnEnrichment) && !window._fullWeekEnrichmentRunning) {
+  // Games ESPN can't enrich stay "unenriched" forever, so without the 5-minute floor every
+  // snapshot re-ran a full ESPN refresh (dozens of requests) on every device.
+  var enrichDue = slateChanged || !window._lastFullWeekEnrichmentAt || (Date.now() - window._lastFullWeekEnrichmentAt) > 5 * 60 * 1000;
+  if ((slateChanged || needsEspnEnrichment) && enrichDue && !window._fullWeekEnrichmentRunning) {
     window._fullWeekEnrichmentRunning = true;
+    window._lastFullWeekEnrichmentAt = Date.now();
     setTimeout(function() {
       syncAllLiveTrackingData(true).finally(function() {
         setTimeout(function() { window._fullWeekEnrichmentRunning = false; }, 10000);
@@ -316,6 +361,8 @@ function applyRemoteCloudData(data, sourceLabel) {
 
 function pushProfileToFirebase(profKey) {
   if (isApplyingRemoteUpdate) return;
+  // An archived week's picks on screen must never be saved as this week's picks.
+  if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return;
   // Keep `test` (Sandbox Sim) local to this device so sandbox experiments never collide across users
   if (profKey === "test") {
     safeSetStorage("sat_device_test_sim_v16", JSON.stringify(state.test || {}));
@@ -347,10 +394,9 @@ function pushProfileToFirebase(profKey) {
   }
 
   // 2. Also merge ONLY this profile's key into `pickem_v14/shared_state` (never touching other users' keys!)
+  //    The active week is NOT written here: a pick save must never move everyone's week.
   var payload = {};
   payload[profKey] = profObj;
-  payload.currentWeek = state.currentWeek || 8;
-  payload.weekLabel = state.weekLabel || ("Week " + (state.currentWeek || 8));
   payload.updatedAt = nowIso;
 
   if (fsDb) {
@@ -363,33 +409,87 @@ function pushProfileToFirebase(profKey) {
   }
 }
 
+var BOT_STATUS = null;
+
+function formatAgo(iso) {
+  var ms = Date.now() - new Date(iso).getTime();
+  if (!iso || isNaN(ms)) return "never";
+  var min = Math.max(0, Math.round(ms / 60000));
+  if (min < 60) return min + "m ago";
+  if (min < 48 * 60) return Math.round(min / 60) + "h ago";
+  return Math.round(min / 1440) + "d ago";
+}
+
+// Commissioner-only pill: when the Gmail bot last finished a run with no failed reads/writes.
+function renderBotSyncPill() {
+  var el = document.getElementById("bot-sync-pill");
+  if (!el) return;
+  var gmail = BOT_STATUS && BOT_STATUS.gmail;
+  var espn = BOT_STATUS && BOT_STATUS.espn;
+  if (!gmail) {
+    el.textContent = "🤖 Bot: no data";
+    el.style.color = "#94a3b8";
+    return;
+  }
+  var lastOk = gmail.lastSuccessAt;
+  var staleMs = lastOk ? (Date.now() - new Date(lastOk).getTime()) : Infinity;
+  var hasErrors = gmail.ok === false;
+  el.textContent = (hasErrors ? "🤖 ⚠ " : "🤖 ✓ ") + formatAgo(lastOk);
+  el.style.color = hasErrors ? "#f87171" : (staleMs > 15 * 60 * 1000 ? "#fbbf24" : "#34d399");
+  var lines = [
+    "Gmail bot — last clean run: " + (lastOk ? new Date(lastOk).toLocaleString() : "never"),
+    "Last run: " + (gmail.lastRunAt ? new Date(gmail.lastRunAt).toLocaleString() : "—")
+  ];
+  if (gmail.errors && gmail.errors.length) lines.push("Errors: " + gmail.errors.join(" | "));
+  if (espn) lines.push("ESPN poller: " + (espn.ok ? "ok" : "failing") + (espn.errors && espn.errors.length ? " — " + espn.errors[0] : ""));
+  el.title = lines.join("\n");
+}
+
+// Highest currentWeek seen in any shared_state snapshot this session.
+var LAST_CLOUD_WEEK = 0;
+
+// Pool-wide fields (poolMembers, leaderboard, liveScores, weekArchives, customGames,
+// watchlist, currentWeek) are shared by every player. Only a verified commissioner may
+// write them, and never while looking at an archived week. Every other client used to
+// push its own copy, so 40-100 browsers overwrote each other (lost sheet imports,
+// week flicker, a write->snapshot->re-render storm).
+function canWriteSharedPoolState() {
+  if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return false;
+  return typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner();
+}
+
+// Week fields for a commissioner write; omitted if they would move the pool backward.
+function sharedWeekFields() {
+  var wk = parseInt(state.currentWeek, 10) || 0;
+  if (!wk || wk < LAST_CLOUD_WEEK) return {};
+  return { currentWeek: wk, weekLabel: "Week " + wk };
+}
+
 function pushWatchlistOrStandingsToFirebase() {
   if (isApplyingRemoteUpdate) return;
   state.liveScores = LIVE_SCORES;
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  var payload = {
+  if (!canWriteSharedPoolState()) return;
+  var payload = Object.assign({
     watchlist: state.watchlist,
     leaderboard: state.leaderboard,
     poolMembers: state.poolMembers || [],
     liveScores: LIVE_SCORES,
-    currentWeek: state.currentWeek || 8,
-    weekLabel: state.weekLabel || ("Week " + (state.currentWeek || 8)),
     weekArchives: state.weekArchives || {},
     updatedAt: new Date().toISOString()
-  };
+  }, sharedWeekFields());
   if (fsDb) {
     try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }); } catch (e) {}
   }
 }
 
 function pushCustomGamesToFirebase() {
+  if (!canWriteSharedPoolState()) return;
   if (fsDb) {
     try {
-      fsDb.collection("pickem_v14").doc("shared_state").set({
+      fsDb.collection("pickem_v14").doc("shared_state").set(Object.assign({
         customGames: GAMES,
         tiebreakerGameId: state.tiebreakerGameId || null,
-        currentWeek: state.currentWeek || 8,
-        weekLabel: state.weekLabel || ("Week " + (state.currentWeek || 8)),
         michael: state.michael,
         kinyion: state.kinyion,
         watchlist: state.watchlist,
@@ -397,7 +497,7 @@ function pushCustomGamesToFirebase() {
         poolMembers: state.poolMembers || [],
         weekArchives: state.weekArchives || {},
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      }, sharedWeekFields()), { merge: true });
     } catch (e) {}
   }
 }

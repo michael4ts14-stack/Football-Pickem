@@ -960,8 +960,9 @@ function initState() {
   renderSwayFeed();
   regradeAllPoolMembersLive();
   renderAll();
+  // The shared_state listener delivers the current document immediately; a separate
+  // get() here applied and rendered the same data a second time on every load.
   startFirebaseRealtimeListeners();
-  pullFromFirebaseCloud();
 }
 
 function saveCurrentState(profOverride, debounceWrite) {

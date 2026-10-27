@@ -41,8 +41,9 @@ function isBlockedWrite(url) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async () => {
-  const server = await serve();
-  const base = "http://127.0.0.1:" + server.address().port + "/";
+  // SMOKE_URL=https://football-pickem-46206.web.app/ tests the deployed site instead of public/.
+  const server = process.env.SMOKE_URL ? null : await serve();
+  const base = process.env.SMOKE_URL || ("http://127.0.0.1:" + server.address().port + "/");
   const profileDir = fs.mkdtempSync(path.join(require("os").tmpdir(), "pickem-smoke-"));
   const browser = await puppeteer.launch({
     executablePath: EDGE,
@@ -137,5 +138,5 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     domIdCount: report.domIds.length,
   }, null, 1));
   await browser.close();
-  server.close();
+  if (server) server.close();
 })().catch((e) => { console.error(e); process.exit(1); });
