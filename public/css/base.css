@@ -15,7 +15,7 @@
   }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body {
-    width: 100%; max-width: 100vw; overflow-x: hidden;
+    width: 100%; max-width: 100vw; overflow-x: hidden; overflow-x: clip; /* clip: no sideways scroll without breaking position: sticky */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     background: var(--bg); color: var(--text); line-height: 1.42; padding-bottom: 90px;
   }
