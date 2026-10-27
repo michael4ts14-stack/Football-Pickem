@@ -277,7 +277,9 @@ function renderPickCardsHtml() {
       '</article>';
   }
   if (!html) {
-    html = '<p class="empty-note">' + (currentFilter === "missing" ? "Every game has a pick." : "No games match that filter.") + '</p>';
+    html = (currentFilter === "diffs" && !cmp)
+      ? compareChooserHtml("Pick someone to see where your picks differ")
+      : '<p class="empty-note">' + (currentFilter === "missing" ? "Every game has a pick." : "No games match that filter.") + '</p>';
   }
   return html;
 }

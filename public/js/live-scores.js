@@ -262,15 +262,15 @@ function updateScoreboard(skipFullRegrade) {
   }
   var diffsEl = document.getElementById("h2h-diffs");
   if (diffsEl) {
-    diffsEl.textContent = (activeHidden || otherHidden) ? "🔒 Hidden" : (cmpDesc && !cmpDesc.hasPicks ? "⏳ No Sheet" : (diffs + " games"));
+    diffsEl.textContent = !cmpDesc ? "–" : ((activeHidden || otherHidden) ? "🔒 Hidden" : (!cmpDesc.hasPicks ? "⏳ No Sheet" : (diffs + " games")));
   }
   var diffLabelEl = document.getElementById("h2h-diffs-label");
   if (diffLabelEl) {
-    diffLabelEl.textContent = getProfileMetaByKey(activeProfile).shortName + " vs " + (cmpDesc ? cmpDesc.shortName : "Rival") + " Diffs:";
+    diffLabelEl.textContent = getProfileMetaByKey(activeProfile).shortName + " vs " + (cmpDesc ? cmpDesc.shortName : "nobody chosen") + " Diffs:";
   }
   var fltDiffBtn = document.getElementById("flt-diffs");
   if (fltDiffBtn) {
-    fltDiffBtn.textContent = "Diffs vs " + (cmpDesc ? cmpDesc.shortName : "rival");
+    fltDiffBtn.textContent = cmpDesc ? "Diffs vs " + cmpDesc.shortName : "H2H Diffs";
   }
 // Legacy Show Kinyion compare-pin button removed per V16.7 UI cleanup
 
@@ -523,7 +523,7 @@ function renderStandingsAndGradingView() {
     ? (cmpTarget.isPoolMember
         ? gradePickMap(cmpTarget.picks || {}, false, false)
         : (calcProfileMetrics(cmpTarget.key) || gradePickMap(cmpTarget.picks || {}, true, false)))
-    : calcProfileMetrics("kinyion");
+    : gradePickMap({}, false, false); // no compare target: nobody to grade against
 
   var actHiddenGlobal = isProfileHiddenFromViewer(activeProfile, null);
   var cmpHiddenGlobal = cmpTarget ? cmpTarget.isHiddenForGame(null) : false;
@@ -570,8 +570,8 @@ function renderStandingsAndGradingView() {
   var mNewLiveTotal = mPriorPts + mWkPts;
   var kNewLiveTotal = kPriorPts + kWkPts;
 
-  var cmpName = cmpTarget ? cmpTarget.name : "Kinyion C";
-  var cmpShort = cmpTarget ? cmpTarget.shortName : "Kinyion";
+  var cmpName = cmpTarget ? cmpTarget.name : "";
+  var cmpShort = cmpTarget ? cmpTarget.shortName : "";
   var cmpIcon = cmpTarget ? cmpTarget.icon : "👤";
   var cmpColor = cmpTarget ? cmpTarget.color : "var(--purple)";
 
@@ -619,6 +619,11 @@ function renderStandingsAndGradingView() {
         '<div style="font-size:0.74rem;color:var(--muted);">Final Graded Margin: <strong>' + (mNetDiff >= 0 ? '+' + mNetDiff : mNetDiff) + ' pts</strong> • Swing Pts Won: <strong>' + actMeta.shortName + ' ' + swingCompletedWinsM + 'p vs ' + cmpShort + ' ' + swingCompletedWinsK + 'p</strong></div>' +
         '<div style="margin-top:6px;font-size:0.73rem;color:var(--warn);">⚡ <strong>' + ((actHiddenGlobal || cmpHiddenGlobal) ? '🔒' : swingRemainingCount) + '</strong> H2H disagreement game(s) still pending/in-progress.</div>' +
       '</div>';
+  }
+
+  // Without a compare target only your own report shows, plus a picker.
+  if (cardsEl && !cmpTarget && cardsEl.firstElementChild) {
+    cardsEl.innerHTML = cardsEl.firstElementChild.outerHTML + '<div class="grading-card">' + compareChooserHtml() + '</div>';
   }
 
   var wlGrid = document.getElementById("watchlist-editor-grid");

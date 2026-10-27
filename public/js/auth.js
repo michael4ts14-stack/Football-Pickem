@@ -18,8 +18,7 @@ function loadDeviceAuthSession() {
     } catch (e) {}
   }
   // Restore per-device compareTargetKey & Test Sim so another user's cloud sync never alters your screen view
-  var savedCmp = safeGetStorage("sat_device_compare_target_v16");
-  if (savedCmp) state.compareTargetKey = savedCmp;
+  state.compareTargetKey = safeGetStorage(COMPARE_TARGET_STORAGE_KEY) || "";
   var savedTest = safeGetStorage("sat_device_test_sim_v16");
   if (savedTest) {
     try {
@@ -45,9 +44,6 @@ function saveDeviceAuthSession() {
     safeSetStorage("sat_auth_session_v16", "");
   }
   safeSetStorage("sat_device_active_profile_v16", activeProfile);
-  if (state.compareTargetKey) {
-    safeSetStorage("sat_device_compare_target_v16", state.compareTargetKey);
-  }
 }
 
 function isAccountInstanceLocked() {
@@ -270,9 +266,7 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
 
   SESSION_UNLOCKED_PROFILES[bKey] = true;
   activeProfile = bKey;
-  if (state.compareTargetKey === bKey) {
-    state.compareTargetKey = (bKey === "michael") ? "kinyion" : "michael";
-  }
+  if (state.compareTargetKey === bKey) { state.compareTargetKey = ""; safeSetStorage(COMPARE_TARGET_STORAGE_KEY, ""); }
 
   saveDeviceAuthSession();
   regradeAllPoolMembersLive();
@@ -999,9 +993,7 @@ function switchProfile(prof) {
     return;
   }
   activeProfile = prof;
-  if (state.compareTargetKey === prof) {
-    state.compareTargetKey = (myKey === "michael") ? "kinyion" : "michael";
-  }
+  if (state.compareTargetKey === prof) { state.compareTargetKey = ""; safeSetStorage(COMPARE_TARGET_STORAGE_KEY, ""); }
   saveDeviceAuthSession();
   syncActiveProfileControlsUI();
   updateAuthUI();
@@ -1011,7 +1003,8 @@ function switchProfile(prof) {
 
 function copyOtherProfile() {
   var cmpDesc = resolveCompareTargetDescriptor();
-  var sourceName = cmpDesc ? cmpDesc.name : "Compare Target";
+  if (!cmpDesc) { showAppToast("Choose someone to compare with first."); return; }
+  var sourceName = cmpDesc.name;
   var sourcePicks = (cmpDesc && cmpDesc.picks) ? cmpDesc.picks : null;
   if (cmpDesc && !cmpDesc.isPoolMember && isProfileHiddenFromViewer(cmpDesc.key, null)) {
     unlockProfileWithPrompt(cmpDesc.key, function() {

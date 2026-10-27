@@ -5,7 +5,7 @@ var state = {
   kinyion: Object.assign(JSON.parse(JSON.stringify(WEEK7_OFFICIAL_KINYION)), { linkedMemberName: "Kinyion C" }),
   test: { picks: {}, tiebreaker: "28-24", target: 20, linkedMemberName: "" },
   customUsers: [],
-  compareTargetKey: "kinyion",
+  compareTargetKey: "", // nobody is compared until the person picks someone
   fridayNightRevealOverride: false,
   profilePrivacy: {
     michael: { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: true, autoUnhideFridayNight: true },
@@ -208,9 +208,6 @@ function ensureMultiUserAndPrivacyState() {
   if (!state.profilePrivacy || typeof state.profilePrivacy !== "object") state.profilePrivacy = {};
   if (state.michael && state.michael.linkedMemberName === undefined) state.michael.linkedMemberName = "Michael A";
   if (state.kinyion && state.kinyion.linkedMemberName === undefined) state.kinyion.linkedMemberName = "Kinyion C";
-  if (!state.compareTargetKey) {
-    state.compareTargetKey = (activeProfile === "michael") ? "kinyion" : "michael";
-  }
   var allProfs = getAllUserProfiles();
   for (var i = 0; i < allProfs.length; i++) {
     var pk = allProfs[i].key;
@@ -324,14 +321,16 @@ function isProfileHiddenFromViewer(profKey, gameId) {
   return true;
 }
 
+// Per device, written only by setCompareTarget(). (The old v16 key also held targets the app
+// picked automatically, so it is no longer read.)
+var COMPARE_TARGET_STORAGE_KEY = "sat_device_compare_target_v2";
+
 function resolveCompareTargetDescriptor() {
   ensureMultiUserAndPrivacyState();
   var myKey = getMyInstanceProfileKey();
   var key = state.compareTargetKey;
-  if (!key || key === activeProfile || key === myKey) {
-    key = (myKey === "michael") ? "kinyion" : "michael";
-    state.compareTargetKey = key;
-  }
+  // No default opponent: without a choice (or when the choice is yourself) there is no target.
+  if (!key || key === activeProfile || key === myKey) return null;
   if (String(key).indexOf("pm:") === 0) {
     var pmName = String(key).slice(3);
     var pm = findPoolMemberByName(pmName);
@@ -393,24 +392,24 @@ function resolveCompareTargetDescriptor() {
   };
 }
 
+// The only place a compare target is set: the person's own choice (H2H select, player sheet).
+// "" clears it.
 function setCompareTarget(targetKey) {
-  if (!targetKey) return;
-  state.compareTargetKey = targetKey;
-  safeSetStorage("sat_device_compare_target_v16", targetKey);
+  state.compareTargetKey = targetKey || "";
+  safeSetStorage(COMPARE_TARGET_STORAGE_KEY, state.compareTargetKey);
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
   renderAll();
 }
 
-function populateCompareTargetSelectors() {
+// <option>s for every compare picker; the first one ("Choose someone…") means no target.
+function compareTargetOptionsHtml() {
   var allProfs = getAllUserProfiles();
   var myKey = getMyInstanceProfileKey();
-  var curTarget = state.compareTargetKey;
-  if (!curTarget || curTarget === activeProfile || curTarget === myKey) {
-    curTarget = (myKey === "michael") ? "kinyion" : "michael";
-    state.compareTargetKey = curTarget;
-  }
+  var cur = resolveCompareTargetDescriptor();
+  var curTarget = cur ? state.compareTargetKey : "";
 
-  var opts = '<optgroup label="App users">';
+  var opts = '<option value=""' + (curTarget ? '' : ' selected') + '>Choose someone to compare with</option>' +
+    '<optgroup label="App users">';
   for (var i = 0; i < allProfs.length; i++) {
     var pf = allProfs[i];
     if (pf.key === myKey || pf.isSandbox) continue;
@@ -434,7 +433,17 @@ function populateCompareTargetSelectors() {
     }
     opts += '</optgroup>';
   }
+  return opts;
+}
 
+// Inline picker shown where a view needs a target and none is chosen yet.
+function compareChooserHtml(lead) {
+  return '<div class="compare-chooser"><span>' + (lead || "Choose someone to compare with") + '</span>' +
+    '<select class="compare-select" aria-label="Compare with" onchange="setCompareTarget(this.value)">' + compareTargetOptionsHtml() + '</select></div>';
+}
+
+function populateCompareTargetSelectors() {
+  var opts = compareTargetOptionsHtml();
   var sel1 = document.getElementById("sidebar-compare-select");
   if (sel1) sel1.innerHTML = opts;
   var sel2 = document.getElementById("cond-compare-select");
