@@ -8,6 +8,9 @@ var STANDINGS_SHOW_ALL = false;
 var STANDINGS_TOP_N = 10;
 var STANDINGS_AROUND_ME = 2;
 var RIVALS_MAX = 3;
+var STANDINGS_LAYOUT = "list";   // "list" | "table" (Table is Advanced only)
+var STANDINGS_SORT = { key: "rank", dir: 1 };
+var FINISH_ODDS_OPEN = false;
 
 function setStandingsScope(scope) {
   STANDINGS_SCOPE = (scope === "week") ? "week" : "season";
@@ -290,9 +293,120 @@ function renderWeeklyWinners(list) {
   el.innerHTML = html + '</ol>';
 }
 
+// ---------- Table (Advanced): every column, sortable, name column stays put ----------
+function setStandingsLayout(layout) {
+  STANDINGS_LAYOUT = layout === "table" ? "table" : "list";
+  renderStandingsList();
+}
+
+function sortStandingsTable(key) {
+  STANDINGS_SORT = { key: key, dir: STANDINGS_SORT.key === key ? -STANDINGS_SORT.dir : (key === "name" || key === "rank" ? 1 : -1) };
+  renderStandingsTable(computeStandingsRows());
+}
+
+var STANDINGS_TABLE_COLS = [
+  { key: "rank", label: "#", num: true },
+  { key: "name", label: "Player" },
+  { key: "priorPts", label: "Prior", num: true },
+  { key: "liveInProgPts", label: "Live wk", num: true },
+  { key: "finalPts", label: "Final wk", num: true },
+  { key: "seasonPts", label: "Total", num: true },
+  { key: "breakdown", label: "Status / multipliers" }
+];
+
+function renderStandingsTable(list) {
+  var el = document.getElementById("standings-table-view");
+  if (!el) return;
+  var meLow = getMyLeaderboardNameLower();
+  var qEl = document.getElementById("leaderboard-search-input");
+  var q = (qEl ? qEl.value : "").trim().toLowerCase();
+  var sk = STANDINGS_SORT.key, dir = STANDINGS_SORT.dir;
+  var rows = list.filter(function(r) { return !q || r.name.toLowerCase().indexOf(q) !== -1; });
+  rows.sort(function(a, b) {
+    var x = sk === "rank" ? a.index : a[sk], y = sk === "rank" ? b.index : b[sk];
+    if (typeof x === "string" || typeof y === "string") return dir * String(x || "").localeCompare(String(y || ""));
+    return dir * ((x || 0) - (y || 0)) || (a.index - b.index);
+  });
+  var head = STANDINGS_TABLE_COLS.map(function(c) {
+    var on = c.key === sk;
+    return '<th scope="col" class="' + (c.num ? 'num' : '') + (c.key === "name" ? ' st-sticky' : '') + '" aria-sort="' + (on ? (dir > 0 ? 'ascending' : 'descending') : 'none') + '">' +
+      '<button type="button" onclick="sortStandingsTable(\'' + c.key + '\')">' + c.label + (on ? '<i data-lucide="' + (dir > 0 ? 'chevron-up' : 'chevron-down') + '"></i>' : '') + '</button></th>';
+  }).join("");
+  var body = rows.map(function(r) {
+    var isMe = meLow && r.name.toLowerCase() === meLow;
+    var status = String(r.breakdown || "").replace(/<[^>]*>/g, "").trim();
+    return '<tr' + (isMe ? ' class="is-me"' : '') + '>' +
+      '<td class="num"><span class="rank' + (r.seasonRank <= 3 ? ' top3' : '') + '">' + (r.seasonTied ? 'T' : '') + r.seasonRank + '</span></td>' +
+      '<th scope="row" class="st-sticky"><button type="button" class="link-btn" data-name="' + escapeShellHtml(r.name) + '" onclick="openPlayerSheet(this.getAttribute(\'data-name\'))">' + escapeShellHtml(r.name) + '</button>' +
+        (r.live ? '<span class="st-live">Live</span>' : '') + '</th>' +
+      '<td class="num">' + r.priorPts + '</td><td class="num">' + r.liveInProgPts + '</td><td class="num">' + r.finalPts + '</td>' +
+      '<td class="num"><strong>' + r.seasonPts + '</strong></td><td class="st-status">' + escapeShellHtml(status) + '</td></tr>';
+  }).join("");
+  el.innerHTML = '<div class="st-table-scroll" role="region" aria-label="Full standings table" tabindex="0"><table class="st-table"><thead><tr>' + head + '</tr></thead><tbody>' +
+    (body || '<tr><td colspan="7" class="muted-note">No players match that search.</td></tr>') + '</tbody></table></div>';
+}
+
+// Table needs Advanced mode; in Simple mode the list always shows.
+var _standingsListOnly = renderStandingsList;
+renderStandingsList = function() {
+  var table = STANDINGS_LAYOUT === "table" && !SIMPLE_UI_MODE;
+  var li = document.getElementById("st-layout-list"), ta = document.getElementById("st-layout-table");
+  if (li) li.setAttribute("aria-pressed", table ? "false" : "true");
+  if (ta) ta.setAttribute("aria-pressed", table ? "true" : "false");
+  var wrap = document.getElementById("standings-view-container");
+  if (wrap) wrap.classList.toggle("is-table", table);
+  var tv = document.getElementById("standings-table-view");
+  if (tv) tv.hidden = !table;
+  var res = _standingsListOnly.apply(this, arguments);
+  if (table) renderStandingsTable(computeStandingsRows());
+  if (FINISH_ODDS_OPEN && !SIMPLE_UI_MODE && typeof renderMonteCarloSimulatorBox === "function") renderMonteCarloSimulatorBox();
+  return res;
+};
+
+// ---------- Finish odds (Advanced): simulations only run while the section is open ----------
+function onFinishOddsToggle(el) {
+  FINISH_ODDS_OPEN = !!(el && el.open);
+  if (FINISH_ODDS_OPEN && typeof renderMonteCarloSimulatorBox === "function") renderMonteCarloSimulatorBox();
+}
+
 var _standingsUiPrevRender = renderStandingsAndGradingView;
 renderStandingsAndGradingView = function() {
   var result = _standingsUiPrevRender.apply(this, arguments);
   renderStandingsList();
   return result;
+};
+
+// ---------- Commissioner pieces live in the Console (Submissions tab) ----------
+// Grading cards and the pool-wide watchlist editor are parked in #console-parking;
+// they move into the Console while it shows Submissions and go back before each redraw.
+var CONSOLE_PARKED_IDS = ["automated-grading-cards", "standings-watchlist-box"];
+function parkConsolePieces() {
+  var park = document.getElementById("console-parking");
+  if (!park) return;
+  CONSOLE_PARKED_IDS.forEach(function(id) {
+    var n = document.getElementById(id);
+    if (n && n.parentNode !== park) park.appendChild(n);
+  });
+  var sec = document.getElementById("console-grading-section");
+  if (sec) sec.parentNode.removeChild(sec);
+}
+var _standingsPrevCommishBody = renderCommissionerModalBody;
+renderCommissionerModalBody = function() {
+  parkConsolePieces();
+  var res = _standingsPrevCommishBody.apply(this, arguments);
+  var body = document.getElementById("commish-modal-body");
+  if (body && ACTIVE_COMMISH_TAB === "submissions" && isVerifiedCommissioner()) {
+    var sec = document.createElement("section");
+    sec.id = "console-grading-section";
+    sec.className = "console-grading";
+    sec.innerHTML = '<h3 class="console-h">Grading and watchlist</h3>';
+    CONSOLE_PARKED_IDS.forEach(function(id) { var n = document.getElementById(id); if (n) sec.appendChild(n); });
+    body.appendChild(sec);
+  }
+  return res;
+};
+var _standingsPrevCloseCommish = closeCommissionerModal;
+closeCommissionerModal = function() {
+  parkConsolePieces();
+  return _standingsPrevCloseCommish.apply(this, arguments);
 };

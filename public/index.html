@@ -187,6 +187,10 @@
           <button type="button" id="st-scope-week" aria-pressed="false" onclick="setStandingsScope('week')"><span class="week-eyebrow">Week</span></button>
           <button type="button" id="st-scope-season" aria-pressed="true" onclick="setStandingsScope('season')">Season</button>
         </div>
+        <div class="segmented adv-block" role="group" aria-label="Standings layout">
+          <button type="button" id="st-layout-list" aria-pressed="true" onclick="setStandingsLayout('list')">List</button>
+          <button type="button" id="st-layout-table" aria-pressed="false" onclick="setStandingsLayout('table')">Table</button>
+        </div>
         <label class="standings-search">
           <i data-lucide="search"></i>
           <input type="text" id="leaderboard-search-input" class="search-input" placeholder="Find a player" aria-label="Find a player" oninput="renderStandingsAndGradingView()" />
@@ -203,62 +207,28 @@
       </div>
       <p class="muted-note standings-count" id="leaderboard-count-label"></p>
       <section class="ww-card" id="standings-weekly-winners" hidden></section>
-      <div class="condensed-toolbar">
-        <div>
-          <strong style="font-size:0.96rem;color:var(--text);">Pool Standings, Master CSV Auto-Grader & Watchlist Command Center</strong>
-          <div style="font-size:0.73rem;color:var(--muted);">Import the entire pool's CSV/Excel pick sheet, auto-grade all participants live by multiplier tier (1x, 2x, 3x), and track real-time standings.</div>
-        </div>
-        <div id="standings-toolbar-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <div style="display:inline-flex;align-items:center;gap:5px;background:var(--raised);border:1px solid var(--border);padding:3px 7px;border-radius:7px;">
-            <span style="font-size:0.7rem;font-weight:800;color:var(--text);">H2H Grade vs:</span>
-            <select id="standings-compare-select" class="compare-select" style="max-width:165px;padding:3px 6px;" onchange="setCompareTarget(this.value)" title="Select any User Profile or Pool Member to compare grading cards against"></select>
+      <div class="st-table-wrap" id="standings-table-view" hidden></div>
+
+      <!-- Finish odds (Advanced): the 5,000-trial simulation only runs while this is open -->
+      <details class="finish-odds adv-block" id="finish-odds" ontoggle="onFinishOddsToggle(this)">
+        <summary><span>Finish odds</span><i data-lucide="chevron-down"></i></summary>
+        <div class="mc-sim-box" id="monte-carlo-sim-container"></div>
+      </details>
+
+      <!-- Commissioner pieces parked here; the Console (Submissions tab) and More › Past weeks show them -->
+      <div id="console-parking" hidden>
+        <div class="grading-grid" id="automated-grading-cards"></div>
+        <div class="side-box" id="season-archive-hub-container"></div>
+        <!-- Custom Pool Member Watchlist Configuration -->
+        <div id="standings-watchlist-box" class="side-box" style="margin-bottom:14px;">
+          <div class="side-title">
+            <span>Custom Pool Member Watchlist (Track Up to 3 Key Rivals)</span>
+            <span style="color:var(--accent);font-size:0.7rem;">Auto-Syncs to Firebase</span>
           </div>
-          <button class="btn-sm" style="background:var(--raised);color:var(--text);font-weight:800;border:none;" onclick="openUnifiedImportModal('csv')">Import Pool Data / Bot</button>
-        </div>
-      </div>
-
-      <!-- Automated Weekly Grading Summary Cards -->
-      <div class="grading-grid" id="automated-grading-cards"></div>
-
-      <!-- Monte Carlo Pool Finish Simulator (5,000 Trials) -->
-      <div class="mc-sim-box" id="monte-carlo-sim-container"></div>
-
-      <!-- Multi-Week Season History Archive -->
-      <div class="side-box" style="margin-bottom:14px;" id="season-archive-hub-container"></div>
-
-      <!-- Custom Pool Member Watchlist Configuration -->
-      <div id="standings-watchlist-box" class="side-box" style="margin-bottom:14px;">
-        <div class="side-title">
-          <span>Custom Pool Member Watchlist (Track Up to 3 Key Rivals)</span>
-          <span style="color:var(--accent);font-size:0.7rem;">Auto-Syncs to Firebase</span>
-        </div>
-        <div style="font-size:0.73rem;color:var(--muted);margin-bottom:8px;">
-          Rename your 3 tracked pool opponents below or import their confirmation email picks. You can also tap their picks in the <strong>Both Picks</strong> table!
-        </div>
-        <div id="watchlist-editor-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
-      </div>
-
-      <!-- Top 5 Weekly Winners Podium (Visible in both Simple & Advanced Modes!) -->
-      <div id="top5-weekly-winners-container" class="top5-weekly-box adv-block"></div>
-
-      <!-- Full breakdown (Advanced): prior, live, final, total and multiplier columns -->
-      <div class="side-box adv-block">
-        <div class="side-title"><span>Full breakdown</span></div>
-        <div style="overflow-x:auto;">
-          <table class="condensed-table" id="pool-leaderboard-table">
-            <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Participant Name</th>
-                <th>Prior Season Pts</th>
-                <th>Live Weekly Pts (In-Progress)</th>
-                <th>Final Weekly Pts</th>
-                <th>New Live Total</th>
-                <th>Status / Multiplier Breakdown</th>
-              </tr>
-            </thead>
-            <tbody id="pool-leaderboard-tbody"></tbody>
-          </table>
+          <div style="font-size:0.73rem;color:var(--muted);margin-bottom:8px;">
+            Rename your 3 tracked pool opponents below or import their confirmation email picks. You can also tap their picks in the <strong>Both Picks</strong> table!
+          </div>
+          <div id="watchlist-editor-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
         </div>
       </div>
     </div>

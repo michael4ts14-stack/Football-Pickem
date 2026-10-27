@@ -392,8 +392,9 @@ function updateScoreboard(skipFullRegrade) {
       '<div class="dist-bar-wrap"><div class="dist-bar" style="width:' + Math.min(100, pct * 1.8) + '%"></div></div>' +
       '<span class="dist-pct">' + pct + '%</span></div>';
   }
-  var mcQuick = runMonteCarloPoolSimulation(1500, false);
-  var mcSummaryStrip = '<div style="margin-top:8px;padding:6px 8px;background:var(--raised);border:1px solid var(--border);border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;cursor:pointer;" onclick="switchMainView(\'standings\'); toggleMobileSidebar(false);" title="Tap to open full 5,000-Trial Monte Carlo Simulator">' +
+  // Only shows a simulation that already ran (Standings › Finish odds or the EV drawer); never runs one here.
+  var mcQuick = (typeof MONTE_CARLO_CACHE !== "undefined") ? MONTE_CARLO_CACHE : null;
+  var mcSummaryStrip = !mcQuick ? '' : '<div style="margin-top:8px;padding:6px 8px;background:var(--raised);border:1px solid var(--border);border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;cursor:pointer;" onclick="switchMainView(\'standings\'); toggleMobileSidebar(false);" title="Tap to open full 5,000-Trial Monte Carlo Simulator">' +
     '<span>🎲 <strong>Pool Sim:</strong> 🥇 1st: <strong style="color:var(--gold);">' + (activeHidden ? '🔒' : (mcQuick.active.win1stPct + '%')) + '</strong></span>' +
     '<span>🔥 Top 5: <strong style="color:var(--green);">' + (activeHidden ? '🔒' : (mcQuick.active.top5Pct + '%')) + '</strong></span>' +
     '<span>Proj: <strong>#' + (activeHidden ? '🔒' : mcQuick.active.avgRank) + '</strong></span>' +

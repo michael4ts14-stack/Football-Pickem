@@ -876,3 +876,31 @@ button.st-row.is-me { background: var(--raised); font-weight: 600; }
 .pp-pick { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pp-pick.is-hidden { color: var(--text-muted); }
 .pp-row .pick-status { margin-left: 0; }
+
+/* ---------- Standings: Table (Advanced), Finish odds, Console grading ---------- */
+.standings-wrap.is-table #standings-your-spot,
+.standings-wrap.is-table #standings-rivals,
+.standings-wrap.is-table .standings-table,
+.standings-wrap.is-table #leaderboard-count-label,
+.standings-wrap.is-table #standings-weekly-winners { display: none; }
+.st-table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 20px; max-height: 70vh; overflow-y: auto; }
+.st-table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 720px; font-size: 15px; }
+.st-table th, .st-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; background: var(--surface); }
+.st-table thead th { position: sticky; top: 0; z-index: 2; background: var(--raised); font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+.st-table thead th button { display: inline-flex; align-items: center; gap: 4px; background: none; border: 0; color: var(--text-muted); font: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; padding: 0; }
+.st-table thead th[aria-sort="ascending"] button, .st-table thead th[aria-sort="descending"] button { color: var(--text); }
+.st-table thead th button svg.lucide { width: 14px; height: 14px; }
+.st-table .num { text-align: right; }
+.st-table .st-sticky { position: sticky; left: 0; z-index: 1; border-right: 1px solid var(--border); }
+.st-table thead .st-sticky { z-index: 3; }
+.st-table tbody th { font-weight: 400; }
+.st-table tbody th .link-btn { color: var(--text); font-size: 15px; }
+.st-table tr.is-me td, .st-table tr.is-me th { background: var(--raised); font-weight: 600; }
+.st-table .st-status { color: var(--text-muted); font-size: 13px; }
+.finish-odds { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); margin-bottom: 20px; }
+.finish-odds > summary { display: flex; justify-content: space-between; align-items: center; min-height: 52px; padding: 0 16px; cursor: pointer; list-style: none; font-family: var(--font-head); font-size: 20px; font-weight: 600; }
+.finish-odds > summary::-webkit-details-marker { display: none; }
+.finish-odds[open] > summary svg.lucide { transform: rotate(180deg); }
+.finish-odds .mc-sim-box { margin: 0; border: 0; border-top: 1px solid var(--border); border-radius: 0; }
+.console-grading { margin-top: 18px; }
+.console-h { font-family: var(--font-head); font-size: 20px; font-weight: 600; margin: 0 0 10px; text-transform: none; letter-spacing: 0; }
