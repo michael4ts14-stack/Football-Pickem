@@ -421,6 +421,7 @@ var TEAM_LOGS = {
   ]}
 };
 var ESPN_TEAM_MAP = {};
+var ESPN_TEAM_INFO = {}; // ESPN team id -> { color, abbr } (display only)
 
 // Official 2026 AP Top 25 Rankings (Week 8)
 var TEAM_RANKS = {

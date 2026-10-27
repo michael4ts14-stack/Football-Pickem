@@ -289,7 +289,7 @@ function updateScoreboard(skipFullRegrade) {
   }
   var fltDiffBtn = document.getElementById("flt-diffs");
   if (fltDiffBtn) {
-    fltDiffBtn.textContent = "⚔️ " + getProfileMetaByKey(activeProfile).shortName + " vs " + (cmpDesc ? cmpDesc.shortName : "Rival") + " Diffs";
+    fltDiffBtn.textContent = "Diffs vs " + (cmpDesc ? cmpDesc.shortName : "rival");
   }
 // Legacy Show Kinyion compare-pin button removed per V16.7 UI cleanup
 
@@ -327,7 +327,7 @@ function updateScoreboard(skipFullRegrade) {
       var cmpHid = cmpDesc.isHiddenForGame(null);
       var cmpWkBest = (!cmpDesc.hasPicks || cmpHid) ? 0 : Math.max(cmpM.liveProjectedPts, cmpM.finalWonPts);
       cmpRowHtml = '<tr>' +
-        '<td><strong style="color:' + cmpDesc.color + ';">⚔️ ' + cmpDesc.name + ' (H2H)</strong>' + (cmpHid ? ' <span style="font-size:0.62rem;color:#fca5a5;">🔒 Pre-Kickoff</span>' : '') + '</td>' +
+        '<td><strong style="color:' + cmpDesc.color + ';">⚔️ ' + cmpDesc.name + ' (H2H)</strong>' + (cmpHid ? ' <span style="font-size:0.62rem;color:var(--loss);">🔒 Pre-Kickoff</span>' : '') + '</td>' +
         '<td>' + (cmpHid ? '🔒' : (!cmpDesc.hasPicks ? '⏳' : (cmpM.ceiling + ' pts'))) + '</td>' +
         '<td>' + (cmpHid ? '🔒' : (!cmpDesc.hasPicks ? '⏳' : cmpM.ev.toFixed(1))) + '</td>' +
         '<td style="color:var(--green);font-weight:800;">' + (cmpHid ? '🔒' : ('+' + cmpWkBest)) + '</td>' +
@@ -346,7 +346,7 @@ function updateScoreboard(skipFullRegrade) {
       '</tr>' +
       cmpRowHtml +
       '<tr>' +
-        '<td><strong style="color:#f59e0b;">🧪 Sandbox Sim</strong></td>' +
+        '<td><strong style="color:var(--warn);">🧪 Sandbox Sim</strong></td>' +
         '<td>' + testMetrics.ceiling + ' pts</td>' +
         '<td>' + testMetrics.ev.toFixed(1) + '</td>' +
         '<td style="color:var(--green);font-weight:800;">+' + testWkBest + '</td>' +
@@ -363,13 +363,13 @@ function updateScoreboard(skipFullRegrade) {
     var curMeta = getProfileMetaByKey(myKeyPriv);
     if (curPriv.hidden) {
       privStatusEl.innerHTML = '🔒 <strong>' + curMeta.shortName + '</strong> Hidden From Others Until Kickoff';
-      privStatusEl.style.color = "#6ee7b7";
+      privStatusEl.style.color = "var(--win)";
       quickHideBtn.textContent = "👁️ Make Public";
-      quickHideBtn.style.borderColor = "#34d399";
-      quickHideBtn.style.color = "#6ee7b7";
+      quickHideBtn.style.borderColor = "var(--border)";
+      quickHideBtn.style.color = "var(--win)";
     } else {
       privStatusEl.innerHTML = '👁️ <strong>' + curMeta.shortName + '</strong> Visible to Pool' + (BLIND_MODE ? ' (🙈 Blind ON)' : '');
-      privStatusEl.style.color = "#cbd5e1";
+      privStatusEl.style.color = "var(--text)";
       quickHideBtn.textContent = "🔒 Hide From Others";
       quickHideBtn.style.borderColor = "";
       quickHideBtn.style.color = "";
@@ -409,7 +409,7 @@ function updateScoreboard(skipFullRegrade) {
       '<span class="dist-pct">' + pct + '%</span></div>';
   }
   var mcQuick = runMonteCarloPoolSimulation(1500, false);
-  var mcSummaryStrip = '<div style="margin-top:8px;padding:6px 8px;background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.35);border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;cursor:pointer;" onclick="switchMainView(\'standings\'); toggleMobileSidebar(false);" title="Tap to open full 5,000-Trial Monte Carlo Simulator">' +
+  var mcSummaryStrip = '<div style="margin-top:8px;padding:6px 8px;background:var(--raised);border:1px solid var(--border);border-radius:6px;display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;cursor:pointer;" onclick="switchMainView(\'standings\'); toggleMobileSidebar(false);" title="Tap to open full 5,000-Trial Monte Carlo Simulator">' +
     '<span>🎲 <strong>Pool Sim:</strong> 🥇 1st: <strong style="color:var(--gold);">' + (activeHidden ? '🔒' : (mcQuick.active.win1stPct + '%')) + '</strong></span>' +
     '<span>🔥 Top 5: <strong style="color:var(--green);">' + (activeHidden ? '🔒' : (mcQuick.active.top5Pct + '%')) + '</strong></span>' +
     '<span>Proj: <strong>#' + (activeHidden ? '🔒' : mcQuick.active.avgRank) + '</strong></span>' +
@@ -436,7 +436,7 @@ function updateScoreboard(skipFullRegrade) {
       var rWkPts = hasRivalPicks ? Math.max(rGrade.liveProjectedPts, rGrade.finalWonPts) : 0;
       var rNewTot = (parseFloat(rival.priorPts) || 0) + rWkPts;
       var rightText = hasRivalPicks
-        ? ('<span style="color:#fde68a;font-weight:700;">Tot: ' + rNewTot + 'p (+' + rWkPts + ') • ' + diffCnt + ' diffs</span>')
+        ? ('<span style="color:var(--warn);font-weight:700;">Tot: ' + rNewTot + 'p (+' + rWkPts + ') • ' + diffCnt + ' diffs</span>')
         : ('<span style="color:var(--muted);font-weight:700;">Tot: ' + rNewTot + 'p • ⏳ No picks yet</span>');
       wlHtml += '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--panel-alt);padding:5px 8px;border-radius:6px;border:1px solid var(--border-muted);">' +
         '<span><strong>' + rival.name + '</strong> <span style="color:var(--muted);">(' + rival.rank + ' • Prior ' + rival.priorPts + 'p)</span></span>' +
@@ -445,6 +445,85 @@ function updateScoreboard(skipFullRegrade) {
     }
     wlSb.innerHTML = wlHtml;
   }
+}
+
+// Season leaderboard rows (pool members + leaderboard entries), sorted by new total.
+// Shared by the Standings table and the desktop right rail.
+function buildPoolLeaderboardRows() {
+  var rows = [];
+  var seenNames = {};
+
+  if (state.poolMembers && state.poolMembers.length > 0) {
+    for (var p = 0; p < state.poolMembers.length; p++) {
+      var pm = state.poolMembers[p];
+      var stdName = standardizeParticipantName(pm.name);
+      seenNames[stdName.toLowerCase()] = true;
+      var rawPrior = parseFloat(pm.priorPts) || 0;
+      var isWk7Now = isHardcodedWeek7Slate(GAMES);
+      var prior = (isWk7Now && rawPrior >= 80 && pm.wk7PriorPts !== undefined && rawPrior > pm.wk7PriorPts) ? pm.wk7PriorPts : rawPrior;
+      var isAwaiting = !!pm.awaitingSheet;
+      var liveTotalWk = isAwaiting ? 0 : (pm.livePts || 0);
+      var finPts = isAwaiting ? 0 : (pm.finalPts || 0);
+      var computedTot = (typeof pm.newLiveTotal === "number" && !isNaN(pm.newLiveTotal)) ? pm.newLiveTotal : (prior + Math.max(liveTotalWk, finPts));
+      var brkStr = isAwaiting
+        ? ('<span class="watchlist-pill">⏳ Awaiting ' + (state.weekLabel || 'Weekly') + ' Selection Sheet</span>')
+        : ("1x: " + (pm.won1x || 0) + "/" + (pm.count1x || 0) + " • 2x: " + (pm.won2x || 0) + "/" + (pm.count2x || 0) + " • 3x: " + (pm.won3x || 0) + "/" + (pm.count3x || 0));
+      rows.push({
+        name: stdName,
+        priorPts: prior,
+        awaitingSheet: isAwaiting,
+        liveInProgPts: isAwaiting ? 0 : (pm.inProgressPts || 0),
+        liveTotalWk: liveTotalWk,
+        finalPts: finPts,
+        newTotal: computedTot,
+        breakdown: brkStr
+      });
+    }
+  }
+
+  // Ensure Michael A, Kinyion C, and Leaderboard entries appear even before a CSV is uploaded
+  for (var l = 0; l < state.leaderboard.length; l++) {
+    var entry = state.leaderboard[l];
+    var sName = standardizeParticipantName(entry.name);
+    var nLow = sName.toLowerCase();
+    if (seenNames[nLow]) continue;
+    seenNames[nLow] = true;
+
+    var gData = null;
+    for (var w2 = 0; w2 < state.watchlist.length; w2++) {
+      if (standardizeParticipantName(state.watchlist[w2].name).toLowerCase() === nLow) {
+        var candidateGrade = gradePickMap(state.watchlist[w2].picks, false);
+        if (candidateGrade.submittedPicksCount > 0) gData = candidateGrade;
+        break;
+      }
+    }
+
+    var pr = parseFloat(entry.priorPts) || 0;
+    var isAw = !gData;
+    var wkLive = gData ? gData.liveProjectedPts : 0;
+    var wkInProg = gData ? gData.inProgressPts : 0;
+    var wkFin = gData ? gData.finalWonPts : 0;
+    var brk = gData
+      ? ("1x: " + gData.won1x + "/" + gData.chalkCount + " • 2x: " + gData.won2x + "/" + gData.count2x + " • 3x: " + gData.won3x + "/" + gData.count3x)
+      : ('<span class="watchlist-pill">⏳ Awaiting ' + (state.weekLabel || 'Weekly') + ' Selection Sheet</span>');
+
+    rows.push({
+      name: sName,
+      priorPts: pr,
+      awaitingSheet: isAw,
+      liveInProgPts: wkInProg,
+      liveTotalWk: wkLive,
+      finalPts: wkFin,
+      newTotal: pr + Math.max(wkLive, wkFin),
+      breakdown: brk
+    });
+  }
+
+  rows.sort(function(a, b) {
+    if (b.newTotal !== a.newTotal) return b.newTotal - a.newTotal;
+    return b.finalPts - a.finalPts;
+  });
+  return rows;
 }
 
 function renderStandingsAndGradingView() {
@@ -539,21 +618,21 @@ function renderStandingsAndGradingView() {
     cardsEl.innerHTML =
       '<div class="grading-card" style="border-color:' + actMeta.color + ';">' +
         '<div style="font-size:0.74rem;font-weight:800;color:' + actMeta.color + ';text-transform:uppercase;">' + actMeta.icon + ' ' + actMeta.name + ' (Active) — Auto-Grade Report</div>' +
-        '<div style="font-size:1.3rem;font-weight:900;color:#fff;margin:4px 0;">New Live Total: <span style="color:' + actMeta.color + ';">' + mNewLiveTotal + ' pts</span> <span style="font-size:0.8rem;color:var(--green);">(+' + mWkPts + ' wk • Prior ' + mPriorPts + 'p)</span></div>' +
+        '<div style="font-size:1.3rem;font-weight:900;color:var(--text);margin:4px 0;">New Live Total: <span style="color:' + actMeta.color + ';">' + mNewLiveTotal + ' pts</span> <span style="font-size:0.8rem;color:var(--green);">(+' + mWkPts + ' wk • Prior ' + mPriorPts + 'p)</span></div>' +
         '<div style="font-size:0.74rem;color:var(--muted);">Record: <strong>' + m.wonGames + 'W - ' + m.lostGames + 'L</strong> • Final Won: <strong>' + m.finalWonPts + 'p</strong> • Lost Pts: <strong style="color:var(--red);">' + m.finalLostPts + '</strong> • Max Left: <strong>' + (actHiddenGlobal ? '🔒' : ((mPriorPts + m.finalWonPts + m.pendingPts) + 'p')) + '</strong></div>' +
         '<div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;">' + mBadgesHtml + '</div>' +
       '</div>' +
       '<div class="grading-card" style="border-color:' + cmpColor + ';">' +
         '<div style="font-size:0.74rem;font-weight:800;color:' + cmpColor + ';text-transform:uppercase;">' + cmpIcon + ' ' + cmpName + ' (H2H Rival) — Auto-Grade Report</div>' +
-        '<div style="font-size:1.3rem;font-weight:900;color:#fff;margin:4px 0;">New Live Total: <span style="color:' + cmpColor + ';">' + kNewLiveTotal + ' pts</span> <span style="font-size:0.8rem;color:var(--green);">(+' + kWkPts + ' wk • Prior ' + kPriorPts + 'p)</span></div>' +
+        '<div style="font-size:1.3rem;font-weight:900;color:var(--text);margin:4px 0;">New Live Total: <span style="color:' + cmpColor + ';">' + kNewLiveTotal + ' pts</span> <span style="font-size:0.8rem;color:var(--green);">(+' + kWkPts + ' wk • Prior ' + kPriorPts + 'p)</span></div>' +
         '<div style="font-size:0.74rem;color:var(--muted);">Record: <strong>' + k.wonGames + 'W - ' + k.lostGames + 'L</strong> • Final Won: <strong>' + k.finalWonPts + 'p</strong> • Lost Pts: <strong style="color:var(--red);">' + k.finalLostPts + '</strong> • Max Left: <strong>' + ((cmpHiddenGlobal || (cmpTarget && !cmpTarget.hasPicks)) ? '—' : ((kPriorPts + k.finalWonPts + k.pendingPts) + 'p')) + '</strong></div>' +
         '<div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;">' + kBadgesHtml + '</div>' +
       '</div>' +
       '<div class="grading-card" style="border-color:var(--amber);">' +
         '<div style="font-size:0.74rem;font-weight:800;color:var(--amber);text-transform:uppercase;">⚔️ ' + actMeta.shortName + ' vs. ' + cmpShort + ' — Weekly Swing Summary</div>' +
-        '<div style="font-size:1.22rem;font-weight:900;color:#fff;margin:4px 0;">' + h2hLeadHeadline + '</div>' +
+        '<div style="font-size:1.22rem;font-weight:900;color:var(--text);margin:4px 0;">' + h2hLeadHeadline + '</div>' +
         '<div style="font-size:0.74rem;color:var(--muted);">Final Graded Margin: <strong>' + (mNetDiff >= 0 ? '+' + mNetDiff : mNetDiff) + ' pts</strong> • Swing Pts Won: <strong>' + actMeta.shortName + ' ' + swingCompletedWinsM + 'p vs ' + cmpShort + ' ' + swingCompletedWinsK + 'p</strong></div>' +
-        '<div style="margin-top:6px;font-size:0.73rem;color:#fde68a;">⚡ <strong>' + ((actHiddenGlobal || cmpHiddenGlobal) ? '🔒' : swingRemainingCount) + '</strong> H2H disagreement game(s) still pending/in-progress.</div>' +
+        '<div style="margin-top:6px;font-size:0.73rem;color:var(--warn);">⚡ <strong>' + ((actHiddenGlobal || cmpHiddenGlobal) ? '🔒' : swingRemainingCount) + '</strong> H2H disagreement game(s) still pending/in-progress.</div>' +
       '</div>';
   }
 
@@ -565,7 +644,7 @@ function renderStandingsAndGradingView() {
       var rg = gradePickMap(rv.picks, false);
       var hasRvPicks = rg.submittedPicksCount > 0;
       var statusSub = hasRvPicks
-        ? ('<span>Wk: <strong style="color:var(--green);">+' + Math.max(rg.liveProjectedPts, rg.finalWonPts) + 'p</strong> • New Tot: <strong style="color:var(--accent);">' + ((parseFloat(rv.priorPts) || 0) + Math.max(rg.liveProjectedPts, rg.finalWonPts)) + 'p</strong></span>')
+        ? ('<span>Wk: <strong style="color:var(--green);">+' + Math.max(rg.liveProjectedPts, rg.finalWonPts) + 'p</strong> • New Tot: <strong style="color:var(--legacy-accent);">' + ((parseFloat(rv.priorPts) || 0) + Math.max(rg.liveProjectedPts, rg.finalWonPts)) + 'p</strong></span>')
         : ('<span style="color:var(--amber);font-weight:700;">⏳ No Picks Submitted Yet (Prior ' + rv.priorPts + 'p)</span>');
       wHtml += '<div class="metric-card">' +
         '<div style="display:flex;justify-content:space-between;gap:6px;margin-bottom:5px;">' +
@@ -590,79 +669,7 @@ function renderStandingsAndGradingView() {
   var searchEl = document.getElementById("leaderboard-search-input");
   if (searchEl) searchQ = (searchEl.value || "").trim().toLowerCase();
 
-  var rows = [];
-  var seenNames = {};
-
-  if (state.poolMembers && state.poolMembers.length > 0) {
-    for (var p = 0; p < state.poolMembers.length; p++) {
-      var pm = state.poolMembers[p];
-      var stdName = standardizeParticipantName(pm.name);
-      seenNames[stdName.toLowerCase()] = true;
-      var rawPrior = parseFloat(pm.priorPts) || 0;
-      var isWk7Now = isHardcodedWeek7Slate(GAMES);
-      var prior = (isWk7Now && rawPrior >= 80 && pm.wk7PriorPts !== undefined && rawPrior > pm.wk7PriorPts) ? pm.wk7PriorPts : rawPrior;
-      var isAwaiting = !!pm.awaitingSheet;
-      var liveTotalWk = isAwaiting ? 0 : (pm.livePts || 0);
-      var finPts = isAwaiting ? 0 : (pm.finalPts || 0);
-      var computedTot = (typeof pm.newLiveTotal === "number" && !isNaN(pm.newLiveTotal)) ? pm.newLiveTotal : (prior + Math.max(liveTotalWk, finPts));
-      var brkStr = isAwaiting
-        ? ('<span class="watchlist-pill">⏳ Awaiting ' + (state.weekLabel || 'Weekly') + ' Selection Sheet</span>')
-        : ("1x: " + (pm.won1x || 0) + "/" + (pm.count1x || 0) + " • 2x: " + (pm.won2x || 0) + "/" + (pm.count2x || 0) + " • 3x: " + (pm.won3x || 0) + "/" + (pm.count3x || 0));
-      rows.push({
-        name: stdName,
-        priorPts: prior,
-        awaitingSheet: isAwaiting,
-        liveInProgPts: isAwaiting ? 0 : (pm.inProgressPts || 0),
-        liveTotalWk: liveTotalWk,
-        finalPts: finPts,
-        newTotal: computedTot,
-        breakdown: brkStr
-      });
-    }
-  }
-
-  // Ensure Michael A, Kinyion C, and Leaderboard entries appear even before a CSV is uploaded
-  for (var l = 0; l < state.leaderboard.length; l++) {
-    var entry = state.leaderboard[l];
-    var sName = standardizeParticipantName(entry.name);
-    var nLow = sName.toLowerCase();
-    if (seenNames[nLow]) continue;
-    seenNames[nLow] = true;
-
-    var gData = null;
-    for (var w2 = 0; w2 < state.watchlist.length; w2++) {
-      if (standardizeParticipantName(state.watchlist[w2].name).toLowerCase() === nLow) {
-        var candidateGrade = gradePickMap(state.watchlist[w2].picks, false);
-        if (candidateGrade.submittedPicksCount > 0) gData = candidateGrade;
-        break;
-      }
-    }
-
-    var pr = parseFloat(entry.priorPts) || 0;
-    var isAw = !gData;
-    var wkLive = gData ? gData.liveProjectedPts : 0;
-    var wkInProg = gData ? gData.inProgressPts : 0;
-    var wkFin = gData ? gData.finalWonPts : 0;
-    var brk = gData
-      ? ("1x: " + gData.won1x + "/" + gData.chalkCount + " • 2x: " + gData.won2x + "/" + gData.count2x + " • 3x: " + gData.won3x + "/" + gData.count3x)
-      : ('<span class="watchlist-pill">⏳ Awaiting ' + (state.weekLabel || 'Weekly') + ' Selection Sheet</span>');
-
-    rows.push({
-      name: sName,
-      priorPts: pr,
-      awaitingSheet: isAw,
-      liveInProgPts: wkInProg,
-      liveTotalWk: wkLive,
-      finalPts: wkFin,
-      newTotal: pr + Math.max(wkLive, wkFin),
-      breakdown: brk
-    });
-  }
-
-  rows.sort(function(a, b) {
-    if (b.newTotal !== a.newTotal) return b.newTotal - a.newTotal;
-    return b.finalPts - a.finalPts;
-  });
+  var rows = buildPoolLeaderboardRows();
 
   var countLbl = document.getElementById("leaderboard-count-label");
   if (countLbl) countLbl.textContent = rows.length + " Pool Entries Synced";
@@ -686,7 +693,7 @@ function renderStandingsAndGradingView() {
     var isMichael = rw.name === "Michael A";
     var isKinyion = rw.name === "Kinyion C";
     var rowClass = isMichael ? "row-highlight-michael" : (isKinyion ? "row-highlight-kinyion" : (linkedRowProf ? "row-highlight-michael" : ""));
-    var nameColor = isMichael ? "color:#38bdf8;" : (isKinyion ? "color:#c084fc;" : (linkedRowProf ? ("color:" + (linkedRowProf.color || "#34d399") + ";") : "color:#fff;"));
+    var nameColor = isMichael ? "color:var(--text);" : (isKinyion ? "color:var(--text);" : (linkedRowProf ? ("color:" + (linkedRowProf.color || "var(--win)") + ";") : "color:var(--text);"));
 
     var liveColHtml = rw.awaitingSheet
       ? '<td style="color:var(--muted);">— <span style="font-size:0.66rem;">(No Picks Yet)</span></td>'
@@ -695,8 +702,8 @@ function renderStandingsAndGradingView() {
       ? '<td style="color:var(--muted);">—</td>'
       : '<td style="color:var(--green);font-weight:800;">+' + rw.finalPts + ' pts</td>';
     var totColHtml = rw.awaitingSheet
-      ? '<td style="color:var(--accent);font-weight:900;font-size:0.86rem;">' + rw.newTotal + ' pts</td>'
-      : '<td style="color:var(--accent);font-weight:900;font-size:0.86rem;">' + rw.newTotal + ' pts <span style="font-size:0.66rem;color:var(--green);">(' + rw.priorPts + '+' + Math.max(rw.liveTotalWk, rw.finalPts) + ')</span></td>';
+      ? '<td style="color:var(--legacy-accent);font-weight:900;font-size:0.86rem;">' + rw.newTotal + ' pts</td>'
+      : '<td style="color:var(--legacy-accent);font-weight:900;font-size:0.86rem;">' + rw.newTotal + ' pts <span style="font-size:0.66rem;color:var(--green);">(' + rw.priorPts + '+' + Math.max(rw.liveTotalWk, rw.finalPts) + ')</span></td>';
 
     var safeRwName = rw.name.replace(/'/g, "\\'");
     var myKeyLb = getMyInstanceProfileKey();
@@ -709,7 +716,7 @@ function renderStandingsAndGradingView() {
     }
     var cmpTargetVal = linkedRowProf ? linkedRowProf.key : ("pm:" + safeRwName);
     var cmpQuickBtn = (!isLinkedToActive)
-      ? '<button type="button" class="btn-sm" style="padding:2px 7px;font-size:0.64rem;margin-left:6px;border-color:#38bdf866;color:#7dd3fc;" onclick="setCompareTarget(\'' + cmpTargetVal + '\'); switchMainView(\'condensed\');" title="Compare your picks side-by-side against ' + rw.name + ' (Read-Only)">⚔️ Compare H2H</button>'
+      ? '<button type="button" class="btn-sm" style="padding:2px 7px;font-size:0.64rem;margin-left:6px;border-color:var(--border);color:var(--text);" onclick="setCompareTarget(\'' + cmpTargetVal + '\'); switchMainView(\'condensed\');" title="Compare your picks side-by-side against ' + rw.name + ' (Read-Only)">⚔️ Compare H2H</button>'
       : "";
 
     lbHtml += '<tr class="' + rowClass + '">' +
@@ -844,7 +851,7 @@ function renderLiveScoreboardTab() {
 
     outHtml += '<div class="cst-window-header">' +
       '<span>🕒 ' + winName + '</span>' +
-      '<span style="font-size:0.7rem;color:var(--accent);">' + list.length + ' Game(s)</span>' +
+      '<span style="font-size:0.7rem;color:var(--legacy-accent);">' + list.length + ' Game(s)</span>' +
     '</div><div class="live-grid">';
 
     for (var y = 0; y < list.length; y++) {
@@ -960,6 +967,7 @@ function renderGames() {
     if (currentFilter === "3x" && maxPts !== 3) continue;
     if (currentFilter === "diffs" && !isDiff) continue;
     if (currentFilter === "inj" && !cardInjHdr && outCount === 0 && qCount === 0) continue;
+    if (currentFilter === "missing" && getResolvedPickForGame(state[activeProfile].picks, g, false)) continue;
 
     if (q) {
       var awayL5 = getTeamLog(g.away).l5.map(function(x) { return x.opp; }).join(" ");
@@ -1088,9 +1096,9 @@ function renderGames() {
       '</div>' +
       '<div class="own-bar-wrap">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-          '<span style="color:#7dd3fc;font-weight:700;">👥 ' + g.awayCode + ' ' + ownInfo.sourceLabel + ': ' + ownInfo.awayPct + '% (' + ownInfo.awayCount + ')</span>' +
+          '<span style="color:var(--text);font-weight:700;">👥 ' + g.awayCode + ' ' + ownInfo.sourceLabel + ': ' + ownInfo.awayPct + '% (' + ownInfo.awayCount + ')</span>' +
           '<span style="color:var(--muted);font-size:0.64rem;">' + (ownInfo.isHighLeverage ? ('💎 Leverage Edge: ' + ownInfo.bestLevTeam + ' (+' + ownInfo.bestLevEdge + '% vs Field)') : ('Pool Pick Split (' + ownInfo.total + ' entries)')) + '</span>' +
-          '<span style="color:#e9d5ff;font-weight:700;">' + g.homeCode + ' ' + ownInfo.sourceLabel + ': ' + ownInfo.homePct + '% (' + ownInfo.homeCount + ') 👥</span>' +
+          '<span style="color:var(--text);font-weight:700;">' + g.homeCode + ' ' + ownInfo.sourceLabel + ': ' + ownInfo.homePct + '% (' + ownInfo.homeCount + ') 👥</span>' +
         '</div>' +
         '<div class="own-bar-track">' +
           '<div class="own-bar-away" style="width:' + ownInfo.awayPct + '%"></div>' +
@@ -1099,9 +1107,9 @@ function renderGames() {
       '</div>' +
       '<div class="rationale-box">' + g.rationale + '</div>' +
       '<div class="sub-toggles">' +
-        '<button class="btn-sm" style="border-color:var(--accent);color:var(--accent);" onclick="toggleCardIdx(' + g.id + ', 1)">🧠 Insights</button>' +
+        '<button class="btn-sm" style="border-color:var(--legacy-accent);color:var(--legacy-accent);" onclick="toggleCardIdx(' + g.id + ', 1)">🧠 Insights</button>' +
         '<button class="btn-sm" onclick="toggleCardIdx(' + g.id + ', 2)">📅 Last 5 ' + (commonCount > 0 ? '<span style="color:var(--gold);">★' + commonCount + '</span>' : '') + '</button>' +
-        '<button class="btn-sm" onclick="toggleCardIdx(' + g.id + ', 3)">🚑 Injuries' + (outCount > 0 ? (' <span style="background:#ef4444;color:#fff;font-size:0.62rem;font-weight:900;padding:1px 5px;border-radius:999px;">' + outCount + ' OUT</span>') : (qCount > 0 ? (' <span style="background:#f59e0b;color:#18181b;font-size:0.62rem;font-weight:900;padding:1px 5px;border-radius:999px;">' + qCount + ' Q</span>') : '')) + '</button>' +
+        '<button class="btn-sm" onclick="toggleCardIdx(' + g.id + ', 3)">🚑 Injuries' + (outCount > 0 ? (' <span style="background:var(--loss);color:var(--text);font-size:0.62rem;font-weight:900;padding:1px 5px;border-radius:999px;">' + outCount + ' OUT</span>') : (qCount > 0 ? (' <span style="background:var(--accent);color:var(--on-accent);font-size:0.62rem;font-weight:900;padding:1px 5px;border-radius:999px;">' + qCount + ' Q</span>') : '')) + '</button>' +
       '</div>' +
       renderInsightsPanel(g) +
       '<div id="l5-' + g.id + '" class="dual-panel ' + (showAllL5 ? '' : 'hidden') + '">' + renderL5Column(g.away, g.awayRec, commonMap) + renderL5Column(g.home, g.homeRec, commonMap) + '</div>' +
@@ -1137,7 +1145,7 @@ function toggleAllSubpanels(type) {
 
 function setFilter(flt) {
   currentFilter = flt;
-  var list = ["all", "plusev", "leverage", "sway", "ev", "2x", "3x", "diffs", "inj"];
+  var list = ["all", "missing", "plusev", "leverage", "sway", "ev", "2x", "3x", "diffs", "inj"];
   for (var i = 0; i < list.length; i++) {
     var k = list[i];
     var btn = document.getElementById("flt-" + k);

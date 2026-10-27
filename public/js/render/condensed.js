@@ -13,7 +13,7 @@ function toggleCondensedShowAllProfiles() {
   condensedShowAllProfiles = !condensedShowAllProfiles;
   var btn = document.getElementById("btn-cond-col-scope");
   if (btn) {
-    btn.textContent = condensedShowAllProfiles ? "👥 All Profiles" : "⚔️ 2-Way Compare";
+    btn.textContent = condensedShowAllProfiles ? "All profiles" : "2-way compare";
     btn.className = "cond-mode-pill active";
   }
   renderCondensedTable();
@@ -36,9 +36,9 @@ function syncCondensedLayoutModeUI() {
     wrap.classList.add("force-desktop-table");
   }
 
-  if (btnCards) btnCards.className = "cond-mode-pill" + (effectiveMode === "cards" ? " active" : "");
-  if (btnTable) btnTable.className = "cond-mode-pill" + (effectiveMode === "table" ? " active" : "");
-  if (btnScope) btnScope.textContent = condensedShowAllProfiles ? "👥 All Profiles" : "⚔️ 2-Way Compare";
+  if (btnCards) { btnCards.className = "cond-mode-pill" + (effectiveMode === "cards" ? " active" : ""); btnCards.setAttribute("aria-pressed", effectiveMode === "cards"); }
+  if (btnTable) { btnTable.className = "cond-mode-pill" + (effectiveMode === "table" ? " active" : ""); btnTable.setAttribute("aria-pressed", effectiveMode === "table"); }
+  if (btnScope) btnScope.textContent = condensedShowAllProfiles ? "All profiles" : "2-way compare";
 }
 
 function renderCondensedTable() {
@@ -68,16 +68,16 @@ function renderCondensedTable() {
   }
 
   if (theadRow) {
-    var thHtml = '<th>#</th><th>Matchup (CST)</th><th>Sheet Line</th>';
+    var thHtml = '<th>#</th><th>Matchup</th><th>Line</th>';
     for (var pIdx = 0; pIdx < displayProfs.length; pIdx++) {
       var pf = displayProfs[pIdx];
       var isLockedHdr = isProfileHiddenFromViewer(pf.key, null);
-      thHtml += '<th>' + pf.icon + ' ' + pf.shortName + (isLockedHdr ? ' 🔒' : '') + '</th>';
+      thHtml += '<th>' + pf.shortName + (isLockedHdr ? ' (hidden)' : '') + '</th>';
     }
     if (cmpTarget && cmpTarget.isPoolMember) {
-      thHtml += '<th style="color:#facc15;">🏆 ' + cmpTarget.shortName + ' (Compare)</th>';
+      thHtml += '<th>' + cmpTarget.shortName + ' (compare)</th>';
     }
-    thHtml += '<th>👀 Watchlist Rivals (Tap to Set)</th><th>Status / Grade / Swing</th>';
+    thHtml += '<th>Rivals (tap to set)</th><th>Status</th>';
     theadRow.innerHTML = thHtml;
   }
 
@@ -101,9 +101,15 @@ function renderCondensedTable() {
     var kPts = isSameTeamPick(kPick, g.away, g) ? g.awayPts : g.homePts;
     var swingPts = isDiff ? (mPts + kPts) : 0;
 
+    // Pool split only once the game is locked (Friday 9 PM CT by default).
+    var poolSplitTxt = "";
+    if (isGameLockedByCommissioner(g.id)) {
+      var ownG = getGamePoolOwnership(g);
+      poolSplitTxt = g.awayCode + " " + ownG.awayPct + "% / " + g.homeCode + " " + ownG.homePct + "%";
+    }
     var ls = LIVE_SCORES[g.id];
     var liveStr = ls && (ls.inProgress || ls.completed)
-      ? (' <span style="color:#34d399;font-weight:800;">[' + ls.awayScore + '-' + ls.homeScore + (ls.completed ? ' F' : '') + ']</span>')
+      ? (' <span class="cond-live">' + ls.awayScore + '–' + ls.homeScore + (ls.completed ? ' Final' : ' Live') + '</span>')
       : "";
 
     var wlBtns = "";
@@ -118,12 +124,12 @@ function renderCondensedTable() {
     }
 
     var statusHtml = anyPairHidden
-      ? '<span class="swing-pill swing-agree">🔒 Locked</span>'
+      ? '<span class="swing-pill swing-agree">Hidden</span>'
       : (!mPick
-          ? '<span class="swing-pill swing-agree">— No Pick</span>'
+          ? '<span class="swing-pill swing-agree">No pick</span>'
           : (isDiff
-              ? '<span class="swing-pill swing-diff">⚔️ ' + swingPts + 'pt Swing</span>'
-              : '<span class="swing-pill swing-agree">✓ Both: ' + String(mPick).slice(0, 8) + '</span>'));
+              ? '<span class="swing-pill swing-diff">' + swingPts + '-pt swing</span>'
+              : '<span class="swing-pill swing-agree">Both: ' + String(mPick).slice(0, 8) + '</span>'));
 
     if (ls && ls.completed) {
       var winner = ls.awayScore > ls.homeScore ? g.away : (ls.homeScore > ls.awayScore ? g.home : null);
@@ -146,17 +152,17 @@ function renderCondensedTable() {
       var uCode = uPick ? (isSameTeamPick(uPick, g.away, g) ? g.awayCode : g.homeCode) : "—";
 
       if (uHidden) {
-        profTdsHtml += '<td><span class="cond-locked-pill" style="cursor:default;opacity:0.85;" title="Hidden on ' + uMeta.name + '\'s account until kickoff">🔒 Hidden Until Kickoff</span></td>';
+        profTdsHtml += '<td><span class="cond-locked-pill" style="cursor:default;opacity:0.85;" title="Hidden on ' + uMeta.name + '\'s account until kickoff">Hidden until kickoff</span></td>';
         profMobileBoxesHtml += '<div class="cond-m-prof-box">' +
-          '<div class="cond-m-prof-label" style="color:' + uMeta.color + ';"><span>⚔️ ' + uMeta.shortName + '</span><span>🔒</span></div>' +
-          '<div style="text-align:center;font-weight:800;font-size:0.68rem;color:#fca5a5;padding:4px 0;">🔒 Hidden Pre-Kickoff</div>' +
+          '<div class="cond-m-prof-label"><span>' + uMeta.shortName + '</span></div>' +
+          '<div class="cond-m-value is-muted">Hidden until kickoff</div>' +
         '</div>';
       } else if (!isEditableMine) {
         // Read-only display for compared user profile — you cannot click to edit another user's picks!
-        profTdsHtml += '<td><span class="badge ' + (uPts === 3 ? 'badge-3x' : (uPts === 2 ? 'badge-2x' : 'badge-1x')) + '" style="font-size:0.72rem;padding:4px 8px;">⚔️ ' + uCode + ' (' + uPts + 'x)</span></td>';
-        profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:rgba(192,132,252,0.35);">' +
-          '<div class="cond-m-prof-label" style="color:' + uMeta.color + ';"><span>⚔️ ' + uMeta.shortName + ' (Read-Only)</span><span>' + uPts + 'x</span></div>' +
-          '<div style="text-align:center;font-weight:800;font-size:0.74rem;color:#e9d5ff;padding:4px 0;">' + uCode + ' (' + uPts + 'x)</div>' +
+        profTdsHtml += '<td><span class="badge ' + (uPts === 3 ? 'badge-3x' : (uPts === 2 ? 'badge-2x' : 'badge-1x')) + '" style="font-size:0.72rem;padding:4px 8px;">' + uCode + ' · ' + uPts + 'x</span></td>';
+        profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:var(--border);">' +
+          '<div class="cond-m-prof-label"><span>' + uMeta.shortName + '</span><span>' + uPts + 'x</span></div>' +
+          '<div class="cond-m-value">' + uCode + '</div>' +
         '</div>';
       } else {
         profTdsHtml += '<td>' +
@@ -166,7 +172,7 @@ function renderCondensedTable() {
           '</div>' +
         '</td>';
         profMobileBoxesHtml += '<div class="cond-m-prof-box">' +
-          '<div class="cond-m-prof-label" style="color:' + uMeta.color + ';"><span>🏈 ' + uMeta.shortName + ' (You)</span><span>' + uPts + 'x</span></div>' +
+          '<div class="cond-m-prof-label"><span>' + uMeta.shortName + ' (you)</span><span>' + uPts + 'x</span></div>' +
           '<div class="cond-m-btn-pair">' +
             '<button type="button" class="cond-btn ' + (isSameTeamPick(uPick, g.away, g) ? uMeta.btnClass : '') + '" onclick="pickSideForProfile(\'' + uMeta.key + '\', ' + g.id + ', 1)">' + g.awayCode + '</button>' +
             '<button type="button" class="cond-btn ' + (isSameTeamPick(uPick, g.home, g) ? uMeta.btnClass : '') + '" onclick="pickSideForProfile(\'' + uMeta.key + '\', ' + g.id + ', 2)">' + g.homeCode + '</button>' +
@@ -176,19 +182,19 @@ function renderCondensedTable() {
     }
     if (cmpTarget && cmpTarget.isPoolMember) {
       var pmPick = cmpTarget.hasPicks ? getResolvedPickForGame(cmpTarget.picks, g, false) : null;
-      var pmCode = pmPick ? (isSameTeamPick(pmPick, g.away, g) ? g.awayCode : g.homeCode) : "⏳ No Sheet";
+      var pmCode = pmPick ? (isSameTeamPick(pmPick, g.away, g) ? g.awayCode : g.homeCode) : "No sheet yet";
       var pmPts = pmPick ? (isSameTeamPick(pmPick, g.away, g) ? g.awayPts : g.homePts) : 1;
-      profTdsHtml += '<td><span class="badge badge-2x" style="font-size:0.7rem;">🏆 ' + pmCode + (pmPick ? ' (' + pmPts + 'x)' : '') + '</span></td>';
-      profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:rgba(250,204,21,0.4);">' +
-        '<div class="cond-m-prof-label" style="color:#facc15;"><span>🏆 ' + cmpTarget.shortName + '</span><span>' + (pmPick ? pmPts + 'x' : '⏳') + '</span></div>' +
-        '<div style="text-align:center;font-weight:800;font-size:0.72rem;color:#fef08a;padding:4px 0;">' + pmCode + '</div>' +
+      profTdsHtml += '<td><span class="badge badge-1x" style="font-size:0.72rem;">' + pmCode + (pmPick ? ' · ' + pmPts + 'x' : '') + '</span></td>';
+      profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:var(--border);">' +
+        '<div class="cond-m-prof-label"><span>' + cmpTarget.shortName + '</span><span>' + (pmPick ? pmPts + 'x' : '') + '</span></div>' +
+        '<div class="cond-m-value">' + pmCode + '</div>' +
       '</div>';
     }
 
     html += '<tr class="' + (isDiff ? 'diff-row' : '') + '">' +
       '<td><strong>#' + g.id + '</strong></td>' +
       '<td><strong>' + g.away + '</strong> <span style="color:var(--muted);">(' + g.awayPts + 'x)</span> at <strong>' + g.home + '</strong> <span style="color:var(--muted);">(' + g.homePts + 'x)</span>' + liveStr + '</td>' +
-      '<td style="color:var(--muted);"><div>' + g.poolLine + '</div><div style="font-size:0.65rem;color:#93c5fd;">👥 ' + g.awayCode + ' ' + getGamePoolOwnership(g).awayPct + '% / ' + g.homeCode + ' ' + getGamePoolOwnership(g).homePct + '%</div></td>' +
+      '<td style="color:var(--muted);"><div>' + g.poolLine + '</div>' + (poolSplitTxt ? '<div class="cond-pool">Pool ' + poolSplitTxt + '</div>' : '') + '</td>' +
       profTdsHtml +
       '<td><div class="cond-pick-group" style="flex-wrap:wrap;">' + wlBtns + '</div></td>' +
       '<td>' + statusHtml + '</td>' +
@@ -196,8 +202,8 @@ function renderCondensedTable() {
 
     var maxPts = Math.max(g.awayPts, g.homePts);
     var multCardCls = maxPts === 3 ? " mult-3x-card" : (maxPts === 2 ? " mult-2x-card" : "");
-    var aBadge = g.awayPts > 1 ? (' <span style="color:var(--amber);font-weight:900;">(' + g.awayPts + 'x)</span>') : '';
-    var hBadge = g.homePts > 1 ? (' <span style="color:var(--amber);font-weight:900;">(' + g.homePts + 'x)</span>') : '';
+    var aBadge = g.awayPts > 1 ? (' <span class="cond-mult">' + g.awayPts + 'x</span>') : '';
+    var hBadge = g.homePts > 1 ? (' <span class="cond-mult">' + g.homePts + 'x</span>') : '';
     var gridColsClass = (!condensedShowAllProfiles && displayProfs.length + (cmpTarget && cmpTarget.isPoolMember ? 1 : 0) <= 2) ? "cond-m-profiles-grid two-col-grid" : "cond-m-profiles-grid";
 
     mobileHtml += '<div class="cond-m-card' + (isDiff ? ' diff-card' : '') + multCardCls + '">' +
@@ -208,7 +214,7 @@ function renderCondensedTable() {
           liveStr +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">' +
-          '<span class="cond-m-line-pill">' + g.poolLine + ' • 👥 ' + getGamePoolOwnership(g).awayPct + '%/' + getGamePoolOwnership(g).homePct + '%</span>' +
+          '<span class="cond-m-line-pill">' + g.poolLine + (poolSplitTxt ? ' · Pool ' + poolSplitTxt : '') + '</span>' +
           statusHtml +
         '</div>' +
       '</div>' +
@@ -216,13 +222,13 @@ function renderCondensedTable() {
         profMobileBoxesHtml +
       '</div>' +
       '<div class="cond-m-rivals-row">' +
-        '<span class="cond-m-rivals-label">👀 Rivals (Tap):</span>' +
+        '<span class="cond-m-rivals-label">Rivals</span>' +
         '<div class="cond-m-rivals-btns">' + wlBtns + '</div>' +
       '</div>' +
     '</div>';
   }
   var emptyMsg = (actHiddenGlobal || cmpHiddenGlobal)
-    ? "🔒 Head-to-Head Differences are hidden while one of the compared profiles is locked."
+    ? "Head-to-head differences are hidden while one of the compared profiles is hidden."
     : "No Head-to-Head Differences found between " + actMeta.name + " and " + (cmpTarget ? cmpTarget.name : "Rival") + ".";
   tbody.innerHTML = html || ('<tr><td colspan="' + (displayProfs.length + 5) + '" style="text-align:center;padding:14px;color:var(--muted);">' + emptyMsg + '</td></tr>');
   if (mobileList) {
@@ -325,7 +331,7 @@ async function showOppTooltip(ev, teamName) {
     rows += '<div style="margin:2px 0;"><span class="wl-badge wl-' + r.wl + '">' + r.wl + '</span> ' + r.wk + ': ' + r.loc + ' ' + dispOpp + ' (<strong>' + r.score + '</strong>)</div>';
   }
   var headerName = formatOppWithRank(teamName);
-  tt.innerHTML = '<div style="font-weight:800;color:#fff;margin-bottom:4px;border-bottom:1px solid #334155;padding-bottom:3px;">' + headerName + ' (' + data.rec + ') — Last 5 Games</div>' + rows;
+  tt.innerHTML = '<div style="font-weight:800;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px;">' + headerName + ' (' + data.rec + ') — Last 5 Games</div>' + rows;
   tt.style.display = "block";
   tt.style.left = Math.min(window.innerWidth - 315, ev.clientX + 14) + "px";
   tt.style.top = Math.min(window.innerHeight - 190, ev.clientY + 14) + "px";

@@ -25,7 +25,7 @@ function buildLeaderboardLinkSelectHtml(profKey, currentLinkedName) {
     }
   }
   var curLow = standardizeParticipantName(currentLinkedName || "").toLowerCase();
-  var html = '<select class="search-input" style="min-width:155px;max-width:210px;padding:3px 6px;font-size:0.7rem;color:#6ee7b7;border-color:#10b98166;" onchange="linkUserProfileToLeaderboard(\'' + profKey + '\', this.value)">';
+  var html = '<select class="search-input" style="min-width:155px;max-width:210px;padding:3px 6px;font-size:0.7rem;color:var(--win);border-color:var(--border);" onchange="linkUserProfileToLeaderboard(\'' + profKey + '\', this.value)">';
   html += '<option value="">— Not Linked to Pool —</option>';
   for (var k = 0; k < allNames.length; k++) {
     var item = allNames[k];
@@ -146,12 +146,12 @@ function openUserAndPrivacyModal() {
 
   document.getElementById("modal-team-title").textContent = "🔒 My Pick Privacy & Head-to-Head Settings";
   document.getElementById("modal-team-body").innerHTML =
-    '<div style="background:rgba(16,185,129,0.12);border:1px solid #10b981;border-radius:10px;padding:12px;margin-bottom:12px;">' +
+    '<div style="background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' +
-        '<strong style="font-size:0.88rem;color:#fff;">👤 Your Bound Instance: <span style="color:#34d399;">' + myMeta.name + '</span></strong>' +
-        '<button type="button" class="btn-sm" style="border-color:#38bdf8;color:#7dd3fc;font-weight:800;" onclick="closeOppModal(); openAuthModal();">🔐 Account & Google/Email Sign-In</button>' +
+        '<strong style="font-size:0.88rem;color:var(--text);">👤 Your Bound Instance: <span style="color:var(--win);">' + myMeta.name + '</span></strong>' +
+        '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);font-weight:800;" onclick="closeOppModal(); openAuthModal();">🔐 Account & Google/Email Sign-In</button>' +
       '</div>' +
-      '<div style="font-size:0.73rem;color:#cbd5e1;line-height:1.4;">' +
+      '<div style="font-size:0.73rem;color:var(--text);line-height:1.4;">' +
         '🛡️ <strong>No Profile Swapping or PIN Bypass:</strong> Each user signs into their own account on their own device. Nobody can switch into your profile or enter a PIN to peek at your hidden picks.' +
       '</div>' +
     '</div>' +
@@ -159,14 +159,14 @@ function openUserAndPrivacyModal() {
     '<div style="background:var(--card);border:1px solid var(--border-muted);border-radius:10px;padding:12px;margin-bottom:12px;">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">' +
         '<div>' +
-          '<div style="font-size:0.84rem;font-weight:800;color:#fff;">🕵️ Pre-Kickoff Anti-Spy Pick Visibility</div>' +
+          '<div style="font-size:0.84rem;font-weight:800;color:var(--text);">🕵️ Pre-Kickoff Anti-Spy Pick Visibility</div>' +
           '<div style="font-size:0.71rem;color:var(--muted);">When hidden, your picks stay 100% visible to YOU on your signed-in device, but show as <code>🔒 Hidden Until Kickoff</code> on everyone else\'s screens.</div>' +
         '</div>' +
-        '<button type="button" class="btn-sm" style="padding:7px 14px;font-weight:900;' + (myPriv.hidden ? 'background:rgba(239,68,68,0.22);border-color:#ef4444;color:#fca5a5;' : 'background:rgba(16,185,129,0.22);border-color:#10b981;color:#6ee7b7;') + '" onclick="toggleQuickLockActiveProfile()">' +
+        '<button type="button" class="btn-sm" style="padding:7px 14px;font-weight:900;' + (myPriv.hidden ? 'background:var(--raised);border-color:var(--border);color:var(--loss);' : 'background:var(--raised);border-color:var(--border);color:var(--win);') + '" onclick="toggleQuickLockActiveProfile()">' +
           (myPriv.hidden ? '🔒 Currently Hidden From Others (Click to Make Public)' : '👁️ Currently Public (Click to Hide From Others)') +
         '</button>' +
       '</div>' +
-      '<div style="display:flex;flex-direction:column;gap:7px;font-size:0.74rem;color:#93c5fd;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);">' +
+      '<div style="display:flex;flex-direction:column;gap:7px;font-size:0.74rem;color:var(--text);padding-top:8px;border-top:1px solid var(--border);">' +
         '<label style="cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" ' + (myPriv.revealAtKickoff !== false ? 'checked' : '') + ' onchange="toggleProfilePrivacyOption(\'' + myKey + '\', \'revealAtKickoff\', this.checked)" /> 🏈 Automatically reveal each individual game\'s pick to other users as soon as that game kicks off</label>' +
         '<label style="cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" ' + (myPriv.autoUnhideOnSheet === true ? 'checked' : '') + ' onchange="toggleProfilePrivacyOption(\'' + myKey + '\', \'autoUnhideOnSheet\', this.checked)" /> 📊 Automatically reveal all my picks once the official weekly pool spreadsheet is imported</label>' +
         '<label style="cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" ' + (myPriv.autoUnhideFridayNight === true ? 'checked' : '') + ' onchange="toggleProfilePrivacyOption(\'' + myKey + '\', \'autoUnhideFridayNight\', this.checked)" /> 🌙 Automatically reveal my picks starting Friday at 5:00 PM CST</label>' +
@@ -174,11 +174,11 @@ function openUserAndPrivacyModal() {
     '</div>' +
 
     '<div style="background:var(--panel-alt);border:1px solid var(--border-muted);border-radius:10px;padding:12px;">' +
-      '<div style="font-size:0.82rem;font-weight:800;color:#bae6fd;margin-bottom:6px;">⚔️ Read-Only Head-to-Head Comparison Target</div>' +
+      '<div style="font-size:0.82rem;font-weight:800;color:var(--text);margin-bottom:6px;">⚔️ Read-Only Head-to-Head Comparison Target</div>' +
       '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Select any other signed-in user or any of the 89 pool leaderboard members to compare picks against side-by-side (read-only):</div>' +
       '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">' +
-        '<span style="font-size:0.76rem;color:#fff;font-weight:800;">Currently Comparing vs: <span style="color:#facc15;">' + (cmpDesc ? cmpDesc.name : 'Kinyion C') + '</span></span>' +
-        '<button type="button" class="btn-sm" style="border-color:#38bdf8;color:#7dd3fc;font-weight:800;" onclick="closeOppModal(); switchMainView(\'condensed\');">📋 Open Side-by-Side Comparison</button>' +
+        '<span style="font-size:0.76rem;color:var(--text);font-weight:800;">Currently Comparing vs: <span style="color:var(--warn);">' + (cmpDesc ? cmpDesc.name : 'Kinyion C') + '</span></span>' +
+        '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);font-weight:800;" onclick="closeOppModal(); switchMainView(\'condensed\');">📋 Open Side-by-Side Comparison</button>' +
       '</div>' +
     '</div>';
 
@@ -204,7 +204,7 @@ function toggleProfilePrivacyOption(profKey, fieldName, checked) {
 function syncActiveProfileControlsUI() {
   var meta = getProfileMetaByKey(activeProfile);
   var topProf = document.getElementById("top-profile-name");
-  if (topProf) topProf.textContent = (meta.icon ? meta.icon + " " : "") + meta.name;
+  if (topProf) topProf.textContent = meta.name;
   if (!state[activeProfile]) state[activeProfile] = { picks: {}, tiebreaker: "28-24", target: 20 };
   var tbVal = state[activeProfile].tiebreaker || "28-24";
   var tbEl = document.getElementById("tiebreaker-input");

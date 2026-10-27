@@ -247,6 +247,8 @@ async function syncAllLiveTrackingData(saveToCloudAfter) {
         for (var d = 0; d < teamsList.length; d++) {
           var t = teamsList[d].team;
           if (t && t.id) {
+            // Display-only: colour + short code for the logo fallback circles on the Picks screen.
+            ESPN_TEAM_INFO[t.id] = { color: t.color ? "#" + t.color : "", abbr: t.abbreviation || "" };
             if (t.location) {
               ESPN_TEAM_MAP[t.location.toLowerCase()] = t.id;
               ESPN_TEAM_MAP[normalizeTeamKey(t.location)] = t.id;
@@ -503,7 +505,7 @@ function renderSwayFeed() {
   for (var j = 0; j < sways.length; j++) {
     var g = sways[j];
     html += '<div class="sway-item ' + (g.sway.level === "critical" ? "critical" : "") + '" onclick="focusGame(' + g.id + ')">' +
-      '<div style="font-weight:800;color:#fff;">#' + g.id + ' ' + g.awayCode + ' at ' + g.homeCode + ': ' + g.sway.title + '</div>' +
+      '<div style="font-weight:800;color:var(--text);">#' + g.id + ' ' + g.awayCode + ' at ' + g.homeCode + ': ' + g.sway.title + '</div>' +
       '<div style="color:var(--muted);margin-top:2px;">' + g.sway.detail + '</div></div>';
   }
   document.getElementById("sway-feed-list").innerHTML = html;

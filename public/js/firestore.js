@@ -368,6 +368,9 @@ function pushProfileToFirebase(profKey) {
     safeSetStorage("sat_device_test_sim_v16", JSON.stringify(state.test || {}));
     return;
   }
+  // Without a signed-in account nothing but the local sandbox is saved, so a visitor can
+  // never overwrite a pool member's picks.
+  if (!AUTH_SESSION) return;
   var profObj = state[profKey];
   if (!profObj) return;
   var meta = getProfileMetaByKey(profKey);
@@ -428,7 +431,7 @@ function renderBotSyncPill() {
   var espn = BOT_STATUS && BOT_STATUS.espn;
   if (!gmail) {
     el.textContent = "🤖 Bot: no data";
-    el.style.color = "#94a3b8";
+    el.style.color = "var(--text)";
     return;
   }
   var lastOk = gmail.lastSuccessAt;

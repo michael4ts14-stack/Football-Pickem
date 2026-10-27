@@ -1,267 +1,117 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<title>V16 MASTER COMMAND CENTER — Separated at Turf Pick'em</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Separated at Turf Pick'em</title>
+<script>
+  // Theme before first paint. Dark is the default even when the device is in light mode.
+  (function() {
+    var t = "dark";
+    try { if (localStorage.getItem("sat_theme_v1") === "light") t = "light"; } catch (e) {}
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
+<meta name="theme-color" content="#0e0f11" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" />
 <!-- Mozilla PDF.js for Direct In-Browser PDF Parsing -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <!-- Official Google Firebase SDKs (App + Authentication + Cloud Firestore )f -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<link rel="stylesheet" href="/css/base.css?v=2026-10-27" />
-<link rel="stylesheet" href="/css/views.css?v=2026-10-27" />
-<link rel="stylesheet" href="/css/components.css?v=2026-10-27" />
-<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-27" />
+<script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<link rel="stylesheet" href="/css/tokens.css?v=2026-10-27b" />
+<link rel="stylesheet" href="/css/base.css?v=2026-10-27b" />
+<link rel="stylesheet" href="/css/views.css?v=2026-10-27b" />
+<link rel="stylesheet" href="/css/components.css?v=2026-10-27b" />
+<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-27b" />
+<link rel="stylesheet" href="/css/app.css?v=2026-10-27b" />
 </head>
 <body>
+<a class="skip-link" href="#app-content">Skip to content</a>
+<span id="cloud-status-text" class="hidden">V16 COMMAND CENTER (`football-pickem-46206`)</span>
 
-<span id="cloud-status-text" class="hidden">🔥 V16 COMMAND CENTER (`football-pickem-46206`)</span>
+<div class="app-shell">
+<!-- Desktop sidebar (>= 900px). The #tab-mode-* ids are driven by switchMainView(). -->
+<nav class="app-sidebar" aria-label="Main">
+  <div class="app-brand">
+    <span class="app-brand-name">Separated at Turf</span>
+    <span class="app-brand-sub">College Pick'em '26</span>
+  </div>
+  <div class="nav-list">
+    <button type="button" id="tab-mode-cards" class="mode-tab-btn active" onclick="switchMainView('cards')"><i data-lucide="square-check"></i><span>Picks</span></button>
+    <button type="button" id="tab-mode-live" class="mode-tab-btn live-tab" onclick="switchMainView('live')"><i data-lucide="activity"></i><span>Live</span></button>
+    <button type="button" id="tab-mode-standings" class="mode-tab-btn standings-tab" onclick="switchMainView('standings')"><i data-lucide="chart-no-axes-column"></i><span>Standings</span></button>
+    <button type="button" id="tab-mode-condensed" class="mode-tab-btn" onclick="switchMainView('condensed')" hidden>Table</button>
+  </div>
+  <div class="nav-group-label">More</div>
+  <div class="nav-list nav-list-plain">
+    <button type="button" class="nav-item commish-only-hidden" id="nav-more-weeks" onclick="openMoreSection('weeks')">Past weeks</button>
+    <button type="button" class="nav-item" onclick="openEvSimulatorDrawer()">EV Simulator</button>
+    <button type="button" class="nav-item" data-more-section="export" onclick="openMoreSection('export')">Export</button>
+    <button type="button" class="nav-item" onclick="openAuthModal()">Account</button>
+    <button type="button" class="nav-item commish-only-hidden" id="nav-more-commish" onclick="openCommissionerModal('submissions')">Commissioner</button>
+    <button type="button" class="nav-item" data-more-section="settings" onclick="openMoreSection('settings')">Settings</button>
+  </div>
+  <div class="sidebar-foot">
+    <div class="bot-status commish-only-hidden" id="bot-sync-pill" title="Gmail/ESPN bot status">Bot …</div>
+    <button type="button" id="btn-toggle-desktop-rail" class="link-btn rail-toggle" onclick="toggleDesktopSidebarCollapse()" aria-pressed="false" aria-label="Hide side panel">Hide side panel</button>
+  </div>
+</nav>
+
+<div class="app-body">
 
 <div id="commish-announcement-banner">
   <span id="commish-announcement-text"></span>
-  <button type="button" class="btn-sm" style="padding:2px 7px;font-size:0.65rem;" onclick="dismissCommishBanner()">✕ Dismiss</button>
+  <button type="button" class="btn-sm" onclick="dismissCommishBanner()" aria-label="Dismiss announcement"><i data-lucide="x"></i></button>
 </div>
-<div class="topbar">
-  <div class="topbar-left">
-    <span class="brand" id="sheet-title-brand">🏈 Week 8 (CST)</span>
-    <div class="mode-tabs">
-      <button id="tab-mode-cards" class="mode-tab-btn active" onclick="switchMainView('cards')">🏈 Make Picks</button>
-      <button id="tab-mode-condensed" class="mode-tab-btn" onclick="switchMainView('condensed')">⚡ Condensed</button>
-      <button id="tab-mode-live" class="mode-tab-btn live-tab" onclick="switchMainView('live')">🔴 Live Games</button>
-      <button id="tab-mode-standings" class="mode-tab-btn standings-tab" onclick="switchMainView('standings')">🏆 Leaderboard</button>
-    </div>
-    <button id="btn-open-review-checklist" class="btn-sm" onclick="openReviewChecklistModal()" style="background:rgba(16,185,129,0.2);border-color:#10b981;color:#6ee7b7;font-weight:800;" title="Open Compact 23-Game Review Checklist before locking/submitting">✅ Review (<span id="top-review-count">23/23</span>)</button>
-    <button id="btn-open-ev-sim-drawer" class="btn-sm" onclick="openEvSimulatorDrawer()" style="background:rgba(56,189,248,0.18);border-color:#38bdf8;color:#7dd3fc;font-weight:800;" title="Open Slide-Out Pick'em EV & 5,000-Trial Probability Simulator">🎲 EV Sim</button>
-    <button id="btn-simple-mode-toggle" class="btn-sm" onclick="toggleSimpleUiMode()" style="border-color:#38bdf8;color:#7dd3fc;font-weight:800;" title="Toggle between Simple Mode (Default) and Advanced Analytics Mode">🧠 Advanced: OFF</button>
-    <button id="btn-commish-console" class="btn-sm commish-top-btn commish-only-hidden" onclick="openCommissionerModal('submissions')" title="Verified Commissioner Command Console">👑 Commish</button>
-  </div>
 
-  <div class="topbar-right">
-    <div class="mini-stat commish-only-hidden" id="bot-sync-pill" title="Gmail/ESPN bot status">🤖 Bot …</div>
-    <div class="mini-stat" id="top-profile-pill" onclick="openSettingsDrawer()" style="cursor:pointer;" title="Switch linked buy-in entries or manage account">
-      👤 <strong id="top-profile-name">Michael A</strong> <span id="top-profile-instance-tag" style="color:#34d399;font-size:0.65rem;">⚙️</span>
-    </div>
-    <div class="risk-meter-pill" id="top-risk-meter" onclick="openEvSimulatorDrawer()" style="cursor:pointer;" title="Click to open EV & Probability Simulator Drawer">
-      <span>1x: <strong id="rm-chalk" style="color:#fff;">25</strong></span>
-      <span>2x: <strong id="rm-2x" style="color:var(--amber);">1</strong></span>
-      <span>3x: <strong id="rm-3x" style="color:var(--red);">0</strong></span>
-      <span>Max: <strong id="top-ceiling" style="color:var(--green);">27</strong></span>
-      <span>EV: <strong id="top-ev" style="color:var(--accent);">17.8</strong></span>
-    </div>
-    <button id="btn-toggle-desktop-rail" class="btn-sm" onclick="toggleDesktopSidebarCollapse()" style="padding:5px 8px;font-size:0.7rem;" title="Collapse or expand the sticky desktop sidebar">◀ Rail</button>
-    <button id="btn-open-settings-drawer" class="btn-sm" onclick="openSettingsDrawer()" style="background:var(--panel-alt);border-color:#94a3b8;color:#fff;font-weight:800;" title="Open Slide-Out Menu (Account, Multi-Buy-In, Privacy, Field Sim & Commissioner Archive)">☰ Menu</button>
-    <span id="live-sync-badge" class="sync-pill" onclick="syncAllLiveTrackingData(true)" style="cursor:pointer;" title="Tap to sync live ESPN scores & injuries">● Live</span>
-  </div>
-</div>
 
 <div class="layout" id="main-layout">
-  <aside class="sidebar" id="main-sidebar">
-    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--panel);padding:8px 10px;border-radius:9px;border:1px solid var(--border-muted);">
-      <strong style="font-size:0.8rem;color:var(--accent);">📊 Sticky Command Rail</strong>
-      <div style="display:flex;gap:5px;">
-        <button class="btn-sm" style="padding:3px 7px;font-size:0.67rem;" onclick="openEvSimulatorDrawer()">🎲 EV Sim</button>
-        <button class="btn-sm" style="padding:3px 7px;font-size:0.67rem;" onclick="toggleDesktopSidebarCollapse(); toggleMobileSidebar(false);">✕ Hide Rail</button>
-      </div>
-    </div>
 
-    <div class="side-box">
-      <div class="side-title">
-        <span>👤 My Instance & Profile</span>
-        <div style="display:flex;gap:4px;">
-          <button class="btn-sm" style="padding:3px 7px;font-size:0.68rem;border-color:#38bdf8;color:#7dd3fc;font-weight:800;" onclick="openAuthModal()">🔐 Account</button>
-          <button class="btn-sm" style="padding:3px 7px;font-size:0.68rem;border-color:#c084fc;color:#e9d5ff;" onclick="openUserAndPrivacyModal()">🔒 Privacy</button>
-          <button class="btn-sm" style="padding:3px 7px;font-size:0.68rem;" onclick="copyOtherProfile()">📥 Copy</button>
-        </div>
-      </div>
-      <div id="sidebar-instance-banner" class="instance-lock-banner"></div>
-      <div class="privacy-Control-strip">
-        <span id="active-privacy-status-pill" style="font-size:0.69rem;color:#cbd5e1;font-weight:700;">🔓 Picks Visible</span>
-        <div style="display:flex;gap:4px;">
-          <button id="btn-quick-hide-active" class="btn-sm" style="padding:3px 7px;font-size:0.67rem;" onclick="toggleQuickLockActiveProfile()" title="Hide/Lock active user's picks so others cannot spy">🔒 Hide My Picks</button>
-          <button id="btn-sidebar-blind" class="btn-sm" style="padding:3px 7px;font-size:0.67rem;" onclick="toggleBlindMode()" title="Hide all other users' picks while you pick">🙈 Blind</button>
-        </div>
-      </div>
-      <div class="profile-tabs" id="dynamic-profile-tabs" style="grid-template-columns:1fr 1fr;">
-        <button id="tab-michael" class="profile-tab active-michael" onclick="switchProfile(getMyInstanceProfileKey())">
-          🏈 My Official Picks<br><span id="prof-sub-michael" style="font-size:0.68rem;font-weight:500;">Bound Instance</span>
-        </button>
-        <button id="tab-test" class="profile-tab" onclick="switchProfile('test')">
-          🧪 My Sandbox Sim<br><span id="prof-sub-test" style="font-size:0.68rem;font-weight:500;">Local What-If Mode</span>
-        </button>
-      </div>
-      <table class="h2h-table">
-        <thead><tr><th>Profile</th><th>Ceiling</th><th>EV</th><th>Live Pts</th><th>Final</th></tr></thead>
-        <tbody id="h2h-dynamic-tbody">
-          <tr>
-            <td><strong style="color:#7dd3fc;">Michael A</strong></td>
-            <td id="h2h-m-ceil">27</td><td id="h2h-m-ev">17.8</td><td id="h2h-m-live" style="color:var(--green);font-weight:800;">0</td><td id="h2h-m-dogs">0-0</td>
-          </tr>
-          <tr>
-            <td><strong style="color:#e9d5ff;">Kinyion</strong></td>
-            <td id="h2h-k-ceil">27</td><td id="h2h-k-ev">17.5</td><td id="h2h-k-live" style="color:var(--green);font-weight:800;">0</td><td id="h2h-k-dogs">0-0</td>
-          </tr>
-          <tr id="h2h-row-test">
-            <td><strong style="color:#f59e0b;">🧪 Test Sim</strong></td>
-            <td id="h2h-t-ceil">27</td><td id="h2h-t-ev">17.8</td><td id="h2h-t-live" style="color:var(--green);font-weight:800;">0</td><td id="h2h-t-dogs">0-0</td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="compare-bar-strip">
-        <span style="font-size:0.69rem;font-weight:800;color:#e2e8f0;white-space:nowrap;">⚔️ Compare vs:</span>
-        <select id="sidebar-compare-select" class="compare-select" onchange="setCompareTarget(this.value)" title="Select any User Profile or Leaderboard Participant to compare picks against"></select>
-        
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.74rem;color:var(--muted);">
-        <span id="h2h-diffs-label">Head-to-Head Diffs:</span> <strong id="h2h-diffs" style="color:#fff;">7</strong>
-        <div style="display:flex;gap:5px;">
-          <button class="btn-sm" onclick="setFilter('diffs'); toggleMobileSidebar(false);">⚔️ Diffs</button>
-          <button class="btn-sm" onclick="switchMainView('condensed'); toggleMobileSidebar(false);">📋 Side-by-Side</button>
-          <button class="btn-sm" onclick="printCheckmarkSheet()">🖨️ Print</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Custom Pool Member Watchlist Box -->
-    <div class="side-box">
-      <div class="side-title">
-        <span>👀 Pool Member Watchlist (3 Rivals)</span>
-        <button class="btn-sm" style="padding:2px 6px;font-size:0.66rem;" onclick="switchMainView('standings'); toggleMobileSidebar(false);">Edit Picks</button>
-      </div>
-      <div id="sidebar-watchlist-summary" style="font-size:0.72rem;display:flex;flex-direction:column;gap:5px;"></div>
-    </div>
-
-    <div class="side-box">
-      <div class="side-title">📊 Live Outright Scoreboard</div>
-      <div class="score-grid">
-        <div class="metric-card">
-          <div class="metric-label">Max Ceiling</div>
-          <div class="metric-val" id="stat-ceiling">27 pts</div>
-          <div class="metric-sub" id="stat-dogs-sub">1 multiplier dog</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Expected EV</div>
-          <div class="metric-val" id="stat-ev" style="color:var(--accent);">17.85</div>
-          <div class="metric-sub">True Moneyline EV</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Hit Target Odds</div>
-          <div class="metric-val" id="stat-target-prob" style="color:var(--green);">31%</div>
-          <div class="metric-sub" id="stat-target-label">Chance ≥ 20 pts</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Likely Range</div>
-          <div class="metric-val" id="stat-range" style="font-size:1rem;">16–20 pts</div>
-          <div class="metric-sub">25th–75th pct</div>
-        </div>
-      </div>
-      <div style="margin-top:10px;">
-        <div style="display:flex;justify-content:space-between;font-size:0.74rem;margin-bottom:4px;">
-          <span>Target Weekly Score: <strong id="slider-val">20</strong> pts</span>
-          <span style="color:var(--muted);">Exact DP Math</span>
-        </div>
-        <input type="range" id="target-slider" min="14" max="28" value="20" style="width:100%;" oninput="updateTargetSlider(this.value)" />
-      </div>
-      <div style="margin-top:10px;" id="dist-chart"></div>
-    </div>
-
-    <div class="side-box">
-      <div class="side-title">⚡ Quick Strategy Presets</div>
-      <div class="preset-grid">
-        <button class="preset-btn" onclick="applyPreset('optimal')">★ Optimal EV (BYU 2x + Sharp 1x)</button>
-        <button class="preset-btn" onclick="applyPreset('safe')">🛡️ Safe Core (Max Win %)</button>
-        <button class="preset-btn" onclick="applyPreset('aggressive')">🚀 Chaser (BYU + GT 2x Dogs)</button>
-        <button class="preset-btn" onclick="applyPreset('chalk')">🔒 All Sheet Favorites</button>
-      </div>
-    </div>
-
-    <div class="side-box">
-      <div class="side-title" style="flex-wrap:wrap;gap:4px;">
-        <span id="tiebreaker-box-title">🎯 Official Tie-Breaker</span>
-      </div>
-      <div style="margin-bottom:7px;">
-        <label style="font-size:0.66rem;color:var(--muted);display:block;margin-bottom:3px;font-weight:700;">Select / Verify Official Tie-Breaker Matchup:</label>
-        <select id="tiebreaker-game-select" class="search-input" style="width:100%;min-width:0;padding:5px 8px;font-size:0.73rem;font-weight:800;color:#38bdf8;background:#090d16;border-color:#38bdf866;" onchange="setTiebreakerGame(this.value)"></select>
-      </div>
-      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
-        NO Team Names! HIGHEST score FIRST (Ex: 28-24):
-      </div>
-      <div style="display:flex;gap:6px;margin-bottom:6px;">
-        <input type="text" id="tiebreaker-input" value="28-24" class="search-input" style="min-width:0;padding:6px 10px;font-weight:700;" oninput="saveCurrentState()" />
-        <button class="btn-sm" onclick="copyPicksToClipboard()" style="background:var(--accent);color:#000;border:none;font-weight:800;">📋 Copy Picks</button>
-      </div>
-      <div id="copy-status" style="font-size:0.72rem;color:var(--green);min-height:14px;"></div>
-
-      <div class="tb-calc-box">
-        <div style="font-weight:800;color:var(--accent);margin-bottom:3px;">🧮 Vegas Implied Score Calculator</div>
-        <div class="tb-calc-inputs">
-          <div>
-            <label style="color:var(--muted);font-size:0.66rem;">Over/Under Total</label>
-            <input type="number" step="0.5" id="calc-ou" value="51.5" oninput="recalcImpliedTiebreaker()" />
-          </div>
-          <div>
-            <label style="color:var(--muted);font-size:0.66rem;">Favorite Spread (-)</label>
-            <input type="number" step="0.5" id="calc-spread" value="-3.5" oninput="recalcImpliedTiebreaker()" />
-          </div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
-          <span>Implied: <strong id="calc-result-text" style="color:#fff;">28-24 (52 pts)</strong></span>
-          <button class="btn-sm" style="padding:3px 8px;font-size:0.68rem;border-color:var(--green);color:#34d399;" onclick="applyCalculatedTiebreaker()">Apply</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="side-box">
-      <div class="side-title">
-        <span>🚨 Official Sheet Sway & Injury Radar</span>
-        <span id="sway-count-badge" style="color:var(--amber);">8 Active Sways</span>
-      </div>
-      <div class="sway-feed" id="sway-feed-list"></div>
-    </div>
-  </aside>
-
-  <main>
+  <main id="app-content" tabindex="-1">
     <!-- VIEW 1: DEDICATED LIVE SATURDAY SCOREBOARD TAB (CST/CDT + POSSESSION TRACKER) -->
     <div id="live-tracker-view-container" class="live-tab-wrap hidden">
-      <div class="condensed-toolbar">
+      <header class="page-head live-head">
         <div>
-          <strong style="font-size:0.95rem;color:#fff;">🔴 Live Saturday Game Tracker & Possession Radar (CST/CDT)</strong>
-          <div style="font-size:0.73rem;color:var(--muted);">Displays live scores, glowing 🏈 team possession, down & distance, red-zone alerts, and live pick grading.</div>
+          <p class="eyebrow week-eyebrow">Week</p>
+          <h1 class="page-title">Live Scores</h1>
         </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-          <div style="display:inline-flex;align-items:center;gap:5px;background:rgba(56,189,248,0.12);border:1px solid #38bdf866;padding:3px 7px;border-radius:7px;">
-            <span style="font-size:0.7rem;font-weight:800;color:#bae6fd;">⚔️ H2H vs:</span>
-            <select id="live-compare-select" class="compare-select" style="max-width:165px;padding:3px 6px;" onchange="setCompareTarget(this.value)" title="Select any User Profile or Pool Member to compare live games against"></select>
-          </div>
-          <button class="btn-sm active" id="lflt-all" onclick="setLiveTabFilter('all')">All 23 Games</button>
-          <button class="btn-sm" id="lflt-active" onclick="setLiveTabFilter('active')">🔴 In Progress Only</button>
-          <button class="btn-sm" id="lflt-sweat" onclick="setLiveTabFilter('sweat')">⚡ 4Q / Red-Zone Sweats</button>
-          <button class="btn-sm" id="lflt-diff" onclick="setLiveTabFilter('diff')">⚔️ H2H Swing Games</button>
-        </div>
+        <button type="button" class="sync-status" id="live-sync-status" onclick="syncAllLiveTrackingData(true)" aria-live="polite">
+          <span class="status-dot" id="live-sync-dot" aria-hidden="true"></span><span id="live-sync-age">Sync scores</span>
+        </button>
+        <!-- Status text written by the ESPN sync code; shown as the tooltip above -->
+        <span class="sr-only"><span id="live-sync-badge" class="sync-pill">Live</span></span>
+      </header>
+
+      <div class="live-tiles">
+        <div class="live-tile-stat"><div class="tile-label">Record</div><div class="tile-val" id="live-rec-val">0–0</div></div>
+        <div class="live-tile-stat"><div class="tile-label">In play</div><div class="tile-val" id="live-tab-inprog">0</div></div>
+        <div class="live-tile-stat"><div class="tile-label">Pool rank</div><div class="tile-val" id="live-rank-val">–</div></div>
       </div>
 
-      <div class="live-summary-strip">
-        <div class="live-summary-card" id="live-tab-m-card">
-          <div class="metric-label" id="live-tab-m-label">Michael Live / Final Pts</div>
-          <div class="metric-val" id="live-tab-m-pts" style="color:#38bdf8;">0 pts</div>
-          <div class="metric-sub" id="live-tab-m-rec">Leading/Won: 0 games</div>
+      <!-- Advanced: points vs your head-to-head target -->
+      <div class="live-adv adv-block">
+        <div class="live-adv-item" id="live-tab-m-card"><span id="live-tab-m-label">You</span> <strong id="live-tab-m-pts">0 pts</strong> <span id="live-tab-m-rec"></span></div>
+        <div class="live-adv-item" id="live-tab-k-card"><span id="live-tab-k-label">Rival</span> <strong id="live-tab-k-pts">0 pts</strong> <span id="live-tab-k-rec"></span></div>
+        <div class="live-adv-item"><span id="live-tab-final">Completed: 0 / 0</span></div>
+        <span id="live-tab-clock" class="sr-only">Ready</span>
+      </div>
+
+      <div class="picks-toolbar">
+        <div class="chip-row" role="toolbar" aria-label="Filter live games">
+          <button class="btn-sm active" id="lflt-all" onclick="setLiveTabFilter('all')">All</button>
+          <button class="btn-sm" id="lflt-active" onclick="setLiveTabFilter('active')">In progress</button>
+          <button class="btn-sm" id="lflt-sweat" onclick="setLiveTabFilter('sweat')">4Q / red zone</button>
+          <button class="btn-sm adv-only" id="lflt-diff" onclick="setLiveTabFilter('diff')">H2H swings</button>
         </div>
-        <div class="live-summary-card" id="live-tab-k-card">
-          <div class="metric-label" id="live-tab-k-label">Kinyion Live / Final Pts</div>
-          <div class="metric-val" id="live-tab-k-pts" style="color:#c084fc;">0 pts</div>
-          <div class="metric-sub" id="live-tab-k-rec">Leading/Won: 0 games</div>
-        </div>
-        <div class="live-summary-card">
-          <div class="metric-label">Games In Progress</div>
-          <div class="metric-val" id="live-tab-inprog" style="color:#34d399;">0</div>
-          <div class="metric-sub" id="live-tab-final">Completed: 0 / 23</div>
-        </div>
-        <div class="live-summary-card">
-          <div class="metric-label">Last CST Sync</div>
-          <div class="metric-val" id="live-tab-clock" style="font-size:0.95rem;color:#fde68a;">Ready</div>
-          <div class="metric-sub">America/Chicago (CST/CDT)</div>
-        </div>
+        <label class="compare-field adv-block">
+          <span class="sr-only">Compare with</span>
+          <select id="live-compare-select" class="compare-select" onchange="setCompareTarget(this.value)" aria-label="Compare live games with"></select>
+        </label>
       </div>
 
       <div id="live-scoreboard-groups"></div>
@@ -269,26 +119,36 @@
 
     <!-- VIEW 2: CONDENSED BOTH PICKS + WATCHLIST TABLE VIEW -->
     <div id="condensed-view-container" class="condensed-wrap hidden">
+      <header class="page-head">
+        <div>
+          <p class="eyebrow week-eyebrow">Week</p>
+          <h1 class="page-title">Picks Table</h1>
+        </div>
+        <div class="segmented" role="group" aria-label="Picks view">
+          <button type="button" aria-pressed="false" onclick="switchMainView('cards')">Cards</button>
+          <button type="button" aria-pressed="true">Table</button>
+        </div>
+      </header>
       <div class="condensed-toolbar">
         <div>
-          <strong style="font-size:0.92rem;color:#fff;">📋 Condensed Master Pick Sheet — Zero-Scroll Mobile Cards & Table</strong>
+          <strong style="font-size:0.92rem;color:var(--text);">Condensed Master Pick Sheet — Zero-Scroll Mobile Cards & Table</strong>
           <div style="font-size:0.73rem;color:var(--muted);">Tap any team button to flip Michael's, Kinyion's, Test Sim's, or Watchlist Rivals' picks (fits 100% on phone screens with zero horizontal scrolling).</div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-          <div class="cond-view-toggle-bar">
-            <button type="button" id="btn-cond-layout-cards" class="cond-mode-pill" onclick="setCondensedLayoutMode('cards')">📱 Mobile Cards</button>
-            <button type="button" id="btn-cond-layout-table" class="cond-mode-pill" onclick="setCondensedLayoutMode('table')">💻 Full Table</button>
-            <span id="btn-cond-col-scope" class="cond-mode-pill active" style="cursor:default;">⚔️ My Picks vs. H2H Target (Read-Only)</span>
+        <div class="cond-toolbar">
+          <div class="segmented cond-view-toggle-bar" role="group" aria-label="Layout">
+            <button type="button" id="btn-cond-layout-cards" class="cond-mode-pill" onclick="setCondensedLayoutMode('cards')">List</button>
+            <button type="button" id="btn-cond-layout-table" class="cond-mode-pill" onclick="setCondensedLayoutMode('table')">Grid</button>
           </div>
-          <div style="display:inline-flex;align-items:center;gap:5px;background:rgba(56,189,248,0.12);border:1px solid #38bdf866;padding:3px 7px;border-radius:7px;">
-            <span style="font-size:0.7rem;font-weight:800;color:#bae6fd;">⚔️ Compare:</span>
-            <select id="cond-compare-select" class="compare-select" style="max-width:155px;padding:3px 6px;" onchange="setCompareTarget(this.value)"></select>
-          </div>
-          <label style="font-size:0.75rem;font-weight:700;color:#fde68a;cursor:pointer;display:flex;align-items:center;gap:5px;">
-            <input type="checkbox" id="chk-cond-diff-only" onchange="renderCondensedTable()" />
-            ⚔️ Diff Only
+          <span id="btn-cond-col-scope" class="cond-scope">2-way compare</span>
+          <label class="compare-field">
+            <span>Compare with</span>
+            <select id="cond-compare-select" class="compare-select" onchange="setCompareTarget(this.value)"></select>
           </label>
-          <button class="btn-sm" style="background:var(--accent);color:#000;font-weight:800;border:none;" onclick="printCheckmarkSheet()">🖨️ Print Sheet</button>
+          <label class="check-field">
+            <input type="checkbox" id="chk-cond-diff-only" onchange="renderCondensedTable()" />
+            Differences only
+          </label>
+          <button type="button" class="tool-btn" onclick="printCheckmarkSheet()"><i data-lucide="printer"></i><span>Print sheet</span></button>
         </div>
       </div>
       <!-- Zero-Scroll Mobile Condensed Cards List (Default on Phones) -->
@@ -301,10 +161,10 @@
               <th>#</th>
               <th>Matchup (CST)</th>
               <th>Sheet Line</th>
-              <th>👤 Michael</th>
-              <th>👤 Kinyion</th>
-              <th>🧪 Test Sim</th>
-              <th>👀 Watchlist Rivals (Tap to Set)</th>
+              <th>Michael</th>
+              <th>Kinyion</th>
+              <th>Test Sim</th>
+              <th>Watchlist Rivals (Tap to Set)</th>
               <th>Status / Grade / Swing</th>
             </tr>
           </thead>
@@ -315,18 +175,36 @@
 
     <!-- VIEW 3: POOL STANDINGS, AUTOMATED GRADING & WATCHLIST HUB -->
     <div id="standings-view-container" class="standings-wrap hidden">
+      <header class="page-head">
+        <div>
+          <p class="eyebrow">Separated at Turf</p>
+          <h1 class="page-title">Standings</h1>
+        </div>
+      </header>
+
+      <div class="standings-controls">
+        <div class="segmented seg-wide" role="group" aria-label="Standings period">
+          <button type="button" id="st-scope-week" aria-pressed="false" onclick="setStandingsScope('week')"><span class="week-eyebrow">Week</span></button>
+          <button type="button" id="st-scope-season" aria-pressed="true" onclick="setStandingsScope('season')">Season</button>
+        </div>
+        <label class="standings-search">
+          <i data-lucide="search"></i>
+          <input type="text" id="leaderboard-search-input" class="search-input" placeholder="Find a player" aria-label="Find a player" oninput="renderStandingsAndGradingView()" />
+        </label>
+      </div>
+      <div class="standings-table" id="standings-list" role="table" aria-label="Standings"></div>
+      <p class="muted-note standings-count" id="leaderboard-count-label"></p>
       <div class="condensed-toolbar">
         <div>
-          <strong style="font-size:0.96rem;color:#fff;">🏆 Pool Standings, Master CSV Auto-Grader & Watchlist Command Center</strong>
+          <strong style="font-size:0.96rem;color:var(--text);">Pool Standings, Master CSV Auto-Grader & Watchlist Command Center</strong>
           <div style="font-size:0.73rem;color:var(--muted);">Import the entire pool's CSV/Excel pick sheet, auto-grade all participants live by multiplier tier (1x, 2x, 3x), and track real-time standings.</div>
         </div>
         <div id="standings-toolbar-actions" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-          <div style="display:inline-flex;align-items:center;gap:5px;background:rgba(56,189,248,0.12);border:1px solid #38bdf866;padding:3px 7px;border-radius:7px;">
-            <span style="font-size:0.7rem;font-weight:800;color:#bae6fd;">⚔️ H2H Grade vs:</span>
+          <div style="display:inline-flex;align-items:center;gap:5px;background:var(--raised);border:1px solid var(--border);padding:3px 7px;border-radius:7px;">
+            <span style="font-size:0.7rem;font-weight:800;color:var(--text);">H2H Grade vs:</span>
             <select id="standings-compare-select" class="compare-select" style="max-width:165px;padding:3px 6px;" onchange="setCompareTarget(this.value)" title="Select any User Profile or Pool Member to compare grading cards against"></select>
           </div>
-          <button class="btn-sm" style="background:rgba(245,158,11,0.2);border-color:var(--amber);color:#fde68a;font-weight:800;" onclick="resetPoolPicksForNewWeek(true)" title="Clear all other pool members' picks for the new week until Friday/Saturday sheet arrives">🧹 New Week Reset (Clear Pool Picks)</button>
-          <button class="btn-sm" style="background:linear-gradient(90deg,#059669,#0284c7);color:#fff;font-weight:800;border:none;" onclick="openUnifiedImportModal('csv')">📥 Import Pool Data / Bot</button>
+          <button class="btn-sm" style="background:var(--raised);color:var(--text);font-weight:800;border:none;" onclick="openUnifiedImportModal('csv')">Import Pool Data / Bot</button>
         </div>
       </div>
 
@@ -342,27 +220,21 @@
       <!-- Custom Pool Member Watchlist Configuration -->
       <div id="standings-watchlist-box" class="side-box" style="margin-bottom:14px;">
         <div class="side-title">
-          <span>👀 Custom Pool Member Watchlist (Track Up to 3 Key Rivals)</span>
+          <span>Custom Pool Member Watchlist (Track Up to 3 Key Rivals)</span>
           <span style="color:var(--accent);font-size:0.7rem;">Auto-Syncs to Firebase</span>
         </div>
         <div style="font-size:0.73rem;color:var(--muted);margin-bottom:8px;">
-          Rename your 3 tracked pool opponents below or import their confirmation email picks. You can also tap their picks in the <strong>📋 Both Picks</strong> table!
+          Rename your 3 tracked pool opponents below or import their confirmation email picks. You can also tap their picks in the <strong>Both Picks</strong> table!
         </div>
         <div id="watchlist-editor-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
       </div>
 
       <!-- Top 5 Weekly Winners Podium (Visible in both Simple & Advanced Modes!) -->
-      <div id="top5-weekly-winners-container" class="top5-weekly-box"></div>
+      <div id="top5-weekly-winners-container" class="top5-weekly-box adv-block"></div>
 
-      <!-- Season Leaderboard Table -->
-      <div class="side-box">
-        <div class="side-title" style="flex-wrap:wrap;gap:8px;">
-          <span>🏆 Separated at Turf — Live Pool Leaderboard & Multiplier Breakdown</span>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <input type="text" id="leaderboard-search-input" class="search-input" style="min-width:210px;padding:4px 9px;font-size:0.74rem;" placeholder="🔍 Filter participant name..." oninput="renderStandingsAndGradingView()" />
-            <span id="leaderboard-count-label" style="color:var(--green);font-size:0.72rem;">Synced</span>
-          </div>
-        </div>
+      <!-- Full breakdown (Advanced): prior, live, final, total and multiplier columns -->
+      <div class="side-box adv-block">
+        <div class="side-title"><span>Full breakdown</span></div>
         <div style="overflow-x:auto;">
           <table class="condensed-table" id="pool-leaderboard-table">
             <thead>
@@ -387,60 +259,290 @@
 
     <!-- VIEW 4: FULL RESEARCH CARDS & CONDENSED SIMPLE VIEW -->
     <div id="full-cards-wrapper">
-      <div id="simple-mode-tiebreaker-bar">
-        <div id="simple-guest-account-strip" class="simple-guest-banner"></div>
-        <div id="multi-buyin-entry-strip" class="entry-switcher-bar" style="display:none;"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;width:100%;">
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <span style="font-size:0.82rem;font-weight:900;color:#34d399;">✨ Simple Picks</span>
-            <div style="display:inline-flex;background:#090d16;padding:2px;border-radius:7px;border:1px solid var(--border-muted);gap:2px;">
-              <button type="button" id="btn-simple-style-condensed" class="btn-sm active" style="padding:4px 8px;font-size:0.69rem;border:none;" onclick="setSimpleCardLayoutStyle('condensed')">⚡ Condensed View</button>
-              <button type="button" id="btn-simple-style-detailed" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border:none;" onclick="setSimpleCardLayoutStyle('detailed')">🃏 Cards + Injuries/L5</button>
-            </div>
-            <span id="simple-lock-deadline-pill" class="badge badge-ev" style="font-size:0.68rem;">🔒 Monday Odds Locked</span>
-            <span id="simple-receipt-status-text" style="font-size:0.7rem;color:#93c5fd;">Editable until Fri 9:00 PM CST</span>
+      <header class="page-head picks-head">
+        <div class="picks-head-title">
+          <p class="eyebrow"><span class="eyebrow-phone" id="picks-eyebrow">Separated at Turf</span><span class="eyebrow-desk" id="picks-eyebrow-lock"></span></p>
+          <h1 class="page-title"><span id="sheet-title-brand">Week 8</span> Picks</h1>
+        </div>
+        <button type="button" class="avatar-btn" id="top-profile-pill" onclick="openMoreSection('account')" aria-label="Your account">
+          <span id="top-profile-initials" aria-hidden="true">?</span>
+          <span class="sr-only"><span id="top-profile-name">Michael A</span> <span id="top-profile-instance-tag"></span></span>
+        </button>
+        <div class="picks-progress">
+          <div class="picks-progress-row">
+            <span id="picks-progress-text"><strong>0</strong> of 0 picked</span>
+            <span id="simple-lock-deadline-pill" class="lock-text"></span>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
-            <label style="font-size:0.72rem;font-weight:800;color:#bae6fd;">🎯 Tie-Breaker:</label>
-            <input type="text" id="simple-tiebreaker-input" value="28-24" class="search-input" style="width:84px;min-width:0;padding:5px 7px;font-weight:800;text-align:center;" oninput="syncSimpleTiebreakerInput(this.value)" />
-            <button type="button" id="btn-simple-manual-lock" class="btn-sm" style="background:rgba(245,158,11,0.22);border-color:#f59e0b;color:#fde68a;font-weight:900;padding:6px 10px;" onclick="toggleManualUserPickLock()">🔒 Lock Picks</button>
-            <button type="button" class="btn-sm" style="background:rgba(56,189,248,0.2);border-color:#38bdf8;color:#e0f2fe;font-weight:800;padding:6px 10px;" onclick="openReviewChecklistModal()">✅ Review Checklist</button>
-            <button type="button" class="btn-sm" style="background:linear-gradient(90deg,#10b981,#059669);color:#000;border:none;font-weight:900;padding:6px 11px;" onclick="saveAndSendPickConfirmationReceipt()">💾 Save & Receipt</button>
+          <div class="progress" role="progressbar" aria-label="Games picked" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" id="picks-progress-bar-wrap"><span id="picks-progress-bar"></span></div>
+        </div>
+        <button type="button" class="btn-submit submit-desk" id="btn-submit-desk" onclick="saveAndSendPickConfirmationReceipt()">Submit</button>
+      </header>
+
+      <p id="simple-receipt-status-text" class="receipt-note"></p>
+      <div id="simple-guest-account-strip" class="account-note"></div>
+      <div id="multi-buyin-entry-strip" class="entry-switcher-bar" style="display:none;"></div>
+      <div id="sandbox-note" class="sandbox-note" hidden></div>
+
+      <!-- Advanced only: Cards / Table switch + pick mix -->
+      <div class="adv-row adv-block">
+        <div class="segmented" role="group" aria-label="Picks view">
+          <button type="button" aria-pressed="true">Cards</button>
+          <button type="button" aria-pressed="false" onclick="switchMainView('condensed')">Table</button>
+        </div>
+      <div class="risk-meter-pill" id="top-risk-meter" role="button" tabindex="0" onclick="openEvSimulatorDrawer()" title="Open the EV and probability simulator">
+        <span>1x <strong id="rm-chalk">0</strong></span>
+        <span>2x <strong id="rm-2x">0</strong></span>
+        <span>3x <strong id="rm-3x">0</strong></span>
+        <span>Max <strong id="top-ceiling">0</strong></span>
+        <span>EV <strong id="top-ev">0</strong></span>
+      </div>
+      </div>
+
+      <div class="picks-toolbar">
+        <div class="chip-row" role="toolbar" aria-label="Filter games">
+          <button class="btn-sm active" id="flt-all" onclick="setFilter('all')">All</button>
+          <button class="btn-sm" id="flt-missing" onclick="setFilter('missing')">Missing</button>
+          <button class="btn-sm" id="flt-2x" onclick="setFilter('2x')">2x Dogs (+7.5–14)</button>
+          <button class="btn-sm" id="flt-3x" onclick="setFilter('3x')">3x Dogs (+14.5+)</button>
+          <button class="btn-sm" id="flt-inj" onclick="setFilter('inj')">Injuries</button>
+          <button class="btn-sm" id="flt-plusev" onclick="setFilter('plusev')">+EV</button>
+          <button class="btn-sm" id="flt-leverage" onclick="setFilter('leverage')">Leverage</button>
+          <button class="btn-sm" id="flt-sway" onclick="setFilter('sway')">Sways</button>
+          <button class="btn-sm" id="flt-diffs" onclick="setFilter('diffs')">H2H Diffs</button>
+        </div>
+        <div class="picks-tools">
+          <button type="button" class="icon-btn" id="btn-picks-search" onclick="togglePicksSearch()" aria-label="Search games" aria-expanded="false"><i data-lucide="search"></i></button>
+          <div class="menu-wrap">
+            <button type="button" class="tool-btn" id="btn-quick-picks" onclick="toggleMenu('menu-quick-picks', this)" aria-haspopup="true" aria-expanded="false"><i data-lucide="zap"></i><span>Quick picks</span></button>
+            <div class="menu" id="menu-quick-picks" role="menu" hidden>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('optimal')"><span>Optimal EV</span><small>Best +EV dogs plus the sharp favorites</small></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('safe')"><span>Safe core</span><small>Max win %: the likelier winner every game</small></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('aggressive')"><span>Underdog chaser</span><small>Live 2x / 3x dogs</small></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('chalk')"><span>All favorites</span><small>Every sheet favorite</small></button>
+              <button type="button" role="menuitem" class="menu-item adv-block" onclick="closeMenus(); copyOtherProfile()"><span>Copy compare target's picks</span><small>Advanced: copy from your head-to-head pick</small></button>
+            </div>
+          </div>
+          <div class="menu-wrap">
+            <button type="button" class="icon-btn" id="btn-picks-more" onclick="toggleMenu('menu-picks-more', this)" aria-haspopup="true" aria-expanded="false" aria-label="More pick options"><i data-lucide="ellipsis"></i></button>
+            <div class="menu menu-right" id="menu-picks-more" role="menu" hidden>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); openReviewChecklistModal()"><span>Review all picks</span></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); toggleManualUserPickLock()"><span id="menu-lock-label">Lock picks</span></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); copyPicksToClipboard()"><span>Copy picks</span></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); printCheckmarkSheet()"><span>Print pick sheet</span></button>
+              <div class="menu-sep" role="separator"></div>
+              <div class="menu-label">Card layout</div>
+              <button type="button" role="menuitemradio" id="btn-simple-style-condensed" class="btn-sm active" onclick="closeMenus(); setSimpleCardLayoutStyle('condensed')">Compact cards</button>
+              <button type="button" role="menuitemradio" id="btn-simple-style-detailed" class="btn-sm" onclick="closeMenus(); setSimpleCardLayoutStyle('detailed')">Last 5 open</button>
+              <div class="menu-sep" role="separator"></div>
+              <div class="menu-label">Expand on every card</div>
+              <button type="button" role="menuitemcheckbox" id="btn-toggle-all-l5" class="btn-sm" onclick="toggleAllSubpanels('l5')">Last 5</button>
+              <button type="button" role="menuitemcheckbox" id="btn-toggle-all-ins" class="btn-sm" onclick="toggleAllSubpanels('ins')">Insights</button>
+              <div class="menu-sep" role="separator"></div>
+              <button type="button" role="menuitemcheckbox" id="btn-simple-mode-toggle" class="btn-sm" onclick="closeMenus(); toggleSimpleUiMode()" aria-pressed="false"><span class="adv-label">Advanced: OFF</span></button>
+            </div>
           </div>
         </div>
       </div>
-      <div class="controls-bar">
-        <div class="search-row">
-          <input type="text" id="team-search" class="search-input" placeholder="🔍 Search team, code (Cincy, Bama), opponent, injury..." oninput="renderGames()" />
-          <button class="btn-sm" onclick="clearSearch()">✕</button>
-          <button id="btn-toggle-all-ins" class="btn-sm" onclick="toggleAllSubpanels('ins')">🧠 Insights</button>
-          <button id="btn-toggle-all-l5" class="btn-sm" onclick="toggleAllSubpanels('l5')">📅 Last 5</button>
-          <button id="btn-toggle-all-inj" class="btn-sm" onclick="toggleAllSubpanels('inj')">🚑 Injuries</button>
-        </div>
-        <div class="filter-row">
-          <button class="btn-sm active" id="flt-all" onclick="setFilter('all')">All 23</button>
-          <button class="btn-sm" id="flt-plusev" onclick="setFilter('plusev')">🔥 Best Value / +EV</button>
-          <button class="btn-sm" id="flt-leverage" onclick="setFilter('leverage')" style="border-color:#38bdf888;color:#7dd3fc;">💎 Best Leverage</button>
-          <button class="btn-sm" id="flt-2x" onclick="setFilter('2x')">2x Dogs (+7.5–14)</button>
-          <button class="btn-sm" id="flt-3x" onclick="setFilter('3x')">3x Dogs (+14.5+)</button>
-          <button class="btn-sm" id="flt-sway" onclick="setFilter('sway')">🚨 Sways</button>
-          <button class="btn-sm" id="flt-diffs" onclick="setFilter('diffs')">⚔️ H2H Diffs</button>
-          <button class="btn-sm" id="flt-inj" onclick="setFilter('inj')">🚑 Injuries / Outs</button>
-        </div>
+      <div class="picks-search hidden" id="picks-search-row">
+        <i data-lucide="search"></i>
+        <input type="text" id="team-search" class="search-input" placeholder="Search team, code, opponent, injury" aria-label="Search games" oninput="renderGames()" />
+        <button type="button" class="icon-btn" onclick="clearSearch(); togglePicksSearch(false)" aria-label="Clear search"><i data-lucide="x"></i></button>
       </div>
 
       <div class="games-list" id="games-container"></div>
-    </div>
-  </main>
-</div>
 
-<!-- Persistent 5-Button Bottom Navigation Bar for Mobile (Works in Both Simple & Advanced Mode) -->
-<nav class="mobile-bottom-nav">
-  <button type="button" id="mnav-cards" class="m-nav-btn active" onclick="handleMobileNavClick('cards')">🏈 Picks</button>
-  <button type="button" id="mnav-condensed" class="m-nav-btn" onclick="handleMobileNavClick('condensed')">⚡ Condensed</button>
-  <button type="button" id="mnav-live" class="m-nav-btn" onclick="handleMobileNavClick('live')">🔴 Live</button>
-  <button type="button" id="mnav-standings" class="m-nav-btn" onclick="handleMobileNavClick('standings')">🏆 Board</button>
-  <button type="button" id="mnav-drawer" class="m-nav-btn" onclick="openSettingsDrawer()">☰ Menu</button>
+      <section class="tb-card" aria-labelledby="tb-card-title">
+        <div class="tb-card-text">
+          <h2 class="tb-card-title" id="tb-card-title">Tie-breaker</h2>
+          <p class="tb-card-sub" id="tb-card-matchup">Total points, highest score first (e.g. 28-24)</p>
+        </div>
+        <input type="text" id="simple-tiebreaker-input" value="28-24" class="search-input tb-input" inputmode="numeric" aria-label="Tie-breaker score, highest first" oninput="syncSimpleTiebreakerInput(this.value)" />
+        <div class="tb-card-actions">
+          <button type="button" id="btn-open-review-checklist" class="tool-btn" onclick="openReviewChecklistModal()"><i data-lucide="clipboard-check"></i><span>Review <span id="top-review-count">0/0</span></span></button>
+          <button type="button" id="btn-simple-manual-lock" class="tool-btn" onclick="toggleManualUserPickLock()">Lock picks</button>
+        </div>
+      </section>
+
+      <div class="submit-bar">
+        <button type="button" class="btn-submit" id="btn-submit-picks" onclick="saveAndSendPickConfirmationReceipt()">Submit</button>
+      </div>
+    </div>
+    <!-- MORE (phone tab / desktop "More" group). Rendered by renderMoreView() in shell.js -->
+    <div id="more-view-container" class="more-wrap hidden"></div>
+
+  </main>
+
+  <!-- Desktop right rail (>= 1200px): season top 5, last week, and the Advanced tools that used to be the left sidebar -->
+  <aside class="app-rail" id="app-rail" aria-label="Season summary">
+    <section class="rail-card" id="rail-season-top5"></section>
+    <section class="rail-card" id="rail-last-week"></section>
+    <aside class="sidebar" id="main-sidebar">
+      <div class="side-box">
+        <div class="side-title">
+          <span>My Instance & Profile</span>
+          <div style="display:flex;gap:4px;">
+            <button class="btn-sm" style="padding:3px 7px;font-size:0.68rem;border-color:var(--border);color:var(--text);font-weight:800;" onclick="openAuthModal()">Account</button>
+            <button class="btn-sm" style="padding:3px 7px;font-size:0.68rem;border-color:var(--border);color:var(--text);" onclick="openUserAndPrivacyModal()">Privacy</button>
+            <button class="btn-sm" style="padding:3px 7px;font-size:0.68rem;" onclick="copyOtherProfile()">Copy</button>
+          </div>
+        </div>
+        <div id="sidebar-instance-banner" class="instance-lock-banner"></div>
+        <div class="privacy-Control-strip">
+          <span id="active-privacy-status-pill" style="font-size:0.69rem;color:var(--text);font-weight:700;">Picks Visible</span>
+          <div style="display:flex;gap:4px;">
+            <button id="btn-quick-hide-active" class="btn-sm" style="padding:3px 7px;font-size:0.67rem;" onclick="toggleQuickLockActiveProfile()" title="Hide/Lock active user's picks so others cannot spy">Hide My Picks</button>
+            <button id="btn-sidebar-blind" class="btn-sm" style="padding:3px 7px;font-size:0.67rem;" onclick="toggleBlindMode()" title="Hide all other users' picks while you pick">Blind</button>
+          </div>
+        </div>
+        <div class="profile-tabs" id="dynamic-profile-tabs" style="grid-template-columns:1fr 1fr;">
+          <button id="tab-michael" class="profile-tab active-michael" onclick="switchProfile(getMyInstanceProfileKey())">
+ My Official Picks<br><span id="prof-sub-michael" style="font-size:0.68rem;font-weight:500;">Bound Instance</span>
+          </button>
+          <button id="tab-test" class="profile-tab" onclick="switchProfile('test')">
+ My Sandbox Sim<br><span id="prof-sub-test" style="font-size:0.68rem;font-weight:500;">Local What-If Mode</span>
+          </button>
+        </div>
+        <table class="h2h-table">
+          <thead><tr><th>Profile</th><th>Ceiling</th><th>EV</th><th>Live Pts</th><th>Final</th></tr></thead>
+          <tbody id="h2h-dynamic-tbody">
+            <tr>
+              <td><strong style="color:var(--text);">Michael A</strong></td>
+              <td id="h2h-m-ceil">27</td><td id="h2h-m-ev">17.8</td><td id="h2h-m-live" style="color:var(--green);font-weight:800;">0</td><td id="h2h-m-dogs">0-0</td>
+            </tr>
+            <tr>
+              <td><strong style="color:var(--text);">Kinyion</strong></td>
+              <td id="h2h-k-ceil">27</td><td id="h2h-k-ev">17.5</td><td id="h2h-k-live" style="color:var(--green);font-weight:800;">0</td><td id="h2h-k-dogs">0-0</td>
+            </tr>
+            <tr id="h2h-row-test">
+              <td><strong style="color:var(--warn);">Test Sim</strong></td>
+              <td id="h2h-t-ceil">27</td><td id="h2h-t-ev">17.8</td><td id="h2h-t-live" style="color:var(--green);font-weight:800;">0</td><td id="h2h-t-dogs">0-0</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="compare-bar-strip">
+          <span style="font-size:0.69rem;font-weight:800;color:var(--text);white-space:nowrap;">Compare vs:</span>
+          <select id="sidebar-compare-select" class="compare-select" onchange="setCompareTarget(this.value)" title="Select any User Profile or Leaderboard Participant to compare picks against"></select>
+        
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.74rem;color:var(--muted);">
+          <span id="h2h-diffs-label">Head-to-Head Diffs:</span> <strong id="h2h-diffs" style="color:var(--text);">7</strong>
+          <div style="display:flex;gap:5px;">
+            <button class="btn-sm" onclick="setFilter('diffs'); toggleMobileSidebar(false);">Diffs</button>
+            <button class="btn-sm" onclick="switchMainView('condensed'); toggleMobileSidebar(false);">Side-by-Side</button>
+            <button class="btn-sm" onclick="printCheckmarkSheet()">Print</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom Pool Member Watchlist Box -->
+      <div class="side-box">
+        <div class="side-title">
+          <span>Pool Member Watchlist (3 Rivals)</span>
+          <button class="btn-sm" style="padding:2px 6px;font-size:0.66rem;" onclick="switchMainView('standings'); toggleMobileSidebar(false);">Edit Picks</button>
+        </div>
+        <div id="sidebar-watchlist-summary" style="font-size:0.72rem;display:flex;flex-direction:column;gap:5px;"></div>
+      </div>
+
+      <div class="side-box">
+        <div class="side-title">Live Outright Scoreboard</div>
+        <div class="score-grid">
+          <div class="metric-card">
+            <div class="metric-label">Max Ceiling</div>
+            <div class="metric-val" id="stat-ceiling">27 pts</div>
+            <div class="metric-sub" id="stat-dogs-sub">1 multiplier dog</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Expected EV</div>
+            <div class="metric-val" id="stat-ev" style="color:var(--accent);">17.85</div>
+            <div class="metric-sub">True Moneyline EV</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Hit Target Odds</div>
+            <div class="metric-val" id="stat-target-prob" style="color:var(--green);">31%</div>
+            <div class="metric-sub" id="stat-target-label">Chance ≥ 20 pts</div>
+          </div>
+          <div class="metric-card">
+            <div class="metric-label">Likely Range</div>
+            <div class="metric-val" id="stat-range" style="font-size:1rem;">16–20 pts</div>
+            <div class="metric-sub">25th–75th pct</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.74rem;margin-bottom:4px;">
+            <span>Target Weekly Score: <strong id="slider-val">20</strong> pts</span>
+            <span style="color:var(--muted);">Exact DP Math</span>
+          </div>
+          <input type="range" id="target-slider" min="14" max="28" value="20" style="width:100%;" oninput="updateTargetSlider(this.value)" />
+        </div>
+        <div style="margin-top:10px;" id="dist-chart"></div>
+      </div>
+
+      <div class="side-box">
+        <div class="side-title">Quick Strategy Presets</div>
+        <div class="preset-grid">
+          <button class="preset-btn" onclick="applyPreset('optimal')">Optimal EV (BYU 2x + Sharp 1x)</button>
+          <button class="preset-btn" onclick="applyPreset('safe')">Safe Core (Max Win %)</button>
+          <button class="preset-btn" onclick="applyPreset('aggressive')">Chaser (BYU + GT 2x Dogs)</button>
+          <button class="preset-btn" onclick="applyPreset('chalk')">All Sheet Favorites</button>
+        </div>
+      </div>
+
+      <div class="side-box">
+        <div class="side-title" style="flex-wrap:wrap;gap:4px;">
+          <span id="tiebreaker-box-title">Official Tie-Breaker</span>
+        </div>
+        <div style="margin-bottom:7px;">
+          <label style="font-size:0.66rem;color:var(--muted);display:block;margin-bottom:3px;font-weight:700;">Select / Verify Official Tie-Breaker Matchup:</label>
+          <select id="tiebreaker-game-select" class="search-input" style="width:100%;min-width:0;padding:5px 8px;font-size:0.73rem;font-weight:800;color:var(--text);background:var(--bg);border-color:var(--border);" onchange="setTiebreakerGame(this.value)"></select>
+        </div>
+        <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">
+          NO Team Names! HIGHEST score FIRST (Ex: 28-24):
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:6px;">
+          <input type="text" id="tiebreaker-input" value="28-24" class="search-input" style="min-width:0;padding:6px 10px;font-weight:700;" oninput="saveCurrentState()" />
+          <button class="btn-sm" onclick="copyPicksToClipboard()" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;">Copy Picks</button>
+        </div>
+        <div id="copy-status" style="font-size:0.72rem;color:var(--green);min-height:14px;"></div>
+
+        <div class="tb-calc-box">
+          <div style="font-weight:800;color:var(--accent);margin-bottom:3px;">Vegas Implied Score Calculator</div>
+          <div class="tb-calc-inputs">
+            <div>
+              <label style="color:var(--muted);font-size:0.66rem;">Over/Under Total</label>
+              <input type="number" step="0.5" id="calc-ou" value="51.5" oninput="recalcImpliedTiebreaker()" />
+            </div>
+            <div>
+              <label style="color:var(--muted);font-size:0.66rem;">Favorite Spread (-)</label>
+              <input type="number" step="0.5" id="calc-spread" value="-3.5" oninput="recalcImpliedTiebreaker()" />
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
+            <span>Implied: <strong id="calc-result-text" style="color:var(--text);">28-24 (52 pts)</strong></span>
+            <button class="btn-sm" style="padding:3px 8px;font-size:0.68rem;border-color:var(--green);color:var(--win);" onclick="applyCalculatedTiebreaker()">Apply</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="side-box">
+        <div class="side-title">
+          <span>Official Sheet Sway & Injury Radar</span>
+          <span id="sway-count-badge" style="color:var(--amber);">8 Active Sways</span>
+        </div>
+        <div class="sway-feed" id="sway-feed-list"></div>
+      </div>
+    </aside>
+  </aside>
+</div>
+</div><!-- /.app-body -->
+</div><!-- /.app-shell -->
+
+<!-- Phone bottom tab bar (< 900px). #mnav-* ids are driven by switchMainView(). -->
+<nav class="mobile-bottom-nav" aria-label="Main">
+  <button type="button" id="mnav-cards" class="m-nav-btn active" onclick="handleMobileNavClick('cards')"><i data-lucide="square-check"></i><span>Picks</span></button>
+  <button type="button" id="mnav-live" class="m-nav-btn" onclick="handleMobileNavClick('live')"><i data-lucide="activity"></i><span>Live</span></button>
+  <button type="button" id="mnav-standings" class="m-nav-btn" onclick="handleMobileNavClick('standings')"><i data-lucide="chart-no-axes-column"></i><span>Standings</span></button>
+  <button type="button" id="mnav-drawer" class="m-nav-btn" onclick="handleMobileNavClick('more')"><i data-lucide="menu"></i><span>More</span></button>
+  <button type="button" id="mnav-condensed" class="m-nav-btn" onclick="handleMobileNavClick('condensed')" hidden>Table</button>
 </nav>
 
 <div id="print-sheet-area"></div>
@@ -448,8 +550,8 @@
 <div id="opp-modal-backdrop" onclick="closeOppModal()">
   <div id="opp-modal" onclick="event.stopPropagation()">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-      <h3 id="modal-team-title" style="font-size:1rem;color:#fff;">Details</h3>
-      <button class="btn-sm" onclick="closeOppModal()">✕ Close</button>
+      <h3 id="modal-team-title" style="font-size:1rem;color:var(--text);">Details</h3>
+      <button class="btn-sm" onclick="closeOppModal()">Close</button>
     </div>
     <div id="modal-team-body"></div>
   </div>
@@ -457,15 +559,15 @@
 <div id="pin-modal-backdrop" onclick="closePinModal()">
   <div id="pin-modal-box" onclick="event.stopPropagation()">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-      <h3 id="pin-modal-title" style="font-size:0.95rem;color:#f3e8ff;font-weight:900;">🔒 Enter Profile PIN</h3>
-      <button type="button" class="btn-sm" onclick="closePinModal()">✕</button>
+      <h3 id="pin-modal-title" style="font-size:0.95rem;color:var(--text);font-weight:900;">Enter Profile PIN</h3>
+      <button type="button" class="btn-sm" onclick="closePinModal()"></button>
     </div>
-    <div id="pin-modal-desc" style="font-size:0.75rem;color:#cbd5e1;margin-bottom:10px;"></div>
+    <div id="pin-modal-desc" style="font-size:0.75rem;color:var(--text);margin-bottom:10px;"></div>
     <input type="password" id="pin-modal-input" maxlength="12" class="search-input" style="width:100%;margin-bottom:8px;font-size:0.9rem;font-weight:800;text-align:center;letter-spacing:0.15em;" placeholder="Enter PIN..." onkeydown="if(event.key==='Enter'){submitPinModal();}" />
-    <div id="pin-modal-error" style="font-size:0.72rem;color:#f87171;min-height:16px;margin-bottom:8px;font-weight:700;"></div>
+    <div id="pin-modal-error" style="font-size:0.72rem;color:var(--loss);min-height:16px;margin-bottom:8px;font-weight:700;"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;">
       <button type="button" class="btn-sm" onclick="closePinModal()">Cancel</button>
-      <button type="button" id="pin-modal-submit-btn" class="btn-sm" style="background:linear-gradient(90deg,#9333ea,#4f46e5);color:#fff;border:none;font-weight:800;padding:6px 14px;" onclick="submitPinModal()">🔓 Unlock</button>
+      <button type="button" id="pin-modal-submit-btn" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:800;padding:6px 14px;" onclick="submitPinModal()">Unlock</button>
     </div>
   </div>
 </div>
@@ -473,10 +575,10 @@
   <div id="auth-modal-box" onclick="event.stopPropagation()">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-muted);">
       <div>
-        <h3 id="auth-modal-title" style="font-size:1.0rem;color:#fff;font-weight:900;">🔐 Account Sign-In & Isolated Instance</h3>
+        <h3 id="auth-modal-title" style="font-size:1.0rem;color:var(--text);font-weight:900;">Account Sign-In & Isolated Instance</h3>
         <div style="font-size:0.71rem;color:var(--muted);">Google Sign-In or Email + Password • Locks your device to your own profile (Scales to 80+ Users)</div>
       </div>
-      <button type="button" class="btn-sm" onclick="closeAuthModal()">✕</button>
+      <button type="button" class="btn-sm" onclick="closeAuthModal()"></button>
     </div>
     <div id="auth-modal-body"></div>
   </div>
@@ -485,22 +587,22 @@
   <div id="commish-modal-box" onclick="event.stopPropagation()">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-muted);">
       <div>
-        <h3 style="font-size:1.05rem;color:#fde68a;font-weight:900;">👑 Commissioner Command Console — Separated at Turf Pick'em</h3>
-        <div style="font-size:0.72rem;color:var(--muted);">100% Non-Destructive: Works alongside your automated Gmail/WordPress scraper today AND powers a standalone 89+ player league next season!</div>
+        <h3 style="font-size:1.05rem;color:var(--warn);font-weight:900;">Commissioner</h3>
+        <div style="font-size:0.72rem;color:var(--muted);">Submissions, master sheet, slate, locks, roster, banner and admins.</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
-        <span id="commish-mode-pill" class="badge badge-ev">🤖 Hybrid Scraper Mode Active</span>
-        <button type="button" class="btn-sm" onclick="closeCommissionerModal()">✕ Close</button>
+        <span id="commish-mode-pill" class="badge badge-ev">Hybrid Scraper Mode Active</span>
+        <button type="button" class="btn-sm" onclick="closeCommissionerModal()">Close</button>
       </div>
     </div>
     <div class="hub-tabs" style="margin-bottom:10px;">
-      <button type="button" id="cm-tab-submissions" class="hub-tab-btn active" onclick="switchCommissionerTab('submissions')">📋 1. Submissions & Pick Mgmt</button>
-      <button type="button" id="cm-tab-mastersheet" class="hub-tab-btn" onclick="switchCommissionerTab('mastersheet')">📊 2. Master Spreadsheet Grid</button>
-      <button type="button" id="cm-tab-slate" class="hub-tab-btn" onclick="switchCommissionerTab('slate')">🗓️ 3. ESPN Slate Builder</button>
-      <button type="button" id="cm-tab-locks" class="hub-tab-btn" onclick="switchCommissionerTab('locks')">🔒 4. Locks & Rules</button>
-      <button type="button" id="cm-tab-roster" class="hub-tab-btn" onclick="switchCommissionerTab('roster')">👥 5. Roster & Dues ($)</button>
-      <button type="button" id="cm-tab-comms" class="hub-tab-btn" onclick="switchCommissionerTab('comms')">📢 6. Banner & Recap</button>
-      <button type="button" id="cm-tab-admin" class="hub-tab-btn" onclick="switchCommissionerTab('admin')">🛡️ 7. Multi-Commish & Admin Email</button>
+      <button type="button" id="cm-tab-submissions" class="hub-tab-btn active" onclick="switchCommissionerTab('submissions')">1. Submissions & Pick Mgmt</button>
+      <button type="button" id="cm-tab-mastersheet" class="hub-tab-btn" onclick="switchCommissionerTab('mastersheet')">2. Master Spreadsheet Grid</button>
+      <button type="button" id="cm-tab-slate" class="hub-tab-btn" onclick="switchCommissionerTab('slate')">3. ESPN Slate Builder</button>
+      <button type="button" id="cm-tab-locks" class="hub-tab-btn" onclick="switchCommissionerTab('locks')">4. Locks & Rules</button>
+      <button type="button" id="cm-tab-roster" class="hub-tab-btn" onclick="switchCommissionerTab('roster')">5. Roster & Dues ($)</button>
+      <button type="button" id="cm-tab-comms" class="hub-tab-btn" onclick="switchCommissionerTab('comms')">6. Banner & Recap</button>
+      <button type="button" id="cm-tab-admin" class="hub-tab-btn" onclick="switchCommissionerTab('admin')">7. Multi-Commish & Admin Email</button>
     </div>
     <div id="commish-modal-body"></div>
   </div>
@@ -508,13 +610,13 @@
 <div id="app-toast-banner"></div>
 <div id="field-theater-backdrop" onclick="closeFieldTheaterModal()">
   <div id="field-theater-modal" onclick="event.stopPropagation()">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid #1e293b;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">
       <div>
-        <h3 id="theater-modal-title" style="font-size:1.1rem;font-weight:900;color:#fff;">🏈 ESPN GameCast & Drive Theater</h3>
+        <h3 id="theater-modal-title" style="font-size:1.1rem;font-weight:900;color:var(--text);">ESPN GameCast & Drive Theater</h3>
         <div id="theater-modal-subtitle" style="font-size:0.76rem;color:var(--muted);">Interactive HD Field Tracker • Real ESPN Drive Telemetry & Live Animation</div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;">
-        <button class="btn-sm" onclick="closeFieldTheaterModal()" style="background:#ef4444;color:#fff;border:none;font-weight:800;">✕ Close Big View</button>
+        <button class="btn-sm" onclick="closeFieldTheaterModal()" style="background:var(--loss);color:var(--text);border:none;font-weight:800;">Close Big View</button>
       </div>
     </div>
     <div id="theater-modal-body"></div>
@@ -527,26 +629,26 @@
   <div class="slideout-drawer" onclick="event.stopPropagation()">
     <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--border-muted);">
       <div>
-        <h3 style="font-size:0.98rem;font-weight:900;color:#fff;">⚙️ Settings, Account & Controls</h3>
+        <h3 style="font-size:0.98rem;font-weight:900;color:var(--text);">Settings, Account & Controls</h3>
         <div style="font-size:0.7rem;color:var(--muted);">Multi-Buy-In Switcher • Pick Privacy • Field Sim • Admin Tools</div>
       </div>
-      <button type="button" class="btn-sm" onclick="closeSettingsDrawer()">✕ Close</button>
+      <button type="button" class="btn-sm" onclick="closeSettingsDrawer()">Close</button>
     </div>
     <div id="settings-drawer-body" style="display:flex;flex-direction:column;gap:11px;"></div>
     <div class="drawer-section">
-      <div class="drawer-section-title"><span>⚡ Quick Toggles & Archive Controls</span></div>
+      <div class="drawer-section-title"><span>Quick Toggles & Archive Controls</span></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-        <button type="button" id="btn-auth-account" class="btn-sm" onclick="closeSettingsDrawer(); openAuthModal();">🔐 Sign In / My Instance</button>
-        <button type="button" id="btn-blind-mode" class="btn-sm" onclick="toggleBlindMode()">👁️ Spy Shield: OFF</button>
-        <button type="button" id="btn-demo-field-toggle" class="btn-sm" onclick="toggleDemoFieldPreview()">🏈 Field Sim: OFF</button>
+        <button type="button" id="btn-auth-account" class="btn-sm" onclick="closeSettingsDrawer(); openAuthModal();">Sign In / My Instance</button>
+        <button type="button" id="btn-blind-mode" class="btn-sm" onclick="toggleBlindMode()">Spy Shield: OFF</button>
+        <button type="button" id="btn-demo-field-toggle" class="btn-sm" onclick="toggleDemoFieldPreview()">Field Sim: OFF</button>
         <label class="btn-sm" style="display:inline-flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;">
-          <input type="checkbox" id="chk-auto-poll" onchange="toggleAutoPoll(this.checked)" /> ⏱️ 60s Auto-Poll
-        </label>
+          <input type="checkbox" id="chk-auto-poll" onchange="toggleAutoPoll(this.checked)" />⏱ 60s Auto-Poll
+ </label>
       </div>
       <div id="drawer-commish-archive-row" style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:4px;">
         <select id="week-archive-select" class="compare-select" style="flex:1;min-width:140px;" onchange="switchWeekArchive(this.value)"></select>
-        <button type="button" id="btn-top-archive-wk" class="btn-sm commish-only-hidden" onclick="saveCurrentWeekToArchive(true)">💾 Archive Wk</button>
-        <button type="button" id="btn-top-import-bot" class="btn-sm commish-only-hidden" onclick="closeSettingsDrawer(); openUnifiedImportModal('bot');">📥 Import / Bot</button>
+        <button type="button" id="btn-top-archive-wk" class="btn-sm commish-only-hidden" onclick="saveCurrentWeekToArchive(true)">Archive Wk</button>
+        <button type="button" id="btn-top-import-bot" class="btn-sm commish-only-hidden" onclick="closeSettingsDrawer(); openUnifiedImportModal('bot');">Import / Bot</button>
       </div>
     </div>
   </div>
@@ -557,12 +659,46 @@
   <div class="slideout-drawer ev-sim-wide" onclick="event.stopPropagation()">
     <div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--border-muted);">
       <div>
-        <h3 style="font-size:1.0rem;font-weight:900;color:#34d399;">🎲 Pick'em EV & 5,000-Trial Probability Simulator</h3>
+        <h3 style="font-size:1.0rem;font-weight:900;color:var(--win);">Pick'em EV & 5,000-Trial Probability Simulator</h3>
         <div style="font-size:0.71rem;color:var(--muted);">Exact Dynamic Programming Score Distribution • Strategy Presets • Monte Carlo Pool Finish Odds</div>
       </div>
-      <button type="button" class="btn-sm" onclick="closeEvSimulatorDrawer()">✕ Close</button>
+      <button type="button" class="btn-sm" onclick="closeEvSimulatorDrawer()">Close</button>
     </div>
     <div id="ev-sim-drawer-body" style="display:flex;flex-direction:column;gap:12px;"></div>
+  </div>
+</div>
+
+<!-- CONFIRM DIALOG for destructive actions (confirmDanger in shell.js) -->
+<div id="confirm-backdrop" class="sheet-backdrop confirm-backdrop" hidden>
+  <div class="confirm-box" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+    <h2 class="confirm-title" id="confirm-title">Are you sure?</h2>
+    <p class="confirm-message" id="confirm-message"></p>
+    <div class="confirm-actions">
+      <button type="button" class="tool-btn" id="confirm-cancel" onclick="closeConfirmDanger(false)">Cancel</button>
+      <button type="button" class="btn-danger" id="confirm-ok" onclick="closeConfirmDanger(true)">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAST WEEKS / PANEL SHEET (reuses an existing container, moved in while open) -->
+<div id="panel-sheet-backdrop" class="sheet-backdrop" hidden onclick="if (event.target === this) closePanelSheet()">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="panel-sheet-title">
+    <div class="sheet-head">
+      <h2 class="sheet-title" id="panel-sheet-title"></h2>
+      <button type="button" class="icon-btn" onclick="closePanelSheet()" aria-label="Close"><i data-lucide="x"></i></button>
+    </div>
+    <div class="sheet-body" id="panel-sheet-body"></div>
+  </div>
+</div>
+
+<!-- GAME DETAIL SHEET (bottom sheet on phones, side panel on desktop) -->
+<div id="detail-sheet-backdrop" class="sheet-backdrop" hidden onclick="if (event.target === this) closeGameDetail()">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="detail-sheet-title">
+    <div class="sheet-head">
+      <h2 class="sheet-title" id="detail-sheet-title">Game details</h2>
+      <button type="button" class="icon-btn" id="detail-sheet-close" onclick="closeGameDetail()" aria-label="Close"><i data-lucide="x"></i></button>
+    </div>
+    <div class="sheet-body" id="detail-sheet-body"></div>
   </div>
 </div>
 
@@ -571,40 +707,45 @@
   <div id="review-checklist-box" onclick="event.stopPropagation()">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-muted);">
       <div>
-        <h3 id="review-checklist-title" style="font-size:1.02rem;color:#34d399;font-weight:900;">✅ Official 23-Game Pick Review Checklist</h3>
+        <h3 id="review-checklist-title" style="font-size:1.02rem;color:var(--win);font-weight:900;">Official 23-Game Pick Review Checklist</h3>
         <div style="font-size:0.72rem;color:var(--muted);">Verify every game selection, Monday locked spread, and underdog multiplier before locking or submitting.</div>
       </div>
-      <button type="button" class="btn-sm" onclick="closeReviewChecklistModal()">✕ Close</button>
+      <button type="button" class="btn-sm" onclick="closeReviewChecklistModal()">Close</button>
     </div>
     <div id="review-checklist-body"></div>
   </div>
 </div>
-<script src="/js/00-boot-guard.js?v=2026-10-27"></script>
-<script src="/js/config.js?v=2026-10-27"></script>
-<script src="/js/data/teams.js?v=2026-10-27"></script>
-<script src="/js/data/default-slate.js?v=2026-10-27"></script>
-<script src="/js/state-globals.js?v=2026-10-27"></script>
-<script src="/js/data/week7-official.js?v=2026-10-27"></script>
-<script src="/js/data/code-gs-source.js?v=2026-10-27"></script>
-<script src="/js/state.js?v=2026-10-27"></script>
-<script src="/js/team-match.js?v=2026-10-27"></script>
-<script src="/js/firestore.js?v=2026-10-27"></script>
-<script src="/js/picks.js?v=2026-10-27"></script>
-<script src="/js/espn.js?v=2026-10-27"></script>
-<script src="/js/profiles.js?v=2026-10-27"></script>
-<script src="/js/auth.js?v=2026-10-27"></script>
-<script src="/js/import-hub.js?v=2026-10-27"></script>
-<script src="/js/render/condensed.js?v=2026-10-27"></script>
-<script src="/js/import-sheet-grading.js?v=2026-10-27"></script>
-<script src="/js/render/field-tracker.js?v=2026-10-27"></script>
-<script src="/js/demo-sim.js?v=2026-10-27"></script>
-<script src="/js/render/theater.js?v=2026-10-27"></script>
-<script src="/js/live-scores.js?v=2026-10-27"></script>
-<script src="/js/leverage.js?v=2026-10-27"></script>
-<script src="/js/simulator.js?v=2026-10-27"></script>
-<script src="/js/archive.js?v=2026-10-27"></script>
-<script src="/js/simple-mode-commissioner.js?v=2026-10-27"></script>
-<script src="/js/commissioner-admin.js?v=2026-10-27"></script>
-<script src="/js/boot.js?v=2026-10-27"></script>
+<script src="/js/00-boot-guard.js?v=2026-10-27b"></script>
+<script src="/js/config.js?v=2026-10-27b"></script>
+<script src="/js/data/teams.js?v=2026-10-27b"></script>
+<script src="/js/data/default-slate.js?v=2026-10-27b"></script>
+<script src="/js/state-globals.js?v=2026-10-27b"></script>
+<script src="/js/data/week7-official.js?v=2026-10-27b"></script>
+<script src="/js/data/code-gs-source.js?v=2026-10-27b"></script>
+<script src="/js/state.js?v=2026-10-27b"></script>
+<script src="/js/team-match.js?v=2026-10-27b"></script>
+<script src="/js/firestore.js?v=2026-10-27b"></script>
+<script src="/js/picks.js?v=2026-10-27b"></script>
+<script src="/js/espn.js?v=2026-10-27b"></script>
+<script src="/js/profiles.js?v=2026-10-27b"></script>
+<script src="/js/auth.js?v=2026-10-27b"></script>
+<script src="/js/import-hub.js?v=2026-10-27b"></script>
+<script src="/js/render/condensed.js?v=2026-10-27b"></script>
+<script src="/js/import-sheet-grading.js?v=2026-10-27b"></script>
+<script src="/js/render/field-tracker.js?v=2026-10-27b"></script>
+<script src="/js/demo-sim.js?v=2026-10-27b"></script>
+<script src="/js/render/theater.js?v=2026-10-27b"></script>
+<script src="/js/live-scores.js?v=2026-10-27b"></script>
+<script src="/js/leverage.js?v=2026-10-27b"></script>
+<script src="/js/simulator.js?v=2026-10-27b"></script>
+<script src="/js/archive.js?v=2026-10-27b"></script>
+<script src="/js/simple-mode-commissioner.js?v=2026-10-27b"></script>
+<script src="/js/commissioner-admin.js?v=2026-10-27b"></script>
+<script src="/js/shell.js?v=2026-10-27b"></script>
+<script src="/js/picks-ui.js?v=2026-10-27b"></script>
+<script src="/js/live-ui.js?v=2026-10-27b"></script>
+<script src="/js/standings-ui.js?v=2026-10-27b"></script>
+<script src="/js/dialogs-ui.js?v=2026-10-27b"></script>
+<script src="/js/boot.js?v=2026-10-27b"></script>
 </body>
 </html>

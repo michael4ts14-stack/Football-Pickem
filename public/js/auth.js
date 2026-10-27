@@ -327,7 +327,7 @@ async function signInWithGoogleAccount(useRedirect) {
   if (preferredName) safeSetStorage("sat_pending_oauth_member_v16", preferredName);
 
   if (errEl) {
-    errEl.style.color = "#38bdf8";
+    errEl.style.color = "var(--text)";
     errEl.textContent = useRedirect ? "↻ Redirecting to Google Sign-In..." : "↻ Opening Google Sign-In...";
   }
 
@@ -363,7 +363,7 @@ async function signInWithGoogleAccount(useRedirect) {
       }
       if (code === "auth/popup-closed-by-user") {
         if (errEl) {
-          errEl.style.color = "#f87171";
+          errEl.style.color = "var(--loss)";
           errEl.textContent = "Google Sign-In popup was closed before completing.";
         }
         return;
@@ -372,9 +372,9 @@ async function signInWithGoogleAccount(useRedirect) {
       var googleEmail = emailInput ? String(emailInput.value || "").trim().toLowerCase() : "";
       if (!googleEmail || googleEmail.indexOf("@") === -1) {
         if (errEl) {
-          errEl.style.color = "#fde68a";
+          errEl.style.color = "var(--warn)";
           errEl.innerHTML = "ℹ️ <strong>Firebase OAuth Setup Note (" + (code || "Provider Not Enabled Yet") + "):</strong><br>" +
-            "1. Open <a href='https://console.firebase.google.com/project/football-pickem-46206/authentication/providers' target='_blank' style='color:#38bdf8;text-decoration:underline;'>Firebase Console → Authentication → Sign-in method</a> and enable <strong>Google</strong> & <strong>Email/Password</strong>.<br>" +
+            "1. Open <a href='https://console.firebase.google.com/project/football-pickem-46206/authentication/providers' target='_blank' style='color:var(--text);text-decoration:underline;'>Firebase Console → Authentication → Sign-in method</a> and enable <strong>Google</strong> & <strong>Email/Password</strong>.<br>" +
             "2. Under <strong>Authentication → Settings → Authorized domains</strong>, add your hosting domain (e.g., Netlify/GitHub Pages).<br>" +
             "👉 <strong>Works Right Now:</strong> Type your email & password below and click <strong>Sign In / Create Account</strong> (or click Google Sign-In again with your email filled in) to authenticate immediately via the Cloud Firestore Vault!";
         }
@@ -409,18 +409,18 @@ async function submitEmailPasswordAuth(modeOverride) {
   if (chosenMember === "__NEW_USER__") chosenMember = "";
 
   if (!email || email.indexOf("@") === -1) {
-    if (errEl) { errEl.style.color = "#f87171"; errEl.textContent = "⚠️ Please enter a valid email address."; }
+    if (errEl) { errEl.style.color = "var(--loss)"; errEl.textContent = "⚠️ Please enter a valid email address."; }
     if (emailEl) emailEl.focus();
     return;
   }
   if (!password || password.length < 4) {
-    if (errEl) { errEl.style.color = "#f87171"; errEl.textContent = "⚠️ Please enter a password (at least 4 characters; 6+ for Firebase Auth)."; }
+    if (errEl) { errEl.style.color = "var(--loss)"; errEl.textContent = "⚠️ Please enter a password (at least 4 characters; 6+ for Firebase Auth)."; }
     if (passEl) passEl.focus();
     return;
   }
 
   if (errEl) {
-    errEl.style.color = "#38bdf8";
+    errEl.style.color = "var(--text)";
     errEl.textContent = mode === "signup" ? "↻ Creating your account & isolated instance..." : "↻ Signing in to your instance...";
   }
 
@@ -454,7 +454,7 @@ async function submitEmailPasswordAuth(modeOverride) {
     } catch (fbErr) {
       var c = (fbErr && fbErr.code) ? String(fbErr.code) : "";
       if (c === "auth/wrong-password" || c === "auth/invalid-login-credentials") {
-        if (errEl) { errEl.style.color = "#f87171"; errEl.textContent = "❌ Incorrect email or password."; }
+        if (errEl) { errEl.style.color = "var(--loss)"; errEl.textContent = "❌ Incorrect email or password."; }
         return;
       }
       if (c === "auth/email-already-in-use" && mode === "signup") {
@@ -474,7 +474,7 @@ async function submitEmailPasswordAuth(modeOverride) {
             return;
           }
         } catch (e2) {
-          if (errEl) { errEl.style.color = "#f87171"; errEl.textContent = "❌ Account already exists with a different password."; }
+          if (errEl) { errEl.style.color = "var(--loss)"; errEl.textContent = "❌ Account already exists with a different password."; }
           return;
         }
       }
@@ -496,7 +496,7 @@ async function submitEmailPasswordAuth(modeOverride) {
 
         if (existingAcct.passwordHash && existingAcct.passwordHash !== passHash && !verifiedForReset) {
           if (errEl) {
-            errEl.style.color = "#f87171";
+            errEl.style.color = "var(--loss)";
             if (isResettingVaultPass && acctLinked) {
               errEl.textContent = "⚠️ To finish resetting password for " + email + ", select '" + (existingAcct.linkedMemberName || existingAcct.displayName) + "' in Step 1 above to verify your identity, then click Sign In.";
             } else {
@@ -551,7 +551,7 @@ async function sendEmailPasswordReset() {
   var errEl = document.getElementById("auth-modal-error");
   var email = emailEl ? String(emailEl.value || "").trim().toLowerCase() : "";
   if (!email || email.indexOf("@") === -1) {
-    if (errEl) { errEl.style.color = "#f87171"; errEl.textContent = "⚠️ Enter your email address above first to reset password."; }
+    if (errEl) { errEl.style.color = "var(--loss)"; errEl.textContent = "⚠️ Enter your email address above first to reset password."; }
     if (emailEl) emailEl.focus();
     return;
   }
@@ -566,10 +566,10 @@ async function sendEmailPasswordReset() {
   window._pendingVaultPasswordResetEmail = email;
   if (errEl) {
     if (sentFirebaseEmail) {
-      errEl.style.color = "#34d399";
+      errEl.style.color = "var(--win)";
       errEl.innerHTML = "✅ <strong>Password reset email sent to " + email + "!</strong><br>*(Or if your account uses the Cloud Firestore Vault, select your Leaderboard Name in Step 1, type a new password above, and click Sign In to update it immediately.)*";
     } else {
-      errEl.style.color = "#fde68a";
+      errEl.style.color = "var(--warn)";
       errEl.innerHTML = "🔑 <strong>Password Reset Armed for " + email + ":</strong><br>1. Select your linked <strong>Leaderboard Name</strong> in Step 1 above (to verify your identity).<br>2. Type your <strong>NEW password</strong> in the password box above and click <strong>Sign In & Lock Instance</strong> to save your new password!";
     }
   }
@@ -738,14 +738,14 @@ function openAuthModal() {
     var boundMeta = getProfileMetaByKey(AUTH_SESSION.boundProfileKey);
     var isStrict = isAccountInstanceLocked();
     bodyEl.innerHTML =
-      '<div style="background:rgba(16,185,129,0.12);border:1px solid #10b981;border-radius:12px;padding:12px;margin-bottom:12px;">' +
+      '<div style="background:var(--raised);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' +
-          '<span style="font-size:0.86rem;font-weight:900;color:#34d399;">✅ Signed In & Instance Locked</span>' +
+          '<span style="font-size:0.86rem;font-weight:900;color:var(--win);">✅ Signed In & Instance Locked</span>' +
           '<span class="badge badge-ev">' + (AUTH_SESSION.provider.indexOf("google") !== -1 ? "🌐 Google Auth" : "📧 Email + Password") + '</span>' +
         '</div>' +
-        '<div style="font-size:0.78rem;color:#e2e8f0;margin-bottom:4px;"><strong>Account:</strong> ' + (AUTH_SESSION.email || AUTH_SESSION.displayName) + '</div>' +
-        '<div style="font-size:0.78rem;color:#e2e8f0;margin-bottom:8px;"><strong>Bound Instance Profile:</strong> <span style="color:#38bdf8;font-weight:800;">' + boundMeta.name + '</span> (Prior: ' + (boundMeta.priorPts || 0) + ' pts • ' + (boundMeta.defaultRank || 'Pool') + ')</div>' +
-        '<div style="font-size:0.72rem;color:#cbd5e1;background:rgba(9,13,22,0.75);padding:8px;border-radius:8px;border:1px solid var(--border-muted);">' +
+        '<div style="font-size:0.78rem;color:var(--text);margin-bottom:4px;"><strong>Account:</strong> ' + (AUTH_SESSION.email || AUTH_SESSION.displayName) + '</div>' +
+        '<div style="font-size:0.78rem;color:var(--text);margin-bottom:8px;"><strong>Bound Instance Profile:</strong> <span style="color:var(--text);font-weight:800;">' + boundMeta.name + '</span> (Prior: ' + (boundMeta.priorPts || 0) + ' pts • ' + (boundMeta.defaultRank || 'Pool') + ')</div>' +
+        '<div style="font-size:0.72rem;color:var(--text);background:var(--bg);padding:8px;border-radius:8px;border:1px solid var(--border-muted);">' +
           '🛡️ <strong>How Your Isolated Instance Works:</strong><br>' +
           '• Your device is locked to <strong>' + boundMeta.name + '</strong> (plus your personal <strong>🧪 Test Sim</strong> sandbox).<br>' +
           '• Other users logging in on their phones/computers <strong>cannot switch your active profile</strong> or edit your picks.<br>' +
@@ -753,62 +753,62 @@ function openAuthModal() {
         '</div>' +
       '</div>' +
       '<div style="margin-bottom:10px;">' +
-        '<label style="font-size:0.73rem;font-weight:800;color:#bae6fd;display:block;margin-bottom:4px;">🔗 Link to Existing Leaderboard Player (or keep as Custom/New Player):</label>' +
-        '<select class="search-input" style="width:100%;padding:7px 9px;font-size:0.76rem;color:#6ee7b7;" onchange="if(this.value && this.value !== \'__NEW_USER__\'){changeAuthenticatedLinkedMember(this.value);}">' + lbOpts + '</select>' +
+        '<label style="font-size:0.73rem;font-weight:800;color:var(--text);display:block;margin-bottom:4px;">🔗 Link to Existing Leaderboard Player (or keep as Custom/New Player):</label>' +
+        '<select class="search-input" style="width:100%;padding:7px 9px;font-size:0.76rem;color:var(--win);" onchange="if(this.value && this.value !== \'__NEW_USER__\'){changeAuthenticatedLinkedMember(this.value);}">' + lbOpts + '</select>' +
       '</div>' +
-      '<div style="background:rgba(15,23,42,0.85);border:1px solid var(--border-muted);border-radius:9px;padding:9px 11px;margin-bottom:12px;">' +
-        '<div style="font-size:0.71rem;font-weight:800;color:#93c5fd;margin-bottom:5px;">✨ Not on the Leaderboard Yet? Set Your Custom Display Name & Starting Points:</div>' +
+      '<div style="background:var(--surface);border:1px solid var(--border-muted);border-radius:9px;padding:9px 11px;margin-bottom:12px;">' +
+        '<div style="font-size:0.71rem;font-weight:800;color:var(--text);margin-bottom:5px;">✨ Not on the Leaderboard Yet? Set Your Custom Display Name & Starting Points:</div>' +
         '<div style="display:grid;grid-template-columns:1fr 95px auto;gap:6px;align-items:center;">' +
           '<input type="text" id="auth-edit-display-name" class="search-input" style="min-width:0;padding:6px 8px;font-size:0.76rem;" value="' + boundMeta.name.replace(/"/g, '&quot;') + '" placeholder="Your Display Name" />' +
           '<input type="number" id="auth-edit-prior-pts" class="search-input" style="min-width:0;padding:6px 8px;font-size:0.76rem;" value="' + (boundMeta.priorPts || 0) + '" placeholder="Prior Pts" title="Starting / Prior Season Points (0 for new players)" />' +
-          '<button type="button" class="btn-sm" style="background:var(--accent);color:#000;border:none;font-weight:800;padding:6px 10px;" onclick="saveCustomInstanceDisplayName()">Save</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;padding:6px 10px;" onclick="saveCustomInstanceDisplayName()">Save</button>' +
         '</div>' +
       '</div>' +
       '<div style="background:var(--panel-alt);padding:9px 11px;border-radius:9px;border:1px solid var(--border-muted);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
-        '<span style="font-size:0.73rem;color:#cbd5e1;">🕵️ <strong>Pre-Kickoff Pick Privacy:</strong> ' + ((state.profilePrivacy[AUTH_SESSION.boundProfileKey] && state.profilePrivacy[AUTH_SESSION.boundProfileKey].hidden) ? '<strong style="color:#6ee7b7;">🔒 Hidden From Other Users Until Kickoff</strong>' : '<strong style="color:#fde68a;">👁️ Public to Other Users</strong>') + '</span>' +
-        '<button type="button" class="btn-sm" style="padding:4px 9px;font-size:0.69rem;border-color:#c084fc;color:#e9d5ff;" onclick="toggleQuickLockActiveProfile(); openAuthModal();">Toggle Privacy</button>' +
+        '<span style="font-size:0.73rem;color:var(--text);">🕵️ <strong>Pre-Kickoff Pick Privacy:</strong> ' + ((state.profilePrivacy[AUTH_SESSION.boundProfileKey] && state.profilePrivacy[AUTH_SESSION.boundProfileKey].hidden) ? '<strong style="color:var(--win);">🔒 Hidden From Other Users Until Kickoff</strong>' : '<strong style="color:var(--warn);">👁️ Public to Other Users</strong>') + '</span>' +
+        '<button type="button" class="btn-sm" style="padding:4px 9px;font-size:0.69rem;border-color:var(--border);color:var(--text);" onclick="toggleQuickLockActiveProfile(); openAuthModal();">Toggle Privacy</button>' +
       '</div>' +
-      '<div style="background:rgba(245,158,11,0.09);border:1px solid rgba(245,158,11,0.4);border-radius:9px;padding:9px 11px;margin-bottom:12px;">' +
+      '<div style="background:var(--raised);border:1px solid var(--border);border-radius:9px;padding:9px 11px;margin-bottom:12px;">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">' +
-          '<label style="font-size:0.73rem;font-weight:800;color:#fde68a;cursor:pointer;display:flex;align-items:center;gap:6px;">' +
+          '<label style="font-size:0.73rem;font-weight:800;color:var(--warn);cursor:pointer;display:flex;align-items:center;gap:6px;">' +
             '<input type="checkbox" ' + (AUTH_SESSION.adminUnlock ? 'checked' : '') + ' onchange="toggleAdminInstanceOverride(this.checked)" />' +
             '👑 Commissioner Override Mode (Allow Multi-Profile Editing on This Device)' +
           '</label>' +
-          '<span style="font-size:0.66rem;color:var(--muted);">Currently Editing: <strong style="color:#38bdf8;">' + getProfileMetaByKey(activeProfile).name + '</strong></span>' +
+          '<span style="font-size:0.66rem;color:var(--muted);">Currently Editing: <strong style="color:var(--text);">' + getProfileMetaByKey(activeProfile).name + '</strong></span>' +
         '</div>' +
         (AUTH_SESSION.adminUnlock ? (
-          '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column;gap:7px;">' +
+          '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:7px;">' +
             '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
-              '<span style="font-size:0.7rem;color:#cbd5e1;font-weight:700;">🏈 Edit Any Player\'s Picks:</span>' +
-              '<select class="search-input" style="flex:1;min-width:170px;padding:5px 8px;font-size:0.73rem;color:#fde68a;border-color:#f59e0b88;" onchange="if(this.value && this.value !== \'__NEW_USER__\'){commissionerSwitchToMember(this.value);}">' + lbOpts + '</select>' +
+              '<span style="font-size:0.7rem;color:var(--text);font-weight:700;">🏈 Edit Any Player\'s Picks:</span>' +
+              '<select class="search-input" style="flex:1;min-width:170px;padding:5px 8px;font-size:0.73rem;color:var(--warn);border-color:var(--border);" onchange="if(this.value && this.value !== \'__NEW_USER__\'){commissionerSwitchToMember(this.value);}">' + lbOpts + '</select>' +
             '</div>' +
             '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
               '<input type="email" id="commish-reset-email-input" class="search-input" style="flex:1;min-width:170px;padding:5px 8px;font-size:0.72rem;" placeholder="Player email to unlock/reset password..." />' +
-              '<button type="button" class="btn-sm" style="border-color:#34d399;color:#6ee7b7;font-size:0.69rem;padding:5px 9px;" onclick="commissionerResetPlayerPassword()">🔑 Reset Player Password</button>' +
+              '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-size:0.69rem;padding:5px 9px;" onclick="commissionerResetPlayerPassword()">🔑 Reset Player Password</button>' +
             '</div>' +
           '</div>'
         ) : '') +
       '</div>' +
       '<div style="display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;">' +
-        '<button type="button" class="btn-sm" style="background:rgba(239,68,68,0.2);border-color:#ef4444;color:#fca5a5;font-weight:800;padding:8px 14px;" onclick="signOutAccountInstance()">🚪 Sign Out of Instance</button>' +
+        '<button type="button" class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;padding:8px 14px;" onclick="signOutAccountInstance()">🚪 Sign Out of Instance</button>' +
         '<div style="display:flex;gap:6px;">' +
-          '<button type="button" class="btn-sm" style="border-color:#f59e0b;color:#fde68a;font-weight:800;padding:8px 12px;" onclick="switchProfile(\'test\'); closeAuthModal();">🧪 My Sandbox Sim</button>' +
-          '<button type="button" class="btn-sm" style="background:var(--green);color:#000;border:none;font-weight:900;padding:8px 16px;" onclick="switchProfile(\'' + AUTH_SESSION.boundProfileKey + '\'); closeAuthModal();">🏈 Go to My Picks (' + boundMeta.shortName + ')</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--warn);font-weight:800;padding:8px 12px;" onclick="switchProfile(\'test\'); closeAuthModal();">🧪 My Sandbox Sim</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;padding:8px 16px;" onclick="switchProfile(\'' + AUTH_SESSION.boundProfileKey + '\'); closeAuthModal();">🏈 Go to My Picks (' + boundMeta.shortName + ')</button>' +
         '</div>' +
       '</div>';
   } else {
     var isSignup = (AUTH_MODAL_MODE === "signup");
     bodyEl.innerHTML =
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;background:#090d16;padding:4px;border-radius:9px;border:1px solid var(--border-muted);">' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;background:var(--bg);padding:4px;border-radius:9px;border:1px solid var(--border-muted);">' +
         '<button type="button" class="btn-sm ' + (!isSignup ? 'active' : '') + '" style="text-align:center;font-weight:800;padding:7px;" onclick="setAuthModalMode(\'signin\')">🔑 Sign In</button>' +
         '<button type="button" class="btn-sm ' + (isSignup ? 'active' : '') + '" style="text-align:center;font-weight:800;padding:7px;" onclick="setAuthModalMode(\'signup\')">✨ Create Account (80+ Ready)</button>' +
       '</div>' +
-      '<div style="margin-bottom:10px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.35);border-radius:10px;padding:10px;">' +
-        '<label style="font-size:0.72rem;font-weight:800;color:#6ee7b7;display:block;margin-bottom:4px;">1️⃣ Are you on the current 89-player Leaderboard, or a Brand-New Player?</label>' +
-        '<select id="auth-link-member-select" class="search-input" style="width:100%;padding:8px 10px;font-size:0.76rem;color:#6ee7b7;border-color:#10b98188;margin-bottom:6px;" onchange="handleAuthMemberSelectChange(this.value)">' + lbOpts + '</select>' +
+      '<div style="margin-bottom:10px;background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:10px;">' +
+        '<label style="font-size:0.72rem;font-weight:800;color:var(--win);display:block;margin-bottom:4px;">1️⃣ Are you on the current 89-player Leaderboard, or a Brand-New Player?</label>' +
+        '<select id="auth-link-member-select" class="search-input" style="width:100%;padding:8px 10px;font-size:0.76rem;color:var(--win);border-color:var(--border);margin-bottom:6px;" onchange="handleAuthMemberSelectChange(this.value)">' + lbOpts + '</select>' +
         '<div id="auth-custom-name-wrap" style="display:' + (!matchedOnBoard ? 'block' : 'none') + ';">' +
-          '<input type="text" id="auth-name-input" class="search-input" style="width:100%;padding:7px 10px;font-size:0.78rem;border-color:#38bdf888;" placeholder="Enter Your Display Name (or leave blank to use your Google Account name)" />' +
-          '<div style="font-size:0.67rem;color:#93c5fd;margin-top:3px;">✨ Creates a brand-new isolated profile in Cloud Firestore, adds you to the live standings & H2H dropdowns for all users, and starts your picks sheet!</div>' +
+          '<input type="text" id="auth-name-input" class="search-input" style="width:100%;padding:7px 10px;font-size:0.78rem;border-color:var(--border);" placeholder="Enter Your Display Name (or leave blank to use your Google Account name)" />' +
+          '<div style="font-size:0.67rem;color:var(--text);margin-top:3px;">✨ Creates a brand-new isolated profile in Cloud Firestore, adds you to the live standings & H2H dropdowns for all users, and starts your picks sheet!</div>' +
         '</div>' +
       '</div>' +
       '<div style="display:grid;grid-template-columns:1fr auto;gap:6px;">' +
@@ -816,7 +816,7 @@ function openAuthModal() {
           '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>' +
           '<span>Continue with Google Sign-In</span>' +
         '</button>' +
-        '<button type="button" class="btn-sm" style="padding:8px 10px;font-size:0.72rem;border-color:#cbd5e1;color:#e2e8f0;" onclick="signInWithGoogleAccount(true)" title="Use Redirect instead of Popup (Best for Mobile Safari / iOS)">📱 Mobile Redirect</button>' +
+        '<button type="button" class="btn-sm" style="padding:8px 10px;font-size:0.72rem;border-color:var(--border);color:var(--text);" onclick="signInWithGoogleAccount(true)" title="Use Redirect instead of Popup (Best for Mobile Safari / iOS)">📱 Mobile Redirect</button>' +
       '</div>' +
       '<div class="auth-divider">or Email + Password</div>' +
       '<div style="display:flex;flex-direction:column;gap:8px;">' +
@@ -824,14 +824,14 @@ function openAuthModal() {
         '<input type="email" id="auth-email-input" class="search-input" style="width:100%;padding:8px 10px;font-size:0.8rem;" placeholder="Email address (e.g. you@gmail.com)" onkeydown="if(event.key===\'Enter\'){submitEmailPasswordAuth();}" />' +
         '<input type="password" id="auth-password-input" class="search-input" style="width:100%;padding:8px 10px;font-size:0.8rem;" placeholder="Password (6+ characters)" onkeydown="if(event.key===\'Enter\'){submitEmailPasswordAuth();}" />' +
       '</div>' +
-      '<div id="auth-modal-error" style="font-size:0.73rem;color:#f87171;min-height:18px;margin:8px 0;font-weight:700;line-height:1.35;"></div>' +
+      '<div id="auth-modal-error" style="font-size:0.73rem;color:var(--loss);min-height:18px;margin:8px 0;font-weight:700;line-height:1.35;"></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px;">' +
         '<button type="button" class="btn-sm" style="font-size:0.69rem;color:var(--muted);" onclick="sendEmailPasswordReset()">Forgot Password?</button>' +
-        '<button type="button" class="btn-sm" style="background:linear-gradient(90deg,#059669,#0284c7);color:#fff;border:none;font-weight:900;padding:9px 18px;font-size:0.8rem;" onclick="submitEmailPasswordAuth()">' +
+        '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:900;padding:9px 18px;font-size:0.8rem;" onclick="submitEmailPasswordAuth()">' +
           (isSignup ? '✨ Create Account & Lock Instance' : '🔐 Sign In & Lock Instance') +
         '</button>' +
       '</div>' +
-      '<div style="margin-top:12px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.08);font-size:0.69rem;color:var(--muted);">' +
+      '<div style="margin-top:12px;padding-top:8px;border-top:1px solid var(--border);font-size:0.69rem;color:var(--muted);">' +
         '💡 <strong>Built for 6 Users Today & 80+ Users Next Season:</strong> Signing in binds this browser exclusively to your profile so nobody else can switch your profile on your screen, while everyone\'s picks still update live alongside yours.' +
       '</div>';
   }
@@ -852,19 +852,19 @@ function updateAuthUI() {
       btn.className = "btn-sm auth-pill-active";
     }
     if (instTag) {
-      instTag.textContent = isLocked ? "🔒 My Instance" : "👑 Admin";
+      instTag.textContent = isLocked ? "" : "Admin";
     }
     if (banner) {
       banner.style.display = "flex";
       banner.innerHTML =
-        '<span>🔐 Instance: <strong style="color:#34d399;">' + bMeta.name + '</strong> ' +
-        (isLocked ? '<span style="color:#93c5fd;">(Isolated • Others Read-Only)</span>' : '<span style="color:#fde68a;">(👑 Admin Override)</span>') +
+        '<span>🔐 Instance: <strong style="color:var(--win);">' + bMeta.name + '</strong> ' +
+        (isLocked ? '<span style="color:var(--text);">(Isolated • Others Read-Only)</span>' : '<span style="color:var(--warn);">(👑 Admin Override)</span>') +
         '</span>' +
         '<div style="display:flex;gap:4px;">' +
           '<button type="button" class="btn-sm" style="padding:2px 6px;font-size:0.64rem;" onclick="switchProfile(\'' + (activeProfile === 'test' ? AUTH_SESSION.boundProfileKey : 'test') + '\')">' +
             (activeProfile === 'test' ? ('🏈 Back to ' + bMeta.shortName) : '🧪 Sandbox') +
           '</button>' +
-          '<button type="button" class="btn-sm" style="padding:2px 6px;font-size:0.64rem;border-color:#38bdf8;color:#7dd3fc;" onclick="openAuthModal()">⚙️ Manage</button>' +
+          '<button type="button" class="btn-sm" style="padding:2px 6px;font-size:0.64rem;border-color:var(--border);color:var(--text);" onclick="openAuthModal()">⚙️ Manage</button>' +
         '</div>';
     }
   } else {
@@ -873,13 +873,13 @@ function updateAuthUI() {
       btn.className = "btn-sm";
     }
     if (instTag) {
-      instTag.textContent = "⇄";
+      instTag.textContent = "Guest";
     }
     if (banner) {
       banner.style.display = "flex";
       banner.innerHTML =
-        '<span style="color:#cbd5e1;">🔓 <strong>Shared Device Mode</strong> (Sign in to lock your own instance)</span>' +
-        '<button type="button" class="btn-sm" style="padding:2px 8px;font-size:0.66rem;background:linear-gradient(90deg,#0284c7,#4f46e5);color:#fff;border:none;font-weight:800;" onclick="openAuthModal()">🔐 Sign In / Register</button>';
+        '<span style="color:var(--text);">🔓 <strong>Shared Device Mode</strong> (Sign in to lock your own instance)</span>' +
+        '<button type="button" class="btn-sm" style="padding:2px 8px;font-size:0.66rem;background:var(--raised);color:var(--text);border:none;font-weight:800;" onclick="openAuthModal()">🔐 Sign In / Register</button>';
     }
   }
 }

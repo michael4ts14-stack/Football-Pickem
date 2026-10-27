@@ -131,7 +131,7 @@ function returnToLiveWeek() {
     renderAll();
   }
   var brandEl = document.getElementById("sheet-title-brand");
-  if (brandEl) brandEl.textContent = "🏈 " + state.weekLabel + " (CST)";
+  if (brandEl) brandEl.textContent = state.weekLabel;
   populateWeekArchiveDropdown();
   showAppToast("🏈 Back to " + state.weekLabel + " (live)");
 }
@@ -182,7 +182,7 @@ function switchWeekArchive(weekKey) {
 
   var brandEl = document.getElementById("sheet-title-brand");
   if (brandEl) {
-    brandEl.textContent = "🏈 " + state.weekLabel + " (Archive)";
+    brandEl.textContent = state.weekLabel + " · Past week";
   }
 
   regradeAllPoolMembersLive();
@@ -262,15 +262,15 @@ function renderSeasonArchiveHub() {
 
     cardsHtml += '<div class="archive-week-card' + (isCurrent ? ' active-wk' : '') + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-        '<strong style="font-size:0.82rem;color:#fff;">📚 ' + (snap.weekLabel || ("Week " + snap.weekNum)) + '</strong>' +
+        '<strong style="font-size:0.82rem;color:var(--text);">📚 ' + (snap.weekLabel || ("Week " + snap.weekNum)) + '</strong>' +
         (isCurrent ? '<span class="badge badge-ev">Active View</span>' : '<span class="badge badge-1x">Archived</span>') +
       '</div>' +
       '<div style="color:var(--muted);">Slate: <strong>' + gList.length + ' Games</strong> (' + firstMatchup + '...) • Graded: <strong>' + compCount + '/' + gList.length + '</strong></div>' +
-      '<div style="color:#cbd5e1;">👤 Michael: <strong style="color:#38bdf8;">' + mPts + '</strong> • 👤 Kinyion: <strong style="color:#c084fc;">' + kPts + '</strong></div>' +
+      '<div style="color:var(--text);">👤 Michael: <strong style="color:var(--text);">' + mPts + '</strong> • 👤 Kinyion: <strong style="color:var(--text);">' + kPts + '</strong></div>' +
       '<div style="margin-top:4px;display:flex;gap:6px;">' +
         (isCurrent
-          ? '<button type="button" class="btn-sm" style="width:100%;border-color:#34d399;color:#6ee7b7;font-weight:800;" onclick="saveCurrentWeekToArchive(true)">💾 Update Snapshot in Firestore</button>'
-          : '<button type="button" class="btn-sm" style="width:100%;background:var(--accent);color:#000;border:none;font-weight:800;" onclick="switchWeekArchive(\'' + k + '\')">📂 Load ' + (snap.weekLabel || ("Week " + snap.weekNum)) + ' Slate & Grades</button>') +
+          ? '<button type="button" class="btn-sm" style="width:100%;border-color:var(--border);color:var(--win);font-weight:800;" onclick="saveCurrentWeekToArchive(true)">💾 Update Snapshot in Firestore</button>'
+          : '<button type="button" class="btn-sm" style="width:100%;background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="switchWeekArchive(\'' + k + '\')">📂 Load ' + (snap.weekLabel || ("Week " + snap.weekNum)) + ' Slate & Grades</button>') +
       '</div>' +
     '</div>';
   }
@@ -278,7 +278,7 @@ function renderSeasonArchiveHub() {
   box.innerHTML =
     '<div class="side-title" style="flex-wrap:wrap;gap:6px;">' +
       '<span>📚 Multi-Week Season History Archive (Synced to Cloud Firestore)</span>' +
-      '<button type="button" class="btn-sm" style="padding:3px 9px;font-size:0.69rem;border-color:#38bdf8;color:#7dd3fc;" onclick="saveCurrentWeekToArchive(true)">💾 Snapshot Current Week</button>' +
+      '<button type="button" class="btn-sm" style="padding:3px 9px;font-size:0.69rem;border-color:var(--border);color:var(--text);" onclick="saveCurrentWeekToArchive(true)">💾 Snapshot Current Week</button>' +
     '</div>' +
     '<div style="font-size:0.73rem;color:var(--muted);">Switch between any archived week and your active week at any time from the top bar or below. Importing a new weekly PDF/CSV automatically snapshots the prior week first.</div>' +
     '<div class="archive-week-strip">' + cardsHtml + '</div>';
@@ -286,7 +286,7 @@ function renderSeasonArchiveHub() {
 
 function renderAll() {
   var lfltBtn = document.getElementById("lflt-all");
-  if (lfltBtn) lfltBtn.textContent = "All " + GAMES.length + " Games";
+  if (lfltBtn) lfltBtn.textContent = "All " + GAMES.length;
   var fltBtn = document.getElementById("flt-all");
   if (fltBtn) fltBtn.textContent = "All " + GAMES.length;
 

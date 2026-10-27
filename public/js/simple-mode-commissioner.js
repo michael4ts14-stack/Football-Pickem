@@ -92,7 +92,9 @@ getAutoUnhideReason = function(profKey, gameId) {
 // automatically carry over into their newly created or signed-in account!
 var _origBindAuthenticatedAccountToProfile = bindAuthenticatedAccountToProfile;
 bindAuthenticatedAccountToProfile = async function(authUser, chosenMemberName) {
-  var hadGuestDraft = (GUEST_BROWSING_MODE || window._carryOverGuestPicksOnAuth) && state.test && state.test.picks && Object.keys(state.test.picks).length > 0;
+  // Only picks made as a guest in this session (or an explicit "Create account") carry over, so older
+  // sandbox experiments on a shared device never overwrite an account's real picks.
+  var hadGuestDraft = (window._guestPicksTouched || window._carryOverGuestPicksOnAuth) && state.test && state.test.picks && Object.keys(state.test.picks).length > 0;
   var guestPicksCopy = hadGuestDraft ? JSON.parse(JSON.stringify(state.test.picks)) : null;
   var guestTbCopy = (hadGuestDraft && state.test.tiebreaker) ? state.test.tiebreaker : null;
 
@@ -100,6 +102,7 @@ bindAuthenticatedAccountToProfile = async function(authUser, chosenMemberName) {
 
   GUEST_BROWSING_MODE = false;
   window._carryOverGuestPicksOnAuth = false;
+  window._guestPicksTouched = false;
 
   if (guestPicksCopy && AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
     var bKey = AUTH_SESSION.boundProfileKey;
@@ -145,57 +148,43 @@ function renderSimpleGuestAccountBar() {
   var myPicks = (state[activeProfile] && state[activeProfile].picks) ? state[activeProfile].picks : {};
   var cStats = countMatchingPicksForSlate(myPicks, GAMES);
 
-  // Update lock deadline pill
+  // Lock line in the Picks head
   var lockPill = document.getElementById("simple-lock-deadline-pill");
   if (lockPill) {
     var lockedNow = isGameLockedByCommissioner(1);
+    lockPill.className = "lock-text";
     if (cfg.lockMode === "friday_9pm_cst") {
-      lockPill.className = "badge " + (lockedNow ? "badge-3x" : "badge-ev");
-      lockPill.textContent = lockedNow ? "🔒 Locked (Fri 9:00 PM CST Passed)" : "🔓 Editable Until Fri 9:00 PM CST";
+      lockPill.textContent = lockedNow ? "Locked" : "Locks Fri 9:00 PM CT";
     } else if (cfg.lockMode === "global_locked") {
-      lockPill.className = "badge badge-3x";
-      lockPill.textContent = "🔒 Slate Locked by Commissioner";
+      lockPill.textContent = "Locked by the commissioner";
+    } else if (cfg.lockMode === "rolling_kickoff") {
+      lockPill.textContent = "Each game locks at kickoff";
     } else {
-      lockPill.className = "badge badge-ev";
-      lockPill.textContent = "🔓 Picks Open (" + cStats.matched + "/" + GAMES.length + " Selected)";
+      lockPill.textContent = "Picks open";
     }
   }
 
   var recLog = cfg.savedReceiptsLog && cfg.savedReceiptsLog[activeProfile];
   var recTxtEl = document.getElementById("simple-receipt-status-text");
   if (recTxtEl) {
-    if (recLog && recLog.sentAt) {
-      recTxtEl.innerHTML = "✅ <strong>Receipt Emailed (" + recLog.sentAt + ")</strong> — You can still change any pick until <strong>Fri 9:00 PM CST</strong>!";
-      recTxtEl.style.color = "#6ee7b7";
-    } else {
-      recTxtEl.innerHTML = "💡 Change your picks as many times as you want all week — final lock is <strong>Friday 9:00 PM CST</strong>.";
-      recTxtEl.style.color = "#93c5fd";
-    }
+    recTxtEl.textContent = (recLog && recLog.sentAt)
+      ? ("Submitted " + recLog.sentAt + ". You can still change picks until Fri 9:00 PM CT.")
+      : "";
+    recTxtEl.style.color = "";
   }
 
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey && !GUEST_BROWSING_MODE) {
-    var bMeta = getProfileMetaByKey(AUTH_SESSION.boundProfileKey);
-    el.innerHTML =
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-        '<span class="badge badge-ev" style="font-size:0.72rem;padding:3px 9px;">🔐 Signed In: ' + bMeta.name + '</span>' +
-        '<span style="font-size:0.73rem;color:#cbd5e1;">Picks Ready: <strong style="color:#fff;">' + cStats.matched + ' / ' + GAMES.length + '</strong> • Saved to Cloud Firestore</span>' +
-      '</div>' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
-        '<button type="button" class="btn-sm" style="border-color:#38bdf8;color:#7dd3fc;font-weight:800;" onclick="openAuthModal()">⚙️ My Account / Switch</button>' +
-        '<button type="button" class="btn-sm" style="border-color:#c084fc;color:#e9d5ff;font-weight:800;" onclick="openUserAndPrivacyModal()">🔒 Pick Privacy</button>' +
-      '</div>';
+    // Signed in: the avatar and More > Account cover account and privacy.
+    el.innerHTML = "";
   } else {
     var isGuestSim = (GUEST_BROWSING_MODE || activeProfile === "test");
     el.innerHTML =
-      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-        '<span class="badge badge-2x" style="font-size:0.72rem;padding:3px 9px;">' + (isGuestSim ? '👋 Guest Picking Mode (' + cStats.matched + '/' + GAMES.length + ' Picked)' : '🔓 Not Signed In (' + getProfileMetaByKey(activeProfile).name + ')') + '</span>' +
-        '<span style="font-size:0.73rem;color:#e2e8f0;">Make your picks first as a Guest, or sign in / create an account anytime!</span>' +
-      '</div>' +
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
-        (!isGuestSim ? '<button type="button" class="btn-sm" style="background:rgba(245,158,11,0.2);border-color:#f59e0b;color:#fde68a;font-weight:800;" onclick="startGuestPickingMode()">👋 Continue as Guest</button>' : '') +
-        '<button type="button" class="btn-sm" style="background:linear-gradient(90deg,#0284c7,#4f46e5);border:none;color:#fff;font-weight:900;padding:6px 12px;" onclick="openAuthModalCarryingGuestPicks(\'signin\')">🔑 Login</button>' +
-        '<button type="button" class="btn-sm" style="background:linear-gradient(90deg,#059669,#0284c7);border:none;color:#fff;font-weight:900;padding:6px 12px;" onclick="openAuthModalCarryingGuestPicks(\'signup\')">✨ Make an Account (Keep My ' + cStats.matched + ' Picks)</button>' +
-      '</div>';
+      '<span>' + (isGuestSim ? 'Picking as a guest' : 'Not signed in') + '</span>' +
+      '<span class="account-note-links">' +
+        '<button type="button" class="link-btn" onclick="AUTH_MODAL_MODE = \'signin\'; openAuthModal()">Sign in</button>' +
+        '<button type="button" class="link-btn" onclick="openAuthModalCarryingGuestPicks(\'signup\')" title="Your picks carry over to the new account">Create account</button>' +
+        (!isGuestSim ? '<button type="button" class="link-btn" onclick="startGuestPickingMode()">Guest</button>' : '') +
+      '</span>';
   }
 }
 
@@ -258,26 +247,26 @@ async function saveAndSendPickConfirmationReceipt() {
   // Open a clean Confirmation Receipt modal with 1-click Email / Copy / Guest-to-Account upgrade
   document.getElementById("modal-team-title").textContent = "✅ Picks Saved & Confirmation Receipt (" + (state.weekLabel || "Week 8") + ")";
   document.getElementById("modal-team-body").innerHTML =
-    '<div style="background:rgba(16,185,129,0.14);border:1px solid #10b981;border-radius:10px;padding:12px;margin-bottom:10px;">' +
-      '<div style="font-size:0.88rem;font-weight:900;color:#34d399;margin-bottom:4px;">📧 Pick Receipt Logged at ' + nowTime + '</div>' +
-      '<div style="font-size:0.74rem;color:#e2e8f0;line-height:1.45;">' +
+    '<div style="background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">' +
+      '<div style="font-size:0.88rem;font-weight:900;color:var(--win);margin-bottom:4px;">📧 Pick Receipt Logged at ' + nowTime + '</div>' +
+      '<div style="font-size:0.74rem;color:var(--text);line-height:1.45;">' +
         '• <strong>Player:</strong> ' + meta.name + (userEmail ? (' (' + userEmail + ')') : '') + '<br>' +
         '• <strong>Tie-Breaker:</strong> ' + tb + '<br>' +
         '• <strong>🔓 Still Editable All Week:</strong> Even though your receipt is saved, you can come back and change any pick on Tuesday, Wednesday, Thursday, or Friday! Your official final version does not lock until <strong>Friday at 9:00 PM CST</strong>.' +
       '</div>' +
     '</div>' +
     ((!AUTH_SESSION || GUEST_BROWSING_MODE) ? (
-      '<div style="background:rgba(56,189,248,0.12);border:1px solid #38bdf8;border-radius:9px;padding:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
-        '<span style="font-size:0.74rem;color:#bae6fd;">👋 <strong>Playing as a Guest?</strong> Create an account now and all 23 picks above will automatically attach to your account!</span>' +
-        '<button type="button" class="btn-sm" style="background:linear-gradient(90deg,#059669,#0284c7);color:#fff;border:none;font-weight:900;" onclick="closeOppModal(); openAuthModalCarryingGuestPicks(\'signup\');">✨ Make an Account & Keep My Picks</button>' +
+      '<div style="background:var(--raised);border:1px solid var(--border);border-radius:9px;padding:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
+        '<span style="font-size:0.74rem;color:var(--text);">👋 <strong>Playing as a Guest?</strong> Create an account now and all 23 picks above will automatically attach to your account!</span>' +
+        '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:900;" onclick="closeOppModal(); openAuthModalCarryingGuestPicks(\'signup\');">✨ Make an Account & Keep My Picks</button>' +
       '</div>'
     ) : '') +
     '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">' +
       '<input type="email" id="receipt-email-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.75rem;" placeholder="Enter email address for confirmation receipt..." value="' + (userEmail || "").replace(/"/g, '&quot;') + '" />' +
-      '<button type="button" class="btn-sm" style="background:var(--accent);color:#000;border:none;font-weight:800;padding:6px 12px;" onclick="sendReceiptToCustomEmail()">📨 Send Email Receipt</button>' +
+      '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;padding:6px 12px;" onclick="sendReceiptToCustomEmail()">📨 Send Email Receipt</button>' +
       '<button type="button" class="btn-sm" onclick="copyPicksToClipboard()">📋 Copy Receipt Text</button>' +
     '</div>' +
-    '<textarea readonly rows="8" class="search-input" style="width:100%;font-family:monospace;font-size:0.71rem;color:#cbd5e1;">' +
+    '<textarea readonly rows="8" class="search-input" style="width:100%;font-family:monospace;font-size:0.71rem;color:var(--text);">' +
       'SEPARATED AT TURF PICK\'EM — ' + (state.weekLabel || 'WEEK 8').toUpperCase() + ' CONFIRMATION RECEIPT\n' +
       'Player: ' + meta.name + ' | Saved: ' + nowTime + '\n' +
       'Status: SAVED (Editable until Friday 9:00 PM CST Official Lock)\n' +
@@ -375,17 +364,17 @@ function renderTop5WeeklyWinnersPodium() {
           '<span style="font-size:0.68rem;font-weight:900;color:' + (i === 0 ? 'var(--gold)' : '#6ee7b7') + ';">' + medals[i] + '</span>' +
           '<span class="badge badge-ev" style="font-size:0.7rem;">+' + w.wkPts + ' pts</span>' +
         '</div>' +
-        '<div style="font-size:0.92rem;font-weight:900;color:#fff;margin-top:2px;">' + w.name + '</div>' +
-        '<div style="font-size:0.69rem;color:var(--muted);">🎯 TB: <strong style="color:#e2e8f0;">' + w.tiebreaker + '</strong> • ' + dogStr + '</div>' +
-        '<div style="font-size:0.68rem;color:#7dd3fc;">Overall Total: <strong>' + w.newTotal + ' pts</strong></div>' +
+        '<div style="font-size:0.92rem;font-weight:900;color:var(--text);margin-top:2px;">' + w.name + '</div>' +
+        '<div style="font-size:0.69rem;color:var(--muted);">🎯 TB: <strong style="color:var(--text);">' + w.tiebreaker + '</strong> • ' + dogStr + '</div>' +
+        '<div style="font-size:0.68rem;color:var(--text);">Overall Total: <strong>' + w.newTotal + ' pts</strong></div>' +
       '</div>';
   }
 
   container.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">' +
       '<div>' +
-        '<strong style="font-size:0.88rem;color:#fff;">' + wkTitle + '</strong>' +
-        '<div style="font-size:0.71rem;color:#a7f3d0;">Tracks the Top 5 players who gained the most points during the week (broken by closest Tie-Breaker score).</div>' +
+        '<strong style="font-size:0.88rem;color:var(--text);">' + wkTitle + '</strong>' +
+        '<div style="font-size:0.71rem;color:var(--win);">Tracks the Top 5 players who gained the most points during the week (broken by closest Tie-Breaker score).</div>' +
       '</div>' +
       '<span class="badge badge-ev">🏆 Top 5 Weekly Standings</span>' +
     '</div>' +
@@ -427,26 +416,12 @@ function applySimpleUiModeDOM() {
   document.body.classList.toggle("simple-ui-mode", !!SIMPLE_UI_MODE);
   var btn = document.getElementById("btn-simple-mode-toggle");
   if (btn) {
-    btn.textContent = SIMPLE_UI_MODE ? "🧠 Advanced: OFF" : "🧠 Advanced: ON";
-    btn.className = "btn-sm" + (!SIMPLE_UI_MODE ? " simple-mode-btn-active" : "");
+    var lbl = btn.querySelector(".adv-label");
+    if (lbl) lbl.textContent = SIMPLE_UI_MODE ? "Advanced: OFF" : "Advanced: ON";
+    else btn.textContent = SIMPLE_UI_MODE ? "Advanced: OFF" : "Advanced: ON";
+    btn.className = "btn-sm hdr-btn" + (!SIMPLE_UI_MODE ? " active" : "");
+    btn.setAttribute("aria-pressed", SIMPLE_UI_MODE ? "false" : "true");
   }
-  var tCards = document.getElementById("tab-mode-cards");
-  var tCond = document.getElementById("tab-mode-condensed");
-  var tLive = document.getElementById("tab-mode-live");
-  var tStand = document.getElementById("tab-mode-standings");
-  if (tCards) tCards.textContent = SIMPLE_UI_MODE ? "🏈 Make Picks" : "🃏 Research Cards";
-  if (tCond) tCond.textContent = SIMPLE_UI_MODE ? "⚡ Condensed" : "📋 Both Picks";
-  if (tLive) tLive.textContent = SIMPLE_UI_MODE ? "🔴 Live Games" : "🔴 Live CST Tracker";
-  if (tStand) tStand.textContent = SIMPLE_UI_MODE ? "🏆 Leaderboard" : "🏆 Standings & Grading";
-
-  var mCards = document.getElementById("mnav-cards");
-  var mCond = document.getElementById("mnav-condensed");
-  var mLive = document.getElementById("mnav-live");
-  var mStand = document.getElementById("mnav-standings");
-  if (mCards) mCards.textContent = SIMPLE_UI_MODE ? "🏈 Picks" : "🃏 Cards";
-  if (mCond) mCond.textContent = SIMPLE_UI_MODE ? "⚡ Condensed" : "📋 Matrix";
-  if (mLive) mLive.textContent = SIMPLE_UI_MODE ? "🔴 Live" : "🔴 Live CST";
-  if (mStand) mStand.textContent = SIMPLE_UI_MODE ? "🏆 Board" : "🏆 Standings";
 
   var sTb = document.getElementById("simple-tiebreaker-input");
   if (sTb && state[activeProfile]) {
@@ -703,7 +678,7 @@ function renderCommissionerModalBody() {
         '<td>' + statusBadge + '</td>' +
         '<td><strong>' + tbVal + '</strong></td>' +
         '<td>' +
-          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;border-color:#fde68a;color:#fde68a;" onclick="commishQuickImpersonate(\'' + safeName + '\')">✏️ Enter/Edit Picks</button>' +
+          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;border-color:var(--border);color:var(--warn);" onclick="commishQuickImpersonate(\'' + safeName + '\')">✏️ Enter/Edit Picks</button>' +
         '</td>' +
       '</tr>';
     }
@@ -711,10 +686,10 @@ function renderCommissionerModalBody() {
     var missingCount = pmList.length - submittedCount;
     body.innerHTML =
       '<div class="commish-kpi-strip">' +
-        '<div class="commish-kpi"><div class="metric-label">Active Week</div><div class="metric-val" style="color:var(--accent);">' + (state.weekLabel || "Week 8") + '</div><div class="metric-sub">' + GAMES.length + ' Games • Lock: Fri 9PM CST</div></div>' +
+        '<div class="commish-kpi"><div class="metric-label">Active Week</div><div class="metric-val" style="color:var(--legacy-accent);">' + (state.weekLabel || "Week 8") + '</div><div class="metric-sub">' + GAMES.length + ' Games • Lock: Fri 9PM CST</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Sheets Saved</div><div class="metric-val" style="color:var(--green);">' + submittedCount + ' / ' + pmList.length + '</div><div class="metric-sub">' + Math.round((submittedCount / Math.max(1, pmList.length)) * 100) + '% Pool Completion</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Wed/Thu Nudge Target</div><div class="metric-val" style="color:' + (missingCount > 0 ? 'var(--amber)' : 'var(--green)') + ';">' + missingCount + ' Missing</div><div class="metric-sub">' + (cfg.lastWedThuNudgeSentAt ? ('Last Nudge: ' + cfg.lastWedThuNudgeSentAt) : 'Auto Wed & Thu Nudge Ready') + '</div></div>' +
-        '<div class="commish-kpi"><div class="metric-label">Sat Morning Sheet</div><div class="metric-val" style="color:#34d399;font-size:0.95rem;">' + (cfg.lastSatSheetSentAt ? 'Sent!' : 'Auto 8AM Sat') + '</div><div class="metric-sub">Reveals & Emails All Picks</div></div>' +
+        '<div class="commish-kpi"><div class="metric-label">Sat Morning Sheet</div><div class="metric-val" style="color:var(--win);font-size:0.95rem;">' + (cfg.lastSatSheetSentAt ? 'Sent!' : 'Auto 8AM Sat') + '</div><div class="metric-sub">Reveals & Emails All Picks</div></div>' +
       '</div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">' +
         '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
@@ -723,8 +698,8 @@ function renderCommissionerModalBody() {
           '<button type="button" class="btn-sm' + (COMMISH_SUBMISSION_FILTER === "missing" ? " active" : "") + '" onclick="setCommishSubFilter(\'missing\')">⏳ Missing (' + missingCount + ')</button>' +
         '</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-          '<button type="button" class="btn-sm" style="border-color:var(--amber);color:#fde68a;font-weight:800;" onclick="triggerWedThuAutomatedNudge()">⏰ Send Wed/Thu Nudge (' + missingCount + ')</button>' +
-          '<button type="button" class="btn-sm" style="background:linear-gradient(90deg,#059669,#0284c7);color:#fff;border:none;font-weight:900;" onclick="triggerSaturdayMorningMasterSheetBroadcast()">📊 Trigger Sat Morning Reveal & Master CSV</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--amber);color:var(--warn);font-weight:800;" onclick="triggerWedThuAutomatedNudge()">⏰ Send Wed/Thu Nudge (' + missingCount + ')</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:900;" onclick="triggerSaturdayMorningMasterSheetBroadcast()">📊 Trigger Sat Morning Reveal & Master CSV</button>' +
         '</div>' +
       '</div>' +
       '<div style="max-height:380px;overflow-y:auto;border:1px solid var(--border-muted);border-radius:10px;">' +
@@ -751,12 +726,12 @@ function renderCommissionerModalBody() {
         '<td><strong>#' + g.id + '</strong></td>' +
         '<td>' +
           '<div><strong>' + g.away + '</strong> <span style="color:var(--muted);">(' + g.awayPts + 'x)</span> at <strong>' + g.home + '</strong> <span style="color:var(--muted);">(' + g.homePts + 'x)</span></div>' +
-          '<div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;"><select class="search-input" style="padding:2px 6px;font-size:0.68rem;max-width:230px;color:#7dd3fc;border-color:#38bdf866;" onchange="commishSwapIndividualGame(' + g.id + ', this.value)">' + swapOptionsBase + '</select></div>' +
+          '<div style="margin-top:3px;display:flex;gap:4px;flex-wrap:wrap;align-items:center;"><select class="search-input" style="padding:2px 6px;font-size:0.68rem;max-width:230px;color:var(--text);border-color:var(--border);" onchange="commishSwapIndividualGame(' + g.id + ', this.value)">' + swapOptionsBase + '</select></div>' +
           '<div id="custom-swap-inline-' + g.id + '" style="display:none;gap:4px;margin-top:4px;flex-wrap:wrap;align-items:center;">' +
             '<input type="text" id="custom-swap-away-' + g.id + '" class="search-input" style="width:98px;min-width:0;padding:3px 6px;font-size:0.68rem;" placeholder="Away Team" value="' + g.away.replace(/"/g, '&quot;') + '" />' +
             '<span style="font-size:0.66rem;color:var(--muted);">at</span>' +
             '<input type="text" id="custom-swap-home-' + g.id + '" class="search-input" style="width:98px;min-width:0;padding:3px 6px;font-size:0.68rem;" placeholder="Home Team" value="' + g.home.replace(/"/g, '&quot;') + '" />' +
-            '<button type="button" class="btn-sm" style="padding:2px 7px;font-size:0.66rem;background:var(--green);color:#000;border:none;font-weight:800;" onclick="applyCustomGameSwapInline(' + g.id + ')">✓ Swap</button>' +
+            '<button type="button" class="btn-sm" style="padding:2px 7px;font-size:0.66rem;background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="applyCustomGameSwapInline(' + g.id + ')">✓ Swap</button>' +
           '</div>' +
         '</td>' +
         '<td><input type="text" class="search-input" style="min-width:135px;padding:4px 7px;font-size:0.72rem;" value="' + (g.poolLine || "").replace(/"/g, '&quot;') + '" onchange="commishUpdateGameSpread(' + g.id + ', this.value)" title="Format: Favorite -Spread (e.g. Texas -10.5). Automatically recalculates 1x/2x/3x multiplier!" /></td>' +
@@ -773,29 +748,29 @@ function renderCommissionerModalBody() {
         var cg = ESPN_CANDIDATE_SLATE_GAMES[c];
         candItems += '<label style="display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--border-muted);padding:6px 8px;border-radius:7px;font-size:0.72rem;cursor:pointer;">' +
           '<input type="checkbox" class="espn-cand-chk" value="' + c + '" ' + (cg.preselected ? 'checked' : '') + ' />' +
-          '<span><strong>' + cg.away + '</strong> at <strong>' + cg.home + '</strong> <span style="color:var(--accent);">(' + cg.spreadStr + ' • ' + cg.dogPts + 'x)</span></span>' +
+          '<span><strong>' + cg.away + '</strong> at <strong>' + cg.home + '</strong> <span style="color:var(--legacy-accent);">(' + cg.spreadStr + ' • ' + cg.dogPts + 'x)</span></span>' +
         '</label>';
       }
       candidateHtml =
-        '<div style="margin-top:10px;padding:10px;background:rgba(16,185,129,0.09);border:1px solid #10b981;border-radius:10px;">' +
+        '<div style="margin-top:10px;padding:10px;background:var(--raised);border:1px solid var(--border);border-radius:10px;">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px;">' +
-            '<strong style="font-size:0.78rem;color:#6ee7b7;">🏈 ESPN Automated Candidate Games (' + ESPN_CANDIDATE_SLATE_GAMES.length + ' Found — Top 26 Pre-Checked, or Check/Uncheck Any Game You Want!):</strong>' +
-            '<button type="button" class="btn-sm" style="background:var(--green);color:#000;border:none;font-weight:900;" onclick="commishPublishSelectedEspnSlate()">🚀 Publish Checked Games as Active Slate</button>' +
+            '<strong style="font-size:0.78rem;color:var(--win);">🏈 ESPN Automated Candidate Games (' + ESPN_CANDIDATE_SLATE_GAMES.length + ' Found — Top 26 Pre-Checked, or Check/Uncheck Any Game You Want!):</strong>' +
+            '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="commishPublishSelectedEspnSlate()">🚀 Publish Checked Games as Active Slate</button>' +
           '</div>' +
           '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px;max-height:210px;overflow-y:auto;">' + candItems + '</div>' +
         '</div>';
     }
 
     body.innerHTML =
-      '<div style="background:rgba(56,189,248,0.1);border:1px solid #38bdf866;border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
+      '<div style="background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
         '<div>' +
-          '<div style="font-size:0.82rem;font-weight:800;color:#fff;">🗓️ Automated 23-Game ESPN Slate Builder + Per-Game Swapper</div>' +
+          '<div style="font-size:0.82rem;font-weight:800;color:var(--text);">🗓️ Automated 23-Game ESPN Slate Builder + Per-Game Swapper</div>' +
           '<div style="font-size:0.71rem;color:var(--muted);">Pull an automated 23-game list from ESPN, then <strong>swap any individual game</strong> using the <code>🔄 Swap Game...</code> dropdown on any row (or check/uncheck games before publishing)!</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
           '<input type="number" id="commish-espn-wk-input" class="search-input" style="width:78px;min-width:0;padding:5px 7px;font-size:0.74rem;font-weight:800;" value="' + (state.currentWeek || 8) + '" min="1" max="16" title="CFB Week Number" />' +
-          '<button type="button" class="btn-sm" style="background:linear-gradient(90deg,#0284c7,#4f46e5);color:#fff;border:none;font-weight:800;" onclick="commishFetchEspnCandidateGames()">⚡ Pull Automated ESPN Game List</button>' +
-          '<button type="button" class="btn-sm" style="border-color:#34d399;color:#6ee7b7;font-weight:800;" onclick="pushCustomGamesToFirebase(); showAppToast(\'☁️ Saved active 26-game slate & swaps to Firebase!\');">💾 Save Slate to Cloud</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:800;" onclick="commishFetchEspnCandidateGames()">⚡ Pull Automated ESPN Game List</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-weight:800;" onclick="pushCustomGamesToFirebase(); showAppToast(\'☁️ Saved active 26-game slate & swaps to Firebase!\');">💾 Save Slate to Cloud</button>' +
         '</div>' +
       '</div>' +
       candidateHtml +
@@ -817,19 +792,19 @@ function renderCommissionerModalBody() {
           '<div style="display:flex;flex-direction:column;gap:8px;font-size:0.75rem;">' +
             '<label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;background:var(--panel-alt);padding:8px;border-radius:8px;border:1px solid ' + (cfg.lockMode === "friday_9pm_cst" ? "#10b981" : "var(--border-muted)") + ';">' +
               '<input type="radio" name="cm-lock-mode" ' + (cfg.lockMode === "friday_9pm_cst" ? "checked" : "") + ' onchange="setCommishLockMode(\'friday_9pm_cst\')" />' +
-              '<div><strong style="color:#6ee7b7;">🌙 Friday 9:00 PM CST Official Lock (Editable All Week + Sat Morning Reveal)</strong><div style="font-size:0.69rem;color:var(--muted);">Even after saving & receiving an email receipt on Tuesday/Wednesday, players can freely revise picks until Friday at 9:00 PM CST. Saturday morning reveals all picks & emails the master spreadsheet!</div></div>' +
+              '<div><strong style="color:var(--win);">🌙 Friday 9:00 PM CST Official Lock (Editable All Week + Sat Morning Reveal)</strong><div style="font-size:0.69rem;color:var(--muted);">Even after saving & receiving an email receipt on Tuesday/Wednesday, players can freely revise picks until Friday at 9:00 PM CST. Saturday morning reveals all picks & emails the master spreadsheet!</div></div>' +
             '</label>' +
             '<label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;background:var(--panel-alt);padding:8px;border-radius:8px;border:1px solid ' + (cfg.lockMode === "rolling_kickoff" ? "#38bdf8" : "var(--border-muted)") + ';">' +
               '<input type="radio" name="cm-lock-mode" ' + (cfg.lockMode === "rolling_kickoff" ? "checked" : "") + ' onchange="setCommishLockMode(\'rolling_kickoff\')" />' +
-              '<div><strong style="color:#7dd3fc;">⏱️ Rolling Per-Game Kickoff Lock</strong><div style="font-size:0.69rem;color:var(--muted);">Each individual game locks automatically when it kicks off.</div></div>' +
+              '<div><strong style="color:var(--text);">⏱️ Rolling Per-Game Kickoff Lock</strong><div style="font-size:0.69rem;color:var(--muted);">Each individual game locks automatically when it kicks off.</div></div>' +
             '</label>' +
             '<label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;background:var(--panel-alt);padding:8px;border-radius:8px;border:1px solid ' + (cfg.lockMode === "global_locked" ? "#ef4444" : "var(--border-muted)") + ';">' +
               '<input type="radio" name="cm-lock-mode" ' + (cfg.lockMode === "global_locked" ? "checked" : "") + ' onchange="setCommishLockMode(\'global_locked\')" />' +
-              '<div><strong style="color:#fca5a5;">🔒 Force Immediate Global Lock (Lock All 23 Now)</strong><div style="font-size:0.69rem;color:var(--muted);">Freezes all 23 games immediately for all players.</div></div>' +
+              '<div><strong style="color:var(--loss);">🔒 Force Immediate Global Lock (Lock All 23 Now)</strong><div style="font-size:0.69rem;color:var(--muted);">Freezes all 23 games immediately for all players.</div></div>' +
             '</label>' +
             '<label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;background:var(--panel-alt);padding:8px;border-radius:8px;border:1px solid ' + (cfg.lockMode === "open" ? "#facc15" : "var(--border-muted)") + ';">' +
               '<input type="radio" name="cm-lock-mode" ' + (cfg.lockMode === "open" ? "checked" : "") + ' onchange="setCommishLockMode(\'open\')" />' +
-              '<div><strong style="color:#fde68a;">🔓 Force Open / Unlocked</strong><div style="font-size:0.69rem;color:var(--muted);">Overrides the clock so players can edit picks at any time.</div></div>' +
+              '<div><strong style="color:var(--warn);">🔓 Force Open / Unlocked</strong><div style="font-size:0.69rem;color:var(--muted);">Overrides the clock so players can edit picks at any time.</div></div>' +
             '</label>' +
           '</div>' +
         '</div>' +
@@ -837,7 +812,7 @@ function renderCommissionerModalBody() {
         '<div class="side-box">' +
           '<div class="side-title"><span>📧 Automated Weekly Email Pipeline & WordPress Compatibility</span></div>' +
           '<div style="font-size:0.73rem;color:var(--muted);margin-bottom:8px;">Configure the automated emails for next season while keeping your current WordPress/Gmail scraper 100% active right now:</div>' +
-          '<div style="display:flex;flex-direction:column;gap:7px;font-size:0.74rem;color:#e2e8f0;margin-bottom:10px;">' +
+          '<div style="display:flex;flex-direction:column;gap:7px;font-size:0.74rem;color:var(--text);margin-bottom:10px;">' +
             '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;"><input type="checkbox" ' + (cfg.autoEmailReceiptOnSave !== false ? 'checked' : '') + ' onchange="state.commissionerConfig.autoEmailReceiptOnSave=this.checked; saveCommissionerConfigToCloud();" /> 📧 <strong>Instant Pick Confirmation Email on Save</strong> (Notes picks stay editable until Fri 9:00 PM CST)</label>' +
             '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;"><input type="checkbox" ' + (cfg.autoWedThuNudgeEnabled !== false ? 'checked' : '') + ' onchange="state.commissionerConfig.autoWedThuNudgeEnabled=this.checked; saveCommissionerConfigToCloud();" /> ⏰ <strong>Automated Wednesday & Thursday Nudge Emails</strong> (Reminds players who haven\'t submitted yet)</label>' +
             '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;"><input type="checkbox" ' + (cfg.autoSatMorningSheetEmail !== false ? 'checked' : '') + ' onchange="state.commissionerConfig.autoSatMorningSheetEmail=this.checked; saveCommissionerConfigToCloud();" /> 📊 <strong>Saturday Morning Auto-Reveal & Master Spreadsheet Email</strong> (Unlocks all picks & emails CSV to pool)</label>' +
@@ -845,11 +820,11 @@ function renderCommissionerModalBody() {
           '<div style="display:flex;flex-direction:column;gap:6px;padding-top:8px;border-top:1px solid var(--border-muted);font-size:0.74rem;">' +
             '<label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;background:var(--panel-alt);padding:7px;border-radius:7px;border:1px solid ' + (cfg.scrapingMode !== "standalone" ? "#10b981" : "var(--border-muted)") + ';">' +
               '<input type="radio" name="cm-scrape-mode" ' + (cfg.scrapingMode !== "standalone" ? "checked" : "") + ' onchange="setCommishScrapingMode(\'hybrid\')" />' +
-              '<div><strong style="color:#6ee7b7;">🤖 Current Season: Hybrid WordPress + Gmail Scraper Active</strong><div style="font-size:0.68rem;color:var(--muted);">Relies on your existing Gmail/WordPress sheet workflow with zero disruption.</div></div>' +
+              '<div><strong style="color:var(--win);">🤖 Current Season: Hybrid WordPress + Gmail Scraper Active</strong><div style="font-size:0.68rem;color:var(--muted);">Relies on your existing Gmail/WordPress sheet workflow with zero disruption.</div></div>' +
             '</label>' +
             '<label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;background:var(--panel-alt);padding:7px;border-radius:7px;border:1px solid ' + (cfg.scrapingMode === "standalone" ? "#38bdf8" : "var(--border-muted)") + ';">' +
               '<input type="radio" name="cm-scrape-mode" ' + (cfg.scrapingMode === "standalone" ? "checked" : "") + ' onchange="setCommishScrapingMode(\'standalone\')" />' +
-              '<div><strong style="color:#7dd3fc;">🏟️ Next Season Demo: 100% Standalone League Host</strong><div style="font-size:0.68rem;color:var(--muted);">Replaces WordPress & Google Forms completely next season.</div></div>' +
+              '<div><strong style="color:var(--text);">🏟️ Next Season Demo: 100% Standalone League Host</strong><div style="font-size:0.68rem;color:var(--muted);">Replaces WordPress & Google Forms completely next season.</div></div>' +
             '</label>' +
           '</div>' +
         '</div>' +
@@ -875,7 +850,7 @@ function renderCommissionerModalBody() {
         '<td><input type="number" class="search-input" style="width:76px;min-width:0;padding:4px 6px;font-size:0.73rem;font-weight:800;" value="' + (pmR.priorPts || 0) + '" onchange="commishAdjustPlayerPriorPts(\'' + safeN + '\', this.value)" /></td>' +
         '<td><strong>' + (pmR.newLiveTotal || pmR.priorPts || 0) + ' pts</strong></td>' +
         '<td>' +
-          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.68rem;' + (isPaid ? 'background:rgba(16,185,129,0.22);border-color:#10b981;color:#6ee7b7;' : 'background:rgba(239,68,68,0.18);border-color:#ef4444;color:#fca5a5;') + '" onclick="commishToggleDuesPaid(\'' + safeN + '\')">' +
+          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.68rem;' + (isPaid ? 'background:var(--raised);border-color:var(--border);color:var(--win);' : 'background:var(--raised);border-color:var(--border);color:var(--loss);') + '" onclick="commishToggleDuesPaid(\'' + safeN + '\')">' +
             (isPaid ? '💰 PAID ($' + entryFee + ')' : '⏳ Unpaid') +
           '</button>' +
         '</td>' +
@@ -896,7 +871,7 @@ function renderCommissionerModalBody() {
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
           '<input type="text" id="commish-new-player-name" class="search-input" style="width:175px;min-width:0;padding:5px 8px;font-size:0.74rem;" placeholder="New Player Name (e.g. Alex B)" />' +
           '<input type="number" id="commish-new-player-pts" class="search-input" style="width:85px;min-width:0;padding:5px 8px;font-size:0.74rem;" placeholder="Prior Pts" value="0" />' +
-          '<button type="button" class="btn-sm" style="background:var(--green);color:#000;border:none;font-weight:800;" onclick="commishAddPoolMember()">➕ Add Player to Pool</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="commishAddPoolMember()">➕ Add Player to Pool</button>' +
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;">' +
           '<label style="font-size:0.72rem;color:var(--muted);">Entry Fee ($):</label>' +
@@ -920,17 +895,17 @@ function renderCommissionerModalBody() {
         '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Appears at the very top of the app for all connected users (leave blank to clear):</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
           '<input type="text" id="commish-banner-input" class="search-input" style="flex:1;padding:7px 10px;font-size:0.78rem;" placeholder="e.g. Week 8 Picks Lock Friday at 9:00 PM CST! Everyone\'s picks reveal Saturday morning." value="' + String(cfg.announcementBanner || "").replace(/"/g, '&quot;') + '" />' +
-          '<button type="button" class="btn-sm" style="background:var(--amber);color:#000;border:none;font-weight:900;" onclick="commishSaveBanner()">📌 Publish Banner</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="commishSaveBanner()">📌 Publish Banner</button>' +
           '<button type="button" class="btn-sm" onclick="document.getElementById(\'commish-banner-input\').value=\'\'; commishSaveBanner();">Clear</button>' +
         '</div>' +
       '</div>' +
       '<div class="side-box">' +
         '<div class="side-title">' +
           '<span>📝 Auto-Generated Top 5 Weekly Winners & Overall Standings Post</span>' +
-          '<button type="button" class="btn-sm" style="background:var(--accent);color:#000;border:none;font-weight:800;" onclick="copyCommishRecapPost()">📋 Copy Recap & Standings Post</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="copyCommishRecapPost()">📋 Copy Recap & Standings Post</button>' +
         '</div>' +
         '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Automatically lists the <strong>Top 5 Weekly Winners</strong> (who gained the most points that week) plus the full 89-player Overall Standings table:</div>' +
-        '<textarea id="commish-recap-textarea" rows="12" class="search-input" style="width:100%;font-family:monospace;font-size:0.72rem;color:#e2e8f0;">' + recapText + '</textarea>' +
+        '<textarea id="commish-recap-textarea" rows="12" class="search-input" style="width:100%;font-family:monospace;font-size:0.72rem;color:var(--text);">' + recapText + '</textarea>' +
       '</div>';
   }
 }
