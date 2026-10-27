@@ -1441,18 +1441,27 @@ function scrapeGoogleFormGames(formUrl) {
 
     var data = JSON.parse(match[1]);
     var questions = (data[1] && data[1][1]) ? data[1][1] : [];
-    var rawLines = [];
+    var games = [];
 
+    // One form question = one game: title "Away 6-1\nat Home 6-1 (-3.5)" (or "vs." for a
+    // neutral site) and two answer choices that are the pool's team codes ("Arizona", "TTech").
     for (var i = 0; i < questions.length; i++) {
       var qTitle = questions[i][1] ? String(questions[i][1]).trim() : "";
-      if (qTitle) {
-        var parts = qTitle.split(/\r?\n/);
-        for (var p = 0; p < parts.length; p++) {
-          if (parts[p].trim()) rawLines.push(parts[p].trim());
-        }
+      var titleLines = qTitle.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean);
+      if (titleLines.length < 2) continue;
+      var parsed = buildGamesArrayFromLines(titleLines);
+      if (parsed.length !== 1) continue;
+      var game = parsed[0];
+      game.id = games.length + 1;
+      game.rationale = "Auto-Scraped by Gmail Bot (Row #" + game.id + ")";
+      var opts = (questions[i][4] && questions[i][4][0] && questions[i][4][0][1]) || [];
+      if (opts.length === 2 && opts[0][0] && opts[1][0]) {
+        game.awayCode = String(opts[0][0]).trim();
+        game.homeCode = String(opts[1][0]).trim();
       }
+      games.push(game);
     }
-    return buildGamesArrayFromLines(rawLines);
+    return games;
   } catch (e) {
     Logger.log("Form scrape error: " + e.message);
     return [];
@@ -1461,13 +1470,15 @@ function scrapeGoogleFormGames(formUrl) {
 
 function buildGamesArrayFromLines(lines) {
   var parsedGames = [];
+  // "at Home" for a home game, "vs. Home" / "vs Home" for a neutral site (e.g. Florida vs. Georgia).
+  var HOME_PREFIX = /^(?:at|vs\.?)\s+/i;
   for (var i = 0; i < lines.length - 1; i++) {
-    if (lines[i + 1].toLowerCase().indexOf("at ") === 0) {
+    if (HOME_PREFIX.test(lines[i + 1])) {
       var awayLine = lines[i];
-      var homeLine = lines[i + 1].substring(3).trim();
+      var homeLine = lines[i + 1].replace(HOME_PREFIX, "").trim();
       var candKick = lines[i + 2] || "";
       var nextAfterCand = lines[i + 3] || "";
-      var isCandTeam = (nextAfterCand.toLowerCase().indexOf("at ") === 0) || /\(\s*-\d/.test(candKick) || /\b\d{1,2}-\d{1,2}\b/.test(candKick);
+      var isCandTeam = HOME_PREFIX.test(nextAfterCand) || /\(\s*-\d/.test(candKick) || /\b\d{1,2}-\d{1,2}\b/.test(candKick);
       var kickLine = (!candKick || isCandTeam) ? "Saturday CST" : candKick;
 
       var spAway = awayLine.match(/\(\s*-(\d+\.?\d*)/);
