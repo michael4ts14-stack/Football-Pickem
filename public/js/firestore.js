@@ -3,13 +3,28 @@
 // Supports 6 users now and scales to 80+ concurrent users without profile switching
 // or cross-user pick overwrites!
 // ============================================================================
+// Snapshots that arrive within this window are applied once (newest wins), so a burst of
+// writes from other devices causes one re-render instead of one per write.
+var REMOTE_APPLY_DEBOUNCE_MS = 200;
+var pendingSharedStateData = null;
+var pendingSharedStateTimer = null;
+var pendingUsersRenderTimer = null;
+
 function startFirebaseRealtimeListeners() {
   if (fsDb) {
     try {
       fsDb.collection("pickem_v14").doc("shared_state").onSnapshot(function(doc) {
-        if (doc && doc.exists) {
-          applyRemoteCloudData(doc.data(), "Cloud Firestore");
-        }
+        if (!doc || !doc.exists) return;
+        // Our own just-saved data echoing back before the server confirms it: already on screen.
+        if (doc.metadata && doc.metadata.hasPendingWrites) return;
+        pendingSharedStateData = doc.data();
+        if (pendingSharedStateTimer) return;
+        pendingSharedStateTimer = setTimeout(function() {
+          pendingSharedStateTimer = null;
+          var data = pendingSharedStateData;
+          pendingSharedStateData = null;
+          if (data) applyRemoteCloudData(data, "Cloud Firestore");
+        }, REMOTE_APPLY_DEBOUNCE_MS);
       }, function(err) {});
     } catch (e) {}
 
@@ -85,12 +100,19 @@ function startFirebaseRealtimeListeners() {
           anyRemoteApplied = true;
         }
 
-        if (anyRemoteApplied) {
-          isApplyingRemoteUpdate = true;
-          regradeAllPoolMembersLive();
-          safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-          renderAll();
-          isApplyingRemoteUpdate = false;
+        if (anyRemoteApplied && !pendingUsersRenderTimer) {
+          // State is already updated above; batch the expensive regrade + full re-render.
+          pendingUsersRenderTimer = setTimeout(function() {
+            pendingUsersRenderTimer = null;
+            isApplyingRemoteUpdate = true;
+            try {
+              regradeAllPoolMembersLive();
+              safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+              renderAll();
+            } finally {
+              isApplyingRemoteUpdate = false;
+            }
+          }, REMOTE_APPLY_DEBOUNCE_MS);
         }
       }, function(err2) {});
     } catch (e2) {}
@@ -314,8 +336,12 @@ function applyRemoteCloudData(data, sourceLabel) {
 
   // 3. AUTO-ENRICH NEW WEEK SLATE: When a new week arrives (or games still have Code.gs stub text),
   //    immediately run full ESPN schedule + insights + injury sync and save back to Firebase!
-  if ((slateChanged || needsEspnEnrichment) && !window._fullWeekEnrichmentRunning) {
+  // Games ESPN can't enrich stay "unenriched" forever, so without the 5-minute floor every
+  // snapshot re-ran a full ESPN refresh (dozens of requests) on every device.
+  var enrichDue = slateChanged || !window._lastFullWeekEnrichmentAt || (Date.now() - window._lastFullWeekEnrichmentAt) > 5 * 60 * 1000;
+  if ((slateChanged || needsEspnEnrichment) && enrichDue && !window._fullWeekEnrichmentRunning) {
     window._fullWeekEnrichmentRunning = true;
+    window._lastFullWeekEnrichmentAt = Date.now();
     setTimeout(function() {
       syncAllLiveTrackingData(true).finally(function() {
         setTimeout(function() { window._fullWeekEnrichmentRunning = false; }, 10000);
