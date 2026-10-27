@@ -260,7 +260,7 @@ body.simple-ui-mode #flt-sway, body.simple-ui-mode #flt-diffs { display: none; }
 
 /* ---------- Pick cards ---------- */
 #games-container.games-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
-@media (min-width: 900px) { body.simple-ui-mode #games-container.games-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+@media (min-width: 900px) { #games-container.games-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
 .pick-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 4px 10px 10px; min-width: 0; }
 .pick-card-meta {
   display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; min-height: 40px;
@@ -291,8 +291,27 @@ body.simple-ui-mode #flt-sway, body.simple-ui-mode #flt-diffs { display: none; }
 .team-pick-sub { font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .team-pick-sub:empty { display: none; }
 .team-pick.is-picked .team-pick-sub { color: var(--on-accent); opacity: 0.85; }
-.pts-tag { font-weight: 600; color: var(--text); }
-.team-pick.is-picked .pts-tag { color: var(--on-accent); }
+.team-pick-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+.team-pick.is-home .team-pick-stats { justify-content: flex-end; }
+.team-pick.is-picked .team-pick-stats { color: var(--on-accent); }
+.mult-badge {
+  font-family: var(--font-head); font-weight: 700; font-size: 13px; line-height: 1; padding: 2px 5px; border-radius: 4px;
+  border: 1px solid var(--border); color: var(--text-muted);
+}
+.mult-badge.mult-2, .mult-badge.mult-3 { border-color: var(--text); color: var(--text); }
+.mult-badge.mult-3 { background: var(--text); color: var(--bg); }
+.team-pick.is-picked .mult-badge { border-color: var(--on-accent); color: var(--on-accent); background: transparent; }
+.team-pick.is-picked .mult-badge.mult-3 { background: var(--on-accent); color: var(--accent); }
+
+/* Pool split bar + info row (pool %, head-to-head pick) */
+.pool-bar { height: 3px; margin: 10px 2px 0; border-radius: 2px; background: var(--border); overflow: hidden; }
+.pool-bar span { display: block; height: 100%; background: var(--text-muted); }
+.card-info { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 14px; padding: 6px 2px 0; font-size: 13px; color: var(--text); }
+.card-info-label { color: var(--text-muted); }
+.diff-tag { font-size: 11px; font-weight: 600; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--text-muted); color: var(--text); }
+.card-flag { font-size: 12px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border); color: var(--text); margin-right: 6px; }
+.card-field { margin-top: 10px; }
+.pick-card .insights-grid { margin-top: 8px; background: var(--bg); border-color: var(--border); }
 @media (min-width: 900px) {
   .team-pick { min-height: 56px; padding: 8px 10px; }
   .team-pick-name { font-size: 15px; }
@@ -312,7 +331,7 @@ body.simple-ui-mode #flt-sway, body.simple-ui-mode #flt-diffs { display: none; }
 .team-logo:has(img) .team-logo-code { visibility: hidden; }
 @media (min-width: 900px) { .team-logo { width: 34px; height: 34px; } }
 
-.pick-card-extras { display: flex; gap: 16px; padding: 8px 2px 0; }
+.pick-card-extras { display: flex; flex-wrap: wrap; gap: 0 16px; padding: 4px 2px 0; }
 .pick-card-extras .link-btn { color: var(--text-muted); font-size: 14px; }
 .pick-card .dual-panel { margin-top: 8px; background: var(--bg); border-color: var(--border); }
 .empty-note { color: var(--text-muted); padding: 24px 4px; text-align: center; grid-column: 1 / -1; }
