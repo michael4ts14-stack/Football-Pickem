@@ -211,3 +211,102 @@ test("rollover whose shared_state write is rejected does not advance week_state 
   assert.ok(!processed["m-form-10b"], "email stays unprocessed so the rollover retries");
   assert.match(botStatusWrites(h).pop().gmail.errors.join(" "), /rollover to Week 10 failed/);
 });
+
+function sharedStateWrites(h) {
+  return h.patches().filter((c) => c.url.indexOf("/pickem_v14/shared_state") !== -1).map((c) => h.patchBody(c));
+}
+function csvAttachment(name, rows) {
+  return { getName: () => name, getDataAsString: () => rows.map((r) => r.join(",")).join("\n") };
+}
+const sheetNames = ["Adam L", "Bob K", "Cat M", "Dee N", "Eve O", "Fay P", "Gus Q", "Hal R", "Ivy S", "Jo T"];
+const sheetSlate = [
+  { id: 1, away: "Arizona", awayCode: "Arizona", home: "Texas Tech", homeCode: "TTech" },
+  { id: 2, away: "SMU", awayCode: "SMU", home: "Syracuse", homeCode: "Syr" },
+  { id: 3, away: "Wisconsin", awayCode: "Wisc", home: "Iowa", homeCode: "Iowa" },
+  { id: 4, away: "Boston College", awayCode: "BC", home: "Duke", homeCode: "Duke" },
+  { id: 5, away: "Illinois", awayCode: "Illinois", home: "Maryland", homeCode: "Mary" },
+  { id: 6, away: "Michigan", awayCode: "Mich", home: "Rutgers", homeCode: "Rutgers" },
+];
+function officialSheet() {
+  const rows = [["Contestant"].concat(sheetSlate.map((g) => g.away + " @ " + g.home)).concat(["Tiebreaker"])];
+  sheetNames.forEach((n, i) => rows.push([n, i % 2 ? "Arizona" : "Texas Tech", "SMU", "Iowa", "Duke", "Illinois", "Michigan", "28-24"]));
+  return rows;
+}
+
+test("a standings email for last week never changes the active week", () => {
+  const email = {
+    id: "m-st8", subject: "Separated at Turf Week 8 Standings",
+    body: "Overall Standings\n1. Adam L 120\n2. Bob K 118\n3. Cat M 117\n4. Dee N 110\n5. Eve O 100\n6. Fay P 99",
+  };
+  const h = loadBot({ cloud: baseCloud(), threads: [fakeThread([email])] });
+  h.ctx.runMasterPickemEmailBot(false);
+  const writes = sharedStateWrites(h);
+  assert.ok(writes.length > 0, "standings still imported");
+  writes.forEach((w) => assert.strictEqual(w.currentWeek, undefined));
+});
+
+test("a spreadsheet for a different week is not parsed against this week's slate", () => {
+  const email = {
+    id: "m-sheet8", subject: "College Pick'em '26 - Week 8 Spreadsheet", body: "",
+    attachments: [csvAttachment("College Pick'em '26 - Week 8.csv", officialSheet())],
+  };
+  const h = loadBot({ cloud: baseCloud({ customGames: sheetSlate, officialSheetSyncedForWeek: 8 }), threads: [fakeThread([email])] });
+  h.ctx.runMasterPickemEmailBot(false);
+  assert.strictEqual(sharedStateWrites(h).filter((w) => w.poolMembers).length, 0);
+});
+
+test("importing this week's sheet merges picks and keeps members who are not in the sheet", () => {
+  const email = {
+    id: "m-sheet9", subject: "College Pick'em '26 - Week 9 Spreadsheet", body: "",
+    attachments: [csvAttachment("College Pick'em '26 - Week 9.csv", officialSheet())],
+  };
+  const existing = [
+    { name: "Adam L", priorPts: 120, picks: { 1: "Texas Tech" }, tiebreaker: "30-20" },
+    { name: "Late Larry", priorPts: 90, picks: { 1: "Arizona", 2: "Syracuse" }, tiebreaker: "21-17" },
+  ];
+  const h = loadBot({
+    cloud: baseCloud({ customGames: sheetSlate, poolMembers: existing, officialSheetSyncedForWeek: 8 }),
+    threads: [fakeThread([email])],
+  });
+  h.ctx.runMasterPickemEmailBot(false);
+  const w = sharedStateWrites(h).filter((x) => x.poolMembers).pop();
+  assert.ok(w, "sheet imported");
+  assert.strictEqual(w.officialSheetSyncedForWeek, 9);
+  const byName = Object.fromEntries(w.poolMembers.map((m) => [m.name, m]));
+  assert.ok(byName["Late Larry"], "member missing from the sheet is kept");
+  assert.strictEqual(JSON.stringify(byName["Late Larry"].picks), JSON.stringify({ 1: "Arizona", 2: "Syracuse" }));
+  assert.strictEqual(byName["Adam L"].priorPts, 120, "existing fields preserved");
+  assert.strictEqual(byName["Adam L"].picks["2"], "SMU", "sheet picks merged in");
+  assert.strictEqual(w.poolMembers.length, 11);
+});
+
+test("a sheet that parses fewer than 10 members is reported, not imported", () => {
+  const email = {
+    id: "m-sheet-bad", subject: "College Pick'em '26 - Week 9 Spreadsheet", body: "",
+    attachments: [csvAttachment("College Pick'em '26 - Week 9.csv", officialSheet().slice(0, 4))],
+  };
+  const h = loadBot({ cloud: baseCloud({ customGames: sheetSlate, officialSheetSyncedForWeek: 8 }), threads: [fakeThread([email])] });
+  h.ctx.runMasterPickemEmailBot(false);
+  assert.strictEqual(sharedStateWrites(h).filter((w) => w.poolMembers).length, 0);
+  assert.match(botStatusWrites(h).pop().gmail.errors.join(" "), /parsed only 3 members/);
+});
+
+test("confirmation-email guard reads the player's own user doc", () => {
+  const picks = {}; for (let i = 1; i <= 23; i++) picks[i] = "X";
+  const h = loadBot({ cloud: baseCloud(), docs: { "pickem_v14_users/michael": { picks } } });
+  assert.strictEqual(h.ctx.hasActiveInAppPicks_("michael", baseCloud()), true);
+  assert.strictEqual(h.ctx.hasActiveInAppPicks_("kinyion", baseCloud()), false, "no user doc -> no in-app picks");
+  const cloud = baseCloud({ poolMembers: [{ name: "Adam L", picks }] });
+  assert.strictEqual(h.ctx.hasActiveInAppPicks_("pm:Adam L", cloud), true);
+});
+
+test("processed email IDs are saved as each message finishes", () => {
+  const ok = { id: "m-ok", subject: "Separated at Turf hello", body: "nothing" };
+  const boom = { id: "m-boom", subject: "Separated at Turf boom", body: "x" };
+  const h = loadBot({ cloud: baseCloud(), threads: [fakeThread([ok, boom])] });
+  const realParse = h.ctx.parseStandingsFromText;
+  h.ctx.parseStandingsFromText = (p, html) => { if (p === "x") throw new Error("parse crash"); return realParse(p, html); };
+  assert.throws(() => h.ctx.runMasterPickemEmailBot(false), /parse crash/);
+  const saved = JSON.parse(h.userProps.getProperty("PROCESSED_MSG_IDS"));
+  assert.ok(saved["m-ok"], "first message stays processed even though the run crashed later");
+});

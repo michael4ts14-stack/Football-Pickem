@@ -683,12 +683,8 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           poolMembers: existingMembers,
           standingsUpdatedAt: new Date().toISOString()
         };
-        if (msgWeekNum && msgWeekNum >= 1) {
-          stPatch.currentWeek = msgWeekNum;
-          stPatch.weekLabel = "Week " + msgWeekNum;
-          currentCloud.currentWeek = msgWeekNum;
-          currentCloud.weekLabel = "Week " + msgWeekNum;
-        }
+        // Standings emails report on a finished week; they never change the active week
+        // (only a new slate rollover or the commissioner does).
         patchFirebaseNode("", stPatch);
         stats.importedStandings = standingsRows.length;
         Logger.log("✓ Pushed " + standingsRows.length + " standings rows & updated poolMembers priorPts in Firebase!");
@@ -820,69 +816,27 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             continue;
           }
 
-          if (attName.indexOf(".xlsx") !== -1) {
-          var grid = extractGridFromXlsxAttachment(att);
-          var poolResult = parsePoolSpreadsheetGrid(grid, activeGames, currentCloud);
-          if (poolResult && poolResult.poolMembers.length >= 10) {
-            var sheetWkNum = msgWeekNum || (currentCloud && currentCloud.currentWeek) || 8;
-            var clearedDelMap = (currentCloud && currentCloud.deletedPicksByMember) ? Object.assign({}, currentCloud.deletedPicksByMember) : {};
-            poolResult.poolMembers.forEach(function(pm) {
-              var pmLow = pm.name.toLowerCase();
-              if (clearedDelMap[pmLow]) delete clearedDelMap[pmLow];
-            });
-            patchFirebaseNode("", {
-              poolMembers: poolResult.poolMembers,
-              leaderboard: poolResult.leaderboard,
-              michael: poolResult.michael,
-              kinyion: poolResult.kinyion,
-              watchlist: poolResult.watchlist,
-              officialSheetSyncedForWeek: sheetWkNum,
-              lastScrapedFile: att.getName(),
-              deletedPicksByMember: clearedDelMap,
-              updatedAt: new Date().toISOString()
-            });
-            if (poolResult.michael && poolResult.michael.picks) {
-              patchFirestoreUserDoc("michael", { profileKey: "michael", displayName: "Michael A", linkedMemberName: "Michael A", picks: poolResult.michael.picks, tiebreaker: poolResult.michael.tiebreaker || "28-24", updatedAt: new Date().toISOString() });
-            }
-            if (poolResult.kinyion && poolResult.kinyion.picks) {
-              patchFirestoreUserDoc("kinyion", { profileKey: "kinyion", displayName: "Kinyon C", linkedMemberName: "Kinyon C", picks: poolResult.kinyion.picks, tiebreaker: poolResult.kinyion.tiebreaker || "31-24", updatedAt: new Date().toISOString() });
-            }
-            stats.importedPoolMembers = poolResult.poolMembers.length;
-            Logger.log("✓ Auto-scraped .xlsx attachment (" + att.getName() + "): " + poolResult.poolMembers.length + " pool members pushed to Firebase!");
+          var isXlsx = attName.indexOf(".xlsx") !== -1;
+          var isCsv = attName.indexOf(".csv") !== -1 || attName.indexOf(".tsv") !== -1;
+          if (!isXlsx && !isCsv) continue;
+          var curWkForSheet = parseInt(currentCloud.currentWeek, 10) || 0;
+          if (msgWeekNum && curWkForSheet && msgWeekNum !== curWkForSheet) {
+            // A sheet for another week must never be parsed against this week's slate.
+            Logger.log("⏭️ Skipping " + att.getName() + ": it is for Week " + msgWeekNum + ", active week is " + curWkForSheet);
+            continue;
           }
-        } else if (attName.indexOf(".csv") !== -1 || attName.indexOf(".tsv") !== -1) {
-          var csvText = att.getDataAsString();
-          var csvGrid = Utilities.parseCsv(csvText);
-          var csvPoolResult = parsePoolSpreadsheetGrid(csvGrid, activeGames, currentCloud);
-          if (csvPoolResult && csvPoolResult.poolMembers.length >= 10) {
-            var csvWkNum = msgWeekNum || (currentCloud && currentCloud.currentWeek) || 8;
-            var clearedDelMapCsv = (currentCloud && currentCloud.deletedPicksByMember) ? Object.assign({}, currentCloud.deletedPicksByMember) : {};
-            csvPoolResult.poolMembers.forEach(function(pm) {
-              var pmLow = pm.name.toLowerCase();
-              if (clearedDelMapCsv[pmLow]) delete clearedDelMapCsv[pmLow];
-            });
-            patchFirebaseNode("", {
-              poolMembers: csvPoolResult.poolMembers,
-              leaderboard: csvPoolResult.leaderboard,
-              michael: csvPoolResult.michael,
-              kinyion: csvPoolResult.kinyion,
-              watchlist: csvPoolResult.watchlist,
-              officialSheetSyncedForWeek: csvWkNum,
-              lastScrapedFile: att.getName(),
-              deletedPicksByMember: clearedDelMapCsv,
-              updatedAt: new Date().toISOString()
-            });
-            if (csvPoolResult.michael && csvPoolResult.michael.picks) {
-              patchFirestoreUserDoc("michael", { profileKey: "michael", displayName: "Michael A", linkedMemberName: "Michael A", picks: csvPoolResult.michael.picks, tiebreaker: csvPoolResult.michael.tiebreaker || "28-24", updatedAt: new Date().toISOString() });
-            }
-            if (csvPoolResult.kinyion && csvPoolResult.kinyion.picks) {
-              patchFirestoreUserDoc("kinyion", { profileKey: "kinyion", displayName: "Kinyon C", linkedMemberName: "Kinyon C", picks: csvPoolResult.kinyion.picks, tiebreaker: csvPoolResult.kinyion.tiebreaker || "31-24", updatedAt: new Date().toISOString() });
-            }
-            stats.importedPoolMembers = csvPoolResult.poolMembers.length;
-            Logger.log("✓ Auto-scraped .csv attachment: " + csvPoolResult.poolMembers.length + " pool members pushed to Firebase!");
+          var sheetGrid = isXlsx ? extractGridFromXlsxAttachment(att) : Utilities.parseCsv(att.getDataAsString());
+          var poolResult = parsePoolSpreadsheetGrid(sheetGrid, activeGames, currentCloud);
+          var parsedCount = poolResult ? poolResult.poolMembers.length : 0;
+          if (parsedCount < 10) {
+            recordBotError_("Sheet " + att.getName() + " parsed only " + parsedCount + " members (need 10); not imported");
+            continue;
+          }
+          if (importPoolSheetResult_(poolResult, curWkForSheet || msgWeekNum, att.getName(), currentCloud)) {
+            stats.importedPoolMembers = parsedCount;
+            Logger.log("✓ Imported " + att.getName() + ": " + parsedCount + " pool members merged into Firebase");
           }
         }
-      }
       }
 
       // ----------------------------------------------------------------------
@@ -895,8 +849,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           var targetProfile = detectProfileOwner(subject, plainBody, msg.getFrom(), currentCloud);
           if (targetProfile) {
             // Guard: Never overwrite in-app picks if player already has active saved picks in Firestore!
-            var userDoc = fetchFirebaseNode("pickem_v14_users/" + targetProfile);
-            if (userDoc && (userDoc._manualEditsThisWeek || (userDoc.picks && Object.keys(userDoc.picks).length >= 15))) {
+            if (hasActiveInAppPicks_(targetProfile, currentCloud)) {
               Logger.log("ℹ️ Skipping confirmation email for " + targetProfile + ": player already has active in-app picks in Firestore.");
             } else {
               savePicksToTargetProfile(targetProfile, pickResult, currentCloud);
@@ -908,12 +861,110 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
         }
       }
 
-      if (!keepUnprocessed) processedIds[msgId] = new Date().toISOString();
+      if (!keepUnprocessed) {
+        processedIds[msgId] = new Date().toISOString().slice(0, 10);
+        saveProcessedIds_(props, processedIds);
+      }
     }
   }
 
-  props.setProperty("PROCESSED_MSG_IDS", JSON.stringify(processedIds));
   return stats;
+}
+
+// Saved after every message, so a run killed by the 6-minute limit doesn't redo
+// (and re-write) everything next time. Keeps the newest 150 IDs (~5 KB, under 9 KB).
+function saveProcessedIds_(props, processedIds) {
+  var keys = Object.keys(processedIds);
+  if (keys.length > 150) {
+    var keep = {};
+    keys.slice(keys.length - 150).forEach(function(k) { keep[k] = processedIds[k]; });
+    keys.slice(0, keys.length - 150).forEach(function(k) { delete processedIds[k]; });
+    Object.assign(processedIds, keep);
+  }
+  props.setProperty("PROCESSED_MSG_IDS", JSON.stringify(processedIds));
+}
+
+// Reads one document by path (e.g. "pickem_v14_users/michael"). Returns null if
+// missing or unreadable.
+function fetchFirestoreDoc_(docPath) {
+  try {
+    var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/" + docPath, { muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) return null;
+    var json = JSON.parse(res.getContentText());
+    return json && json.fields ? fromFirestoreValue({ mapValue: { fields: json.fields } }) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// True if this player already saved picks in the app this week, in which case a
+// Google Form confirmation email must not overwrite them.
+function hasActiveInAppPicks_(targetProfile, currentCloud) {
+  if (targetProfile.indexOf("pm:") === 0) {
+    var nameLow = standardizeBotParticipantName(targetProfile.slice(3)).toLowerCase();
+    var pms = (currentCloud && Array.isArray(currentCloud.poolMembers)) ? currentCloud.poolMembers : [];
+    for (var i = 0; i < pms.length; i++) {
+      if (standardizeBotParticipantName(pms[i].name).toLowerCase() === nameLow) {
+        return Object.keys(pms[i].picks || {}).length >= 15;
+      }
+    }
+    return false;
+  }
+  var userDoc = fetchFirestoreDoc_("pickem_v14_users/" + encodeURIComponent(targetProfile));
+  return !!(userDoc && (userDoc._manualEditsThisWeek || (userDoc.picks && Object.keys(userDoc.picks).length >= 15)));
+}
+
+// Merges a parsed official sheet into shared_state.poolMembers: members in the sheet get
+// the sheet's picks/tiebreaker; members NOT in the sheet are kept as they are (never dropped).
+function importPoolSheetResult_(poolResult, sheetWkNum, fileName, currentCloud) {
+  var existing = (currentCloud && Array.isArray(currentCloud.poolMembers)) ? currentCloud.poolMembers.slice() : [];
+  var indexByName = {};
+  for (var i = 0; i < existing.length; i++) {
+    indexByName[standardizeBotParticipantName(existing[i].name).toLowerCase()] = i;
+  }
+  for (var j = 0; j < poolResult.poolMembers.length; j++) {
+    var pm = poolResult.poolMembers[j];
+    var key = pm.name.toLowerCase();
+    if (indexByName[key] === undefined) {
+      indexByName[key] = existing.length;
+      existing.push(pm);
+      continue;
+    }
+    var cur = existing[indexByName[key]];
+    var merged = Object.assign({}, cur);
+    merged.picks = Object.assign({}, cur.picks || {}, pm.picks);
+    if (pm.tiebreaker && pm.tiebreaker !== "—") merged.tiebreaker = pm.tiebreaker;
+    if (pm.priorPts) merged.priorPts = pm.priorPts;
+    merged.awaitingSheet = false;
+    existing[indexByName[key]] = merged;
+  }
+
+  var clearedDelMap = (currentCloud && currentCloud.deletedPicksByMember) ? Object.assign({}, currentCloud.deletedPicksByMember) : {};
+  poolResult.poolMembers.forEach(function(pm) {
+    delete clearedDelMap[pm.name.toLowerCase()];
+  });
+  var nowIso = new Date().toISOString();
+  var ok = patchFirebaseNode("", {
+    poolMembers: existing,
+    leaderboard: poolResult.leaderboard,
+    michael: poolResult.michael,
+    kinyion: poolResult.kinyion,
+    watchlist: poolResult.watchlist,
+    officialSheetSyncedForWeek: sheetWkNum,
+    lastScrapedFile: fileName,
+    deletedPicksByMember: clearedDelMap,
+    updatedAt: nowIso
+  });
+  if (!ok) return false;
+  currentCloud.poolMembers = existing;
+  currentCloud.officialSheetSyncedForWeek = sheetWkNum;
+  if (poolResult.michael && poolResult.michael.picks) {
+    patchFirestoreUserDoc("michael", { profileKey: "michael", displayName: "Michael A", linkedMemberName: "Michael A", picks: poolResult.michael.picks, tiebreaker: poolResult.michael.tiebreaker || "28-24", updatedAt: nowIso });
+  }
+  if (poolResult.kinyion && poolResult.kinyion.picks) {
+    patchFirestoreUserDoc("kinyion", { profileKey: "kinyion", displayName: "Kinyon C", linkedMemberName: "Kinyon C", picks: poolResult.kinyion.picks, tiebreaker: poolResult.kinyion.tiebreaker || "31-24", updatedAt: nowIso });
+  }
+  return true;
 }
 
 // ============================================================================
