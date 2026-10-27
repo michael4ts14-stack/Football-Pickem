@@ -131,9 +131,9 @@ renderLiveScoreboardTab = function() {
           ? '<span class="live-status is-live"><span class="live-dot" aria-hidden="true"></span>' + escapeShellHtml(ls.detail || "Live") + '</span>'
           : '<span class="live-status">' + escapeShellHtml((k.day ? k.day + " " : "") + k.time + (k.net ? " · " + k.net : "")) + '</span>');
     var tags = situationTagsHtml(sit);
-    var situation = (ls.inProgress && (ls.downDistanceText || ls.possessionText))
+    var situation = fieldMiniBarHtml(g, ls) || ((ls.inProgress && (ls.downDistanceText || ls.possessionText))
       ? '<div class="live-situation">' + escapeShellHtml([ls.downDistanceText, ls.possessionText].filter(Boolean).join(" · ")) + '</div>'
-      : '';
+      : '');
     var h2hLine = h2h
       ? '<div class="card-info"><span class="card-info-item"><span class="card-info-label">' + escapeShellHtml(h2h.name) + '</span> ' + escapeShellHtml(h2h.text) +
           (isDiff ? ' <span class="diff-tag">Diff</span>' : '') + '</span></div>'

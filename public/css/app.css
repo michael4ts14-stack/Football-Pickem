@@ -585,7 +585,10 @@ button.list-row:hover { background: var(--raised); }
 .live-card-btn { display: block; width: 100%; padding: 12px 14px 10px; background: none; border: 0; color: var(--text); text-align: left; cursor: pointer; }
 .live-card-btn:hover { background: var(--raised); }
 .live-card .card-info { padding: 0 14px 10px; }
-.live-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 24px; margin-bottom: 6px; }
+.live-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; min-height: 24px; margin-bottom: 6px; }
+.live-card-top .live-status { white-space: nowrap; padding-top: 2px; }
+.live-card-right { flex-wrap: wrap; justify-content: flex-end; row-gap: 4px; }
+.live-card-right .card-flag { white-space: nowrap; margin-right: 0; }
 .live-status { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .live-status.is-live { color: var(--text); }
 .live-card-right { display: inline-flex; align-items: center; gap: 6px; }
@@ -610,14 +613,8 @@ button.list-row:hover { background: var(--raised); }
 .live-situation { font-size: 13px; color: var(--text-muted); padding-top: 4px; }
 
 /* GameCast & Drive Theater window */
-#field-theater-backdrop { background: var(--overlay); }
-#field-theater-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
 #theater-modal-title { font-family: var(--font-head); font-size: 24px !important; }
 #field-theater-modal .btn-sm[onclick*="closeFieldTheaterModal"] { background: var(--raised) !important; color: var(--text) !important; border: 1px solid var(--border) !important; }
-.field-mode-btn, .demo-sim-btn { background: var(--raised); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-btn); min-height: 36px; font-weight: 500; }
-.field-mode-btn.active, .field-mode-btn.demo-active { background: var(--text); color: var(--bg); border-color: var(--text); }
-.demo-sim-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.field-tracker-drawer, .drive-meta-strip, .pbp-item { background: var(--raised); border-color: var(--border); }
 
 /* ---------- Standings ---------- */
 .standings-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-bottom: 16px; }
@@ -740,3 +737,95 @@ button.list-row:hover { background: var(--raised); }
 .edge-list { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
 .edge-list li { padding-left: 12px; border-left: 2px solid var(--border); }
 .sub-col-title .muted { font-size: 12px; }
+
+/* ---------- Field (render/field.js) ---------- */
+.field-svg { display: block; width: 100%; height: auto; aspect-ratio: 740 / 200; border-radius: 6px; }
+.field-svg .fld-bg { fill: var(--field-bg); }
+.field-svg .fld-yard { stroke: var(--field-line); stroke-width: 1.5; }
+.field-svg .fld-goal { stroke: var(--field-line); stroke-width: 3; }
+.field-svg .fld-num { fill: var(--field-num); font-family: var(--font-head); font-weight: 600; font-size: 26px; text-anchor: middle; }
+.field-svg .fld-ez-text { fill: #ffffffb3; font-family: var(--font-head); font-weight: 700; font-size: 24px; letter-spacing: 2px; text-anchor: middle; dominant-baseline: middle; }
+.field-svg .fld-rz { fill: var(--redzone-tint); }
+.field-svg .fld-drive { fill-opacity: 0.3; }
+.field-svg .fld-los line { stroke: var(--field-los); stroke-width: 2; }
+.field-svg .fld-fd line { stroke: var(--field-first-down); stroke-width: 3; }
+.field-svg .fld-ball ellipse { fill: #8a4b22; stroke: var(--field-ball-outline); stroke-width: 1; }
+.field-svg .fld-ball-laces { stroke: #ffffff; stroke-width: 1.2; fill: none; }
+.field-svg .fld-ball-arrow { fill: #ffffffcc; }
+.field-svg .fld-ball-dir { transform-box: view-box; transform-origin: 0 100px; }
+.field-svg .fld-move { transition: transform 600ms ease-out; }
+.field-svg .fld-arc { transition: stroke-dashoffset 600ms ease-out; }
+.field-svg.is-instant .fld-move, .field-svg.is-instant .fld-arc { transition: none; }
+@media (prefers-reduced-motion: reduce) { .field-svg .fld-move, .field-svg .fld-arc { transition: none; } }
+.field-mount:empty { display: none; }
+.field-mount { margin: 4px 0 8px; }
+.field-tap { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: pointer; }
+.field-caption { font-size: 14px; color: var(--text); margin: 0 0 10px; line-height: 1.4; }
+.field-caption-play { color: var(--text-muted); font-size: 13px; }
+
+/* Mini bar on live cards */
+.field-mini { display: flex; align-items: center; gap: 10px; min-height: 28px; padding-top: 6px; }
+.field-mini-strip { position: relative; flex: 1 1 auto; min-width: 90px; height: 12px; border-radius: 3px; background: var(--field-bg); overflow: hidden; }
+.fm-ez { position: absolute; top: 0; bottom: 0; width: 8.33%; opacity: 0.35; }
+.fm-rz { position: absolute; top: 0; bottom: 0; width: 16.67%; background: var(--redzone-tint); }
+.fm-fd { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--field-first-down); }
+.fm-ball { position: absolute; top: 2px; width: 0; height: 0; margin-left: -4px; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 8px solid #fff; filter: drop-shadow(0 0 0.5px #000); }
+.fm-ball.is-left { margin-left: -4px; border-left: 0; border-right: 8px solid #fff; }
+.field-mini-text { flex: 0 1 auto; font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 55%; }
+
+/* Field tracker on Advanced pick cards */
+.field-tracker-bar { display: flex; align-items: center; gap: 12px; }
+.field-tracker-bar .field-mini { flex: 1; padding-top: 0; }
+.field-tracker-title { flex: 1; font-size: 13px; color: var(--text-muted); }
+.field-tracker-drawer { margin-top: 8px; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); }
+.field-mode-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.field-mode-btn, .demo-sim-btn { background: var(--raised); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-btn); min-height: 36px; padding: 0 12px; font: 500 14px var(--font-body); cursor: pointer; }
+.field-mode-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+.demo-sim-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.demo-sim-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; }
+.demo-sim-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.demo-btn-group { display: flex; flex-wrap: wrap; gap: 6px; }
+.drive-meta-strip { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+
+/* Plays */
+.pbp-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pbp-item { padding: 8px 0; border-top: 1px solid var(--border); font-size: 14px; line-height: 1.4; }
+.pbp-item:first-child { border-top: 0; }
+.pbp-meta { display: flex; gap: 8px; font-size: 12px; color: var(--text-muted); margin-bottom: 2px; }
+.pbp-tag { font-weight: 600; color: var(--text); }
+.pbp-tag.is-score { color: var(--win); }
+.pbp-tag.is-turnover { color: var(--loss); }
+.pbp-yds.is-gain { color: var(--win); }
+.pbp-yds.is-loss { color: var(--loss); }
+.pbp-empty { font-size: 14px; color: var(--text-muted); }
+
+/* Theater */
+#field-theater-backdrop { position: fixed; inset: 0; z-index: 1200; display: none; align-items: center; justify-content: center; padding: 16px; background: var(--overlay); }
+#field-theater-modal { width: 100%; max-width: 980px; max-height: 92vh; overflow-y: auto; padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+.theater-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.theater-drive-select { max-width: 100%; min-height: 36px; }
+.theater-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.theater-stat { background: var(--raised); border-radius: var(--radius); padding: 8px 10px; min-width: 0; }
+.theater-stat-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.theater-stat-val { font-family: var(--font-head); font-size: 20px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theater-stat-sub { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theater-section { margin-top: 14px; }
+.theater-h { font-family: var(--font-head); font-size: 18px; font-weight: 600; margin: 0 0 6px; }
+.theater-h-sub { font-family: var(--font-body); font-size: 13px; font-weight: 400; color: var(--text-muted); margin-left: 6px; }
+.drive-chart { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.drive-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) minmax(70px, auto); align-items: center; gap: 8px; font-size: 13px; }
+.drive-team { font-weight: 600; }
+.drive-track { position: relative; height: 10px; border-radius: 3px; background: var(--field-bg); }
+.drive-span { position: absolute; top: 0; bottom: 0; border-radius: 3px; opacity: 0.8; }
+.drive-result { color: var(--text-muted); text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drive-row.is-score .drive-result { color: var(--text); font-weight: 600; }
+.winprob { display: block; width: 100%; height: 80px; background: var(--raised); border-radius: var(--radius); }
+.winprob-mid { stroke: var(--border); stroke-dasharray: 3 3; }
+.winprob-line { fill: none; stroke: var(--text); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.winprob-axis { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+@media (max-width: 640px) {
+  #field-theater-backdrop { align-items: flex-end; padding: 0; }
+  #field-theater-modal { border-radius: 16px 16px 0 0; max-height: 92vh; padding: 12px 12px 24px; }
+  .theater-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .demo-btn-group { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+}

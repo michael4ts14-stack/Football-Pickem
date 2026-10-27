@@ -593,6 +593,20 @@ function enrichGameFromEspnSummaryData(g, data) {
   rebuildDynamicGameInsights(g);
 }
 
+// ESPN summary "winprobability" -> home win chance per play (0..1), thinned to <= 200 points.
+function summaryWinProbSeries(data) {
+  var raw = data && Array.isArray(data.winprobability) ? data.winprobability : [];
+  var out = [];
+  var step = Math.max(1, Math.ceil(raw.length / 200));
+  for (var i = 0; i < raw.length; i += step) {
+    var v = raw[i] && raw[i].homeWinPercentage;
+    if (typeof v === "number" && !isNaN(v)) out.push(Math.max(0, Math.min(1, v)));
+  }
+  var lastRaw = raw.length && raw[raw.length - 1].homeWinPercentage;
+  if (typeof lastRaw === "number" && out.length && (raw.length - 1) % step !== 0) out.push(Math.max(0, Math.min(1, lastRaw)));
+  return out;
+}
+
 async function fetchGameDriveSummary(gameId, eventId) {
   if (!eventId) return;
   var reqEpoch = activeSlateEpoch;
@@ -669,6 +683,7 @@ async function fetchGameDriveSummary(gameId, eventId) {
       finalDrive: finalDrv,
       lastScoringDrive: lastScoringDrv || finalDrv,
       allDrives: parsedDrives,
+      winProb: summaryWinProbSeries(data),
       fetchedAt: Date.now()
     };
   } catch (e) {}
