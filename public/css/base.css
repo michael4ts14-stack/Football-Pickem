@@ -124,13 +124,7 @@
     flex: 1; min-width: 180px; background: var(--bg); border: 1px solid var(--border-muted); color: var(--text); padding: 7px 11px; border-radius: 8px; font-size: 0.82rem;
   }
 
-  /* Live Possession & Red-Zone Indicators */
-  .poss-glow {
-    display: inline-flex; align-items: center; gap: 3px;
-    font-size: 0.68rem; font-weight: 900; color: var(--warn);
-    background: var(--raised); border: 1px solid var(--border);
-    padding: 1px 6px; border-radius: 999px; margin-left: 5px;
-  }
+  .drive-situation-bar.redzone-active { color: var(--text); }
   .drive-situation-bar {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -143,16 +137,6 @@
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
-  }
-  .drive-situation-bar.redzone-active {
-    background: var(--raised);
-    border-color: var(--border);
-    color: var(--loss);
-    animation: sweatPulse 1.4s infinite;
-  }
-  .rz-pill {
-    background: var(--loss); color: var(--text); font-size: 0.63rem; font-weight: 900;
-    padding: 1px 6px; border-radius: 4px; text-transform: uppercase;
   }
 
   /* Live Saturday Scoreboard Tab (CST/CDT Windows) */
@@ -168,7 +152,6 @@
   @media (max-width: 640px) { .live-grid { grid-template-columns: 1fr; } }
   .live-tile { background: var(--card); border: 1px solid var(--border-muted); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 7px; }
   .live-tile.in-progress { border-color: var(--border); }
-  .live-tile.sweat-4q { border-color: var(--gold); animation: sweatPulse 1.6s infinite; }
   .live-tile-top { display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: var(--muted); }
   .live-team-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 6px; border-radius: 6px; background: var(--surface); font-size: 0.84rem; font-weight: 700; }
   .live-team-row.leader { background: var(--raised); color: var(--text); }
@@ -226,9 +209,8 @@
   .badge-2x { background: var(--raised); color: var(--warn); border: 1px solid var(--border); }
   .badge-3x { background: var(--raised); color: var(--loss); border: 1px solid var(--border); }
   .badge-ev { background: var(--raised); color: var(--win); border: 1px solid var(--border); }
-  .badge-plus-ev-glow { background: var(--raised); color: var(--win); border: 1px solid var(--border); font-weight: 800; }
   .badge-cliff-trap { background: var(--raised); color: var(--loss); border: 1px solid var(--border); font-weight: 800; }
-  .badge-sway { background: var(--raised); color: var(--warn); border: 1px solid var(--amber); }
+  .badge-sway { background: var(--raised); color: var(--text); border: 1px solid var(--border); }
   .badge-key-inj-out { background: var(--raised); color: var(--loss); border: 1px solid var(--border); font-weight: 800; }
   .badge-key-inj-q { background: var(--raised); color: var(--warn); border: 1px solid var(--border); font-weight: 800; }
   .sit-pill { display: inline-block; font-size: 0.63rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: var(--raised); color: var(--text); border: 1px solid var(--border); margin-top: 2px; }
@@ -243,12 +225,6 @@
   }
   .team-btn.live-winning { border-color: var(--border) !important; }
   .team-btn.live-losing { border-color: var(--border) !important; opacity: 0.88; }
-  @keyframes sweatPulse {
-    0% { }
-    70% { }
-    100% { }
-  }
-  .team-btn.live-sweat-4q { border-color: var(--border) !important; animation: sweatPulse 1.6s infinite; }
 
   .sway-banner {
     background: var(--raised); border: 1px solid var(--border); color: var(--warn); padding: 7px 10px; border-radius: 8px; font-size: 0.75rem; margin-bottom: 9px;

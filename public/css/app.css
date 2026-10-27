@@ -278,7 +278,7 @@ body.simple-ui-mode #flt-sway, body.simple-ui-mode #flt-diffs { display: none; }
 .pick-status { margin-left: 8px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
 .pick-status.is-win { color: var(--win); }
 .pick-status.is-loss { color: var(--loss); }
-.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--loss); }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); }
 
 .pick-card-teams { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
 .team-pick {
@@ -597,7 +597,14 @@ button.list-row:hover { background: var(--raised); }
 .live-team-name { font-size: 18px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-team.is-behind .live-team-name, .live-team.is-behind .live-score { color: var(--text-muted); }
 .your-pick { font-size: 14px; font-weight: 600; color: var(--accent-text); }
-.ball-tag { font-size: 11px; font-weight: 600; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--text-muted); color: var(--text); vertical-align: 2px; }
+.poss-icon { display: inline-flex; color: var(--text); vertical-align: 1px; margin-left: 2px; }
+/* Crunch time: a 2px edge beside the scores is the only persistent live accent. */
+.live-card.is-crunch .live-card-btn { box-shadow: inset 2px 0 0 var(--alert); }
+.live-card.is-final .live-score, .live-card.is-final .live-team-name { color: var(--text-muted); }
+/* One highlight when a score changes; nothing loops. */
+.live-team.score-changed { animation: scoreChanged 1.5s ease-out 1; border-radius: 6px; }
+@keyframes scoreChanged { from { background: var(--raised); } to { background: var(--surface); } }
+@media (prefers-reduced-motion: reduce) { .live-team.score-changed { animation: none; } }
 .live-team-name .mult-badge { vertical-align: 2px; }
 .live-score { font-family: var(--font-head); font-weight: 700; font-size: 30px; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
 .live-situation { font-size: 13px; color: var(--text-muted); padding-top: 4px; }
