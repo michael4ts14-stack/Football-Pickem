@@ -280,11 +280,14 @@ function fieldWinProbHtml(g) {
   var homeLead = last >= 0.5;
   var lbl = (homeLead ? g.home : g.away) + " " + Math.round((homeLead ? last : 1 - last) * 100) + "%";
   return '<section class="theater-section"><h4 class="theater-h">Win probability <span class="theater-h-sub">' + fieldEsc(lbl) + '</span></h4>' +
-    '<svg class="winprob" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Win probability, now ' + fieldEsc(lbl) + '">' +
-      '<line class="winprob-mid" x1="0" y1="' + H / 2 + '" x2="' + W + '" y2="' + H / 2 + '"/>' +
-      '<polyline class="winprob-line" points="' + pts.join(" ") + '"/>' +
-    '</svg>' +
-    '<div class="winprob-axis"><span>' + fieldEsc(g.home) + '</span><span>' + fieldEsc(g.away) + '</span></div></section>';
+    '<div class="winprob-wrap">' +
+      '<svg class="winprob" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="Win probability, now ' + fieldEsc(lbl) + '">' +
+        '<line class="winprob-mid" x1="0" y1="' + H / 2 + '" x2="' + W + '" y2="' + H / 2 + '"/>' +
+        '<polyline class="winprob-line" points="' + pts.join(" ") + '"/>' +
+      '</svg>' +
+      // Higher on the chart = home team more likely to win.
+      '<span class="winprob-label is-top">' + fieldEsc(g.home) + '</span><span class="winprob-label is-bottom">' + fieldEsc(g.away) + '</span>' +
+    '</div></section>';
 }
 
 // ---------- Field tracker on Advanced pick cards (bar + optional full field) ----------
@@ -326,11 +329,5 @@ function fieldModePillsHtml(g, ls, tel) {
 
 // Theater "Refresh" when no plays are loaded: one on-demand fetch for this game.
 function refreshTheaterPlays(gameId) {
-  var ls = LIVE_SCORES[gameId];
-  if (!ls || !ls.eventId) return;
-  delete SUMMARY_PBP_CACHE[gameId];
-  fetchGameDriveSummary(gameId, ls.eventId).then(function() {
-    if (ACTIVE_THEATER_GAME_ID === gameId) renderFieldTheaterModalContent(gameId);
-    renderAll();
-  });
+  espnFallbackForDrives(gameId, true);
 }

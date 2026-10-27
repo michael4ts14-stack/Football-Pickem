@@ -19,8 +19,6 @@ async function pollLiveSaturdayScores(manual) {
     }
     updateWeekBrandingUI();
     var unmatched = [];
-    var inProgSummaryPromises = [];
-    var completedToFetch = [];
 
     for (var k = 0; k < GAMES.length; k++) {
       var g = GAMES[k];
@@ -180,25 +178,8 @@ async function pollLiveSaturdayScores(manual) {
         LIVE_SCORES[g.id] = lsEntry;
       }
 
-      if (isInProg && item.ev.id) {
-        inProgSummaryPromises.push(fetchGameDriveSummary(g.id, item.ev.id));
-      } else if (isComp && item.ev.id && (!SUMMARY_PBP_CACHE[g.id] || manual)) {
-        completedToFetch.push({ gameId: g.id, eventId: item.ev.id });
-      }
-    }
-
-    if (inProgSummaryPromises.length > 0) {
-      await Promise.all(inProgSummaryPromises);
-    }
-
-    // Also fetch real Final Drive / Last Scoring Drive summaries for completed games
-    if (completedToFetch.length > 0) {
-      Promise.all(completedToFetch.map(function(c) {
-        return fetchGameDriveSummary(c.gameId, c.eventId);
-      })).then(function() {
-        renderAll();
-        if (ACTIVE_THEATER_GAME_ID) renderFieldTheaterModalContent(ACTIVE_THEATER_GAME_ID);
-      });
+      // Drives and plays are no longer fetched here for every game on every poll: field views
+      // load them on demand from Firestore (js/live/live-feed.js).
     }
 
     // Re-grade every participant in state.poolMembers against LIVE_SCORES
@@ -230,7 +211,7 @@ function updateScoreboard(skipFullRegrade) {
   var cur = calcProfileMetrics(activeProfile) || m;
 
   var mPrior = 111, kPrior = 112;
-  var mLiveRank = "T-64th", kLiveRank = "T-57th";
+  var mLiveRank = "", kLiveRank = "";
   if (state.poolMembers && state.poolMembers.length > 0) {
     var getPmTotal = function(x) {
       return (typeof x.newLiveTotal === "number" && !isNaN(x.newLiveTotal))
@@ -306,7 +287,10 @@ function updateScoreboard(skipFullRegrade) {
   if (tabsWrap && tbodyH2h) {
     var isOfficialActive = (activeProfile !== "test");
     var isSandboxActive = (activeProfile === "test");
-    var mySubLabel = myTotPts + " pts (" + (myKey === "michael" ? mLiveRank : (myKey === "kinyion" ? kLiveRank : (myMeta.defaultRank || "Linked"))) + (myWkBest > 0 ? " • +" + myWkBest + " wk" : "") + ")";
+    // Real rank from the pool leaderboard; the old hardcoded "T-64th"/"T-57th" defaults are gone.
+    var myRankLabel = (typeof getMyPoolRankLabel === "function" && getMyPoolRankLabel()) ||
+      (myKey === "michael" ? mLiveRank : (myKey === "kinyion" ? kLiveRank : "")) || "Unranked";
+    var mySubLabel = myTotPts + " pts (" + myRankLabel + (myWkBest > 0 ? " • +" + myWkBest + " wk" : "") + ")";
     var testMetrics = calcProfileMetrics("test") || m;
 
     tabsWrap.style.gridTemplateColumns = "1fr 1fr";

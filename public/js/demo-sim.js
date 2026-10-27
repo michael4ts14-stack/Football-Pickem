@@ -61,12 +61,7 @@ function setGameDriveViewMode(gameId, mode, event) {
     ensureDemoSimState(g);
   }
   var ls = LIVE_SCORES[gameId];
-  if (mode !== "demo" && ls && ls.eventId && !SUMMARY_PBP_CACHE[gameId]) {
-    fetchGameDriveSummary(gameId, ls.eventId).then(function() {
-      renderAll();
-      if (ACTIVE_THEATER_GAME_ID === gameId) renderFieldTheaterModalContent(gameId);
-    });
-  }
+  if (mode !== "demo" && ls && ls.eventId && !SUMMARY_PBP_CACHE[gameId]) loadGameDrives(gameId);
   renderAll();
   if (ACTIVE_THEATER_GAME_ID === gameId) renderFieldTheaterModalContent(gameId);
 }
@@ -247,11 +242,7 @@ function toggleFieldTrackerAccordion(gameId, event) {
     EXPANDED_FIELD_TRACKERS[gameId] = true;
   }
   var ls = LIVE_SCORES[gameId];
-  if (EXPANDED_FIELD_TRACKERS[gameId] && ls && ls.eventId && !SUMMARY_PBP_CACHE[gameId]) {
-    fetchGameDriveSummary(gameId, ls.eventId).then(function() {
-      renderAll();
-    });
-  }
+  if (EXPANDED_FIELD_TRACKERS[gameId] && ls && ls.eventId && !SUMMARY_PBP_CACHE[gameId]) loadGameDrives(gameId);
   renderAll();
 }
 
@@ -368,13 +359,7 @@ function resolveDriveTelemetryForGame(g, ls) {
     }
 
     // While ESPN Summary is still loading in background, trigger fetch & show accurate Final Score status (no fake 25-yard line!)
-    if (ls && ls.eventId && !SUMMARY_PBP_CACHE[g.id] && !LIVE_SCORES[g.id]._fetchingSummary) {
-      LIVE_SCORES[g.id]._fetchingSummary = true;
-      fetchGameDriveSummary(g.id, ls.eventId).then(function() {
-        renderAll();
-        if (ACTIVE_THEATER_GAME_ID === g.id) renderFieldTheaterModalContent(g.id);
-      });
-    }
+    if (ls && ls.eventId && !SUMMARY_PBP_CACHE[g.id]) loadGameDrives(g.id);
     var winTeam = (ls.awayScore > ls.homeScore) ? g.away : g.home;
     var winSide = (ls.awayScore > ls.homeScore) ? "away" : "home";
     return {

@@ -14,7 +14,7 @@ on:
         default: false
   push:
     branches: [claude/sat-ui-redesign-main]
-    paths: ["tools/matchups/**", "tests/matchups/**", ".github/workflows/matchups.yml"]
+    paths: ["tools/matchups/**", "tools/lib/**", "tests/matchups/**", ".github/workflows/matchups.yml"]
 
 concurrency:
   group: matchups

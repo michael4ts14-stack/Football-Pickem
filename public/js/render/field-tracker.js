@@ -279,15 +279,15 @@ function parseSingleEspnDrive(drv, g, ls, driveIndex) {
 
   var isRz = (possSide === "away" && endYl100 >= 80) || (possSide === "home" && endYl100 <= 20);
 
-  // 5. Parse last 5 plays of this drive (newest first)
-  var recentPlays = playsArr.slice(-5).reverse().map(function(p) {
+  // 5. Parse the last 10 plays of this drive (newest first)
+  var recentPlays = playsArr.slice(-10).reverse().map(function(p) {
     var txt = p.text || p.shortText || "Play recorded";
     var pClock = "";
     if (p.period && p.period.number) {
       pClock = (p.period.number > 4 ? "OT" : ("Q" + p.period.number)) + ((p.clock && p.clock.displayValue) ? " " + p.clock.displayValue : "");
     }
     var ddHdr = (p.start && p.start.downDistanceText)
-      ? (p.start.downDistanceText + (p.start.possessionText ? " at " + p.start.possessionText : ""))
+      ? (p.start.downDistanceText + (p.start.possessionText && p.start.downDistanceText.indexOf(p.start.possessionText) === -1 ? " at " + p.start.possessionText : ""))
       : (p.end && p.end.possessionText ? ("At " + p.end.possessionText) : "");
     var statYds = typeof p.statYardage === "number" ? p.statYardage : null;
     var isScore = p.scoringPlay === true || /touchdown|field goal good|safety/i.test(txt);
@@ -622,70 +622,81 @@ async function fetchGameDriveSummary(gameId, eventId) {
     // Abort if the slate changed while the fetch was in flight
     var g = findGameById(gameId);
     if (!g || reqEpoch !== activeSlateEpoch || gameMatchupKey(g) !== reqMatchupKey) return;
-
-    // Verify from data.header.competitions[0].competitors that this ESPN event actually belongs to BOTH g.away and g.home!
-    var hdrComp = data.header && data.header.competitions && data.header.competitions[0];
-    if (hdrComp && Array.isArray(hdrComp.competitors) && hdrComp.competitors.length >= 2) {
-      var hAway = null, hHome = null;
-      for (var hc = 0; hc < hdrComp.competitors.length; hc++) {
-        if (hdrComp.competitors[hc].homeAway === "away") hAway = hdrComp.competitors[hc];
-        if (hdrComp.competitors[hc].homeAway === "home") hHome = hdrComp.competitors[hc];
-      }
-      if (hAway && hHome) {
-        var verifyScore = scoreGameAgainstEvent(g, { away: hAway, home: hHome });
-        if (verifyScore.score < 9) {
-          // Stale eventId from a previous week's matchup! Purge it immediately.
-          delete SUMMARY_PBP_CACHE[gameId];
-          delete LIVE_SCORES[gameId];
-          return;
-        }
-      }
-    }
-
-    var ls = LIVE_SCORES[gameId] || null;
-    enrichGameFromEspnSummaryData(g, data);
-
-    if (!data.drives) return;
-
-    var rawDrives = [];
-    if (Array.isArray(data.drives.previous)) {
-      rawDrives = data.drives.previous.slice();
-    }
-    if (data.drives.current) {
-      rawDrives.push(data.drives.current);
-    }
-    if (rawDrives.length === 0) return;
-
-    var parsedDrives = [];
-    for (var i = 0; i < rawDrives.length; i++) {
-      var pd = parseSingleEspnDrive(rawDrives[i], g, ls, i + 1);
-      if (pd) parsedDrives.push(pd);
-    }
-    if (parsedDrives.length === 0) return;
-
-    var finalDrv = parsedDrives[parsedDrives.length - 1];
-    var lastScoringDrv = null;
-    for (var j = parsedDrives.length - 1; j >= 0; j--) {
-      if (parsedDrives[j].isScoringDrive) {
-        lastScoringDrv = parsedDrives[j];
-        break;
-      }
-    }
-
-    SUMMARY_PBP_CACHE[gameId] = {
-      eventId: String(eventId),
-      matchupKey: gameMatchupKey(g),
-      playsCount: finalDrv.playsCount,
-      yards: finalDrv.yards,
-      timeElapsed: finalDrv.timeElapsed,
-      description: finalDrv.description,
-      last3Plays: finalDrv.lastPlays,
-      finalDrive: finalDrv,
-      lastScoringDrive: lastScoringDrv || finalDrv,
-      allDrives: parsedDrives,
-      winProb: summaryWinProbSeries(data),
-      fetchedAt: Date.now()
-    };
+    applyEspnSummaryToGame(gameId, eventId, data, false);
   } catch (e) {}
+}
+
+// Turns an ESPN game summary (fetched here, or the trimmed copy the live job writes to
+// live_games/week_N_drives_<id>) into SUMMARY_PBP_CACHE[gameId]. fromServer skips the
+// injury/leader enrichment, which the trimmed copy doesn't carry.
+function applyEspnSummaryToGame(gameId, eventId, data, fromServer) {
+  var g = findGameById(gameId);
+  if (!g || !data) return false;
+
+  // Verify from data.header.competitions[0].competitors that this ESPN event actually belongs to BOTH g.away and g.home!
+  var hdrComp = data.header && data.header.competitions && data.header.competitions[0];
+  if (hdrComp && Array.isArray(hdrComp.competitors) && hdrComp.competitors.length >= 2) {
+    var hAway = null, hHome = null;
+    for (var hc = 0; hc < hdrComp.competitors.length; hc++) {
+      if (hdrComp.competitors[hc].homeAway === "away") hAway = hdrComp.competitors[hc];
+      if (hdrComp.competitors[hc].homeAway === "home") hHome = hdrComp.competitors[hc];
+    }
+    if (hAway && hHome) {
+      var verifyScore = scoreGameAgainstEvent(g, { away: hAway, home: hHome });
+      if (verifyScore.score < 9) {
+        // Stale eventId from a previous week's matchup! Purge it immediately.
+        delete SUMMARY_PBP_CACHE[gameId];
+        if (!fromServer) delete LIVE_SCORES[gameId];
+        return false;
+      }
+    }
+  }
+
+  var ls = LIVE_SCORES[gameId] || null;
+  if (!fromServer) enrichGameFromEspnSummaryData(g, data);
+
+  if (!data.drives) return false;
+
+  var rawDrives = [];
+  if (Array.isArray(data.drives.previous)) {
+    rawDrives = data.drives.previous.slice();
+  }
+  if (data.drives.current) {
+    rawDrives.push(data.drives.current);
+  }
+  if (rawDrives.length === 0) return false;
+
+  var parsedDrives = [];
+  for (var i = 0; i < rawDrives.length; i++) {
+    var pd = parseSingleEspnDrive(rawDrives[i], g, ls, i + 1);
+    if (pd) parsedDrives.push(pd);
+  }
+  if (parsedDrives.length === 0) return false;
+
+  var finalDrv = parsedDrives[parsedDrives.length - 1];
+  var lastScoringDrv = null;
+  for (var j = parsedDrives.length - 1; j >= 0; j--) {
+    if (parsedDrives[j].isScoringDrive) {
+      lastScoringDrv = parsedDrives[j];
+      break;
+    }
+  }
+
+  SUMMARY_PBP_CACHE[gameId] = {
+    eventId: String(eventId),
+    matchupKey: gameMatchupKey(g),
+    playsCount: finalDrv.playsCount,
+    yards: finalDrv.yards,
+    timeElapsed: finalDrv.timeElapsed,
+    description: finalDrv.description,
+    last3Plays: finalDrv.lastPlays,
+    finalDrive: finalDrv,
+    lastScoringDrive: lastScoringDrv || finalDrv,
+    allDrives: parsedDrives,
+    winProb: summaryWinProbSeries(data),
+    fromServer: !!fromServer,
+    fetchedAt: Date.now()
+  };
+  return true;
 }
 

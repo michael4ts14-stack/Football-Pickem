@@ -2,21 +2,14 @@
 // GAMECAST THEATER: full field, down & distance, drive chart, win probability
 // and the play list for one game. Drawing lives in render/field.js.
 // ============================================================================
-var THEATER_SUMMARY_TTL_MS = 30 * 1000; // the open game's ESPN summary is re-fetched at most every 30s
-
 function openFieldTheaterModal(gameId, event) {
   if (event && event.stopPropagation) event.stopPropagation();
   ACTIVE_THEATER_GAME_ID = gameId;
   var backdrop = document.getElementById("field-theater-backdrop");
   if (backdrop) backdrop.style.display = "flex";
-  var ls = LIVE_SCORES[gameId];
-  var cached = SUMMARY_PBP_CACHE[gameId];
-  var stale = !cached || (ls && ls.inProgress && Date.now() - (cached.fetchedAt || 0) > THEATER_SUMMARY_TTL_MS);
-  if (ls && ls.eventId && stale) {
-    fetchGameDriveSummary(gameId, ls.eventId).then(function() {
-      if (ACTIVE_THEATER_GAME_ID === gameId) renderFieldTheaterModalContent(gameId);
-    });
-  }
+  // Drives come from Firestore; only if that copy is missing or stale is this one game
+  // fetched from ESPN (at most every 30s, see live-feed.js).
+  loadGameDrives(gameId, true);
   renderFieldTheaterModalContent(gameId);
 }
 
