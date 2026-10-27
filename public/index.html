@@ -65,7 +65,6 @@
   </div>
   <div class="sidebar-foot">
     <div class="bot-status commish-only-hidden" id="bot-sync-pill" title="Gmail/ESPN bot status">Bot …</div>
-    <button type="button" id="btn-toggle-desktop-rail" class="link-btn rail-toggle" onclick="toggleDesktopSidebarCollapse()" aria-pressed="false" aria-label="Hide side panel">Hide side panel</button>
   </div>
 </nav>
 
@@ -365,7 +364,17 @@
   </main>
 
   <!-- Desktop right rail (>= 1200px): season top 5, last week, and the Advanced tools that used to be the left sidebar -->
+  <div class="rail-backdrop" id="rail-backdrop" hidden onclick="closeRailPanel()"></div>
   <aside class="app-rail" id="app-rail" aria-label="Season summary">
+    <div class="rail-head">
+      <div class="rail-head-row">
+        <h2 class="rail-head-title">Season</h2>
+        <div class="rail-head-actions">
+          <button type="button" class="icon-btn rail-pin-btn" id="rail-pin-btn" onclick="toggleRailPinned()" aria-pressed="false" aria-label="Keep this panel open" title="Keep this panel open (wide screens)"><i data-lucide="pin"></i></button>
+          <button type="button" class="icon-btn rail-close-btn" onclick="closeRailPanel()" aria-label="Close"><i data-lucide="x"></i></button>
+        </div>
+      </div>
+    </div>
     <section class="rail-card" id="rail-season-top5"></section>
     <section class="rail-card" id="rail-last-week"></section>
     <aside class="sidebar" id="main-sidebar">
@@ -743,6 +752,7 @@
 <script src="/js/standings-ui.js?v=2026-10-27d"></script>
 <script src="/js/dialogs-ui.js?v=2026-10-27d"></script>
 <script src="/js/player-sheet.js?v=2026-10-27d"></script>
+<script src="/js/layout.js?v=2026-10-27d"></script>
 <script src="/js/boot.js?v=2026-10-27d"></script>
 <div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>
   <span>Update available</span>

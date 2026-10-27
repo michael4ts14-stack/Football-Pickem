@@ -40,7 +40,8 @@ html[data-theme="dark"] {
   --tabbar-h: 60px;
   --sidebar-w: 224px;
   --rail-w: 300px;
-  --content-max: 1120px;
+  --content-max: 2000px;       /* Picks, Live, Table: fill the screen up to this */
+  --content-narrow: 960px;     /* Standings, More: lists stay readable */
 }
 
 html[data-theme="light"] {
