@@ -151,7 +151,7 @@ function clearAllSlateCaches() {
   LIVE_SCORES = {};
   if (state) state.liveScores = LIVE_SCORES;
   SUMMARY_PBP_CACHE = {};
-  FIELD_ANIM_MEMORY = {};
+  if (typeof resetFieldNodes === "function") resetFieldNodes();
   DEMO_SIM_STATE = {};
   EXPANDED_FIELD_TRACKERS = {};
   GAME_DRIVE_VIEW_MODE = {};
@@ -877,7 +877,7 @@ function sanitizeStateForActiveSlate() {
     if (!lsItem.matchupKey || lsItem.matchupKey !== expectedKey) {
       delete LIVE_SCORES[lsId];
       delete SUMMARY_PBP_CACHE[lsId];
-      delete FIELD_ANIM_MEMORY[lsId];
+      if (typeof resetFieldNodes === "function") resetFieldNodes(lsId);
       cleanedAny = true;
     }
   }
@@ -886,7 +886,7 @@ function sanitizeStateForActiveSlate() {
     var pbpItem = SUMMARY_PBP_CACHE[pbpId];
     if (!gPbp || !pbpItem || pbpItem.matchupKey !== gameMatchupKey(gPbp)) {
       delete SUMMARY_PBP_CACHE[pbpId];
-      delete FIELD_ANIM_MEMORY[pbpId];
+      if (typeof resetFieldNodes === "function") resetFieldNodes(pbpId);
     }
   }
 
