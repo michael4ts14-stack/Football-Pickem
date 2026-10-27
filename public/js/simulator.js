@@ -316,7 +316,7 @@ function renderMonteCarloSimulatorBox() {
     for (var s = 0; s < sim.topSwingGames.length; s++) {
       var sg = sim.topSwingGames[s];
       swingHtml += '<span class="badge badge-leverage" style="padding:4px 8px;font-size:0.7rem;cursor:pointer;" onclick="focusGame(' + sg.gameId + ')">' +
-        '#' + sg.gameId + ' <strong>' + sg.pickedTeam + ' (' + sg.pickedPts + 'x)</strong> • Pool: ' + sg.fieldOwnPct + '% • <span style="color:#6ee7b7;">+' + sg.top5Boost + '% Top-5 Odds</span>' +
+        '#' + sg.gameId + ' <strong>' + sg.pickedTeam + ' (' + sg.pickedPts + 'x)</strong> • Pool: ' + sg.fieldOwnPct + '% • <span style="color:var(--win);">+' + sg.top5Boost + '% Top-5 Odds</span>' +
       '</span>';
     }
   }
@@ -332,50 +332,50 @@ function renderMonteCarloSimulatorBox() {
       '<td><strong>#' + c.avgRank + '</strong></td>' +
       '<td style="color:var(--gold);font-weight:800;">' + c.win1stPct + '%</td>' +
       '<td style="color:var(--green);font-weight:800;">' + c.top5Pct + '%</td>' +
-      '<td style="color:var(--accent);font-weight:700;">' + c.top10Pct + '%</td>' +
+      '<td style="color:var(--legacy-accent);font-weight:700;">' + c.top10Pct + '%</td>' +
     '</tr>';
   }
 
   el.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--border-muted);">' +
       '<div>' +
-        '<strong style="font-size:0.9rem;color:#fff;">🎲 Monte Carlo Pool Finish Simulator (' + sim.trials.toLocaleString() + ' Simulated Saturdays vs. ' + sim.contendersCount + ' Pool Entries)</strong>' +
+        '<strong style="font-size:0.9rem;color:var(--text);">🎲 Monte Carlo Pool Finish Simulator (' + sim.trials.toLocaleString() + ' Simulated Saturdays vs. ' + sim.contendersCount + ' Pool Entries)</strong>' +
         '<div style="font-size:0.71rem;color:var(--muted);">Simulates all unplayed matchups using true game win probabilities against every pool member\'s actual sheet picks (' + modeLabel + ').</div>' +
       '</div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
         '<button type="button" class="btn-sm' + (sim.mode === "weekly" ? " active" : "") + '" onclick="setMonteCarloSimMode(\'weekly\')">🏆 Weekly Finish Odds</button>' +
         '<button type="button" class="btn-sm' + (sim.mode === "season" ? " active" : "") + '" onclick="setMonteCarloSimMode(\'season\')">📈 Season Standings Odds</button>' +
-        '<button type="button" class="btn-sm" style="background:linear-gradient(90deg,#0284c7,#4f46e5);color:#fff;border:none;font-weight:800;" onclick="runMonteCarloPoolSimulation(5000, true); renderStandingsAndGradingView(); showAppToast(\'🎲 Ran 5,000 fresh Monte Carlo simulations!\');">🎲 Re-Run 5,000 Sims</button>' +
+        '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:800;" onclick="runMonteCarloPoolSimulation(5000, true); renderStandingsAndGradingView(); showAppToast(\'🎲 Ran 5,000 fresh Monte Carlo simulations!\');">🎲 Re-Run 5,000 Sims</button>' +
       '</div>' +
     '</div>' +
     '<div class="mc-kpi-grid">' +
-      '<div class="mc-kpi-card" style="border-color:rgba(250,204,21,0.45);">' +
+      '<div class="mc-kpi-card" style="border-color:var(--border);">' +
         '<div class="metric-label">🥇 ' + actMeta.shortName + ' 1st Place Odds</div>' +
         '<div class="metric-val" style="color:var(--gold);">' + (actHidden ? '🔒' : (sim.active.win1stPct + '%')) + '</div>' +
         '<div class="metric-sub">' + modeLabel + ' #1 Finish</div>' +
       '</div>' +
-      '<div class="mc-kpi-card" style="border-color:rgba(16,185,129,0.45);">' +
+      '<div class="mc-kpi-card" style="border-color:var(--border);">' +
         '<div class="metric-label">🔥 ' + actMeta.shortName + ' Top-5 / Top-10</div>' +
-        '<div class="metric-val" style="color:var(--green);">' + (actHidden ? '🔒' : (sim.active.top5Pct + '%')) + ' <span style="font-size:0.8rem;color:var(--accent);">(' + (actHidden ? '🔒' : (sim.active.top10Pct + '% T10')) + ')</span></div>' +
+        '<div class="metric-val" style="color:var(--green);">' + (actHidden ? '🔒' : (sim.active.top5Pct + '%')) + ' <span style="font-size:0.8rem;color:var(--legacy-accent);">(' + (actHidden ? '🔒' : (sim.active.top10Pct + '% T10')) + ')</span></div>' +
         '<div class="metric-sub">Sim Avg: ' + (actHidden ? '🔒' : (sim.active.avgScore + ' pts')) + '</div>' +
       '</div>' +
-      '<div class="mc-kpi-card" style="border-color:rgba(56,189,248,0.45);">' +
+      '<div class="mc-kpi-card" style="border-color:var(--border);">' +
         '<div class="metric-label">📊 Expected Pool Rank</div>' +
-        '<div class="metric-val" style="color:var(--accent);">' + (actHidden ? '🔒' : ('#' + sim.active.avgRank)) + ' <span style="font-size:0.78rem;color:var(--muted);">of ' + sim.contendersCount + '</span></div>' +
+        '<div class="metric-val" style="color:var(--legacy-accent);">' + (actHidden ? '🔒' : ('#' + sim.active.avgRank)) + ' <span style="font-size:0.78rem;color:var(--muted);">of ' + sim.contendersCount + '</span></div>' +
         '<div class="metric-sub">' + (sim.compare ? (cmpDesc.shortName + ' Proj Rank: #' + sim.compare.avgRank) : '') + '</div>' +
       '</div>' +
-      '<div class="mc-kpi-card" style="border-color:rgba(192,132,252,0.45);">' +
+      '<div class="mc-kpi-card" style="border-color:var(--border);">' +
         '<div class="metric-label">⚔️ Beat ' + (cmpDesc ? cmpDesc.shortName : 'Rival') + ' H2H Odds</div>' +
-        '<div class="metric-val" style="color:#e9d5ff;">' + ((actHidden || cmpHidden) ? '🔒' : (sim.h2hWinPct + '%')) + '</div>' +
+        '<div class="metric-val" style="color:var(--text);">' + ((actHidden || cmpHidden) ? '🔒' : (sim.h2hWinPct + '%')) + '</div>' +
         '<div class="metric-sub">' + ((actHidden || cmpHidden) ? 'Locked' : ('Lose: ' + sim.h2hLossPct + '% • Tie: ' + sim.h2hTiePct + '%')) + '</div>' +
       '</div>' +
     '</div>' +
-    '<div style="margin:8px 0;padding:8px 10px;background:rgba(9,13,22,0.75);border:1px solid var(--border-muted);border-radius:8px;font-size:0.73rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">' +
-      '<span style="font-weight:800;color:#bae6fd;">🎯 Top 3 Root-For Leverage Games (Biggest Boost to Your Top-5 Finish Odds):</span>' +
+    '<div style="margin:8px 0;padding:8px 10px;background:var(--bg);border:1px solid var(--border-muted);border-radius:8px;font-size:0.73rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">' +
+      '<span style="font-weight:800;color:var(--text);">🎯 Top 3 Root-For Leverage Games (Biggest Boost to Your Top-5 Finish Odds):</span>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;">' + swingHtml + '</div>' +
     '</div>' +
     '<details style="margin-top:6px;font-size:0.73rem;">' +
-      '<summary style="cursor:pointer;color:var(--accent);font-weight:800;user-select:none;">📋 View Top 10 Simulated Pool Contenders (' + modeLabel + ')</summary>' +
+      '<summary style="cursor:pointer;color:var(--legacy-accent);font-weight:800;user-select:none;">📋 View Top 10 Simulated Pool Contenders (' + modeLabel + ')</summary>' +
       '<div style="overflow-x:auto;margin-top:8px;">' +
         '<table class="condensed-table">' +
           '<thead><tr><th>Sim #</th><th>Participant</th><th>Sim Avg Pts</th><th>Avg Finish Rank</th><th>🥇 1st Place %</th><th>🔥 Top 5 %</th><th>Top 10 %</th></tr></thead>' +

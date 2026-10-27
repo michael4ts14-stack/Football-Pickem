@@ -1,21 +1,8 @@
   /* === V16.5 UPGRADE: SIMPLE PLAYER VIEW MODE & COMMISSIONER COMMAND SUITE === */
-  .simple-mode-btn-active {
-    background: linear-gradient(90deg, #10b981, #059669) !important;
-    border-color: #6ee7b7 !important;
-    color: #000 !important;
-    font-weight: 900 !important;
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
-  }
-  .commish-top-btn {
-    background: linear-gradient(90deg, #b45309, #d97706) !important;
-    border-color: #fde68a !important;
-    color: #fff !important;
-    font-weight: 800 !important;
-  }
   #commish-announcement-banner {
-    background: linear-gradient(90deg, rgba(245, 158, 11, 0.2), rgba(2, 132, 199, 0.2));
-    border-bottom: 1px solid rgba(250, 204, 21, 0.45);
-    color: #fef08a;
+    background: var(--raised);
+    border-bottom: 1px solid var(--border);
+    color: var(--warn);
     padding: 7px 14px;
     font-size: 0.76rem;
     font-weight: 700;
@@ -27,14 +14,13 @@
   }
   #simple-mode-tiebreaker-bar {
     display: none;
-    background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.98));
-    border: 1px solid #38bdf888;
+    background: var(--raised);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 12px 14px;
     margin-bottom: 12px;
     flex-direction: column;
     gap: 10px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
   }
   .simple-guest-banner {
     display: flex;
@@ -42,14 +28,14 @@
     align-items: center;
     flex-wrap: wrap;
     gap: 8px;
-    background: rgba(56, 189, 248, 0.1);
-    border: 1px solid rgba(56, 189, 248, 0.35);
+    background: var(--raised);
+    border: 1px solid var(--border);
     border-radius: 9px;
     padding: 8px 11px;
   }
   .top5-weekly-box {
-    background: linear-gradient(180deg, rgba(6, 95, 70, 0.22), rgba(15, 23, 42, 0.95));
-    border: 1px solid #10b98188;
+    background: var(--raised);
+    border: 1px solid var(--border);
     border-radius: 11px;
     padding: 12px;
     margin-bottom: 14px;
@@ -71,23 +57,15 @@
   }
   .top5-podium-card.rank-1 {
     border-color: var(--gold);
-    background: linear-gradient(180deg, rgba(250, 204, 21, 0.14), rgba(19, 28, 46, 0.96));
-    box-shadow: 0 0 12px rgba(250, 204, 21, 0.2);
+    background: var(--raised);
   }
   /* When Simple View is ON, hide all heavy analytics/EV/simulator extras and center a clean single-column layout */
-  body.simple-ui-mode .layout {
-    grid-template-columns: minmax(0, 1fr) !important;
-    max-width: 960px !important;
-  }
   body.simple-ui-mode #main-sidebar {
     display: none !important;
   }
   body.simple-ui-mode #simple-mode-tiebreaker-bar {
     display: flex !important;
   }
-  body.simple-ui-mode #tab-mode-condensed,
-  body.simple-ui-mode #mnav-condensed,
-  body.simple-ui-mode #mnav-drawer,
   body.simple-ui-mode #btn-demo-field-toggle,
   body.simple-ui-mode #btn-blind-mode,
   body.simple-ui-mode #top-risk-meter,
@@ -100,9 +78,6 @@
   body.simple-ui-mode #flt-sway,
   body.simple-ui-mode #flt-diffs {
     display: none !important;
-  }
-  body.simple-ui-mode .mobile-bottom-nav {
-    grid-template-columns: repeat(3, 1fr) !important;
   }
   body.simple-ui-mode .own-bar-wrap,
   body.simple-ui-mode .rationale-box,
@@ -130,8 +105,7 @@
   #commish-modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(3, 7, 18, 0.9);
-    backdrop-filter: blur(8px);
+    background: var(--bg);
     z-index: 2700;
     display: none;
     align-items: center;
@@ -139,15 +113,14 @@
     padding: 12px;
   }
   #commish-modal-box {
-    background: #0f172a;
-    border: 2px solid #f59e0b;
+    background: var(--surface);
+    border: 2px solid var(--border);
     border-radius: 16px;
     max-width: 1060px;
     width: 100%;
     padding: 16px;
     max-height: 92vh;
     overflow-y: auto;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95);
   }
   .commish-kpi-strip {
     display: grid;
@@ -167,15 +140,6 @@
   .commish-only-hidden {
     display: none !important;
   }
-  .topbar {
-    position: sticky; top: 0; z-index: 100; background: rgba(11, 17, 32, 0.97);
-    backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-muted); padding: 8px 12px;
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px;
-  }
-  .layout.sidebar-collapsed {
-    grid-template-columns: minmax(0, 1fr) !important;
-    max-width: 1180px !important;
-  }
   .layout.sidebar-collapsed #main-sidebar {
     display: none !important;
   }
@@ -191,36 +155,24 @@
     scrollbar-width: thin;
   }
   /* Keep mobile bottom nav 5 columns in both Simple and Advanced modes */
-  body.simple-ui-mode .mobile-bottom-nav {
-    grid-template-columns: repeat(5, 1fr) !important;
-  }
-  body.simple-ui-mode #mnav-condensed,
-  body.simple-ui-mode #mnav-drawer,
-  body.simple-ui-mode #tab-mode-condensed {
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-  }
 
   /* Slide-Out Drawers (Settings Menu & EV Simulator) */
   .slideout-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(3, 7, 18, 0.82);
-    backdrop-filter: blur(6px);
+    background: var(--bg);
     z-index: 2800;
     display: none;
     justify-content: flex-end;
     align-items: stretch;
   }
   .slideout-drawer {
-    background: #0b1120;
-    border-left: 2px solid var(--accent);
+    background: var(--surface);
+    border-left: 2px solid var(--legacy-accent);
     width: min(440px, 94vw);
     height: 100vh;
     overflow-y: auto;
     padding: 16px 14px 90px 14px;
-    box-shadow: -16px 0 45px rgba(0, 0, 0, 0.85);
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -228,7 +180,7 @@
   }
   .slideout-drawer.ev-sim-wide {
     width: min(720px, 96vw);
-    border-left-color: #10b981;
+    border-left-color: var(--border);
   }
   @keyframes slideInRight {
     from { transform: translateX(100%); opacity: 0.5; }
@@ -248,12 +200,12 @@
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--accent);
+    color: var(--legacy-accent);
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding-bottom: 5px;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    border-bottom: 1px solid var(--border);
   }
 
   /* Condensed Simple View (Clean Matchup + Monday Odds + Pick Choice + Multiplier) */
@@ -286,7 +238,7 @@
   .simple-cond-matchup {
     font-size: 0.88rem;
     font-weight: 800;
-    color: #fff;
+    color: var(--text);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -335,12 +287,11 @@
     transition: all 0.14s;
     text-align: left;
   }
-  .simple-pick-btn:hover { border-color: #64748b; }
+  .simple-pick-btn:hover { border-color: var(--border); }
   .simple-pick-btn.picked {
     border-color: var(--green);
-    background: rgba(16, 185, 129, 0.18);
-    color: #fff;
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+    background: var(--raised);
+    color: var(--text);
   }
   .simple-pick-btn.locked-disabled {
     opacity: 0.82;
@@ -354,8 +305,8 @@
     gap: 6px;
     flex-wrap: wrap;
     padding: 6px 10px;
-    background: rgba(15, 23, 42, 0.9);
-    border: 1px solid rgba(56, 189, 248, 0.35);
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: 8px;
   }
   .entry-pill-btn {
@@ -369,16 +320,16 @@
     cursor: pointer;
   }
   .entry-pill-btn.active {
-    background: linear-gradient(90deg, #0284c7, #4f46e5);
-    border-color: #38bdf8;
-    color: #fff;
+    background: var(--raised);
+    border-color: var(--border);
+    color: var(--text);
   }
 
   /* Commissioner Active Edit Bar */
   #commish-active-edit-bar {
     display: none;
-    background: linear-gradient(90deg, rgba(180, 83, 9, 0.28), rgba(15, 23, 42, 0.96));
-    border: 2px solid #f59e0b;
+    background: var(--raised);
+    border: 2px solid var(--border);
     border-radius: 11px;
     padding: 10px 12px;
     margin-bottom: 12px;
@@ -392,8 +343,7 @@
   #review-checklist-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(3, 7, 18, 0.88);
-    backdrop-filter: blur(8px);
+    background: var(--bg);
     z-index: 2750;
     display: none;
     align-items: center;
@@ -401,15 +351,14 @@
     padding: 12px;
   }
   #review-checklist-box {
-    background: #0f172a;
-    border: 2px solid #10b981;
+    background: var(--surface);
+    border: 2px solid var(--border);
     border-radius: 16px;
     max-width: 780px;
     width: 100%;
     padding: 16px;
     max-height: 92vh;
     overflow-y: auto;
-    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95);
   }
 
   /* Master Spreadsheet Grid inside Commissioner Console */
@@ -418,7 +367,7 @@
     overflow: auto;
     border: 1px solid var(--border-muted);
     border-radius: 10px;
-    background: #090d16;
+    background: var(--bg);
   }
   .master-sheet-table {
     width: max-content;
@@ -428,16 +377,16 @@
   }
   .master-sheet-table th, .master-sheet-table td {
     padding: 5px 7px;
-    border: 1px solid rgba(255,255,255,0.07);
+    border: 1px solid var(--border);
     text-align: center;
     white-space: nowrap;
   }
   .master-sheet-table th {
     position: sticky;
     top: 0;
-    background: #1e293b;
+    background: var(--raised);
     z-index: 4;
-    color: #cbd5e1;
+    color: var(--text);
     font-weight: 800;
   }
   .master-sheet-table th:first-child,
@@ -445,14 +394,13 @@
     position: sticky;
     left: 0;
     z-index: 5;
-    background: #111827;
+    background: var(--surface);
     text-align: left;
     font-weight: 800;
-    box-shadow: 2px 0 6px rgba(0,0,0,0.5);
   }
   .master-sheet-table th:first-child {
     z-index: 6;
-    background: #1e293b;
+    background: var(--raised);
   }
 
   /* Responsive Mobile Commissioner Modal & Topbar */

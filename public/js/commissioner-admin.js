@@ -459,15 +459,15 @@ function renderCommishActiveEditBar() {
   bar.innerHTML =
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
       '<span class="badge badge-2x" style="font-size:0.73rem;padding:4px 9px;">👑 COMMISH PICK EDITOR</span>' +
-      '<select class="search-input" style="max-width:190px;padding:4px 8px;font-size:0.75rem;font-weight:800;color:#fde68a;border-color:#f59e0b;" onchange="commissionerSwitchToMember(this.value)">' + opts + '</select>' +
+      '<select class="search-input" style="max-width:190px;padding:4px 8px;font-size:0.75rem;font-weight:800;color:var(--warn);border-color:var(--border);" onchange="commissionerSwitchToMember(this.value)">' + opts + '</select>' +
     '</div>' +
     '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
-      '<span style="font-size:0.7rem;color:#fde68a;font-weight:800;">⚡ Auto-Select:</span>' +
-      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:#10b981;color:#6ee7b7;" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'optimal\')">★ Optimal EV</button>' +
-      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:#38bdf8;color:#7dd3fc;" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'chalk\')">🔒 All Favorites</button>' +
-      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:#f59e0b;color:#fde68a;" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'dogs\')">🚀 Underdog Chaser</button>' +
-      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;background:rgba(239,68,68,0.2);border-color:#ef4444;color:#fca5a5;font-weight:800;" onclick="commishDeletePlayerPicks(\'' + safeName + '\')">🗑️ Delete Picks</button>' +
-      '<button type="button" class="btn-sm" style="padding:4px 9px;font-size:0.69rem;background:var(--green);color:#000;border:none;font-weight:900;" onclick="exitCommissionerImpersonateMode()">✓ Done</button>' +
+      '<span style="font-size:0.7rem;color:var(--warn);font-weight:800;">⚡ Auto-Select:</span>' +
+      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:var(--border);color:var(--win);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'optimal\')">★ Optimal EV</button>' +
+      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:var(--border);color:var(--text);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'chalk\')">🔒 All Favorites</button>' +
+      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:var(--border);color:var(--warn);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'dogs\')">🚀 Underdog Chaser</button>' +
+      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;" onclick="commishDeletePlayerPicks(\'' + safeName + '\')">🗑️ Delete Picks</button>' +
+      '<button type="button" class="btn-sm" style="padding:4px 9px;font-size:0.69rem;background:var(--green);color:var(--on-accent);border:none;font-weight:900;" onclick="exitCommissionerImpersonateMode()">✓ Done</button>' +
     '</div>';
 }
 
@@ -620,7 +620,7 @@ function renderMultiBuyInEntryStrip() {
   }
   var entries = ensureMultiBuyInEntries();
   strip.style.display = "flex";
-  var pillsHtml = '<span style="font-size:0.71rem;font-weight:800;color:#bae6fd;">🎟️ My Linked Buy-In Entries (' + entries.length + '):</span>';
+  var pillsHtml = '<span style="font-size:0.71rem;font-weight:800;color:var(--text);">🎟️ My Linked Buy-In Entries (' + entries.length + '):</span>';
   for (var i = 0; i < entries.length; i++) {
     var en = entries[i];
     var isAct = (activeProfile === en.profileKey);
@@ -632,7 +632,7 @@ function renderMultiBuyInEntryStrip() {
   pillsHtml +=
     '<div style="display:inline-flex;gap:4px;align-items:center;margin-left:auto;">' +
       '<input type="text" id="inline-buyin-entry-input" class="search-input" style="width:145px;min-width:0;padding:3px 7px;font-size:0.69rem;" placeholder="2nd Entry Name..." />' +
-      '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.68rem;border-color:#38bdf8;color:#7dd3fc;font-weight:800;" onclick="addLinkedBuyInEntryFromInput(\'inline-buyin-entry-input\')">➕ Add Buy-In</button>' +
+      '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.68rem;border-color:var(--border);color:var(--text);font-weight:800;" onclick="addLinkedBuyInEntryFromInput(\'inline-buyin-entry-input\')">➕ Add Buy-In</button>' +
     '</div>';
   strip.innerHTML = pillsHtml;
 }
@@ -675,19 +675,19 @@ function syncManualLockButtonUI() {
   if (btn) {
     if (isCommishLocked) {
       btn.textContent = "🔒 Official Lock Active";
-      btn.style.background = "rgba(239,68,68,0.22)";
-      btn.style.borderColor = "#ef4444";
-      btn.style.color = "#fca5a5";
+      btn.style.background = "var(--raised)";
+      btn.style.borderColor = "var(--border)";
+      btn.style.color = "var(--loss)";
     } else if (isUserLocked) {
       btn.textContent = "🔒 Picks Locked ✓ (Tap to Unlock)";
-      btn.style.background = "rgba(16,185,129,0.25)";
-      btn.style.borderColor = "#10b981";
-      btn.style.color = "#6ee7b7";
+      btn.style.background = "var(--raised)";
+      btn.style.borderColor = "var(--border)";
+      btn.style.color = "var(--win)";
     } else {
       btn.textContent = "🔒 Lock Picks";
-      btn.style.background = "rgba(245,158,11,0.22)";
-      btn.style.borderColor = "#f59e0b";
-      btn.style.color = "#fde68a";
+      btn.style.background = "var(--raised)";
+      btn.style.borderColor = "var(--border)";
+      btn.style.color = "var(--warn)";
     }
   }
   if (pill) {
@@ -745,10 +745,12 @@ function syncSimpleModeTabHighlights() {
   var tCond = document.getElementById("tab-mode-condensed");
   var mCards = document.getElementById("mnav-cards");
   var mCond = document.getElementById("mnav-condensed");
-  if (tCards) tCards.className = "mode-tab-btn" + (!isCond ? " active" : "");
-  if (tCond) tCond.className = "mode-tab-btn" + (isCond ? " active" : "");
-  if (mCards) mCards.className = "m-nav-btn" + (!isCond ? " active" : "");
-  if (mCond) mCond.className = "m-nav-btn" + (isCond ? " active" : "");
+  // Both simple layout styles live under the Picks tab.
+  if (tCards) tCards.className = "mode-tab-btn active";
+  if (tCond) tCond.className = "mode-tab-btn";
+  if (mCards) mCards.className = "m-nav-btn active";
+  if (mCond) mCond.className = "m-nav-btn";
+  if (typeof syncNavAriaCurrent === "function") syncNavAriaCurrent();
 }
 
 function setSimpleCardLayoutStyle(styleMode) {
@@ -809,7 +811,7 @@ function renderCondensedSimpleGamesHtml() {
             multBadge +
           '</div>' +
           '<div class="simple-cond-meta">' +
-            '<span style="color:#7dd3fc;font-weight:800;">🔒 Monday Line: ' + monLine + '</span>' +
+            '<span style="color:var(--text);font-weight:800;">🔒 Monday Line: ' + monLine + '</span>' +
             '<span>• ' + (g.kick || 'Saturday CST') + '</span>' +
           '</div>' +
         '</div>' +
@@ -880,9 +882,6 @@ function handleMobileNavClick(targetMode) {
     return;
   }
   if (SIMPLE_UI_MODE && targetMode === "cards") {
-    if (currentMainView === "cards" && SIMPLE_CARD_LAYOUT_STYLE === "condensed") {
-      setSimpleCardLayoutStyle("detailed");
-    }
     switchMainView("cards");
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
@@ -958,7 +957,7 @@ function renderReviewChecklistModalBody() {
     var monLine = g.mondayPoolLine || g.poolLine;
     var pts = 0;
     var multBadge = '<span class="badge badge-3x">— Unselected</span>';
-    var pickCellHtml = '<span style="color:#fca5a5;font-weight:800;">⚠️ No Pick Selected</span>';
+    var pickCellHtml = '<span style="color:var(--loss);font-weight:800;">⚠️ No Pick Selected</span>';
     if (p) {
       selectedTotal++;
       var isAway = isSameTeamPick(p, g.away, g);
@@ -970,14 +969,14 @@ function renderReviewChecklistModalBody() {
       multBadge = pts === 3
         ? '<span class="badge badge-3x">3 pts (3x Dog)</span>'
         : (pts === 2 ? '<span class="badge badge-2x">2 pts (2x Dog)</span>' : '<span class="badge badge-1x">1 pt</span>');
-      pickCellHtml = '<strong style="color:#34d399;">✓ ' + p + '</strong>';
+      pickCellHtml = '<strong style="color:var(--win);">✓ ' + p + '</strong>';
     }
 
     rowsHtml +=
       '<tr>' +
         '<td><strong>#' + g.id + '</strong></td>' +
         '<td><strong>' + g.away + '</strong> <span style="color:var(--muted);">at</span> <strong>' + g.home + '</strong></td>' +
-        '<td style="color:#7dd3fc;font-size:0.71rem;">🔒 ' + monLine + '</td>' +
+        '<td style="color:var(--text);font-size:0.71rem;">🔒 ' + monLine + '</td>' +
         '<td>' + pickCellHtml + '</td>' +
         '<td>' + multBadge + '</td>' +
         '<td>' +
@@ -988,21 +987,21 @@ function renderReviewChecklistModalBody() {
 
   body.innerHTML =
     '<div class="commish-kpi-strip" style="margin-bottom:10px;">' +
-      '<div class="commish-kpi"><div class="metric-label">Entry / Profile</div><div class="metric-val" style="color:var(--accent);font-size:0.95rem;">' + meta.name + '</div><div class="metric-sub">' + GAMES.length + ' / ' + GAMES.length + ' Games Selected</div></div>' +
+      '<div class="commish-kpi"><div class="metric-label">Entry / Profile</div><div class="metric-val" style="color:var(--legacy-accent);font-size:0.95rem;">' + meta.name + '</div><div class="metric-sub">' + GAMES.length + ' / ' + GAMES.length + ' Games Selected</div></div>' +
       '<div class="commish-kpi"><div class="metric-label">Multiplier Breakdown</div><div class="metric-val" style="font-size:0.95rem;">' + count1x + '×1pt • ' + count2x + '×2pt • ' + count3x + '×3pt</div><div class="metric-sub">Max Ceiling: ' + totalCeiling + ' pts</div></div>' +
       '<div class="commish-kpi"><div class="metric-label">Official Tie-Breaker</div><div class="metric-val" style="color:var(--gold);font-size:0.95rem;">' + tb + '</div><div class="metric-sub">Highest Score First</div></div>' +
       '<div class="commish-kpi"><div class="metric-label">Submission Lock</div><div class="metric-val" style="color:' + (isLocked ? 'var(--green)' : 'var(--amber)') + ';font-size:0.95rem;">' + (isLocked ? '🔒 LOCKED' : '🔓 UNLOCKED') + '</div><div class="metric-sub">' + (isLocked ? 'Protected from accidental edits' : 'Click Lock Picks below to confirm') + '</div></div>' +
     '</div>' +
     '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding:8px 10px;background:var(--panel-alt);border-radius:9px;border:1px solid var(--border-muted);">' +
       '<div style="display:flex;align-items:center;gap:6px;">' +
-        '<label style="font-size:0.74rem;font-weight:800;color:#bae6fd;">🎯 Verify Tie-Breaker:</label>' +
+        '<label style="font-size:0.74rem;font-weight:800;color:var(--text);">🎯 Verify Tie-Breaker:</label>' +
         '<input type="text" class="search-input" style="width:90px;min-width:0;padding:4px 8px;font-weight:800;text-align:center;" value="' + tb.replace(/"/g, '&quot;') + '" oninput="syncSimpleTiebreakerInput(this.value); document.getElementById(\'simple-tiebreaker-input\').value=this.value;" />' +
       '</div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-        '<button type="button" class="btn-sm" style="font-weight:900;padding:6px 12px;' + (isLocked ? 'background:rgba(239,68,68,0.2);border-color:#ef4444;color:#fca5a5;' : 'background:var(--amber);color:#000;border:none;') + '" onclick="toggleManualUserPickLock()">' +
+        '<button type="button" class="btn-sm" style="font-weight:900;padding:6px 12px;' + (isLocked ? 'background:var(--accent);border-color:var(--border);color:var(--loss);' : 'background:var(--amber);color:var(--on-accent);border:none;') + '" onclick="toggleManualUserPickLock()">' +
           (isLocked ? '🔓 Unlock Picks to Edit' : '🔒 Confirm & Lock My 23 Picks') +
         '</button>' +
-        '<button type="button" class="btn-sm" style="background:linear-gradient(90deg,#10b981,#059669);color:#000;border:none;font-weight:900;padding:6px 12px;" onclick="closeReviewChecklistModal(); saveAndSendPickConfirmationReceipt();">💾 Save & Email Receipt</button>' +
+        '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;padding:6px 12px;" onclick="closeReviewChecklistModal(); saveAndSendPickConfirmationReceipt();">💾 Save & Email Receipt</button>' +
         '<button type="button" class="btn-sm" onclick="copyPicksToClipboard()">📋 Copy List</button>' +
       '</div>' +
     '</div>' +
@@ -1022,7 +1021,10 @@ function toggleDesktopSidebarCollapse() {
   var layout = document.getElementById("main-layout");
   var btn = document.getElementById("btn-toggle-desktop-rail");
   if (layout) layout.classList.toggle("sidebar-collapsed", DESKTOP_SIDEBAR_COLLAPSED);
-  if (btn) btn.textContent = DESKTOP_SIDEBAR_COLLAPSED ? "▶ Open Rail" : "◀ Rail";
+  if (btn) {
+    btn.setAttribute("aria-pressed", DESKTOP_SIDEBAR_COLLAPSED ? "true" : "false");
+    btn.setAttribute("aria-label", DESKTOP_SIDEBAR_COLLAPSED ? "Show side panel" : "Hide side panel");
+  }
 }
 
 function openSettingsDrawer() {
@@ -1061,13 +1063,13 @@ function renderSettingsDrawerBody() {
   var commishDrawerHtml = "";
   if (isCommish) {
     commishDrawerHtml =
-      '<div class="drawer-section" style="border-color:#f59e0b;">' +
-        '<div class="drawer-section-title" style="color:#fde68a;"><span>👑 Verified Commissioner Controls</span><span class="badge badge-ev">Authorized</span></div>' +
+      '<div class="drawer-section" style="border-color:var(--border);">' +
+        '<div class="drawer-section-title" style="color:var(--warn);"><span>👑 Verified Commissioner Controls</span><span class="badge badge-ev">Authorized</span></div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">' +
           '<button type="button" class="btn-sm commish-top-btn" onclick="closeSettingsDrawer(); openCommissionerModal(\'submissions\');">👑 Commish Console</button>' +
-          '<button type="button" class="btn-sm" style="border-color:#34d399;color:#6ee7b7;font-weight:800;" onclick="closeSettingsDrawer(); openCommissionerModal(\'mastersheet\');">📊 Master Sheet Grid</button>' +
-          '<button type="button" class="btn-sm" style="border-color:#38bdf8;color:#bae6fd;" onclick="saveCurrentWeekToArchive(true)">💾 Archive Week</button>' +
-          '<button type="button" class="btn-sm" style="border-color:#c084fc;color:#e9d5ff;" onclick="closeSettingsDrawer(); openUnifiedImportModal(\'bot\');">📥 Import / Bot Hub</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-weight:800;" onclick="closeSettingsDrawer(); openCommissionerModal(\'mastersheet\');">📊 Master Sheet Grid</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);" onclick="saveCurrentWeekToArchive(true)">💾 Archive Week</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);" onclick="closeSettingsDrawer(); openUnifiedImportModal(\'bot\');">📥 Import / Bot Hub</button>' +
         '</div>' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:4px;">' +
           '<span style="font-size:0.71rem;color:var(--muted);">📚 Switch Archived Week:</span>' +
@@ -1079,19 +1081,19 @@ function renderSettingsDrawerBody() {
   body.innerHTML =
     '<div class="drawer-section">' +
       '<div class="drawer-section-title"><span>👤 Account & Multi-Buy-In Entries</span><span class="badge ' + (AUTH_SESSION ? 'badge-ev' : 'badge-2x') + '">' + (AUTH_SESSION ? 'Signed In' : 'Guest / Local') + '</span></div>' +
-      '<div style="font-size:0.76rem;color:#e2e8f0;">Active Entry: <strong style="color:#38bdf8;">' + getProfileMetaByKey(activeProfile).name + '</strong> ' + (AUTH_SESSION && AUTH_SESSION.email ? ('<span style="color:var(--muted);">(' + AUTH_SESSION.email + ')</span>') : '') + '</div>' +
+      '<div style="font-size:0.76rem;color:var(--text);">Active Entry: <strong style="color:var(--text);">' + getProfileMetaByKey(activeProfile).name + '</strong> ' + (AUTH_SESSION && AUTH_SESSION.email ? ('<span style="color:var(--muted);">(' + AUTH_SESSION.email + ')</span>') : '') + '</div>' +
       (AUTH_SESSION ? (
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin:4px 0;">' + entriesHtml +
           '<button type="button" class="entry-pill-btn' + (activeProfile === "test" ? ' active' : '') + '" onclick="switchProfile(\'test\'); renderSettingsDrawerBody();">🧪 Sandbox Sim</button>' +
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;margin-top:4px;">' +
           '<input type="text" id="drawer-new-buyin-input" class="search-input" style="flex:1;min-width:0;padding:5px 8px;font-size:0.73rem;" placeholder="Link 2nd Buy-In Entry Name..." />' +
-          '<button type="button" class="btn-sm" style="border-color:#38bdf8;color:#7dd3fc;font-weight:800;" onclick="addLinkedBuyInEntryFromInput(\'drawer-new-buyin-input\')">➕ Add Buy-In</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);font-weight:800;" onclick="addLinkedBuyInEntryFromInput(\'drawer-new-buyin-input\')">➕ Add Buy-In</button>' +
         '</div>'
       ) : '') +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' +
-        '<button type="button" class="btn-sm" style="flex:1;background:linear-gradient(90deg,#0284c7,#4f46e5);color:#fff;border:none;font-weight:800;" onclick="closeSettingsDrawer(); openAuthModal();">' + (AUTH_SESSION ? '⚙️ Manage Account' : '🔑 Sign In / Create Account') + '</button>' +
-        (!isCommish ? '<button type="button" class="btn-sm" style="border-color:#f59e0b;color:#fde68a;font-weight:800;" onclick="quickSignInAsVerifiedCommissioner()">👑 Commish Login</button>' : '') +
+        '<button type="button" class="btn-sm" style="flex:1;background:var(--raised);color:var(--text);border:none;font-weight:800;" onclick="closeSettingsDrawer(); openAuthModal();">' + (AUTH_SESSION ? '⚙️ Manage Account' : '🔑 Sign In / Create Account') + '</button>' +
+        (!isCommish ? '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--warn);font-weight:800;" onclick="quickSignInAsVerifiedCommissioner()">👑 Commish Login</button>' : '') +
       '</div>' +
     '</div>' +
 
@@ -1099,7 +1101,7 @@ function renderSettingsDrawerBody() {
       '<div class="drawer-section-title"><span>🎛️ View Mode & Simulators</span></div>' +
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">' +
         '<button type="button" class="btn-sm ' + (!SIMPLE_UI_MODE ? 'active' : '') + '" onclick="toggleSimpleUiMode(); renderSettingsDrawerBody();">' + (SIMPLE_UI_MODE ? '🧠 Enable Advanced Mode' : '✨ Return to Simple Mode') + '</button>' +
-        '<button type="button" class="btn-sm" style="border-color:#10b981;color:#6ee7b7;font-weight:800;" onclick="closeSettingsDrawer(); openEvSimulatorDrawer();">🎲 Open EV Simulator</button>' +
+        '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-weight:800;" onclick="closeSettingsDrawer(); openEvSimulatorDrawer();">🎲 Open EV Simulator</button>' +
         '<button type="button" class="btn-sm ' + (SIMPLE_CARD_LAYOUT_STYLE === "condensed" ? 'active' : '') + '" onclick="setSimpleCardLayoutStyle(\'condensed\'); renderSettingsDrawerBody();">⚡ Condensed Simple View</button>' +
         '<button type="button" class="btn-sm ' + (SIMPLE_CARD_LAYOUT_STYLE === "detailed" ? 'active' : '') + '" onclick="setSimpleCardLayoutStyle(\'detailed\'); renderSettingsDrawerBody();">🃏 Cards + Injuries/L5</button>' +
       '</div>' +
@@ -1111,7 +1113,7 @@ function renderSettingsDrawerBody() {
         '<button type="button" class="btn-sm ' + (myPriv.hidden ? 'active' : '') + '" onclick="toggleQuickLockActiveProfile(); renderSettingsDrawerBody();">' + (myPriv.hidden ? '🔒 Hidden Pre-Kickoff' : '👁️ Picks Public') + '</button>' +
         '<button type="button" class="btn-sm ' + (BLIND_MODE ? 'active' : '') + '" onclick="toggleBlindMode(); renderSettingsDrawerBody();">' + (BLIND_MODE ? '🙈 Spy Shield: ON' : '👁️ Spy Shield: OFF') + '</button>' +
       '</div>' +
-      '<button type="button" class="btn-sm" style="width:100%;border-color:#c084fc;color:#e9d5ff;" onclick="closeSettingsDrawer(); openUserAndPrivacyModal();">⚙️ Full Pick Privacy & H2H Settings</button>' +
+      '<button type="button" class="btn-sm" style="width:100%;border-color:var(--border);color:var(--text);" onclick="closeSettingsDrawer(); openUserAndPrivacyModal();">⚙️ Full Pick Privacy & H2H Settings</button>' +
     '</div>' +
 
     '<div class="drawer-section">' +
@@ -1159,7 +1161,7 @@ function renderEvSimulatorDrawerBody() {
       '<div class="drawer-section-title"><span>📊 Exact Dynamic Programming EV & Score Distribution (' + getProfileMetaByKey(activeProfile).name + ')</span></div>' +
       '<div class="score-grid">' +
         '<div class="metric-card"><div class="metric-label">Max Ceiling</div><div class="metric-val">' + cur.ceiling + ' pts</div><div class="metric-sub">' + cur.dogs + ' multiplier dog(s)</div></div>' +
-        '<div class="metric-card"><div class="metric-label">Expected EV</div><div class="metric-val" style="color:var(--accent);">' + cur.ev.toFixed(2) + '</div><div class="metric-sub">True Moneyline EV</div></div>' +
+        '<div class="metric-card"><div class="metric-label">Expected EV</div><div class="metric-val" style="color:var(--legacy-accent);">' + cur.ev.toFixed(2) + '</div><div class="metric-sub">True Moneyline EV</div></div>' +
         '<div class="metric-card"><div class="metric-label">Hit Target (≥' + tgt + 'p)</div><div class="metric-val" style="color:var(--green);">' + Math.round(cur.hitProb * 100) + '%</div><div class="metric-sub">Exact DP Probability</div></div>' +
         '<div class="metric-card"><div class="metric-label">Likely Range</div><div class="metric-val">' + cur.p25 + '–' + cur.p75 + ' pts</div><div class="metric-sub">25th–75th Percentile</div></div>' +
       '</div>' +
@@ -1217,7 +1219,7 @@ renderCommissionerModalBody = function() {
   var body = document.getElementById("commish-modal-body");
   if (!body) return;
   if (!isVerifiedCommissioner()) {
-    body.innerHTML = '<div class="side-box" style="text-align:center;color:#fca5a5;">🔒 Verified Commissioner account required to view this console.</div>';
+    body.innerHTML = '<div class="side-box" style="text-align:center;color:var(--loss);">🔒 Verified Commissioner account required to view this console.</div>';
     return;
   }
   var cfg = ensureCommissionerConfig();
@@ -1252,9 +1254,9 @@ renderCommissionerModalBody = function() {
         '<td>' + statusBadge + '</td>' +
         '<td><strong>' + tbVal + '</strong></td>' +
         '<td style="display:flex;gap:4px;flex-wrap:wrap;">' +
-          '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:#fde68a;color:#fde68a;" onclick="commishQuickImpersonate(\'' + safeName + '\')">✏️ Edit Picks</button>' +
-          '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:#38bdf8;color:#7dd3fc;" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'optimal\')">⚡ Auto-Pick</button>' +
-          '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:#ef4444;color:#fca5a5;" onclick="commishDeletePlayerPicks(\'' + safeName + '\')">🗑️ Delete Picks</button>' +
+          '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:var(--warn);" onclick="commishQuickImpersonate(\'' + safeName + '\')">✏️ Edit Picks</button>' +
+          '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:var(--text);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'optimal\')">⚡ Auto-Pick</button>' +
+          '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:var(--loss);" onclick="commishDeletePlayerPicks(\'' + safeName + '\')">🗑️ Delete Picks</button>' +
         '</td>' +
       '</tr>';
     }
@@ -1262,10 +1264,10 @@ renderCommissionerModalBody = function() {
     var missingCount = pmList.length - submittedCount;
     body.innerHTML =
       '<div class="commish-kpi-strip">' +
-        '<div class="commish-kpi"><div class="metric-label">Active Week</div><div class="metric-val" style="color:var(--accent);">' + (state.weekLabel || "Week 8") + '</div><div class="metric-sub">' + GAMES.length + ' Games • Lock: Fri 9PM CST</div></div>' +
+        '<div class="commish-kpi"><div class="metric-label">Active Week</div><div class="metric-val" style="color:var(--legacy-accent);">' + (state.weekLabel || "Week 8") + '</div><div class="metric-sub">' + GAMES.length + ' Games • Lock: Fri 9PM CST</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Sheets Saved</div><div class="metric-val" style="color:var(--green);">' + submittedCount + ' / ' + pmList.length + '</div><div class="metric-sub">' + Math.round((submittedCount / Math.max(1, pmList.length)) * 100) + '% Pool Completion</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Missing / Deleted</div><div class="metric-val" style="color:' + (missingCount > 0 ? 'var(--amber)' : 'var(--green)') + ';">' + missingCount + ' Missing</div><div class="metric-sub">' + (cfg.lastWedThuNudgeSentAt ? ('Last Nudge: ' + cfg.lastWedThuNudgeSentAt) : 'Wed/Thu Auto-Nudge Ready') + '</div></div>' +
-        '<div class="commish-kpi"><div class="metric-label">Master Grid</div><div class="metric-val" style="color:#34d399;font-size:0.95rem;cursor:pointer;" onclick="switchCommissionerTab(\'mastersheet\')">📊 Open Grid →</div><div class="metric-sub">All 89 Players Side-by-Side</div></div>' +
+        '<div class="commish-kpi"><div class="metric-label">Master Grid</div><div class="metric-val" style="color:var(--win);font-size:0.95rem;cursor:pointer;" onclick="switchCommissionerTab(\'mastersheet\')">📊 Open Grid →</div><div class="metric-sub">All 89 Players Side-by-Side</div></div>' +
       '</div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">' +
         '<div style="display:flex;gap:5px;flex-wrap:wrap;">' +
@@ -1274,9 +1276,9 @@ renderCommissionerModalBody = function() {
           '<button type="button" class="btn-sm' + (COMMISH_SUBMISSION_FILTER === "missing" ? " active" : "") + '" onclick="setCommishSubFilter(\'missing\')">⏳ Missing (' + missingCount + ')</button>' +
         '</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-          '<button type="button" class="btn-sm" style="border-color:#38bdf8;color:#7dd3fc;font-weight:800;" onclick="commishAutoFillMissingPlayers(\'chalk\')">⚡ Auto-Fill Missing (' + missingCount + ')</button>' +
-          '<button type="button" class="btn-sm" style="border-color:var(--amber);color:#fde68a;font-weight:800;" onclick="triggerWedThuAutomatedNudge()">⏰ Send Wed/Thu Nudge</button>' +
-          '<button type="button" class="btn-sm" style="background:linear-gradient(90deg,#059669,#0284c7);color:#fff;border:none;font-weight:900;" onclick="triggerSaturdayMorningMasterSheetBroadcast()">📊 Sat Reveal & Export CSV</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);font-weight:800;" onclick="commishAutoFillMissingPlayers(\'chalk\')">⚡ Auto-Fill Missing (' + missingCount + ')</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--amber);color:var(--warn);font-weight:800;" onclick="triggerWedThuAutomatedNudge()">⏰ Send Wed/Thu Nudge</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:900;" onclick="triggerSaturdayMorningMasterSheetBroadcast()">📊 Sat Reveal & Export CSV</button>' +
         '</div>' +
       '</div>' +
       '<div style="max-height:380px;overflow-y:auto;border:1px solid var(--border-muted);border-radius:10px;">' +
@@ -1295,7 +1297,7 @@ renderCommissionerModalBody = function() {
     var thCols = '<th>Player (' + pmAll.length + ')</th><th>Prior</th><th>TB</th><th>Wk</th><th>Total</th>';
     for (var gIdx = 0; gIdx < GAMES.length; gIdx++) {
       var gm = GAMES[gIdx];
-      thCols += '<th title="#' + gm.id + ' ' + gm.away + ' at ' + gm.home + ' (' + (gm.mondayPoolLine || gm.poolLine) + ')">G' + gm.id + '<br><span style="font-size:0.58rem;color:#7dd3fc;">' + gm.awayCode + '/' + gm.homeCode + '</span></th>';
+      thCols += '<th title="#' + gm.id + ' ' + gm.away + ' at ' + gm.home + ' (' + (gm.mondayPoolLine || gm.poolLine) + ')">G' + gm.id + '<br><span style="font-size:0.58rem;color:var(--text);">' + gm.awayCode + '/' + gm.homeCode + '</span></th>';
     }
 
     var qFilter = String(MASTER_SHEET_SEARCH_Q || "").trim().toLowerCase();
@@ -1319,7 +1321,7 @@ renderCommissionerModalBody = function() {
       '<td>' + (p.priorPts || 0) + '</td>' +
       '<td>' + tbStr + '</td>' +
       '<td style="color:var(--green);font-weight:800;">' + (p.awaitingSheet ? '—' : ('+' + wkPts)) + '</td>' +
-      '<td style="color:var(--accent);font-weight:900;">' + totPts + '</td>';
+      '<td style="color:var(--legacy-accent);font-weight:900;">' + totPts + '</td>';
 
       for (var c = 0; c < GAMES.length; c++) {
         var gObj = GAMES[c];
@@ -1336,7 +1338,7 @@ renderCommissionerModalBody = function() {
           if (ls && (ls.completed || ls.inProgress) && ls.awayScore !== ls.homeScore) {
             var winTeam = ls.awayScore > ls.homeScore ? gObj.away : gObj.home;
             var won = isSameTeamPick(winTeam, pickTeam, gObj);
-            cellBg = won ? "background:rgba(16,185,129,0.22);" : "background:rgba(239,68,68,0.18);";
+            cellBg = won ? "background:var(--raised);" : "background:var(--raised);";
             cellColor = won ? "#6ee7b7" : "#fca5a5";
           }
           cells += '<td style="' + cellBg + 'color:' + cellColor + ';font-weight:' + (pts > 1 ? '900' : '600') + ';">' + code + (pts > 1 ? (' (' + pts + 'x)') : '') + '</td>';
@@ -1348,12 +1350,12 @@ renderCommissionerModalBody = function() {
     body.innerHTML =
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;">' +
         '<div>' +
-          '<strong style="font-size:0.86rem;color:#fff;">📊 Master Spreadsheet Grid — All ' + pmAll.length + ' Players Side-by-Side (Games #1–#' + GAMES.length + ')</strong>' +
+          '<strong style="font-size:0.86rem;color:var(--text);">📊 Master Spreadsheet Grid — All ' + pmAll.length + ' Players Side-by-Side (Games #1–#' + GAMES.length + ')</strong>' +
           '<div style="font-size:0.71rem;color:var(--muted);">Sticky player column on left • Scroll horizontally to inspect every game pick, underdog multiplier, and live grade.</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
           '<input type="text" class="search-input" style="min-width:180px;padding:5px 9px;font-size:0.74rem;" placeholder="🔍 Filter player name..." value="' + MASTER_SHEET_SEARCH_Q.replace(/"/g, '&quot;') + '" oninput="MASTER_SHEET_SEARCH_Q=this.value; renderCommissionerModalBody();" />' +
-          '<button type="button" class="btn-sm" style="background:var(--green);color:#000;border:none;font-weight:900;" onclick="exportOfficialMasterCsv()">📥 Download Master .CSV</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--green);color:var(--on-accent);border:none;font-weight:900;" onclick="exportOfficialMasterCsv()">📥 Download Master .CSV</button>' +
         '</div>' +
       '</div>' +
       '<div class="master-sheet-wrap">' +
@@ -1381,7 +1383,7 @@ renderCommissionerModalBody = function() {
         '<td><span class="badge ' + (isEnabled ? 'badge-ev' : 'badge-3x') + '">' + (isEnabled ? '✅ Active Commissioner' : '🚫 Suspended') + '</span></td>' +
         '<td style="display:flex;gap:5px;flex-wrap:wrap;">' +
           '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;" onclick="commishToggleRoleEnabled(\'' + safeKey + '\')">' + (isEnabled ? '⏸ Disable' : '▶ Enable') + '</button>' +
-          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;border-color:#ef4444;color:#fca5a5;" onclick="commishRevokeRole(\'' + safeKey + '\')">🚫 Revoke</button>' +
+          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;border-color:var(--border);color:var(--loss);" onclick="commishRevokeRole(\'' + safeKey + '\')">🚫 Revoke</button>' +
         '</td>' +
       '</tr>';
     }
@@ -1399,7 +1401,7 @@ renderCommissionerModalBody = function() {
           '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Update the primary administrative email address (default: <code>commissioner@separatedatturf.com</code> / <code>commissioner@separatedatturt.com</code>):</div>' +
           '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
             '<input type="email" id="commish-primary-email-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.76rem;" value="' + String(cfg.primaryCommissionerEmail || "commissioner@separatedatturf.com").replace(/"/g, '&quot;') + '" />' +
-            '<button type="button" class="btn-sm" style="background:var(--amber);color:#000;border:none;font-weight:900;" onclick="commishUpdatePrimaryEmail()">💾 Update Primary Email</button>' +
+            '<button type="button" class="btn-sm" style="background:var(--amber);color:var(--on-accent);border:none;font-weight:900;" onclick="commishUpdatePrimaryEmail()">💾 Update Primary Email</button>' +
           '</div>' +
         '</div>' +
 
@@ -1408,7 +1410,7 @@ renderCommissionerModalBody = function() {
           '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Grant commissioner privileges by email address or pool member name:</div>' +
           '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;">' +
             '<input type="text" id="commish-new-role-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.75rem;" placeholder="Email or Player Name..." />' +
-            '<button type="button" class="btn-sm" style="background:var(--green);color:#000;border:none;font-weight:900;" onclick="commishGrantRole(document.getElementById(\'commish-new-role-input\').value, \'Co-Commissioner\')">➕ Grant Role</button>' +
+            '<button type="button" class="btn-sm" style="background:var(--green);color:var(--on-accent);border:none;font-weight:900;" onclick="commishGrantRole(document.getElementById(\'commish-new-role-input\').value, \'Co-Commissioner\')">➕ Grant Role</button>' +
           '</div>' +
           '<select class="search-input" style="width:100%;padding:5px 8px;font-size:0.73rem;" onchange="if(this.value){commishGrantRole(this.value, this.value + \' (Co-Commish)\'); this.value=\'\';}">' + memberOpts + '</select>' +
         '</div>' +
@@ -1430,7 +1432,7 @@ renderCommissionerModalBody = function() {
           '<button type="button" class="btn-sm" onclick="navigator.clipboard.writeText(PRODUCTION_FIRESTORE_SECURITY_RULES); showAppToast(\'📋 Copied firestore.rules to clipboard!\');">📋 Copy Rules</button>' +
         '</div>' +
         '<div style="font-size:0.71rem;color:var(--muted);margin-bottom:6px;">Enforces verified commissioner role checks on <code>pickem_v14/shared_state</code> and <code>pickem_v14_commissioners/roles</code> in Cloud Firestore:</div>' +
-        '<textarea readonly rows="7" class="search-input" style="width:100%;font-family:monospace;font-size:0.68rem;color:#93c5fd;">' + PRODUCTION_FIRESTORE_SECURITY_RULES + '</textarea>' +
+        '<textarea readonly rows="7" class="search-input" style="width:100%;font-family:monospace;font-size:0.68rem;color:var(--text);">' + PRODUCTION_FIRESTORE_SECURITY_RULES + '</textarea>' +
       '</div>';
     return;
   }

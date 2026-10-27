@@ -669,7 +669,7 @@ function updateWeekBrandingUI() {
   state.weekLabel = "Week " + curWkNum;
   var brandEl = document.getElementById("sheet-title-brand");
   if (brandEl) {
-    brandEl.textContent = "🏈 " + state.weekLabel + " (CST)";
+    brandEl.textContent = state.weekLabel;
   }
   var tbGame = resolveTiebreakerGame();
   if (tbGame) {

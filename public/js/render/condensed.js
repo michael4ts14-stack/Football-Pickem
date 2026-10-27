@@ -75,7 +75,7 @@ function renderCondensedTable() {
       thHtml += '<th>' + pf.icon + ' ' + pf.shortName + (isLockedHdr ? ' 🔒' : '') + '</th>';
     }
     if (cmpTarget && cmpTarget.isPoolMember) {
-      thHtml += '<th style="color:#facc15;">🏆 ' + cmpTarget.shortName + ' (Compare)</th>';
+      thHtml += '<th style="color:var(--warn);">🏆 ' + cmpTarget.shortName + ' (Compare)</th>';
     }
     thHtml += '<th>👀 Watchlist Rivals (Tap to Set)</th><th>Status / Grade / Swing</th>';
     theadRow.innerHTML = thHtml;
@@ -103,7 +103,7 @@ function renderCondensedTable() {
 
     var ls = LIVE_SCORES[g.id];
     var liveStr = ls && (ls.inProgress || ls.completed)
-      ? (' <span style="color:#34d399;font-weight:800;">[' + ls.awayScore + '-' + ls.homeScore + (ls.completed ? ' F' : '') + ']</span>')
+      ? (' <span style="color:var(--win);font-weight:800;">[' + ls.awayScore + '-' + ls.homeScore + (ls.completed ? ' F' : '') + ']</span>')
       : "";
 
     var wlBtns = "";
@@ -149,14 +149,14 @@ function renderCondensedTable() {
         profTdsHtml += '<td><span class="cond-locked-pill" style="cursor:default;opacity:0.85;" title="Hidden on ' + uMeta.name + '\'s account until kickoff">🔒 Hidden Until Kickoff</span></td>';
         profMobileBoxesHtml += '<div class="cond-m-prof-box">' +
           '<div class="cond-m-prof-label" style="color:' + uMeta.color + ';"><span>⚔️ ' + uMeta.shortName + '</span><span>🔒</span></div>' +
-          '<div style="text-align:center;font-weight:800;font-size:0.68rem;color:#fca5a5;padding:4px 0;">🔒 Hidden Pre-Kickoff</div>' +
+          '<div style="text-align:center;font-weight:800;font-size:0.68rem;color:var(--loss);padding:4px 0;">🔒 Hidden Pre-Kickoff</div>' +
         '</div>';
       } else if (!isEditableMine) {
         // Read-only display for compared user profile — you cannot click to edit another user's picks!
         profTdsHtml += '<td><span class="badge ' + (uPts === 3 ? 'badge-3x' : (uPts === 2 ? 'badge-2x' : 'badge-1x')) + '" style="font-size:0.72rem;padding:4px 8px;">⚔️ ' + uCode + ' (' + uPts + 'x)</span></td>';
-        profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:rgba(192,132,252,0.35);">' +
+        profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:var(--border);">' +
           '<div class="cond-m-prof-label" style="color:' + uMeta.color + ';"><span>⚔️ ' + uMeta.shortName + ' (Read-Only)</span><span>' + uPts + 'x</span></div>' +
-          '<div style="text-align:center;font-weight:800;font-size:0.74rem;color:#e9d5ff;padding:4px 0;">' + uCode + ' (' + uPts + 'x)</div>' +
+          '<div style="text-align:center;font-weight:800;font-size:0.74rem;color:var(--text);padding:4px 0;">' + uCode + ' (' + uPts + 'x)</div>' +
         '</div>';
       } else {
         profTdsHtml += '<td>' +
@@ -179,16 +179,16 @@ function renderCondensedTable() {
       var pmCode = pmPick ? (isSameTeamPick(pmPick, g.away, g) ? g.awayCode : g.homeCode) : "⏳ No Sheet";
       var pmPts = pmPick ? (isSameTeamPick(pmPick, g.away, g) ? g.awayPts : g.homePts) : 1;
       profTdsHtml += '<td><span class="badge badge-2x" style="font-size:0.7rem;">🏆 ' + pmCode + (pmPick ? ' (' + pmPts + 'x)' : '') + '</span></td>';
-      profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:rgba(250,204,21,0.4);">' +
-        '<div class="cond-m-prof-label" style="color:#facc15;"><span>🏆 ' + cmpTarget.shortName + '</span><span>' + (pmPick ? pmPts + 'x' : '⏳') + '</span></div>' +
-        '<div style="text-align:center;font-weight:800;font-size:0.72rem;color:#fef08a;padding:4px 0;">' + pmCode + '</div>' +
+      profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:var(--border);">' +
+        '<div class="cond-m-prof-label" style="color:var(--warn);"><span>🏆 ' + cmpTarget.shortName + '</span><span>' + (pmPick ? pmPts + 'x' : '⏳') + '</span></div>' +
+        '<div style="text-align:center;font-weight:800;font-size:0.72rem;color:var(--warn);padding:4px 0;">' + pmCode + '</div>' +
       '</div>';
     }
 
     html += '<tr class="' + (isDiff ? 'diff-row' : '') + '">' +
       '<td><strong>#' + g.id + '</strong></td>' +
       '<td><strong>' + g.away + '</strong> <span style="color:var(--muted);">(' + g.awayPts + 'x)</span> at <strong>' + g.home + '</strong> <span style="color:var(--muted);">(' + g.homePts + 'x)</span>' + liveStr + '</td>' +
-      '<td style="color:var(--muted);"><div>' + g.poolLine + '</div><div style="font-size:0.65rem;color:#93c5fd;">👥 ' + g.awayCode + ' ' + getGamePoolOwnership(g).awayPct + '% / ' + g.homeCode + ' ' + getGamePoolOwnership(g).homePct + '%</div></td>' +
+      '<td style="color:var(--muted);"><div>' + g.poolLine + '</div><div style="font-size:0.65rem;color:var(--text);">👥 ' + g.awayCode + ' ' + getGamePoolOwnership(g).awayPct + '% / ' + g.homeCode + ' ' + getGamePoolOwnership(g).homePct + '%</div></td>' +
       profTdsHtml +
       '<td><div class="cond-pick-group" style="flex-wrap:wrap;">' + wlBtns + '</div></td>' +
       '<td>' + statusHtml + '</td>' +
@@ -325,7 +325,7 @@ async function showOppTooltip(ev, teamName) {
     rows += '<div style="margin:2px 0;"><span class="wl-badge wl-' + r.wl + '">' + r.wl + '</span> ' + r.wk + ': ' + r.loc + ' ' + dispOpp + ' (<strong>' + r.score + '</strong>)</div>';
   }
   var headerName = formatOppWithRank(teamName);
-  tt.innerHTML = '<div style="font-weight:800;color:#fff;margin-bottom:4px;border-bottom:1px solid #334155;padding-bottom:3px;">' + headerName + ' (' + data.rec + ') — Last 5 Games</div>' + rows;
+  tt.innerHTML = '<div style="font-weight:800;color:var(--text);margin-bottom:4px;border-bottom:1px solid var(--border);padding-bottom:3px;">' + headerName + ' (' + data.rec + ') — Last 5 Games</div>' + rows;
   tt.style.display = "block";
   tt.style.left = Math.min(window.innerWidth - 315, ev.clientX + 14) + "px";
   tt.style.top = Math.min(window.innerHeight - 190, ev.clientY + 14) + "px";
