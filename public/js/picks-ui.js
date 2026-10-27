@@ -80,6 +80,13 @@ function gameStatusHtml(g) {
   return '<span class="game-status">' + escapeShellHtml((k.day ? k.day + " " : "") + k.time) + '</span>';
 }
 
+// "Leading" / "Trailing" / "Won" / "Lost" for your pick, from getGameSituation.
+var PICK_STATUS_WORDS = { leading: ["Leading", "is-win"], trailing: ["Trailing", "is-loss"], tied: ["Tied", ""], won: ["Won", "is-win"], lost: ["Lost", "is-loss"] };
+function pickStatusWordHtml(sit) {
+  var w = sit && PICK_STATUS_WORDS[sit.myPickStatus];
+  return w ? '<span class="pick-status ' + w[1] + '">' + w[0] + '</span>' : '';
+}
+
 // ---------- Pick cards ----------
 function teamPickButtonHtml(g, isAway, pickedName, isLocked, ownInfo) {
   var name = isAway ? g.away : g.home;
@@ -245,6 +252,7 @@ function renderPickCardsHtml() {
       '<article class="pick-card' + (myPick ? '' : ' is-missing') + '" id="game-card-' + g.id + '" aria-label="' + escapeShellHtml(matchup) + '">' +
         '<button type="button" class="pick-card-meta" onclick="openGameDetail(' + g.id + ')" aria-label="Details for ' + escapeShellHtml(matchup) + '">' +
           gameStatusHtml(g) +
+          pickStatusWordHtml(getGameSituation(ls, g, myPick ? picks : null)) +
           '<span class="pick-card-net">' +
             (typeof upsetAlertFor === "function" && upsetAlertFor(g, ownInfo) ? '<span class="card-flag is-alert">Upset alert</span>' : '') +
             advFlags +

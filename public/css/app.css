@@ -275,6 +275,9 @@ body.simple-ui-mode #flt-sway, body.simple-ui-mode #flt-diffs { display: none; }
 .lock-flag svg.lucide { width: 14px; height: 14px; }
 .game-status { display: inline-flex; align-items: center; gap: 6px; }
 .game-status.is-live { color: var(--text); }
+.pick-status { margin-left: 8px; font-size: 13px; font-weight: 600; color: var(--text-muted); }
+.pick-status.is-win { color: var(--win); }
+.pick-status.is-loss { color: var(--loss); }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--loss); }
 
 .pick-card-teams { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
