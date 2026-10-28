@@ -562,6 +562,41 @@ function saveCommissionerConfigToCloud() {
   return job;
 }
 
+// Applies `mutate` to a copy of commissionerConfig, saves the copy, and only then makes it this
+// device's config, so the screen shows what the cloud confirmed. Resolves with the new config.
+function commitCommissionerConfig(mutate) {
+  ensureCommissionerConfig();
+  var next = JSON.parse(JSON.stringify(state.commissionerConfig));
+  mutate(next);
+  if (!fsDb || !(typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) {
+    return Promise.reject({ code: "permission-denied" });
+  }
+  var ref = fsDb.collection("pickem_v14").doc("shared_state");
+  var patch = { commissionerConfig: next, updatedAt: new Date().toISOString() };
+  return ref.update(patch).catch(function(e) {
+    if (e && e.code === "not-found") return ref.set(patch, { merge: true });
+    throw e;
+  }).then(function() {
+    state.commissionerConfig = next;
+    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    return next;
+  });
+}
+
+// Audit entry for commissionerConfig.overrideAuditLog (newest first, last 200), added inside a
+// commitCommissionerConfig mutation so the action and its log entry save together.
+function pushAuditEntry(cfg, targetPlayer, action, reason) {
+  if (!Array.isArray(cfg.overrideAuditLog)) cfg.overrideAuditLog = [];
+  cfg.overrideAuditLog.unshift({
+    timestamp: new Date().toISOString(),
+    commishEmail: typeof commishEmailForLog === "function" ? commishEmailForLog() : ((AUTH_SESSION && AUTH_SESSION.email) || ""),
+    targetPlayer: targetPlayer || "",
+    action: action,
+    reason: reason || ""
+  });
+  if (cfg.overrideAuditLog.length > 200) cfg.overrideAuditLog.length = 200;
+}
+
 function renderCommishAnnouncementBanner() {
   var cfg = ensureCommissionerConfig();
   var bar = document.getElementById("commish-announcement-banner");

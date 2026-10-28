@@ -707,7 +707,7 @@ button.st-row.is-me { background: var(--raised); font-weight: 600; }
 .confirm-backdrop { align-items: center; justify-content: center; padding: 16px; z-index: 4000; }
 .confirm-box { width: 100%; max-width: 400px; background: var(--surface); border: 1px solid var(--border); border-top: 3px solid var(--loss); border-radius: 12px; padding: 20px; }
 .confirm-title { font-size: 24px; margin-bottom: 8px; }
-.confirm-message { color: var(--text-muted); font-size: 15px; margin-bottom: 20px; }
+.confirm-message { color: var(--text-muted); font-size: 15px; margin-bottom: 20px; white-space: pre-line; overflow-wrap: anywhere; }
 .confirm-actions { display: flex; gap: 10px; justify-content: flex-end; }
 .btn-danger { min-height: 44px; padding: 0 18px; border-radius: var(--radius-btn); border: 1px solid var(--loss); background: var(--loss); color: #ffffff; font-weight: 600; font-size: 15px; cursor: pointer; }
 .btn-sm.danger-btn { background: transparent !important; border-color: var(--loss) !important; color: var(--loss) !important; }

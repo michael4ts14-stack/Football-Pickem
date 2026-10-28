@@ -254,6 +254,14 @@ function ensureMultiUserAndPrivacyState() {
   }
 }
 
+// Players a commissioner removed: commissionerConfig.archivedProfiles[key] (commissioner-only in
+// firestore.rules, so no player device can undo it). Their pick doc and week archives are kept;
+// they're just left out of the registry, so they can be restored.
+function isProfileArchived(key, cfgOverride) {
+  var cfg = cfgOverride || state.commissionerConfig || {};
+  return !!(key && cfg.archivedProfiles && cfg.archivedProfiles[key]);
+}
+
 function getAllUserProfiles() {
   var mLinked = (state.michael && state.michael.linkedMemberName !== undefined) ? state.michael.linkedMemberName : "Michael A";
   var kLinked = (state.kinyion && state.kinyion.linkedMemberName !== undefined) ? state.kinyion.linkedMemberName : "Kinyon C";

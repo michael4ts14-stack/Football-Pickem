@@ -76,6 +76,7 @@ function startFirebaseRealtimeListeners() {
 
           // Never overwrite the local device's own Test Sim or actively-edited profile during a click
           if (docId === "test") continue;
+          if (uData.archived || isProfileArchived(docId)) continue; // removed by a commissioner
           if (docId === activeProfile && withinMyLocalEdit) continue;
           if (hasPendingProfileSave(docId)) continue; // newer local picks are waiting to save
 
@@ -287,7 +288,9 @@ function applyRemoteCloudData(data, sourceLabel) {
     // The cloud list is the registry. A profile only this device has is kept only if it's one of
     // this device's own (just created, not saved yet); any other local-only entry is a player
     // removed or merged elsewhere, and keeping it let a stale phone or laptop push it back.
-    var mergedCu = data.customUsers.slice();
+    var incomingCfg = (data.commissionerConfig && typeof data.commissionerConfig === "object") ? data.commissionerConfig : null;
+    var notArchived = function(cu) { return !(cu && (isProfileArchived(cu.key, incomingCfg) || isProfileArchived(cu.key))); };
+    var mergedCu = data.customUsers.filter(notArchived);
     var seenCuKeys = {};
     for (var mcI = 0; mcI < mergedCu.length; mcI++) {
       if (mergedCu[mcI] && mergedCu[mcI].key) seenCuKeys[mergedCu[mcI].key] = true;
@@ -295,7 +298,7 @@ function applyRemoteCloudData(data, sourceLabel) {
     if (state.customUsers && Array.isArray(state.customUsers)) {
       for (var lcI = 0; lcI < state.customUsers.length; lcI++) {
         var lcu = state.customUsers[lcI];
-        if (lcu && lcu.key && !seenCuKeys[lcu.key] && isDeviceOwnProfileKey(lcu.key)) {
+        if (lcu && lcu.key && !seenCuKeys[lcu.key] && isDeviceOwnProfileKey(lcu.key) && notArchived(lcu)) {
           mergedCu.push(lcu);
           seenCuKeys[lcu.key] = true;
         }
