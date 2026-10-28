@@ -117,6 +117,8 @@ function startFirebaseRealtimeListeners() {
           var hasLivePicks = hasSubmittedPicksForCurrentSlate(uData.picks, liveGames);
           var isClearedDoc = !!(uData._picksCleared && !hasLivePicks && liveWeek && parseInt(uData.currentWeek, 10) === liveWeek);
           var linkedLow = standardizeParticipantName(uData.linkedMemberName || uData.displayName || "").toLowerCase();
+          // A duplicate profile's state says nothing about the player's real picks.
+          if (isDuplicateProfileKey(docId, uData.linkedMemberName || uData.displayName || "")) linkedLow = "";
           if (isClearedDoc) {
             if (!state.deletedPicksByMember) state.deletedPicksByMember = {};
             if (linkedLow) state.deletedPicksByMember[linkedLow] = true;

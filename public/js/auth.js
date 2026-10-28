@@ -217,7 +217,11 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
     } catch (e) {}
   }
 
-  var targetMember = chosenMemberName || (acctDoc && acctDoc.linkedMemberName) || "";
+  // On a re-check the account record wins over this device's memory (the commissioner may
+  // have merged or moved the account).
+  var targetMember = authUser.recheck
+    ? ((acctDoc && acctDoc.linkedMemberName) || chosenMemberName || "")
+    : (chosenMemberName || (acctDoc && acctDoc.linkedMemberName) || "");
   // An email the commissioner registered for a roster player needs no name matching or chooser.
   if (!targetMember && typeof memberForRegisteredEmail === "function") {
     if (typeof loadBoundAccounts === "function") await loadBoundAccounts();

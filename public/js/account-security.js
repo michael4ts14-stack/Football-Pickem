@@ -662,31 +662,129 @@ function isDuplicateProfile(cu) {
   return profileKeyForMember(name) !== cu.key;
 }
 
+// Deletes an app-only / duplicate profile everywhere: pick doc, pool entry, registry,
+// privacy, its binding, and the empty pool row the app added for it.
+function deleteProfileEverywhere(profKey) {
+  var cu = (state.customUsers || []).filter(function(c) { return c.key === profKey; })[0];
+  var rowName = cu ? cu.name : "";
+  state.customUsers = (state.customUsers || []).filter(function(c) { return c.key !== profKey; });
+  delete state[profKey];
+  if (state.profilePrivacy) delete state.profilePrivacy[profKey];
+  var hadRow = false;
+  if (rowName && Array.isArray(state.poolMembers)) {
+    state.poolMembers = state.poolMembers.filter(function(pm) {
+      var drop = pm && pm.name === rowName && pm.awaitingSheet && !findLeaderboardEntryByName(pm.name);
+      if (drop) hadRow = true;
+      return !drop;
+    });
+  }
+  var shared = { customUsers: state.customUsers, profilePrivacy: state.profilePrivacy || {}, updatedAt: new Date().toISOString() };
+  shared[profKey] = firebase.firestore.FieldValue.delete();
+  if (hadRow) shared.poolMembers = state.poolMembers;
+  var jobs = [
+    fsDb.collection("pickem_v14").doc("shared_state").set(shared, { merge: true }),
+    fsDb.collection("pickem_v14_users").doc(profKey).delete()
+  ];
+  if (BOUND_ACCOUNTS[profKey]) jobs.push(fsDb.collection("pickem_v14_bindings").doc(profKey).delete());
+  return Promise.all(jobs);
+}
+
 function removeAppOnlyPlayer(profKey) {
   if (!assertCommissionerRole("removing players")) return;
   var cu = (state.customUsers || []).filter(function(c) { return c.key === profKey; })[0];
   if (!cu) return;
   confirmDanger("Remove the app-only player \"" + cu.name + "\"? Their picks for this week are deleted and the account (if any) is unlinked. Roster players aren't affected.", "Remove", function() {
-    var del = {};
-    del[profKey] = firebase.firestore.FieldValue.delete();
-    state.customUsers = state.customUsers.filter(function(c) { return c.key !== profKey; });
-    delete state[profKey];
-    if (state.profilePrivacy) delete state.profilePrivacy[profKey];
-    del.customUsers = state.customUsers;
-    del.profilePrivacy = state.profilePrivacy || {};
-    del.updatedAt = new Date().toISOString();
-    var jobs = [
-      fsDb.collection("pickem_v14").doc("shared_state").set(del, { merge: true }),
-      fsDb.collection("pickem_v14_users").doc(profKey).delete()
-    ];
-    if (BOUND_ACCOUNTS[profKey]) jobs.push(fsDb.collection("pickem_v14_bindings").doc(profKey).delete());
-    Promise.all(jobs).then(function() {
+    deleteProfileEverywhere(profKey).then(function() {
       regradeAllPoolMembersLive();
       renderAll();
       renderCommissionerModalBody();
       showAppToast("Removed " + cu.name + ".");
     }, function(e) { showAppToast("Couldn't remove (" + ((e && e.code) || "error") + ")."); });
   });
+}
+
+// Merge a duplicate / app-only profile into a roster player: the duplicate's account becomes
+// the roster player's account (binding, pick-doc owner, account record, registered email), its
+// picks move over only if the roster player has none this week, then the duplicate is deleted.
+async function mergeProfileInto(dupKey, targetName) {
+  if (!assertCommissionerRole("merging accounts")) return;
+  var cu = (state.customUsers || []).filter(function(c) { return c.key === dupKey; })[0];
+  if (!cu || !targetName) { showAppToast("Choose the roster player to merge into."); return; }
+  var targetKey = profileKeyForMember(targetName);
+  var targetLow = memberLowOf(targetName);
+  var shownTarget = fixDisplaySpelling(rosterDisplayName(targetName));
+  if (!targetKey || targetKey === dupKey) { showAppToast("That's the same player."); return; }
+
+  var dupBinding = BOUND_ACCOUNTS[dupKey];
+  var dupDoc = {};
+  try { var ds = await fsDb.collection("pickem_v14_users").doc(dupKey).get(); dupDoc = ds && ds.exists ? ds.data() : {}; } catch (e) {}
+  var uid = (dupBinding && dupBinding.uid) || cu.ownerUid || dupDoc.ownerUid || "";
+  if (/^email_/.test(uid)) uid = ""; // old-style owner value, not an account id
+  var email = String((dupBinding && dupBinding.email) || cu.email || "").toLowerCase();
+  var targetOwner = bindingOwnerUid(targetKey);
+  if (targetOwner && uid && targetOwner !== uid) { showAppToast(shownTarget + " is linked to a different account. Unlink it first."); return; }
+
+  var dupPicks = (state[dupKey] && state[dupKey].picks) || dupDoc.picks || {};
+  var targetPicks = (state[targetKey] && state[targetKey].picks) || {};
+  var movePicks = !hasSubmittedPicksForCurrentSlate(targetPicks, GAMES) && hasSubmittedPicksForCurrentSlate(dupPicks, GAMES);
+  var msg = "Merge \"" + cu.name + "\" into " + shownTarget + "?\n\n" +
+    (email ? "• " + email + " becomes " + shownTarget + "'s account and lands on their picks.\n" : "• No sign-in is attached to \"" + cu.name + "\".\n") +
+    (movePicks ? "• " + shownTarget + " has no picks this week, so the duplicate's picks move over.\n" : "• " + shownTarget + "'s own picks are kept.\n") +
+    "• \"" + cu.name + "\" is then deleted.";
+  confirmDanger(msg, "Merge", async function() {
+    try {
+      var now = new Date().toISOString();
+      if (movePicks) {
+        if (!state[targetKey]) state[targetKey] = { picks: {}, tiebreaker: "28-24", target: 20 };
+        state[targetKey].picks = Object.assign({}, dupPicks);
+        if ((state[dupKey] && state[dupKey].tiebreaker) || dupDoc.tiebreaker) state[targetKey].tiebreaker = (state[dupKey] && state[dupKey].tiebreaker) || dupDoc.tiebreaker;
+        state[targetKey]._picksCleared = false;
+      }
+      var userDoc = { profileKey: targetKey, linkedMemberName: rosterDisplayName(targetName), updatedAt: now };
+      if (uid) userDoc.ownerUid = uid;
+      if (movePicks) { userDoc.picks = state[targetKey].picks; userDoc.tiebreaker = state[targetKey].tiebreaker; userDoc.currentWeek = state.currentWeek; userDoc._picksCleared = false; }
+      var jobs = [fsDb.collection("pickem_v14_users").doc(targetKey).set(userDoc, { merge: true })];
+      if (movePicks) {
+        var sharedPicks = { updatedAt: now };
+        sharedPicks[targetKey] = state[targetKey];
+        jobs.push(fsDb.collection("pickem_v14").doc("shared_state").set(sharedPicks, { merge: true }));
+      }
+      if (uid && ACCOUNT_SECURITY_LIVE) {
+        jobs.push(fsDb.collection("pickem_v14_bindings").doc(targetKey).set({
+          uid: uid, email: email, displayName: (dupBinding && dupBinding.displayName) || cu.name, memberName: rosterDisplayName(targetName),
+          memberLow: targetLow, boundAt: now, verifiedBy: "commish_approved"
+        }));
+      }
+      if (email) {
+        // The account record decides where the account lands on its next load (auth.js re-check).
+        jobs.push(fsDb.collection("pickem_v14_accounts").doc("email_" + email.replace(/[^a-z0-9]/g, "_")).set({
+          boundProfileKey: targetKey, linkedMemberName: rosterDisplayName(targetName),
+          linkedEntries: [{ profileKey: targetKey, memberName: rosterDisplayName(targetName), label: "Entry #1: " + rosterDisplayName(targetName) }],
+          updatedAt: now
+        }, { merge: true }));
+        var map = ensureCommissionerConfig().playerEmailsMap;
+        if (!map[targetLow]) { map[targetLow] = email; saveCommissionerConfigToCloud(); }
+      }
+      await Promise.all(jobs);
+      await deleteProfileEverywhere(dupKey);
+      regradeAllPoolMembersLive();
+      pushWatchlistOrStandingsToFirebase();
+      renderAll();
+      renderCommissionerModalBody();
+      showAppToast("Merged " + cu.name + " into " + shownTarget + "." + (email ? " Their app moves over the next time it opens." : ""));
+    } catch (e) {
+      showAppToast("Couldn't finish the merge (" + ((e && e.code) || (e && e.message) || "error") + ").");
+    }
+  });
+}
+
+function mergeTargetOptionsHtml(cu) {
+  var guess = isDuplicateProfile(cu) ? memberLowOf(cu.linkedMemberName || cu.name) : "";
+  var names = (state.leaderboard || []).map(function(r) { return standardizeParticipantName(r.name); });
+  names.sort(function(a, b) { return fixDisplaySpelling(a).localeCompare(fixDisplaySpelling(b)); });
+  return '<option value="">Merge into…</option>' + names.map(function(n) {
+    return '<option value="' + escapeShellHtml(n) + '"' + (memberLowOf(n) === guess ? ' selected' : '') + '>' + escapeShellHtml(fixDisplaySpelling(n)) + '</option>';
+  }).join("");
 }
 
 // ---------- Commissioner HTML ----------
@@ -769,15 +867,18 @@ function appOnlyPlayersHtml() {
   var list = appOnlyProfiles();
   if (!list.length) return "";
   return '<details class="acct-details"><summary>App-only and duplicate players (' + list.length + ')</summary>' +
-    '<p class="muted-note">Created when a sign-in didn\'t match a roster name. Remove duplicates; to put an account on its roster player, unlink or remove it here and approve its request.</p>' +
+    '<p class="muted-note">Created when a sign-in didn\'t match a roster name. Merge moves the account (and its picks, if the roster player has none) onto the right roster player; Remove just deletes it.</p>' +
     '<div class="list-card">' + list.map(function(cu) {
       var b = BOUND_ACCOUNTS[cu.key];
       var pk = state[cu.key] && state[cu.key].picks ? countMatchingPicksForSlate(state[cu.key].picks, GAMES).matched : 0;
       return '<div class="acct-req"><div class="acct-req-main"><div class="acct-req-name">' + escapeShellHtml(cu.name) +
         (isDuplicateProfile(cu) ? ' <span class="acct-tag is-warn">Duplicate of ' + escapeShellHtml(fixDisplaySpelling(getLinkedMemberNameForProfile(profileKeyForMember(cu.linkedMemberName || cu.name)) || "")) + '</span>' : '') + '</div>' +
         '<div class="acct-req-sub">' + escapeShellHtml(cu.key) + ' · ' + pk + ' picks' + (b ? ' · ' + escapeShellHtml(b.email || "") : (cu.email ? ' · ' + escapeShellHtml(cu.email) : '')) + '</div></div>' +
-        '<div class="acct-req-actions">' + (b ? '<button type="button" class="btn-sm" onclick="unlinkPlayerAccount(\'' + jsArgAttr(cu.key) + '\')">Unlink</button>' : '') +
-        '<button type="button" class="btn-sm acct-danger" onclick="removeAppOnlyPlayer(\'' + jsArgAttr(cu.key) + '\')">Remove</button></div></div>';
+        '<div class="acct-req-actions acct-merge">' +
+          '<select class="search-input" id="acct-merge-' + escapeShellHtml(cu.key) + '" aria-label="Roster player to merge ' + escapeShellHtml(cu.name) + ' into">' + mergeTargetOptionsHtml(cu) + '</select>' +
+          '<button type="button" class="btn-sm" onclick="mergeProfileInto(\'' + jsArgAttr(cu.key) + '\', document.getElementById(\'acct-merge-' + jsArgAttr(cu.key) + '\').value)">Merge</button>' +
+          (b ? '<button type="button" class="btn-sm" onclick="unlinkPlayerAccount(\'' + jsArgAttr(cu.key) + '\')">Unlink</button>' : '') +
+          '<button type="button" class="btn-sm acct-danger" onclick="removeAppOnlyPlayer(\'' + jsArgAttr(cu.key) + '\')">Remove</button></div></div>';
     }).join("") + '</div></details>';
 }
 
