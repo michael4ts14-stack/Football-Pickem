@@ -167,21 +167,24 @@ function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerU
   return { profileKey: detKey, linkedMemberName: cleanMember, displayName: cleanMember };
 }
 
-// Is this pool player linked to an account other than (uid, email)? Account docs are public,
-// so every browser can check before binding.
+// Is this pool player's entry owned by another account? Uses the owner recorded on the
+// player's public pick doc (pickem_v14_users/{key}.ownerUid); account records are private.
 async function memberLinkedToAnotherAccount(memberName, uid, email) {
   if (!fsDb || !memberName) return false;
-  var want = standardizeParticipantName(memberName).toLowerCase();
+  var low = standardizeParticipantName(memberName).toLowerCase();
+  var key = low === "michael a" ? "michael" : (low === "kinyion c" ? "kinyion" : null);
+  if (!key) {
+    var linked = typeof getProfileLinkedToMemberName === "function" ? getProfileLinkedToMemberName(memberName) : null;
+    key = linked && linked.key;
+  }
+  if (!key) return false;
   try {
-    var snap = await fsDb.collection("pickem_v14_accounts").get();
-    var found = false;
-    snap.forEach(function(doc) {
-      var a = doc.data() || {};
-      if (!a.linkedMemberName || standardizeParticipantName(a.linkedMemberName).toLowerCase() !== want) return;
-      var same = (a.uid && a.uid === uid) || (a.email && String(a.email).toLowerCase() === String(email || "").toLowerCase());
-      if (!same) found = true;
-    });
-    return found;
+    var snap = await fsDb.collection("pickem_v14_users").doc(key).get();
+    var owner = snap && snap.exists ? String((snap.data() || {}).ownerUid || "") : "";
+    if (!owner) return false;
+    var emailLow = String(email || "").toLowerCase();
+    var mine = [uid, emailLow, "email_" + emailLow.replace(/[^a-z0-9]/g, "_")];
+    return mine.indexOf(owner) === -1;
   } catch (e) {
     return false;
   }

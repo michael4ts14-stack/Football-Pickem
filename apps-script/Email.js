@@ -16,7 +16,7 @@ var EMAIL_API_VERSION = 2;
 var FIREBASE_PROJECT_ID = "football-pickem-46206";
 var FIREBASE_WEB_API_KEY = "AIzaSyCMEUZaBOSyQt_Bhyi4mN33_fEwMcDi4_A"; // public web key, same as public/js/config.js
 // Same built-in list as isVerifiedCommissioner() in firestore.rules.
-var BUILT_IN_COMMISSIONER_EMAILS = ["michael4ts14@gmail.com", "commissioner@separatedatturf.com", "commissioner@separatedatturt.com"];
+var BUILT_IN_COMMISSIONER_EMAILS = ["michael4ts14@gmail.com", "commissioner@separatedatturf.com"];
 var EMAIL_FROM_NAME = "Separated at Turf Pick'em";
 var EMAIL_REPLY_TO = "separatedatturf@gmail.com";
 var APP_URL = "https://football-pickem-46206.web.app";
@@ -111,6 +111,7 @@ function requireVerifiedEmail_(who) {
 
 function isCommissionerEmail_(email) {
   email = String(email || "").toLowerCase();
+  if (/@separatedatturt\.com$/.test(email)) return false; // typo domain on old saved lists
   if (BUILT_IN_COMMISSIONER_EMAILS.indexOf(email) !== -1) return true;
   var roles = readFirestoreDoc_("pickem_v14_commissioners/roles") || {};
   if (String(roles.primaryCommissionerEmail || "").toLowerCase() === email) return true;

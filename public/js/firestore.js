@@ -393,40 +393,53 @@ function pushProfileToFirebase(profKey) {
   var meta = getProfileMetaByKey(profKey);
   var nowIso = new Date().toISOString();
 
-  // 1. Write to dedicated per-user document (`pickem_v14_users/{profKey}`) for 80+ user scalability
-  if (fsDb) {
-    try {
-      fsDb.collection("pickem_v14_users").doc(profKey).set({
+  // 1. The profile's own pick doc (`pickem_v14_users/{profKey}`). Your own entries are saved
+  //    with you as owner; a commissioner editing someone else's leaves the owner alone.
+  //    firestore.rules only lets the owner (or a commissioner) change a profile.
+  var mine = isOwnEntry(profKey);
+  var userDoc = {
         profileKey: profKey,
         displayName: meta ? meta.name : profKey,
         linkedMemberName: getLinkedMemberNameForProfile(profKey) || (meta ? meta.name : ""),
         priorPts: meta ? (parseFloat(meta.priorPts) || 0) : 0,
         rank: meta ? (meta.defaultRank || "") : "",
         color: meta ? (meta.color || "#10b981") : "#10b981",
-        ownerUid: (AUTH_SESSION && AUTH_SESSION.boundProfileKey === profKey) ? (AUTH_SESSION.uid || AUTH_SESSION.email || "") : "",
-        picks: profObj.picks || {},
-        tiebreaker: profObj.tiebreaker || "28-24",
-        target: profObj.target || 20,
-        currentWeek: state.currentWeek || 8,
-        updatedAt: nowIso
-      }, { merge: true }).catch(function() {});
-    } catch (eUserDoc) {}
-  }
+    picks: profObj.picks || {},
+    tiebreaker: profObj.tiebreaker || "28-24",
+    target: profObj.target || 20,
+    currentWeek: state.currentWeek || 8,
+    updatedAt: nowIso
+  };
+  if (mine) userDoc.ownerUid = AUTH_SESSION.uid;
 
-  // 2. Also merge ONLY this profile's key into `pickem_v14/shared_state` (never touching other users' keys!)
-  //    The active week is NOT written here: a pick save must never move everyone's week.
+  // 2. Then ONLY this profile's key in `pickem_v14/shared_state` (never other users' keys),
+  //    named in lastProfileWriter so the rules can check you own it. After step 1, so a new
+  //    profile's pick doc (its ownership record) exists first. The active week is never
+  //    written here: a pick save must never move everyone's week.
   var payload = {};
   payload[profKey] = profObj;
+  payload.lastProfileWriter = profKey;
   payload.updatedAt = nowIso;
 
-  if (fsDb) {
-    try {
-      fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }).then(function() {
-        var t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-        document.getElementById("cloud-status-text").textContent = "✓ Saved " + profKey.toUpperCase() + " to Cloud Firestore (" + t + ")";
-      }).catch(function() {});
-    } catch (e) {}
-  }
+  if (!fsDb) return;
+  var setStatus = function(ok) {
+    var el = document.getElementById("cloud-status-text");
+    if (!el) return;
+    var t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    el.textContent = ok ? "✓ Saved " + profKey.toUpperCase() + " to Cloud Firestore (" + t + ")" : "Couldn't save " + profKey.toUpperCase() + " to the cloud (" + t + ")";
+  };
+  try {
+    fsDb.collection("pickem_v14_users").doc(profKey).set(userDoc, { merge: true })
+      .then(function() { return fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }); })
+      .then(function() { setStatus(true); }, function() { setStatus(false); });
+  } catch (e) {}
+}
+
+// Your own entries: the profile your account is bound to, or one of your linked entries.
+function isOwnEntry(profKey) {
+  if (!AUTH_SESSION || !AUTH_SESSION.uid) return false;
+  if (AUTH_SESSION.boundProfileKey === profKey) return true;
+  return (AUTH_SESSION.linkedEntries || []).some(function(e) { return e && e.profileKey === profKey; });
 }
 
 var BOT_STATUS = null;
