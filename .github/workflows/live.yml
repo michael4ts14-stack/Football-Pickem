@@ -13,8 +13,7 @@ on:
       minutes:
         description: "How long to keep polling"
         default: "14"
-  push:
-    branches: [claude/sat-ui-redesign-main]
+  pull_request:
     paths: ["tools/live/**", "tools/lib/**", "tests/live/**", ".github/workflows/live.yml"]
 
 concurrency:
@@ -32,12 +31,12 @@ jobs:
           node-version: 22
       - name: Unit tests
         run: node --test "tests/live/*.test.mjs"
-      # Pushes to the work branch only prove the job runs: one quick round, nothing written.
-      - name: Dry run (branch push)
-        if: github.event_name == 'push'
+      # Pull requests that change this job only prove it runs: one quick round, nothing written.
+      - name: Dry run (pull request)
+        if: github.event_name == 'pull_request'
         run: node tools/live/build-live.mjs --dry-run --minutes 0.5
       - name: Poll ESPN and write to Firestore
-        if: github.event_name != 'push'
+        if: github.event_name != 'pull_request'
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: node tools/live/build-live.mjs --minutes ${{ inputs.minutes || '14' }}

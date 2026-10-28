@@ -12,8 +12,7 @@ on:
         description: "Full refresh now"
         type: boolean
         default: false
-  push:
-    branches: [claude/sat-ui-redesign-main]
+  pull_request:
     paths: ["tools/matchups/**", "tools/lib/**", "tests/matchups/**", ".github/workflows/matchups.yml"]
 
 concurrency:
@@ -31,18 +30,18 @@ jobs:
           node-version: 22
       - name: Unit tests
         run: node --test "tests/matchups/*.test.mjs"
-      # Pushes to the work branch only prove ESPN answers GitHub's servers: nothing is written.
-      - name: Dry run (branch push)
-        if: github.event_name == 'push'
+      # Pull requests that change this job only prove ESPN answers GitHub's servers: nothing is written.
+      - name: Dry run (pull request)
+        if: github.event_name == 'pull_request'
         run: node tools/matchups/build-matchups.mjs --dry-run --force --out matchups-preview.json
       - name: Upload preview
-        if: github.event_name == 'push'
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: matchups-preview
           path: matchups-preview.json
       - name: Build and write to Firestore
-        if: github.event_name != 'push'
+        if: github.event_name != 'pull_request'
         env:
           # Optional. Needed once firestore.rules stop allowing open writes to live_games.
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
