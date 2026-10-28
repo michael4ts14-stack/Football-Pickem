@@ -250,6 +250,16 @@ function routeEmailAction_(action, who, data) {
     PropertiesService.getScriptProperties().setProperty("BROADCASTS_ENABLED", data.enabled ? "true" : "false");
     return { ok: true, broadcastsEnabled: broadcastsEnabled_() };
   }
+  // Bot controls (were open GET links): commissioners only.
+  if (action === "runGmailBot") {
+    requireCommissioner_(who);
+    var summary = runMasterPickemEmailBot(true) || {};
+    return { ok: summary.ok !== false, summary: summary };
+  }
+  if (action === "emergencyStop") {
+    requireCommissioner_(who);
+    return { ok: true, result: emergencyStopEmailLoopAndCleanState() };
+  }
   if (action === "sendWedThuNudge") { requireCommissioner_(who); requireBroadcastsAllowed_(data); return sendWedThuNudge_(who, shared, data); }
   if (action === "sendSaturdayMasterSheet" || action === "emailMasterCsvToAll") { requireCommissioner_(who); requireBroadcastsAllowed_(data); return sendMasterSheet_(who, shared, data); }
   throw emailError_("UNKNOWN_ACTION", "Unknown action: " + action);
