@@ -1260,3 +1260,23 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 .nav-alert-badge.is-link-req { background: var(--warn); color: #111111; }
 #btn-commish-console, #nav-more-commish { position: relative; }
 .acct-merge select.search-input { min-height: 36px; max-width: 190px; min-width: 0; flex: 1 1 150px; }
+
+/* ---------- Stacking order ----------
+   Page sticky bars (5-6) < Lock picks bar 970 < tab bar 980 < preview banner 1000 < sidebar 1300
+   < rail 1400 < sheets 1500 < app-update bar 1600 < GameCast (live tracker) 1700
+   < console and dialog modals (2500+) < confirm 4000. GameCast used to sit at 1200, under the
+   pinned desktop sidebar, the rail and the app-update bar. Toasts (3000) move to the top edge
+   while GameCast is open so they never cover the field. */
+#field-theater-backdrop { z-index: 1700; }
+body.theater-open #app-toast-banner { top: calc(env(safe-area-inset-top) + 8px); bottom: auto; }
+#app-toast-banner { width: max-content; max-width: calc(100vw - 32px); white-space: normal; text-align: center; }
+@media (max-width: 899px) {
+  #app-toast-banner { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 12px); }
+  /* Leave the top 12vh for the status bar and a toast; the sheet's own bottom padding clears
+     the home indicator. */
+  #field-theater-modal { max-height: calc(88vh - env(safe-area-inset-top)); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+}
+/* Sticky bars stop below the status bar / notch in the installed app (black-translucent). */
+.live-filter-bar, .gameday-strip { top: env(safe-area-inset-top, 0px); }
+body.has-preview-banner { padding-top: calc(env(safe-area-inset-top) + 64px); }
+body.has-preview-banner .live-filter-bar, body.has-preview-banner .gameday-strip { top: calc(env(safe-area-inset-top) + 64px); }

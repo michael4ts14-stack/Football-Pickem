@@ -7,6 +7,7 @@ function openFieldTheaterModal(gameId, event) {
   ACTIVE_THEATER_GAME_ID = gameId;
   var backdrop = document.getElementById("field-theater-backdrop");
   if (backdrop) backdrop.style.display = "flex";
+  document.body.classList.add("theater-open"); // toasts move off the tracker (app.css)
   // Drives come from Firestore; only if that copy is missing or stale is this one game
   // fetched from ESPN (at most every 30s, see live-feed.js).
   loadGameDrives(gameId, true);
@@ -17,6 +18,7 @@ function closeFieldTheaterModal() {
   ACTIVE_THEATER_GAME_ID = null;
   var backdrop = document.getElementById("field-theater-backdrop");
   if (backdrop) backdrop.style.display = "none";
+  document.body.classList.remove("theater-open");
 }
 
 function theaterPickText(picks, g, hidden, allowRec) {

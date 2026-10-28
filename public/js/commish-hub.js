@@ -331,6 +331,8 @@ function exitPlayerPreview() {
 
 function renderPreviewBanner() {
   var el = document.getElementById("player-preview-banner");
+  // The banner is fixed at the top; the page leaves room for it so it never sits on content.
+  document.body.classList.toggle("has-preview-banner", !!PLAYER_PREVIEW);
   if (!PLAYER_PREVIEW) { if (el) el.hidden = true; return; }
   if (!el) {
     el = document.createElement("div");
