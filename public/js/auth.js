@@ -300,6 +300,11 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
       }
     }
   }
+  // With account bindings live, an entry is only one this account is actually bound to (an old
+  // mix-up must not keep showing someone else's player).
+  if (typeof ACCOUNT_SECURITY_LIVE !== "undefined" && ACCOUNT_SECURITY_LIVE) {
+    prevEntries = prevEntries.filter(function(x) { return x && (x.profileKey === bKey || bindingOwnerUid(x.profileKey) === uid); });
+  }
   if (!prevEntries.some(function(x) { return x.profileKey === bKey; })) {
     prevEntries.push({
       profileKey: bKey,
@@ -352,13 +357,33 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
   renderAll();
 }
 
+// The roster name chosen before a Google sign-in, kept across the redirect. It belongs to that one
+// sign-in only: it expires, and it's cleared once used and on sign-out, so a name picked while
+// creating one account is never applied to the next account that signs in on this device.
+var PENDING_OAUTH_MEMBER_KEY = "sat_pending_oauth_member_v16";
+var PENDING_OAUTH_MEMBER_MAX_MS = 15 * 60 * 1000;
+
+function setPendingOauthMember(name) {
+  safeSetStorage(PENDING_OAUTH_MEMBER_KEY, name ? JSON.stringify({ name: name, at: Date.now() }) : "");
+}
+
+function takePendingOauthMember() {
+  var raw = safeGetStorage(PENDING_OAUTH_MEMBER_KEY) || "";
+  safeSetStorage(PENDING_OAUTH_MEMBER_KEY, "");
+  try {
+    var v = JSON.parse(raw);
+    if (v && v.name && Date.now() - (v.at || 0) < PENDING_OAUTH_MEMBER_MAX_MS) return String(v.name);
+  } catch (e) {} // older plain-text values have no time, so they're dropped
+  return "";
+}
+
 function initFirebaseAuthObserver() {
   if (!fbAuth) return;
   try {
     // Handle return from mobile Google OAuth Redirect (`signInWithRedirect`)
     fbAuth.getRedirectResult().then(function(res) {
       if (res && res.user) {
-        var pendingMember = safeGetStorage("sat_pending_oauth_member_v16") || "";
+        var pendingMember = takePendingOauthMember();
         bindAuthenticatedAccountToProfile({
           uid: res.user.uid,
           email: res.user.email,
@@ -397,7 +422,7 @@ function initFirebaseAuthObserver() {
       if (user && (!AUTH_SESSION || AUTH_SESSION.uid !== user.uid || !window._accountLinkCheckedThisLoad)) {
         window._accountLinkCheckedThisLoad = true;
         var sameUser = !!(AUTH_SESSION && AUTH_SESSION.uid === user.uid);
-        var savedMember = (AUTH_SESSION && AUTH_SESSION.linkedMemberName) || safeGetStorage("sat_pending_oauth_member_v16") || "";
+        var savedMember = sameUser ? (AUTH_SESSION.linkedMemberName || "") : takePendingOauthMember();
         bindAuthenticatedAccountToProfile({
           uid: user.uid,
           email: user.email,
@@ -442,7 +467,7 @@ async function signInWithGoogleAccount(useRedirect) {
   var chosenMember = linkSel ? String(linkSel.value || "").trim() : "";
   if (chosenMember === "__NEW_USER__") chosenMember = "";
   var preferredName = chosenMember || customName;
-  if (preferredName) safeSetStorage("sat_pending_oauth_member_v16", preferredName);
+  setPendingOauthMember(preferredName); // clears any older choice when none was made
   if (useRedirect === undefined || useRedirect === false) useRedirect = preferGoogleRedirect();
 
   if (!fbAuth || typeof firebase.auth.GoogleAuthProvider !== "function") {
@@ -592,6 +617,7 @@ async function sendEmailPasswordReset() {
 }
 
 function signOutAccountInstance() {
+  setPendingOauthMember("");
   if (fbAuth && fbAuth.currentUser) {
     try { fbAuth.signOut(); } catch (e) {}
   }

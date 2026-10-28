@@ -177,11 +177,7 @@ async function gateAccountLink(who, targetMember, explicitChoice) {
   var mode = getSecurityConfig().registrationMode;
 
   if (isAccountBlocked(uid, email)) return { ok: false, status: "blocked", memberName: targetMember };
-  if (isCommissionerAccountEmail(email, who.emailVerified)) {
-    // Commissioners link anywhere; their own player is still recorded so nobody else claims it.
-    var cKey = profileKeyForMember(targetMember);
-    return { ok: true, memberName: targetMember, checked: true, needsBinding: (targetMember && !bindingOwnerUid(cKey)) ? "commish_approved" : "" };
-  }
+  if (isCommissionerAccountEmail(email, who.emailVerified)) return gateCommissionerLink(uid, email, targetMember, explicitChoice);
 
   var owned = ownedProfileKeys(uid);
   var ownedMember = owned.length ? (BOUND_ACCOUNTS[owned[0]].memberName || getLinkedMemberNameForProfile(owned[0])) : "";
@@ -235,6 +231,31 @@ async function gateAccountLink(who, targetMember, explicitChoice) {
   }
   await fileLinkRequest(who, targetMember, key, !onRoster);
   return { ok: false, status: "pending", memberName: onRoster ? rosterDisplayName(targetMember) : standardizeParticipantName(targetMember), isNewPlayer: !onRoster };
+}
+
+// Commissioners skip approval, but signing in still lands on their own player: the one already
+// bound to them, else the one their email is registered for. Only a deliberate choice moves them,
+// and never onto a player bound to someone else (they edit other players from the console).
+function gateCommissionerLink(uid, email, targetMember, explicitChoice) {
+  var owned = ownedProfileKeys(uid);
+  var emailMember = memberForRegisteredEmail(email);
+  var home = "";
+  if (owned.length) {
+    var emailKey = emailMember ? profileKeyForMember(emailMember) : "";
+    var homeKey = owned.indexOf(emailKey) !== -1 ? emailKey : owned[0];
+    home = BOUND_ACCOUNTS[homeKey].memberName || getLinkedMemberNameForProfile(homeKey);
+  } else if (emailMember) {
+    home = emailMember;
+  }
+  var target = (explicitChoice && targetMember) ? targetMember : (home || targetMember);
+  var owner = bindingOwnerUid(profileKeyForMember(target));
+  if (owner && owner !== uid) {
+    if (explicitChoice) showAppToast(fixDisplaySpelling(rosterDisplayName(target)) + " is linked to another account. Edit their picks from Commissioner › Submissions.");
+    target = home || "";
+    owner = target ? bindingOwnerUid(profileKeyForMember(target)) : "";
+    if (!target) return { ok: false, status: "choose", memberName: "" };
+  }
+  return { ok: true, memberName: target, checked: true, needsBinding: (target && !owner) ? "commish_approved" : "" };
 }
 
 // Same list as isVerifiedCommissioner (commissioner-admin.js), before AUTH_SESSION exists.
