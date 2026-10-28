@@ -227,6 +227,8 @@ async function saveAndSendPickConfirmationReceipt() {
 
   // Email receipt: the service sends your own saved picks to your verified email.
   var receiptPromise = startPickReceiptSend();
+  // Only the signed-in account's own email is shown (never another member's from the pool list).
+  var accountEmail = (typeof fbAuth !== "undefined" && fbAuth && fbAuth.currentUser && fbAuth.currentUser.email) || "";
 
   // Open a clean Confirmation Receipt modal with 1-click Email / Copy / Guest-to-Account upgrade
   document.getElementById("modal-team-title").textContent = "✅ Picks Saved & Confirmation Receipt (" + (state.weekLabel || ("Week " + state.currentWeek)) + ")";
@@ -234,10 +236,11 @@ async function saveAndSendPickConfirmationReceipt() {
     '<div style="background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">' +
       '<div style="font-size:0.88rem;font-weight:900;color:var(--text);margin-bottom:4px;">Picks saved at ' + nowTime + '</div>' +
       '<div id="receipt-email-status" class="email-status" role="status" aria-live="polite"></div>' +
+      (typeof officialFormReceiptButtonHtml === "function" ? officialFormReceiptButtonHtml() : '') +
       '<div style="font-size:0.74rem;color:var(--text);line-height:1.45;">' +
-        '• <strong>Player:</strong> ' + meta.name + (userEmail ? (' (' + userEmail + ')') : '') + '<br>' +
+        '• <strong>Player:</strong> ' + escapeShellHtml(meta.name) + (accountEmail ? (' (' + escapeShellHtml(accountEmail) + ')') : '') + '<br>' +
         '• <strong>Tie-Breaker:</strong> ' + tb + '<br>' +
-        '• <strong>🔓 Still Editable All Week:</strong> Even though your receipt is saved, you can come back and change any pick on Tuesday, Wednesday, Thursday, or Friday! Your official final version does not lock until <strong>Friday at 9:00 PM CST</strong>.' +
+        '• <strong>🔒 Locked:</strong> tap <strong>Unlock picks</strong> to change anything before the official deadline, <strong>Friday at 9:00 PM CT</strong>. Then lock and send again.' +
       '</div>' +
     '</div>' +
     ((!AUTH_SESSION || GUEST_BROWSING_MODE) ? (
@@ -247,12 +250,12 @@ async function saveAndSendPickConfirmationReceipt() {
       '</div>'
     ) : '') +
     '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">' +
-      '<input type="email" id="receipt-email-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.75rem;" placeholder="Your account email" value="' + String((fbAuth && fbAuth.currentUser && fbAuth.currentUser.email) || userEmail || "").replace(/"/g, '&quot;') + '" />' +
+      '<input type="email" id="receipt-email-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.75rem;" placeholder="Your account email" value="' + String(accountEmail).replace(/"/g, '&quot;') + '" />' +
       '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;padding:6px 12px;" onclick="sendReceiptToCustomEmail()">📨 Send Email Receipt</button>' +
       '<button type="button" class="btn-sm" onclick="copyPicksToClipboard()">📋 Copy Receipt Text</button>' +
     '</div>' +
     '<textarea readonly rows="8" class="search-input" style="width:100%;font-family:monospace;font-size:0.71rem;color:var(--text);">' +
-      'SEPARATED AT TURF PICK\'EM — ' + (state.weekLabel || 'WEEK 8').toUpperCase() + ' CONFIRMATION RECEIPT\n' +
+      'SEPARATED AT TURF PICK\'EM — ' + (state.weekLabel || ('Week ' + state.currentWeek)).toUpperCase() + ' CONFIRMATION RECEIPT\n' +
       'Player: ' + meta.name + ' | Saved: ' + nowTime + '\n' +
       'Status: SAVED (Editable until Friday 9:00 PM CST Official Lock)\n' +
       'Tie-Breaker: ' + tb + '\n' +

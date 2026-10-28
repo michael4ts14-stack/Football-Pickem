@@ -252,7 +252,7 @@ function renderPickCardsHtml() {
     }
 
     html +=
-      '<article class="pick-card' + (myPick ? '' : ' is-missing') + '" id="game-card-' + g.id + '" aria-label="' + escapeShellHtml(matchup) + '">' +
+      '<article class="pick-card' + (myPick ? '' : ' is-missing') + '" id="game-card-' + g.id + '" aria-label="' + escapeShellHtml(matchup) + '" onclick="onPickCardClick(event, ' + g.id + ')">' +
         '<button type="button" class="pick-card-meta" onclick="openGameDetail(' + g.id + ')" aria-label="Details for ' + escapeShellHtml(matchup) + '">' +
           gameStatusHtml(g) +
           pickStatusWordHtml(getGameSituation(ls, g, myPick ? picks : null)) +
@@ -301,11 +301,16 @@ function updatePicksHead() {
   var wrap = document.getElementById("picks-progress-bar-wrap");
   if (wrap) { wrap.setAttribute("aria-valuemax", total); wrap.setAttribute("aria-valuenow", done); }
 
-  var subLabel = complete ? "Submit picks" : ("Submit " + done + " of " + total + " picks");
-  var subDesk = document.getElementById("btn-submit-desk");
-  if (subDesk) { subDesk.textContent = complete ? "Submit picks" : ("Submit " + done + " of " + total); subDesk.classList.toggle("is-ready", complete); }
-  var subPhone = document.getElementById("btn-submit-picks");
-  if (subPhone) { subPhone.textContent = subLabel; subPhone.classList.toggle("is-ready", complete); }
+  // One main button: "Lock picks" until you lock them, then "Send picks" (opens the official form).
+  var sendMode = typeof primaryPicksActionIsSend === "function" && primaryPicksActionIsSend();
+  var subLabel = sendMode ? "Send picks" : "Lock picks";
+  ["btn-submit-desk", "btn-submit-picks"].forEach(function(id) {
+    var b = document.getElementById(id);
+    if (!b) return;
+    b.textContent = subLabel;
+    b.classList.toggle("is-ready", sendMode || complete);
+    b.title = sendMode ? "Open the official Separated at Turf form with your picks filled in" : (complete ? "Lock your picks and get a receipt" : done + " of " + total + " picked");
+  });
 
   var lockText = document.getElementById("simple-lock-deadline-pill");
   var eyeLock = document.getElementById("picks-eyebrow-lock");
@@ -395,6 +400,15 @@ function togglePicksSearch(force) {
 }
 
 // ---------- Game detail sheet ----------
+// A click anywhere on a game card opens its details, except on the card's own controls
+// (team pick buttons, links, the Last 5 / Insights panels and the live field).
+function onPickCardClick(e, gameId) {
+  var t = e && e.target;
+  if (t && t.closest && t.closest("button, a, input, select, textarea, label, .dual-panel, .insights-grid, .card-field")) return;
+  if (window.getSelection && String(window.getSelection())) return; // selecting text, not clicking
+  openGameDetail(gameId);
+}
+
 function openGameDetail(gameId) {
   var g = findGameById(gameId);
   var bd = document.getElementById("detail-sheet-backdrop");

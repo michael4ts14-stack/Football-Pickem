@@ -1086,3 +1086,7 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 .email-log td:nth-child(1), .email-log td:nth-child(4) { white-space: nowrap; }
 .log-status.is-ok { color: var(--win); font-weight: 600; }
 .log-status.is-error { color: var(--loss); font-weight: 600; }
+
+.receipt-send-btn { width: 100%; margin: 10px 0 6px; }
+.pick-card { cursor: pointer; }
+.pick-card .pick-card-teams, .pick-card .dual-panel, .pick-card .insights-grid, .pick-card .card-field { cursor: auto; }
