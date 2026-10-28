@@ -78,6 +78,10 @@ ensureCommissionerConfig = function() {
 function isVerifiedCommissioner() {
   var cfg = ensureCommissionerConfig();
   if (!AUTH_SESSION || GUEST_BROWSING_MODE) return false;
+  // Only a real Firebase sign-in counts (same rule as firestore.rules): the saved session's
+  // email must be the signed-in Firebase user's own, verified email.
+  var fbUser = (typeof fbAuth !== "undefined" && fbAuth) ? fbAuth.currentUser : null;
+  if (!fbUser || !fbUser.emailVerified || String(fbUser.email || "").toLowerCase() !== String(AUTH_SESSION.email || "").trim().toLowerCase()) return false;
   var emailLow = String(AUTH_SESSION.email || "").trim().toLowerCase();
   var primaryLow = String(cfg.primaryCommissionerEmail || "commissioner@separatedatturf.com").trim().toLowerCase();
   if (emailLow && (emailLow === primaryLow || emailLow === "commissioner@separatedatturt.com" || emailLow === "commissioner@separatedatturf.com")) {

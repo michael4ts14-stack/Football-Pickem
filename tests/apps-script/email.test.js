@@ -235,3 +235,42 @@ test("Kinyon Cooper's name is shown right in emails", () => {
     assert.strictEqual(h.ctx.displayName_(inp), out, inp);
   }
 });
+
+test("nudge: emails app accounts of players missing picks, skips players who picked in the app", () => {
+  const acctDoc = (email, member, key) => ({ fields: { email: { stringValue: email }, linkedMemberName: { stringValue: member }, boundProfileKey: { stringValue: key } } });
+  const h = service({
+    scriptProps: { BROADCASTS_ENABLED: "true" },
+    cloudOver: {
+      poolMembers: [
+        { name: "Player One", picks: {}, awaitingSheet: true },          // app account, no picks -> nudged
+        { name: "App Picker", picks: {}, awaitingSheet: true },          // picked in the app -> skipped
+        { name: "No Email", picks: {}, awaitingSheet: true },            // nobody to email
+        { name: "Sheet Done", picks: { 1: "Arizona", 2: "Iowa" }, awaitingSheet: false },
+      ],
+      appPickerKey: { picks: { 1: "Arizona", 2: "Iowa" } },
+    },
+    extraFetch: (url, params) => {
+      if (url.indexOf("identitytoolkit") !== -1) {
+        const claims = JSON.parse(Buffer.from(JSON.parse(params.payload).idToken.split(".")[1], "base64").toString());
+        return makeResponse(200, { users: [USERS[claims.user_id]] });
+      }
+      if (url.indexOf("/pickem_v14_accounts?pageSize") !== -1) {
+        return makeResponse(200, { documents: [acctDoc(PLAYER, "Player One", "noPicksKey"), acctDoc("picker@example.com", "App Picker", "appPickerKey")] });
+      }
+      return null;
+    },
+  });
+  const r = post(h, { action: "sendWedThuNudge", idToken: token("uid-commish") });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(h.sentMail.map((m) => m.to), [PLAYER]);
+  assert.strictEqual(r.skipped, 1);
+});
+
+test("nudge: nobody reachable is an error, and today's nudge isn't marked as sent", () => {
+  const h = service({ scriptProps: { BROADCASTS_ENABLED: "true" }, cloudOver: { poolMembers: [{ name: "No Email", picks: {}, awaitingSheet: true }] } });
+  const r = post(h, { action: "sendWedThuNudge", idToken: token("uid-commish") });
+  assert.strictEqual(r.code, "NO_RECIPIENTS");
+  assert.match(r.error, /None of the 1 players/);
+  assert.strictEqual(h.sentMail.length, 0);
+  assert.ok(!Object.keys(h.scriptProps.store).some((k) => k.indexOf("WED_THU_NUDGE_SENT_") === 0));
+});
