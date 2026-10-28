@@ -70,6 +70,7 @@ Hosting/Actions use service accounts, so none of them are limited by these rules
 | `pickem_v14_accounts/{email_…}` (email, linked player, rivals) | owner, commissioner | owner, commissioner; no password hashes |
 | `pickem_v14_commissioners/*` | everyone | commissioner |
 | `pickem_v14_email_log` | commissioner | nobody (Apps Script only) |
+| `pickem_v14_commish_log` (commissioner action log) | commissioner | commissioner: add entries under their own email; no edits or deletes |
 | `live_games/*` | everyone | everyone, until the GitHub jobs get a service account (`GOOGLE_SERVICE_ACCOUNT_JSON`) |
 
 Invite links (`public/js/invite-links.js`): Commissioner › Roster & dues › League access makes,

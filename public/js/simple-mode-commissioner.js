@@ -38,7 +38,6 @@ function ensureCommissionerConfig() {
   if (!cfg.deadlineConfig || typeof cfg.deadlineConfig !== "object") cfg.deadlineConfig = { day: "Fri", time: "21:00", tz: "America/Chicago" };
   if (!cfg.gameLockOverrides || typeof cfg.gameLockOverrides !== "object") cfg.gameLockOverrides = {};
   if (!cfg.forceUnlocked || typeof cfg.forceUnlocked !== "object") cfg.forceUnlocked = {};
-  if (!Array.isArray(cfg.overrideAuditLog)) cfg.overrideAuditLog = [];
   if (!cfg.paymentLinks || typeof cfg.paymentLinks !== "object") cfg.paymentLinks = { venmoHandle: "", paypalLink: "", cashAppTag: "" };
   return cfg;
 }
@@ -581,20 +580,6 @@ function commitCommissionerConfig(mutate) {
     safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
     return next;
   });
-}
-
-// Audit entry for commissionerConfig.overrideAuditLog (newest first, last 200), added inside a
-// commitCommissionerConfig mutation so the action and its log entry save together.
-function pushAuditEntry(cfg, targetPlayer, action, reason) {
-  if (!Array.isArray(cfg.overrideAuditLog)) cfg.overrideAuditLog = [];
-  cfg.overrideAuditLog.unshift({
-    timestamp: new Date().toISOString(),
-    commishEmail: typeof commishEmailForLog === "function" ? commishEmailForLog() : ((AUTH_SESSION && AUTH_SESSION.email) || ""),
-    targetPlayer: targetPlayer || "",
-    action: action,
-    reason: reason || ""
-  });
-  if (cfg.overrideAuditLog.length > 200) cfg.overrideAuditLog.length = 200;
 }
 
 function renderCommishAnnouncementBanner() {

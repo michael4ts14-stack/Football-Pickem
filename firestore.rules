@@ -182,6 +182,16 @@ service cloud.firestore {
       allow write: if isVerifiedCommissioner();
     }
 
+    // ---------- Commissioner log (who / what / when) ----------
+    // One doc per action. Commissioners read it and add entries under their own email
+    // (or "migrated" copies of the old log); nobody edits or deletes entries.
+    match /pickem_v14_commish_log/{entryId} {
+      allow read: if isVerifiedCommissioner();
+      allow create: if isVerifiedCommissioner() &&
+        (request.resource.data.get('commishEmail', '') == myEmail() || request.resource.data.get('migrated', false) == true);
+      allow update, delete: if false;
+    }
+
     // ---------- Email send log ----------
     // Written only by the Apps Script email service (owner login); commissioners read it.
     match /pickem_v14_email_log/{docId} {

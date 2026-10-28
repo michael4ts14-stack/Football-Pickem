@@ -358,7 +358,10 @@ function applyRemoteCloudData(data, sourceLabel) {
   }
   if (data.lastScrapedFile) state.lastScrapedFile = data.lastScrapedFile;
   if (data.commissionerConfig && typeof data.commissionerConfig === "object") {
-    state.commissionerConfig = Object.assign(ensureCommissionerConfig(), data.commissionerConfig);
+    // Replaced, not merged into this device's copy: a setting removed in the cloud (e.g. the
+    // old public log, an unblocked account) must not linger here and be saved back.
+    state.commissionerConfig = Object.assign({}, data.commissionerConfig);
+    ensureCommissionerConfig();
     renderCommishAnnouncementBanner();
   }
   if (data.tiebreakerGameId) state.tiebreakerGameId = parseInt(data.tiebreakerGameId, 10) || null;

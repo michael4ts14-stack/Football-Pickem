@@ -714,8 +714,8 @@ async function archiveProfile(profKey, reason) {
       name: cu.name, email: (binding && binding.email) || cu.email || "", uid: (binding && binding.uid) || "",
       archivedAt: now, archivedBy: who, reason: reason || ""
     };
-    pushAuditEntry(cfg, cu.name, "Removed (archived) player " + cu.name, reason || "");
   });
+  logCommishAction("Removed (archived) player " + cu.name, cu.name, reason || "");
 
   var remaining = (state.customUsers || []).filter(function(c) { return c.key !== profKey; });
   var shared = { customUsers: remaining, updatedAt: now };
@@ -744,8 +744,8 @@ async function restoreArchivedProfile(profKey) {
   var record = Object.assign({}, entry.record || { key: profKey, name: entry.name || profKey, linkedMemberName: entry.name || profKey }, { ownerUid: "" });
   await commitCommissionerConfig(function(cfg) {
     delete cfg.archivedProfiles[profKey];
-    pushAuditEntry(cfg, record.name, "Restored player " + record.name, "");
   });
+  logCommishAction("Restored player " + record.name, record.name, "");
   var list = (state.customUsers || []).filter(function(c) { return c.key !== profKey; }).concat([record]);
   var shared = { customUsers: list, updatedAt: now };
   if (entry.privacy) { shared.profilePrivacy = {}; shared.profilePrivacy[profKey] = entry.privacy; }

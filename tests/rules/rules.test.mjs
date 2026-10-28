@@ -195,6 +195,22 @@ test("invite links: a revoked or expired link gives no pass; a live one with an 
   await assertSucceeds(setDoc(P(db(J), J.uid), { code: "NEVEREXP" }));                     // no expiry
 });
 
+test("commissioner log: commissioners only; entries under your own email; never edited", async () => {
+  await seed();
+  const C = (d) => collection(d, "pickem_v14_commish_log");
+  const E = (d, id) => doc(d, "pickem_v14_commish_log/" + id);
+  const entry = (email) => ({ timestamp: "t", commishEmail: email, targetPlayer: "", action: "x", reason: "" });
+  await assertSucceeds(setDoc(E(db(M), "a"), entry(M.email)));
+  await assertFails(setDoc(E(db(M), "b"), entry("someone@else.com")));                        // not your email
+  await assertSucceeds(setDoc(E(db(M), "c"), Object.assign(entry("old@commish.com"), { migrated: true }))); // moved old entries
+  await assertFails(setDoc(E(db(M), "a"), entry(M.email)));                                   // no edits
+  await assertFails(deleteDoc(E(db(M), "a")));
+  await assertSucceeds(getDocs(C(db(M))));
+  await assertFails(getDocs(C(db(J))));                                                       // players can't read it
+  await assertFails(getDocs(C(guest())));
+  await assertFails(setDoc(E(db(J), "d"), entry(J.email)));
+});
+
 test("account records: private to their owner and commissioners; no password hashes", async () => {
   await seed();
   const A = (d, id) => doc(d, "pickem_v14_accounts/" + id);
