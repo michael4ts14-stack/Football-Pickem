@@ -1150,3 +1150,75 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 .review-warn { color: var(--warn); font-size: 14px; margin-bottom: 12px; }
 .review-actions { display: flex; flex-direction: column; gap: 8px; }
 .review-actions .btn-sm { min-height: 44px; }
+
+/* ---------- Phone fixes: Live toolbar, bottom clearance, Email service panel ---------- */
+/* Live: summary line spreads out and wraps instead of crowding. */
+.live-adv { justify-content: space-between; align-items: baseline; gap: 4px 12px; }
+@media (max-width: 640px) {
+  /* Row 1: full-width scrolling filter pills that never shrink. Row 2: pin + compare. */
+  .live-filter-bar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; }
+  .live-filter-bar .chip-row {
+    grid-column: 1 / -1; display: flex; gap: 8px; overflow-x: auto; flex-shrink: 0;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .live-filter-bar .chip-row .btn-sm { flex: 0 0 auto; white-space: nowrap; }
+  .live-filter-bar .live-pin-field { min-width: 0; }
+  .live-filter-bar .compare-field { min-width: 0; width: 100%; }
+  .live-filter-bar .compare-field .compare-select {
+    width: 100%; max-width: none; min-width: 0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+  }
+  /* Simple mode hides the compare box; the pin row then takes the full width. */
+  body.simple-ui-mode .live-filter-bar .live-pin-field { grid-column: 1 / -1; }
+}
+@media (max-width: 479px) {
+  .live-filter-bar { grid-template-columns: 1fr; }
+}
+
+/* Every main view clears the bottom tab bar and the phone's home indicator itself. */
+@media (max-width: 899px) {
+  body { padding-bottom: 0; }
+  #live-tracker-view-container, #condensed-view-container, #standings-view-container, #more-view-container {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom, 16px)) !important;
+  }
+  /* Picks also sits above the fixed Lock picks bar. */
+  #full-cards-wrapper { padding-bottom: calc(196px + env(safe-area-inset-bottom, 16px)) !important; }
+}
+
+/* Commissioner console: the header stays put so the content scrolls under it, not under
+   the sheet's rounded top edge. */
+#commish-modal-box { scroll-padding-top: 20px; }
+#commish-modal-box > .commish-modal-head { position: sticky; top: 0; z-index: 2; background: var(--surface); }
+@media (max-width: 640px) {
+  #commish-modal-box { padding-top: 20px; }
+  #commish-modal-box > .commish-modal-head { top: -20px; padding-top: 20px; margin-top: -20px; }
+}
+
+/* Email service: URL row and the send log as two-line rows on phones. */
+.email-svc-url .search-input { min-width: 0; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+.email-log td:nth-child(5) { overflow-wrap: anywhere; }
+.email-log td:empty { display: none; }
+@media (max-width: 600px) {
+  .email-svc-url .tool-btn { width: 100%; justify-content: center; }
+  .email-log thead { display: none; }
+  .email-log, .email-log tbody { display: block; }
+  .email-log tr {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 8px; align-items: center;
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+  }
+  .email-log td { padding: 0; border: 0; min-width: 0; }
+  .email-log td:nth-child(3) {               /* Who */
+    grid-column: 1 / 3; grid-row: 1; font-weight: 600; color: var(--text);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .email-log td:nth-child(4) { grid-column: 3; grid-row: 1; justify-self: end; } /* Result */
+  .email-log td:nth-child(2) {               /* What */
+    grid-column: 1; grid-row: 2; white-space: nowrap; font-size: 12px;
+    padding: 1px 6px; border: 1px solid var(--border); border-radius: 9px; color: var(--text-muted);
+  }
+  .email-log td:nth-child(1) {               /* When */
+    grid-column: 2 / 4; grid-row: 2; color: var(--text-muted); font-size: 12px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .email-log td:nth-child(5) { grid-column: 1 / -1; grid-row: 3; color: var(--text-muted); font-size: 12px; } /* Details */
+  .email-log .log-status { white-space: nowrap; display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: 12px; border: 1px solid currentColor; }
+}
