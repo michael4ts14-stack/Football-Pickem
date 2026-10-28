@@ -12,7 +12,9 @@ function loadDeviceAuthSession() {
   if (raw) {
     try {
       var parsed = JSON.parse(raw);
-      if (parsed && parsed.boundProfileKey) {
+      // "google_firestore" sessions came from an old fallback that trusted a typed email
+      // without Google confirming it; drop them so those devices sign in for real.
+      if (parsed && parsed.boundProfileKey && parsed.provider !== "google_firestore") {
         AUTH_SESSION = parsed;
       }
     } catch (e) {}
@@ -292,7 +294,9 @@ function initFirebaseAuthObserver() {
           showAppToast("✅ Signed in with Google as " + (AUTH_SESSION ? AUTH_SESSION.displayName : "User") + "!");
         });
       }
-    }).catch(function() {});
+    }).catch(function(err) {
+      showAppToast("Google sign-in didn't finish: " + googleSignInErrorText(err));
+    });
 
     // Automatically restore Firebase Auth session if signed in via Google or Email/Password
     fbAuth.onAuthStateChanged(function(user) {
@@ -309,6 +313,28 @@ function initFirebaseAuthObserver() {
   } catch (e) {}
 }
 
+// Phones, tablets and the installed app use the full-page redirect (popups are blocked or
+// lose their way back there); desktop browsers use the popup.
+function preferGoogleRedirect() {
+  var standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) || window.navigator.standalone === true;
+  var touch = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+  return standalone || touch || /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || "");
+}
+
+function googleSignInErrorText(err) {
+  var code = (err && err.code) ? String(err.code) : "";
+  var map = {
+    "auth/popup-closed-by-user": "the Google window was closed before finishing.",
+    "auth/cancelled-popup-request": "another sign-in window was already open.",
+    "auth/network-request-failed": "no connection. Check your internet and try again.",
+    "auth/unauthorized-domain": "this site isn't allowed for Google sign-in yet (Firebase › Authentication › Authorized domains).",
+    "auth/operation-not-allowed": "Google sign-in is turned off for this project (Firebase › Authentication › Sign-in method).",
+    "auth/web-storage-unsupported": "this browser blocks the storage sign-in needs (private browsing?).",
+    "auth/account-exists-with-different-credential": "that email already has an account with a password. Sign in with email and password."
+  };
+  return map[code] || ((err && err.message) ? String(err.message) : "unknown error") + (code && !map[code] ? " (" + code + ")" : "");
+}
+
 async function signInWithGoogleAccount(useRedirect) {
   var errEl = document.getElementById("auth-modal-error");
   var linkSel = document.getElementById("auth-link-member-select");
@@ -316,75 +342,43 @@ async function signInWithGoogleAccount(useRedirect) {
   var customName = nameInput ? String(nameInput.value || "").trim() : "";
   var chosenMember = linkSel ? String(linkSel.value || "").trim() : "";
   if (chosenMember === "__NEW_USER__") chosenMember = "";
-  if (chosenMember === "__NEW_USER__") chosenMember = "";
   var preferredName = chosenMember || customName;
   if (preferredName) safeSetStorage("sat_pending_oauth_member_v16", preferredName);
+  if (useRedirect === undefined || useRedirect === false) useRedirect = preferGoogleRedirect();
 
+  if (!fbAuth || typeof firebase.auth.GoogleAuthProvider !== "function") {
+    if (errEl) { errEl.style.color = "var(--loss)"; errEl.textContent = "Google sign-in isn't available right now. Reload the page and try again."; }
+    return;
+  }
   if (errEl) {
     errEl.style.color = "var(--text)";
-    errEl.textContent = useRedirect ? "↻ Redirecting to Google Sign-In..." : "↻ Opening Google Sign-In...";
+    errEl.textContent = useRedirect ? "Taking you to Google…" : "Opening Google sign-in…";
   }
-
-  if (fbAuth && typeof firebase.auth.GoogleAuthProvider === "function") {
-    try {
-      var provider = new firebase.auth.GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
-      if (useRedirect) {
-        await fbAuth.signInWithRedirect(provider);
-        return;
-      }
-      var res = await fbAuth.signInWithPopup(provider);
-      if (res && res.user) {
-        await bindAuthenticatedAccountToProfile({
-          uid: res.user.uid,
-          email: res.user.email,
-          displayName: customName || res.user.displayName,
-          provider: "google_oauth"
-        }, preferredName);
-        closeAuthModal();
-        showAppToast("✅ Signed in with Google as " + AUTH_SESSION.displayName + " (Instance Locked)!");
-        return;
-      }
-    } catch (err) {
-      var code = (err && err.code) ? String(err.code) : "";
-      if (code === "auth/popup-blocked") {
-        // Automatically fall back to redirect if browser blocked the popup
-        try {
-          var redirProv = new firebase.auth.GoogleAuthProvider();
-          await fbAuth.signInWithRedirect(redirProv);
-          return;
-        } catch (eRedir) {}
-      }
-      if (code === "auth/popup-closed-by-user") {
-        if (errEl) {
-          errEl.style.color = "var(--loss)";
-          errEl.textContent = "Google Sign-In popup was closed before completing.";
-        }
-        return;
-      }
-      var emailInput = document.getElementById("auth-email-input");
-      var googleEmail = emailInput ? String(emailInput.value || "").trim().toLowerCase() : "";
-      if (!googleEmail || googleEmail.indexOf("@") === -1) {
-        if (errEl) {
-          errEl.style.color = "var(--warn)";
-          errEl.innerHTML = "ℹ️ <strong>Firebase OAuth Setup Note (" + (code || "Provider Not Enabled Yet") + "):</strong><br>" +
-            "1. Open <a href='https://console.firebase.google.com/project/football-pickem-46206/authentication/providers' target='_blank' style='color:var(--text);text-decoration:underline;'>Firebase Console → Authentication → Sign-in method</a> and enable <strong>Google</strong> & <strong>Email/Password</strong>.<br>" +
-            "2. Under <strong>Authentication → Settings → Authorized domains</strong>, add your hosting domain (e.g., Netlify/GitHub Pages).<br>" +
-            "👉 <strong>Works Right Now:</strong> Type your email & password below and click <strong>Sign In / Create Account</strong> (or click Google Sign-In again with your email filled in) to authenticate immediately via the Cloud Firestore Vault!";
-        }
-        if (emailInput) emailInput.focus();
-        return;
-      }
-      await bindAuthenticatedAccountToProfile({
-        uid: "google_" + googleEmail.replace(/[^a-z0-9]/g, "_"),
-        email: googleEmail,
-        displayName: preferredName || googleEmail.split("@")[0],
-        provider: "google_firestore"
-      }, preferredName);
-      closeAuthModal();
-      showAppToast("✅ Signed in with Google (" + googleEmail + ") as " + AUTH_SESSION.displayName + "!");
+  var provider = new firebase.auth.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  try {
+    if (useRedirect) {
+      await fbAuth.signInWithRedirect(provider); // the page leaves; initFirebaseAuthObserver finishes
       return;
     }
+    var res = await fbAuth.signInWithPopup(provider);
+    if (res && res.user) {
+      await bindAuthenticatedAccountToProfile({
+        uid: res.user.uid,
+        email: res.user.email,
+        displayName: customName || res.user.displayName,
+        provider: "google_oauth"
+      }, preferredName);
+      closeAuthModal();
+      showAppToast("✅ Signed in with Google as " + AUTH_SESSION.displayName + "!");
+    }
+  } catch (err) {
+    var code = (err && err.code) ? String(err.code) : "";
+    if (code === "auth/popup-blocked" || code === "auth/operation-not-supported-in-this-environment") {
+      try { await fbAuth.signInWithRedirect(provider); return; } catch (eRedir) { err = eRedir; }
+    }
+    // Never sign anyone in without Google confirming who they are.
+    if (errEl) { errEl.style.color = "var(--loss)"; errEl.textContent = "Google sign-in didn't work: " + googleSignInErrorText(err); }
   }
 }
 
@@ -805,12 +799,11 @@ function openAuthModal() {
           '<div style="font-size:0.67rem;color:var(--text);margin-top:3px;">✨ Creates a brand-new isolated profile in Cloud Firestore, adds you to the live standings & H2H dropdowns for all users, and starts your picks sheet!</div>' +
         '</div>' +
       '</div>' +
-      '<div style="display:grid;grid-template-columns:1fr auto;gap:6px;">' +
-        '<button type="button" class="google-auth-btn" onclick="signInWithGoogleAccount(false)">' +
+      '<div style="display:grid;grid-template-columns:1fr;gap:6px;">' +
+        '<button type="button" class="google-auth-btn" onclick="signInWithGoogleAccount()">' +
           '<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>' +
           '<span>Continue with Google Sign-In</span>' +
         '</button>' +
-        '<button type="button" class="btn-sm" style="padding:8px 10px;font-size:0.72rem;border-color:var(--border);color:var(--text);" onclick="signInWithGoogleAccount(true)" title="Use Redirect instead of Popup (Best for Mobile Safari / iOS)">📱 Mobile Redirect</button>' +
       '</div>' +
       '<div class="auth-divider">or Email + Password</div>' +
       '<div style="display:flex;flex-direction:column;gap:8px;">' +
