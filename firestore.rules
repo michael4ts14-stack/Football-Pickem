@@ -33,6 +33,13 @@ service cloud.firestore {
       allow write: if request.auth != null || isVerifiedCommissioner();
     }
 
+    // Email send log: written only by the Apps Script email service (owner credentials,
+    // which bypass these rules); commissioners can read it in the Console.
+    match /pickem_v14_email_log/{docId} {
+      allow read: if isVerifiedCommissioner();
+      allow write: if false;
+    }
+
     match /pickem_v14_accounts/{docId} {
       allow read: if true;
       allow write: if request.auth != null || isVerifiedCommissioner();

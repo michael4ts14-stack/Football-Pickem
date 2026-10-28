@@ -952,36 +952,94 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
   .tb-card-actions { grid-column: auto; flex-wrap: nowrap; }
 }
 
-/* ---------- Desktop sidebar: 64px icon rail; hover or keyboard focus expands it as an
-   overlay (content doesn't move); the pin keeps it open as a normal column. ---------- */
-.app-brand-mark, .app-sidebar .rail-only { display: none; }
+/* ---------- Desktop sidebar: always laid out at full width (--sidebar-w) and clipped to the
+   64px rail. Opening animates only the clip (and the 1px edge's transform), so nothing reflows
+   and the icons never move; labels fade in late and fade out first. Hover/keyboard opens it as
+   an overlay (content doesn't move); the pin keeps it open as a column. ---------- */
+.app-brand-mark { display: none; }
 @media (min-width: 900px) {
   .app-shell { display: block; padding-left: var(--sidebar-rail-w); }
   body.sidebar-pinned .app-shell { padding-left: var(--sidebar-w); }
   .app-sidebar {
-    position: fixed; left: 0; top: 0; bottom: 0; height: 100vh; z-index: 1300;
-    width: var(--sidebar-w); overflow-x: hidden; transition: width 150ms ease-out;
+    --sb-open-ms: 180ms;
+    position: fixed; left: 0; top: 0; bottom: 0; height: 100vh; height: 100dvh; z-index: 1300;
+    width: var(--sidebar-w); padding: 20px 8px 16px;
+    overflow-x: hidden; overflow-y: auto; scrollbar-width: none;
+    border-right: 0; box-shadow: 12px 0 32px #0000008c;
+    clip-path: inset(0 calc(100% - var(--sidebar-rail-w)) 0 0);
+    will-change: clip-path;
   }
-  .app-sidebar.is-expanded { box-shadow: 12px 0 32px #0000008c; }
-  .app-sidebar .nav-item svg.lucide { width: 20px; height: 20px; color: var(--text-muted); flex-shrink: 0; }
-  .app-sidebar .nav-item.active svg.lucide { color: var(--accent-text); }
-  .sidebar-pin-btn[aria-pressed="true"] svg.lucide { color: var(--accent-text); }
-  .sidebar-foot { align-items: stretch; }
+  .app-sidebar::-webkit-scrollbar { display: none; }
+  /* The visible right edge: sits at the clip line and moves with it. */
+  .app-sidebar::after {
+    content: ""; position: fixed; top: 0; bottom: 0; left: 0; width: 1px; background: var(--border);
+    transform: translateX(calc(var(--sidebar-rail-w) - 1px));
+  }
+  .app-sidebar.is-expanded, body.sidebar-pinned .app-sidebar { clip-path: inset(0 -48px 0 0); }
+  .app-sidebar.is-expanded::after, body.sidebar-pinned .app-sidebar::after { transform: translateX(calc(var(--sidebar-w) - 1px)); }
+  body.sidebar-pinned .app-sidebar { box-shadow: none; }
 
-  .app-sidebar.is-rail { width: var(--sidebar-rail-w); padding: 20px 8px 16px; }
-  .app-sidebar.is-rail .app-brand { padding: 0 0 18px; align-items: center; }
-  .app-sidebar.is-rail .app-brand-mark { display: block; font-family: var(--font-head); font-weight: 700; font-size: 20px; color: var(--accent-text); }
-  .app-sidebar.is-rail .app-brand-name, .app-sidebar.is-rail .app-brand-sub,
-  .app-sidebar.is-rail .nav-group-label, .app-sidebar.is-rail .bot-status,
-  .app-sidebar.is-rail .nav-list-plain .nav-item:not(#nav-more-commish) { display: none; }
-  .app-sidebar.is-rail .rail-only { display: flex; }
-  .app-sidebar.is-rail .mode-tab-btn, .app-sidebar.is-rail .nav-item { justify-content: center; padding: 0; }
-  .app-sidebar.is-rail .mode-tab-btn > span, .app-sidebar.is-rail .nav-item > span {
-    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  /* Transitions only after the first paint (no animation on load). Closing: labels fade
+     first, then the clip follows; opening: the clip leads and labels fade in from ~60%. */
+  .app-sidebar.is-animated { transition: clip-path var(--sb-open-ms) cubic-bezier(0.2, 0.7, 0.3, 1) 40ms; }
+  .app-sidebar.is-animated::after { transition: transform var(--sb-open-ms) cubic-bezier(0.2, 0.7, 0.3, 1) 40ms; }
+  .app-sidebar.is-animated.is-expanded, body.sidebar-pinned .app-sidebar.is-animated { transition-delay: 0ms; }
+  .app-sidebar.is-animated.is-expanded::after, body.sidebar-pinned .app-sidebar.is-animated::after { transition-delay: 0ms; }
+
+  .app-sidebar .sidebar-fade,
+  .app-sidebar .mode-tab-btn > span,
+  .app-sidebar .nav-item > span { opacity: 0; white-space: nowrap; will-change: opacity; }
+  .app-sidebar.is-animated .sidebar-fade,
+  .app-sidebar.is-animated .mode-tab-btn > span,
+  .app-sidebar.is-animated .nav-item > span { transition: opacity 60ms linear; }
+  .app-sidebar.is-expanded .sidebar-fade,
+  .app-sidebar.is-expanded .mode-tab-btn > span,
+  .app-sidebar.is-expanded .nav-item > span,
+  body.sidebar-pinned .app-sidebar .sidebar-fade,
+  body.sidebar-pinned .app-sidebar .mode-tab-btn > span,
+  body.sidebar-pinned .app-sidebar .nav-item > span { opacity: 1; }
+  .app-sidebar.is-animated.is-expanded .sidebar-fade,
+  .app-sidebar.is-animated.is-expanded .mode-tab-btn > span,
+  .app-sidebar.is-animated.is-expanded .nav-item > span,
+  body.sidebar-pinned .app-sidebar.is-animated .sidebar-fade,
+  body.sidebar-pinned .app-sidebar.is-animated .mode-tab-btn > span,
+  body.sidebar-pinned .app-sidebar.is-animated .nav-item > span { transition: opacity 90ms linear 100ms; }
+
+  /* One layout for rail and open: the icon column is centred in the 64px rail. */
+  .app-brand { flex-direction: row; align-items: center; gap: 8px; padding: 0 0 18px; }
+  .app-brand-mark {
+    display: block; flex: 0 0 48px; text-align: center;
+    font-family: var(--font-head); font-weight: 700; font-size: 20px; color: var(--accent-text);
   }
-  .app-sidebar.is-rail .nav-list-plain { margin-top: 2px; }
+  .app-brand-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .app-brand-name { font-size: 18px; }
+  .app-sidebar .mode-tab-btn, .app-sidebar .nav-item {
+    padding: 0 12px 0 calc(var(--sidebar-rail-w) / 2 - 8px - 10px); gap: 14px;
+  }
+  .app-sidebar .mode-tab-btn svg.lucide, .app-sidebar .nav-item svg.lucide { width: 20px; height: 20px; color: var(--text-muted); flex-shrink: 0; }
+  .app-sidebar .mode-tab-btn.active svg.lucide, .app-sidebar .nav-item.active svg.lucide { color: var(--accent-text); }
+  .sidebar-pin-btn[aria-pressed="true"] svg.lucide { color: var(--accent-text); }
+  /* Highlight: a 48px box around the icon in the rail; the full row once open. */
+  .app-sidebar .mode-tab-btn, .app-sidebar .nav-item { position: relative; }
+  .app-sidebar .mode-tab-btn::before, .app-sidebar .nav-item::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 48px; border-radius: var(--radius-btn);
+  }
+  .app-sidebar .mode-tab-btn:hover::before, .app-sidebar .nav-item:hover::before,
+  .app-sidebar .mode-tab-btn.active::before, .app-sidebar .nav-item.active::before { background: var(--raised); }
+  .app-sidebar .mode-tab-btn > *, .app-sidebar .nav-item > * { position: relative; }
+  body:not(.sidebar-pinned) .app-sidebar:not(.is-expanded) .mode-tab-btn,
+  body:not(.sidebar-pinned) .app-sidebar:not(.is-expanded) .nav-item { background: transparent; }
+  .app-sidebar.is-animated .mode-tab-btn, .app-sidebar.is-animated .nav-item { transition: background-color 120ms linear; }
+  .nav-group-label { margin: 14px 0 4px calc(var(--sidebar-rail-w) / 2 - 8px - 10px); }
+  .sidebar-foot { align-items: stretch; padding: 16px 0 0; }
+  .sidebar-foot .bot-status { padding-left: calc(var(--sidebar-rail-w) / 2 - 8px - 10px); }
 }
-@media (prefers-reduced-motion: reduce) { .app-sidebar { transition: none; } }
+@media (min-width: 900px) and (prefers-reduced-motion: reduce) {
+  .app-sidebar.is-animated, .app-sidebar.is-animated::after,
+  .app-sidebar.is-animated .sidebar-fade,
+  .app-sidebar.is-animated .mode-tab-btn > span,
+  .app-sidebar.is-animated .nav-item > span { transition: none !important; }
+}
 
 /* ---------- Send to Separated at Turf ---------- */
 .official-form-slot { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -999,3 +1057,32 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 #official-form-summary .btn-submit { width: 100%; }
 #official-form-summary .btn-submit[disabled] { opacity: 0.6; cursor: not-allowed; }
 .form-commish-note { margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; }
+
+/* ---------- Email service (Commissioner console) ---------- */
+.email-svc { margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); }
+.email-svc-status { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
+.email-svc-url { display: flex; gap: 8px; flex-wrap: wrap; }
+.email-svc-url .search-input { flex: 1 1 320px; min-height: 40px; }
+.email-status { margin: 4px 0 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 14px; }
+.email-status-line { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
+.email-status-line svg.lucide { width: 16px; height: 16px; }
+.email-status-line.is-ok { color: var(--text); }
+.email-status-line.is-ok svg.lucide { color: var(--win); }
+.email-status-line.is-error { color: var(--text); }
+.email-status-line.is-error svg.lucide { color: var(--loss); }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+.email-svc-last { margin: 8px 0 0; font-size: 14px; }
+.email-svc-last.is-error { color: var(--text); border-left: 3px solid var(--loss); padding-left: 8px; }
+.email-svc-switch { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 0; border-top: 1px solid var(--border); margin-top: 10px; }
+.email-svc-quota { margin: 0 0 4px; font-size: 14px; color: var(--text-muted); }
+.email-svc-quota strong { color: var(--text); font-size: 16px; }
+.email-log-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; }
+.email-log-scroll { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.email-log { width: 100%; border-collapse: collapse; font-size: 13px; }
+.email-log th, .email-log td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.email-log th { position: sticky; top: 0; background: var(--raised); font-weight: 500; color: var(--text-muted); }
+.email-log td:nth-child(1), .email-log td:nth-child(4) { white-space: nowrap; }
+.log-status.is-ok { color: var(--win); font-weight: 600; }
+.log-status.is-error { color: var(--loss); font-weight: 600; }

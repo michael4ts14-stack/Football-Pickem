@@ -7,7 +7,7 @@
 //   and Firebase's reserved /__/ paths are never intercepted or cached.
 // - A new version waits until the page says "reload" (the Update bar), so nobody
 //   is reloaded in the middle of making picks.
-var CACHE = "sat-shell-2026-10-27e";
+var CACHE = "sat-shell-2026-10-28a";
 var SHELL = [
   "/index.html",
   "/offline.html",
