@@ -88,6 +88,21 @@ test("a token for another project or an expired one is rejected", () => {
   assert.strictEqual(h.sentMail.length, 0);
 });
 
+test("the token check says where it's from (the API key is referrer-restricted)", () => {
+  const h = service();
+  post(h, { action: "sendPickReceipt", idToken: token("uid-player") });
+  const lookup = h.calls.find((c) => c.url.indexOf("accounts:lookup") !== -1);
+  assert.strictEqual(lookup.params.headers.Referer, "https://football-pickem-46206.web.app/");
+});
+
+test("a blocked token check is its own error, not 'bad sign-in'", () => {
+  const h = service({ extraFetch: (url) => (url.indexOf("identitytoolkit") !== -1 ? makeResponse(403, { error: { code: 403, message: "Requests from referer <empty> are blocked." } }) : null) });
+  const r = post(h, { action: "sendPickReceipt", idToken: token("uid-player") });
+  assert.strictEqual(r.code, "VERIFY_UNAVAILABLE");
+  assert.match(r.error, /referer/);
+  assert.strictEqual(h.sentMail.length, 0);
+});
+
 test("a receipt goes only to the caller's verified email, with picks read on the server", () => {
   const h = service();
   const r = post(h, { action: "sendPickReceipt", idToken: token("uid-player"), email: "victim@example.com", picks: { 1: "Texas Tech" } });

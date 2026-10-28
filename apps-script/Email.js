@@ -76,10 +76,19 @@ function verifyFirebaseIdToken_(idToken) {
   var hit = cache.get(key);
   if (hit) return JSON.parse(hit);
 
+  // The web API key only accepts requests from the app's own site (an HTTP-referrer
+  // restriction in Google Cloud), so say where this request is for.
   var res = UrlFetchApp.fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + FIREBASE_WEB_API_KEY, {
-    method: "post", contentType: "application/json", payload: JSON.stringify({ idToken: idToken }), muteHttpExceptions: true
+    method: "post", contentType: "application/json", payload: JSON.stringify({ idToken: idToken }), muteHttpExceptions: true,
+    headers: { Referer: APP_URL + "/" }
   });
-  if (res.getResponseCode() !== 200) throw emailError_("INVALID_TOKEN", "Your sign-in couldn't be verified. Sign out and back in.");
+  var lookupCode = res.getResponseCode();
+  if (lookupCode === 403 || lookupCode === 429 || lookupCode >= 500) {
+    var why = "";
+    try { why = JSON.parse(res.getContentText()).error.message; } catch (eWhy) {}
+    throw emailError_("VERIFY_UNAVAILABLE", "The email service couldn't check sign-ins (HTTP " + lookupCode + (why ? ": " + why : "") + "). Nothing was sent.");
+  }
+  if (lookupCode !== 200) throw emailError_("INVALID_TOKEN", "Your sign-in couldn't be verified. Sign out and back in.");
   var users = (JSON.parse(res.getContentText()) || {}).users || [];
   var u = users[0];
   if (!u || (claims.user_id && u.localId !== claims.user_id)) throw emailError_("INVALID_TOKEN", "Your sign-in couldn't be verified. Sign out and back in.");
