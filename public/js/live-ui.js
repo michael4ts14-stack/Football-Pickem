@@ -100,6 +100,8 @@ renderLiveScoreboardTab = function() {
   // Advanced totals (same rules as before: points for picks currently leading or won).
   var mLivePts = 0, kLivePts = 0, mWinCnt = 0, kWinCnt = 0, inProgCnt = 0, finalCnt = 0, diffCnt = 0;
   var windows = {}, order = [];
+  var pinned = []; // alert cards pulled to the top when "Pin red zone & 4Q sweats" is on
+  var pinAlerts = getLivePinAlerts();
   for (var i = 0; i < GAMES.length; i++) {
     var g = GAMES[i];
     var ls = LIVE_SCORES[g.id] || { awayScore: 0, homeScore: 0, inProgress: false, completed: false };
@@ -119,9 +121,11 @@ renderLiveScoreboardTab = function() {
       if (leader && h2h && h2h.pick && isSameTeamPick(leader, h2h.pick, g)) { kLivePts += isSameTeamPick(h2h.pick, g.away, g) ? g.awayPts : g.homePts; kWinCnt++; }
     }
     var sit = getGameSituation(ls, g, myHidden ? null : myPicks);
-    var isSweat = isSweatGame(sit);
+    var alert = (ls.inProgress && !ls.completed) ? evaluateLiveGameAlertState(ls, myHidden ? null : myPick, g) : null;
     if (liveTabFilter === "active" && !ls.inProgress) continue;
-    if (liveTabFilter === "sweat" && !isSweat) continue;
+    if (liveTabFilter === "redzone" && !(alert && alert.isRedZone)) continue;
+    if (liveTabFilter === "sweat" && !(alert && alert.is4QSweat)) continue;
+    if (liveTabFilter === "upset" && !(alert && alert.isUpsetWatch)) continue;
     if (liveTabFilter === "diff" && !isDiff) continue;
 
     var k = parseKickParts(g.kick);
@@ -148,7 +152,8 @@ renderLiveScoreboardTab = function() {
     if (ls.inProgress || ls.completed) LIVE_DRAWN_SCORES[g.id] = { a: ls.awayScore, h: ls.homeScore };
 
     var cardHtml =
-      '<article class="live-card' + (ls.inProgress ? ' is-live' : '') + (ls.completed ? ' is-final' : '') + (sit.crunchTime ? ' is-crunch' : '') + '">' +
+      '<article class="live-card' + (ls.inProgress ? ' is-live' : '') + (ls.completed ? ' is-final' : '') + (sit.crunchTime ? ' is-crunch' : '') + liveAlertClass(alert) + '" data-game-id="' + g.id + '">' +
+        liveAlertBadgesHtml(alert) +
         '<button type="button" class="live-card-btn" onclick="' + action + '" aria-label="' + escapeShellHtml(actionLabel) + '">' +
           '<div class="live-card-top">' + status + '<span class="live-card-right">' + tags +
             (res ? '<span class="live-result ' + res.cls + '">' + res.word + '</span>' : '') + '</span></div>' +
@@ -159,12 +164,22 @@ renderLiveScoreboardTab = function() {
         h2hLine +
       '</article>';
 
+    if (pinAlerts && alert && (alert.isRedZone || alert.is4QSweat)) {
+      // Combo first, then red zone, then 4Q sweats.
+      pinned.push({ rank: alert.alertState === "redzone-4q-combo" ? 0 : (alert.isRedZone ? 1 : 2), html: cardHtml });
+      continue;
+    }
     var wKey = g.cstWindow || "Other games";
     if (!windows[wKey]) { windows[wKey] = []; order.push(wKey); }
     windows[wKey].push(cardHtml);
   }
 
   var html = "";
+  if (pinned.length) {
+    pinned.sort(function(x, y) { return x.rank - y.rank; });
+    html += '<h2 class="section-label live-window">Red zone &amp; 4Q sweats</h2>' +
+      '<div class="live-grid">' + pinned.map(function(p) { return p.html; }).join("") + '</div>';
+  }
   for (var w = 0; w < order.length; w++) {
     html += '<h2 class="section-label live-window">' + escapeShellHtml(order[w].replace(/\bCST\b/g, "CT")) + '</h2>' +
       '<div class="live-grid">' + windows[order[w]].join("") + '</div>';
@@ -191,8 +206,24 @@ renderLiveScoreboardTab = function() {
   var diffBtn = document.getElementById("lflt-diff");
   if (diffBtn) diffBtn.textContent = "H2H swings" + (cmp ? " vs " + (cmp.shortName || cmp.name) : "");
   var lflt = document.getElementById("lflt-all");
-  if (lflt) lflt.textContent = "All " + GAMES.length;
+  if (lflt) lflt.textContent = "All games";
+  var counts = liveAlertCounts();
+  setText("lflt-redzone", "Red zone (" + counts.redzone + ")");
+  setText("lflt-sweat", "4Q sweats (" + counts.sweat + ")");
+  setText("lflt-upset", "2x/3x upset watch (" + counts.upset + ")");
+  var pinChk = document.getElementById("chk-live-pin-alerts");
+  if (pinChk) pinChk.checked = pinAlerts;
 };
+
+// "Pin red zone & 4Q sweats to top": on unless turned off on this device.
+var LIVE_PIN_ALERTS_KEY = "pickem_live_pin_alerts";
+function getLivePinAlerts() {
+  return safeGetStorage(LIVE_PIN_ALERTS_KEY) !== "off";
+}
+function setLivePinAlerts(on) {
+  safeSetStorage(LIVE_PIN_ALERTS_KEY, on ? "on" : "off");
+  renderLiveScoreboardTab();
+}
 
 // ---------- "Synced Ns ago" ----------
 function updateLiveSyncAge() {
@@ -233,3 +264,11 @@ syncAllLiveTrackingData = function() {
   return markLiveSynced(_liveUiPrevSyncAll.apply(this, arguments));
 };
 setInterval(updateLiveSyncAge, 5000);
+
+// "Simulate live alerts" (demo-sim.js): score polls and cloud snapshots rewrite LIVE_SCORES, so
+// every redraw puts the sample games back. (Wrapped here: renderAll exists once archive.js loads.)
+var _liveUiPrevRenderAll = renderAll;
+renderAll = function() {
+  applyLiveAlertDemo();
+  return _liveUiPrevRenderAll.apply(this, arguments);
+};

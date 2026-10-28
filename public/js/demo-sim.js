@@ -399,3 +399,88 @@ function demoSimControlsHtml(g) {
     '</div>' +
   '</div>';
 }
+
+// ---------- "Simulate live alerts" (Live header) ----------
+// Puts three sample games on screen so the red zone / 4Q sweat outlines can be checked any day:
+//   1. red zone (1st & Goal at the 6, Q2 4:12)
+//   2. 4Q sweat (Q4 2:18, 24-21, your pick ahead by 3)
+//   3. red zone + 4Q crunch time (Q4 0:48, 27-24, the trailing 2x/3x underdog at the 11)
+// This device only: the real scores are kept aside and put back when it's turned off, nothing
+// demo is ever published (canWriteSharedPoolState) or reloaded from storage (initState).
+var LIVE_ALERT_DEMO = null;
+
+function liveAlertDemoGames() {
+  var g1 = GAMES[0], g2 = GAMES[1];
+  var g3 = null;
+  for (var i = 2; i < GAMES.length && !g3; i++) {
+    if (underdogForGame(GAMES[i]) && Math.max(GAMES[i].awayPts || 1, GAMES[i].homePts || 1) >= 2) g3 = GAMES[i];
+  }
+  return [g1, g2, g3 || GAMES[2]].filter(Boolean);
+}
+
+function buildLiveAlertDemoEntries() {
+  var picks = getMyPicksMap();
+  var games = liveAlertDemoGames();
+  var out = {};
+  var base = function(g, extra) {
+    return Object.assign({
+      _demo: true, matchupKey: gameMatchupKey(g), eventId: "demo-" + g.id, inProgress: true, completed: false,
+      awayAbbr: g.awayCode, homeAbbr: g.homeCode, possessionText: "", lastPlayText: ""
+    }, extra);
+  };
+  if (games[0]) {
+    var g = games[0];
+    out[g.id] = base(g, { awayScore: 7, homeScore: 10, period: 2, detail: "4:12 - 2nd", possessionSide: "away",
+      yardLine100: 94, yardLine: 6, isRedZone: true, downDistanceText: "1st & Goal at " + g.homeCode + " 6" });
+  }
+  if (games[1]) {
+    var g2 = games[1];
+    var mine = getResolvedPickForGame(picks, g2, false);
+    var awayMine = !mine || isSameTeamPick(mine, g2.away, g2);
+    out[g2.id] = base(g2, { awayScore: awayMine ? 24 : 21, homeScore: awayMine ? 21 : 24, period: 4, detail: "2:18 - 4th",
+      possessionSide: awayMine ? "home" : "away", yardLine100: 45, yardLine: 45, isRedZone: false, downDistanceText: "2nd & 6" });
+  }
+  if (games[2]) {
+    var g3 = games[2];
+    var dog = underdogForGame(g3) || g3.away;
+    var dogAway = isSameTeamPick(dog, g3.away, g3);
+    // The underdog trails 24-27 and has the ball at the favorite's 11.
+    out[g3.id] = base(g3, { awayScore: dogAway ? 24 : 27, homeScore: dogAway ? 27 : 24, period: 4, detail: "0:48 - 4th",
+      possessionSide: dogAway ? "away" : "home", yardLine100: dogAway ? 89 : 11, yardLine: 11, isRedZone: true,
+      downDistanceText: "2nd & 4 at " + (dogAway ? g3.homeCode : g3.awayCode) + " 11" });
+  }
+  return out;
+}
+
+function applyLiveAlertDemo() {
+  if (!LIVE_ALERT_DEMO) return;
+  var entries = LIVE_ALERT_DEMO.entries;
+  for (var id in entries) LIVE_SCORES[id] = entries[id];
+}
+
+function toggleLiveAlertDemo() {
+  if (LIVE_ALERT_DEMO) {
+    var saved = LIVE_ALERT_DEMO.saved;
+    for (var id in LIVE_ALERT_DEMO.entries) {
+      if (saved[id]) LIVE_SCORES[id] = saved[id];
+      else delete LIVE_SCORES[id];
+    }
+    LIVE_ALERT_DEMO = null;
+    regradeAllPoolMembersLive();
+    showAppToast("Live alert demo off. Real scores are back.");
+  } else {
+    var entries = buildLiveAlertDemoEntries();
+    var keep = {};
+    for (var k in entries) keep[k] = LIVE_SCORES[k] || null;
+    LIVE_ALERT_DEMO = { entries: entries, saved: keep };
+    applyLiveAlertDemo();
+    showAppToast("Showing sample red zone and 4Q sweat games on this device.");
+  }
+  var btn = document.getElementById("btn-simulate-alerts");
+  if (btn) {
+    btn.setAttribute("aria-pressed", LIVE_ALERT_DEMO ? "true" : "false");
+    btn.textContent = LIVE_ALERT_DEMO ? "Stop alert demo" : "Simulate live alerts";
+  }
+  renderAll();
+}
+

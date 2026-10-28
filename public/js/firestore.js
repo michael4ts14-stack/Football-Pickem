@@ -493,6 +493,7 @@ var LAST_CLOUD_WEEK = 0;
 // week flicker, a write->snapshot->re-render storm).
 function canWriteSharedPoolState() {
   if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return false;
+  if (typeof LIVE_ALERT_DEMO !== "undefined" && LIVE_ALERT_DEMO) return false; // sample scores on screen
   return typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner();
 }
 

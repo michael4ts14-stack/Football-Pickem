@@ -369,3 +369,101 @@
     font-weight: 800 !important;
   }
 
+
+/* ---------- Live game day alerts: glowing outlines (situation.js liveAlertClass) ----------
+   The extra 1px of the 2px outline is an inset ring, so cards never change size. html[data-glow]
+   picks the look: pulse (default), static, or off. */
+:is(.pick-card, .live-card, .gd-chip, .cond-m-card, #field-theater-modal).is-redzone {
+  border-color: var(--redzone-glow);
+  background-image: linear-gradient(var(--redzone-bg-tint), var(--redzone-bg-tint));
+  box-shadow: inset 0 0 0 1px var(--redzone-ring), 0 0 14px color-mix(in srgb, var(--redzone-glow) 60%, transparent),
+    0 0 28px color-mix(in srgb, var(--redzone-glow) 25%, transparent), inset 0 0 14px color-mix(in srgb, var(--redzone-glow) 12%, transparent);
+}
+:is(.pick-card, .live-card, .gd-chip, .cond-m-card, #field-theater-modal).is-4q-sweat {
+  border-color: var(--sweat-glow);
+  background-image: linear-gradient(var(--sweat-bg-tint), var(--sweat-bg-tint));
+  box-shadow: inset 0 0 0 1px var(--sweat-ring), 0 0 14px color-mix(in srgb, var(--sweat-glow) 60%, transparent),
+    0 0 26px color-mix(in srgb, var(--sweat-glow) 24%, transparent), inset 0 0 12px color-mix(in srgb, var(--sweat-glow) 12%, transparent);
+}
+:is(.pick-card, .live-card, .gd-chip, .cond-m-card, #field-theater-modal).is-redzone-4q-combo {
+  border-color: var(--redzone-glow);
+  background-image: linear-gradient(135deg, var(--redzone-bg-tint), var(--sweat-bg-tint));
+  box-shadow: inset 0 0 0 1px var(--sweat-ring), -8px 0 18px color-mix(in srgb, var(--redzone-glow) 55%, transparent),
+    8px 0 18px color-mix(in srgb, var(--sweat-glow) 55%, transparent);
+}
+:is(.pick-card, .live-card, .gd-chip, .cond-m-card, #field-theater-modal).is-upset-alert {
+  border-color: var(--upset-sweat-glow);
+  box-shadow: inset 0 0 0 1px var(--upset-sweat-glow), 0 0 12px color-mix(in srgb, var(--upset-sweat-glow) 45%, transparent);
+}
+.is-4q-sweat.is-upset-sweat { border-color: var(--upset-sweat-glow); }
+/* Live cards draw their own crunch-time edge; the outline replaces it. */
+#live-scoreboard-groups .live-card:is(.is-redzone, .is-4q-sweat, .is-redzone-4q-combo) .live-card-btn { box-shadow: none; }
+/* Grid rows on Both Picks: a bar on the left edge instead of a glow. */
+.condensed-table tr.is-redzone td:first-child { box-shadow: inset 4px 0 0 var(--redzone-glow); }
+.condensed-table tr.is-4q-sweat td:first-child { box-shadow: inset 4px 0 0 var(--sweat-glow); }
+.condensed-table tr.is-redzone-4q-combo td:first-child { box-shadow: inset 4px 0 0 var(--redzone-glow), inset 8px 0 0 var(--sweat-glow); }
+
+@keyframes redzonePulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px var(--redzone-ring), 0 0 10px color-mix(in srgb, var(--redzone-glow) 45%, transparent), 0 0 20px color-mix(in srgb, var(--redzone-glow) 15%, transparent); }
+  50% { box-shadow: inset 0 0 0 1px var(--redzone-ring), 0 0 18px color-mix(in srgb, var(--redzone-glow) 75%, transparent), 0 0 34px color-mix(in srgb, var(--redzone-glow) 32%, transparent); }
+}
+@keyframes sweatPulse {
+  0%, 100% { box-shadow: inset 0 0 0 1px var(--sweat-ring), 0 0 10px color-mix(in srgb, var(--sweat-glow) 45%, transparent), 0 0 18px color-mix(in srgb, var(--sweat-glow) 15%, transparent); }
+  50% { box-shadow: inset 0 0 0 1px var(--sweat-ring), 0 0 18px color-mix(in srgb, var(--sweat-glow) 75%, transparent), 0 0 32px color-mix(in srgb, var(--sweat-glow) 30%, transparent); }
+}
+@keyframes crunchTimeGlow {
+  0%, 100% { box-shadow: inset 0 0 0 1px var(--sweat-ring), 0 0 18px color-mix(in srgb, var(--redzone-glow) 70%, transparent), 0 0 30px color-mix(in srgb, var(--redzone-glow) 25%, transparent); }
+  50% { box-shadow: inset 0 0 0 1px var(--redzone-ring), 0 0 18px color-mix(in srgb, var(--sweat-glow) 70%, transparent), 0 0 30px color-mix(in srgb, var(--sweat-glow) 25%, transparent); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-glow="static"]):not([data-glow="off"]) :is(.pick-card, .live-card, .gd-chip, .cond-m-card, #field-theater-modal).is-redzone { animation: redzonePulse 2.2s ease-in-out infinite; }
+  html:not([data-glow="static"]):not([data-glow="off"]) :is(.pick-card, .live-card, .gd-chip, .cond-m-card, #field-theater-modal).is-4q-sweat { animation: sweatPulse 2.2s ease-in-out infinite; }
+  html:not([data-glow="static"]):not([data-glow="off"]) :is(.pick-card, .live-card, .gd-chip, .cond-m-card, #field-theater-modal).is-redzone-4q-combo { animation: crunchTimeGlow 1.6s ease-in-out infinite; }
+}
+/* Off: plain cards (the words in the alert pills stay). */
+html[data-glow="off"] :is(.pick-card, .live-card, .gd-chip, .cond-m-card, #field-theater-modal):is(.is-redzone, .is-4q-sweat, .is-redzone-4q-combo, .is-upset-alert) {
+  border-color: var(--border); background-image: none; box-shadow: none; animation: none;
+}
+html[data-glow="off"] .condensed-table tr:is(.is-redzone, .is-4q-sweat, .is-redzone-4q-combo) td:first-child { box-shadow: none; }
+
+/* Alert pills at the top of a card */
+.alert-pills { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 0 2px; }
+.live-card > .alert-pills { padding: 10px 12px 0; }
+#theater-modal-body > .alert-pills { padding: 0 0 10px; }
+.alert-pill {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; line-height: 1.2;
+  border: 1px solid currentColor; background: var(--surface);
+}
+.alert-pill svg.lucide { width: 14px; height: 14px; }
+.alert-pill.is-redzone { color: var(--redzone-glow); }
+html[data-theme="crimson"] .alert-pill.is-redzone { color: #ffffff; background: #b3121f; border-color: #ffffff; }
+.alert-pill.is-sweat { color: var(--sweat-glow); }
+.alert-pill.is-stake { color: var(--text); border-color: var(--border); text-transform: none; font-weight: 600; letter-spacing: 0; }
+.alert-pill.is-stake.is-holding { color: var(--win); border-color: currentColor; }
+.alert-pill.is-upset { color: var(--upset-sweat-glow); }
+.alert-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-glow="off"]) .alert-dot { animation: alertDotBlink 1.1s ease-in-out infinite; }
+}
+@keyframes alertDotBlink { 50% { opacity: 0.25; } }
+.gd-chip:is(.is-redzone, .is-4q-sweat, .is-redzone-4q-combo, .is-upset-alert) { border-width: 1px; }
+
+/* Live nav badge */
+.nav-alert-badge {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin-left: 4px;
+  border-radius: 9px; background: var(--redzone-glow); color: #ffffff; font-size: 11px; font-weight: 700; line-height: 1;
+}
+.m-nav-btn { position: relative; }
+.m-nav-btn .nav-alert-badge { position: absolute; top: 4px; left: 50%; margin-left: 6px; }
+
+/* Live filter bar: sticky so the pills stay reachable on long slates */
+.live-filter-bar { position: sticky; top: 0; z-index: 6; background: var(--bg); padding: 6px 0; flex-wrap: wrap; }
+.live-pin-field { font-size: 13px; }
+.live-demo-btn[aria-pressed="true"] { border-color: var(--redzone-glow); color: var(--redzone-glow); }
+
+/* Field: brighter red zone and a glowing ball while inside the 20 */
+.field-svg.is-redzone .fld-rz { fill: color-mix(in srgb, var(--redzone-glow) 26%, transparent); }
+.field-svg.is-redzone .fld-ball ellipse { filter: drop-shadow(0 0 5px var(--redzone-glow)) drop-shadow(0 0 2px #ffffff); }
+.field-mini.is-redzone .fm-rz { background: color-mix(in srgb, var(--redzone-glow) 35%, transparent); }
+.field-mini.is-redzone .fm-ball { filter: drop-shadow(0 0 3px var(--redzone-glow)) drop-shadow(0 0 1px #ffffff); }

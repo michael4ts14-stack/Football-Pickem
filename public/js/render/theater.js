@@ -71,7 +71,11 @@ function renderFieldTheaterModalContent(gameId) {
       (sub ? '<div class="theater-stat-sub">' + fieldEsc(sub) + '</div>' : '') + '</div>';
   };
 
+  var alert = liveAlertForGame(g);
+  var modal = document.getElementById("field-theater-modal");
+  if (modal) modal.className = liveAlertClass(alert).trim();
   bodyEl.innerHTML =
+    liveAlertBadgesHtml(alert) +
     '<div class="theater-toolbar">' + fieldModePillsHtml(g, ls, tel) + driveSelect + '</div>' +
     (tel.bannerType === "demo" && typeof demoSimControlsHtml === "function" ? demoSimControlsHtml(g) : '') +
     '<div class="theater-stats">' +

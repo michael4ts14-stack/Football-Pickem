@@ -196,10 +196,12 @@ function gameDayStripHtml() {
   for (var i = 0; i < GAMES.length; i++) {
     var g = GAMES[i], ls = LIVE_SCORES[g.id];
     if (!ls || !(ls.inProgress || ls.completed)) continue;
-    chips.push('<button type="button" class="gd-chip' + (ls.inProgress ? ' is-live' : '') + '" onclick="openGameDetail(' + g.id + ')">' +
+    var al = ls.inProgress ? liveAlertForGame(g) : null;
+    var alLabel = al && al.alertState !== "none" ? ({ "redzone-4q-combo": "Red zone · crunch time", "redzone": "Red zone", "4q-sweat": al.overtime ? "OT sweat" : "4Q sweat", "upset-alert": "Upset alert" }[al.alertState]) : "";
+    chips.push('<button type="button" class="gd-chip' + (ls.inProgress ? ' is-live' : '') + liveAlertClass(al) + '" onclick="openGameDetail(' + g.id + ')"' + (alLabel ? ' aria-label="' + escapeShellHtml(g.away + " at " + g.home + ", " + alLabel) + '"' : '') + '>' +
       '<span>' + escapeShellHtml(g.awayCode) + ' ' + (ls.awayScore || 0) + '</span>' +
       '<span>' + escapeShellHtml(g.homeCode) + ' ' + (ls.homeScore || 0) + '</span>' +
-      '<span class="gd-chip-status">' + escapeShellHtml(ls.completed ? "Final" : (ls.detail || "Live")) + '</span>' +
+      '<span class="gd-chip-status">' + escapeShellHtml(ls.completed ? "Final" : (alLabel ? alLabel + " · " : "") + (ls.detail || "Live")) + '</span>' +
     '</button>');
   }
   return chips.length ? chips.join("") : '<span class="gd-empty">No games have kicked off yet.</span>';
@@ -220,6 +222,44 @@ function renderGameDayStrips() {
     }
     strip.hidden = false;
     strip.innerHTML = gameDayStripHtml();
+  });
+}
+
+// ---------- Live game day glow (More > Appearance) ----------
+// html[data-glow]: "pulse" (default; static when the device asks for reduced motion), "static", "off".
+var GLOW_MODE_KEY = "pickem_glow_mode";
+var GLOW_MODES = [{ id: "pulse", name: "Animated pulse" }, { id: "static", name: "Static glow" }, { id: "off", name: "Off" }];
+
+function getGlowMode() {
+  var m = document.documentElement.dataset.glow;
+  return GLOW_MODES.some(function(x) { return x.id === m; }) ? m : "pulse";
+}
+
+function setGlowMode(mode) {
+  var m = GLOW_MODES.some(function(x) { return x.id === mode; }) ? mode : "pulse";
+  document.documentElement.dataset.glow = m;
+  safeSetStorage(GLOW_MODE_KEY, m);
+  if (!state.uiPrefs) state.uiPrefs = {};
+  state.uiPrefs.glowMode = m;
+  if (isAppearanceSheetOpen()) renderAppearanceSheet();
+}
+
+// Count of red zone / 4Q sweat games on the Live nav buttons, so it shows from any screen.
+function updateLiveNavBadge() {
+  var n = (typeof liveAlertCounts === "function") ? liveAlertCounts().any : 0;
+  ["tab-mode-live", "mnav-live"].forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    var badge = btn.querySelector(".nav-alert-badge");
+    if (!n) { if (badge) badge.remove(); btn.removeAttribute("data-alerts"); return; }
+    if (!badge) {
+      badge = document.createElement("span");
+      badge.className = "nav-alert-badge";
+      btn.appendChild(badge);
+    }
+    badge.textContent = n;
+    badge.setAttribute("aria-label", n + (n === 1 ? " game" : " games") + " in the red zone or a 4th-quarter sweat");
+    btn.setAttribute("data-alerts", n);
   });
 }
 
@@ -269,6 +309,13 @@ function renderAppearanceSheet() {
     colorRow("bg", "App background", "--bg") +
     colorRow("surface", "Cards", "--surface") +
     '<button type="button" class="btn-sm" onclick="resetCustomThemeColors()"' + ((custom.accent || custom.bg || custom.surface) ? '' : ' disabled') + '>Reset to theme default</button>' +
+    '<h3 class="sheet-subhead">Live game day glow</h3>' +
+    '<p class="sheet-meta">Outlines on games in the red zone or a one-score 4th quarter.</p>' +
+    '<div class="segmented" role="group" aria-label="Live game day glow">' +
+      GLOW_MODES.map(function(m) {
+        return '<button type="button" aria-pressed="' + (m.id === getGlowMode()) + '" onclick="setGlowMode(\'' + m.id + '\')">' + m.name + '</button>';
+      }).join("") +
+    '</div>' +
     '<h3 class="sheet-subhead">Screen setup</h3>' +
     '<div class="list-card">' +
       SCREEN_PRESETS.map(function(p) {
@@ -627,6 +674,7 @@ renderAll = function() {
   var result = _shellOrigRenderAll.apply(this, arguments);
   try { renderRightRail(); } catch (e) {}
   try { renderGameDayStrips(); } catch (eGd) {}
+  try { updateLiveNavBadge(); } catch (eNav) {}
   if (currentMainView === "more") renderMoreView();
   return result;
 };
