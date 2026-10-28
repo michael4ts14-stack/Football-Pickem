@@ -54,7 +54,7 @@ function getGamePoolOwnership(g) {
   var bestLevEdge = bestSideIsAway ? awayLev : homeLev;
   var bestLevOwn = bestSideIsAway ? awayPct : homePct;
   var bestLevWin = bestSideIsAway ? awayWinPct : homeWinPct;
-  var bestLevPts = bestSideIsAway ? g.awayPts : g.homePts;
+  var bestLevPts = getGamePickPts(g, bestSideIsAway);
 
   var isHighLeverage = (bestLevEdge >= 12 && bestLevWin >= 26) || (bestLevPts >= 2 && bestLevOwn <= 28 && bestLevWin >= 31);
 

@@ -146,8 +146,10 @@ async function pollLiveSaturdayScores(manual) {
       var isRz = sit.isRedZone === true;
       var lastPlay = (sit.lastPlay && sit.lastPlay.text) ? sit.lastPlay.text : "";
 
-      var isInProg = stType.state === "in";
-      var isComp = stType.completed === true;
+      // Cancelled / postponed / suspended games are voided: never graded as a loss.
+      var isVoid = /CANCEL|POSTPON|SUSPEND|FORFEIT/i.test(String(stType.name || ""));
+      var isInProg = stType.state === "in" && !isVoid;
+      var isComp = stType.completed === true && !isVoid;
       var prevObj = LIVE_SCORES[g.id] || {};
       var lsEntry = {
         matchupKey: gameMatchupKey(g),
@@ -159,6 +161,8 @@ async function pollLiveSaturdayScores(manual) {
         detail: stType.shortDetail || "Scheduled",
         inProgress: isInProg,
         completed: isComp,
+        voided: isVoid,
+        statusName: stType.name || "",
         eventId: item.ev.id,
         possessionSide: possSide,
         yardLine: typeof sit.yardLine === "number" ? sit.yardLine : 50,
@@ -544,8 +548,8 @@ function renderStandingsAndGradingView() {
       var ls = LIVE_SCORES[g.id];
       if (ls && ls.completed) {
         var winTeam = ls.awayScore > ls.homeScore ? g.away : (ls.homeScore > ls.awayScore ? g.home : null);
-        if (winTeam && isSameTeamPick(winTeam, mp, g)) swingCompletedWinsM += (isSameTeamPick(mp, g.away, g) ? g.awayPts : g.homePts);
-        if (winTeam && isSameTeamPick(winTeam, kp, g)) swingCompletedWinsK += (isSameTeamPick(kp, g.away, g) ? g.awayPts : g.homePts);
+        if (winTeam && isSameTeamPick(winTeam, mp, g)) swingCompletedWinsM += getGamePickPts(g, isSameTeamPick(mp, g.away, g));
+        if (winTeam && isSameTeamPick(winTeam, kp, g)) swingCompletedWinsK += getGamePickPts(g, isSameTeamPick(kp, g.away, g));
       } else {
         swingRemainingCount++;
       }
@@ -974,7 +978,7 @@ function copyPicksToClipboard() {
     }
     var isAw = isSameTeamPick(pick, g.away, g);
     var code = isAw ? g.awayCode : g.homeCode;
-    var pts = isAw ? g.awayPts : g.homePts;
+    var pts = getGamePickPts(g, isAw);
     lines.push(g.id + ". " + code + " (" + pick + ") [" + pts + " pt" + (pts > 1 ? "s" : "") + "]");
   }
   lines.push("Tie-Breaker: " + state[activeProfile].tiebreaker);

@@ -374,6 +374,7 @@ async function fetchAndStoreSingleTeamSchedule(teamName, teamId) {
       if (!sComp || !sComp.competitors || sComp.competitors.length < 2) continue;
       var sStType = (sComp.status && sComp.status.type) ? sComp.status.type : {};
       if (!sStType.completed && sStType.state !== "in") continue;
+      if (/CANCEL|POSTPON|SUSPEND|FORFEIT/i.test(String(sStType.name || ""))) continue;
       var sAway = null, sHome = null;
       for (var sc = 0; sc < sComp.competitors.length; sc++) {
         if (sComp.competitors[sc].homeAway === "away") sAway = sComp.competitors[sc];

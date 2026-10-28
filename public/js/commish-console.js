@@ -46,7 +46,10 @@ switchCommissionerTab = function(tab) {
     var on = b.classList.contains("active");
     b.setAttribute("role", "tab");
     b.setAttribute("aria-selected", on ? "true" : "false");
-    if (on && b.scrollIntoView) b.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (!on || !b.scrollIntoView) return;
+    // Phones: the swipeable tab strip centers the active tab.
+    if (typeof isCommishMobile === "function" && isCommishMobile()) b.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+    else b.scrollIntoView({ block: "nearest", inline: "nearest" });
   });
   return res;
 };

@@ -243,7 +243,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
     var gObj = GAMES[gmK];
     var pickedAway = actParticipant.choices[gmK] === 1;
     var pickedTeam = pickedAway ? gObj.away : gObj.home;
-    var pickedPts = pickedAway ? gObj.awayPts : gObj.homePts;
+    var pickedPts = getGamePickPts(gObj, pickedAway);
     var ownInfo = getGamePoolOwnership(gObj);
     var fieldOwnPct = pickedAway ? ownInfo.awayPct : ownInfo.homePct;
     swingGames.push({

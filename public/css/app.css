@@ -1404,3 +1404,142 @@ body.page-scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overf
 .invite-claim-row[disabled] { opacity: 0.55; cursor: not-allowed; }
 .invite-wide { width: 100%; min-height: 48px; }
 .invite-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+/* ---------- Phones (<= 768px): Commissioner console as a full-screen sheet ----------
+   One scroll container (the sheet itself): the header + tab strip stay pinned and the old
+   fixed-height inner lists (inline max-height + overflow) are flattened so a thumb swipe
+   never gets caught in a nested scroller. Desktop (>= 769px) is untouched. */
+@media (max-width: 768px) {
+  #commish-modal-backdrop { padding: 0 !important; align-items: stretch !important; }
+  #commish-modal-box {
+    width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; border: 0;
+    display: flex; flex-direction: column;
+    overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    padding: 0 12px calc(32px + env(safe-area-inset-bottom, 16px)) !important;
+  }
+  #commish-modal-box > .commish-modal-head {
+    flex-shrink: 0; position: sticky; top: 0 !important; z-index: 6;
+    margin: 0 -12px 10px !important; padding: calc(env(safe-area-inset-top, 0px) + 10px) 12px 0 !important;
+    border-bottom: 1px solid var(--border);
+  }
+  #commish-modal-box > #commish-modal-body, #commish-modal-box > .console-grading { flex: none; min-width: 0; }
+  #commish-modal-box .commish-modal-head .hub-tabs { scroll-snap-type: x proximity; scroll-padding: 0 12px; }
+  #commish-modal-box .commish-modal-head .hub-tab-btn { scroll-snap-align: center; }
+  #commish-modal-body [style*="overflow-y:auto"], #commish-modal-body .dues-list, #commish-modal-body .users-list {
+    max-height: none !important; overflow-y: visible !important;
+  }
+  /* Wide tables that remain scroll sideways inside their own box, never the page. */
+  #commish-modal-body [style*="overflow-y:auto"]:has(> table) { overflow-x: auto !important; }
+  #commish-modal-body .acct-email, #commish-modal-body .email-svc-url, #commish-modal-body code { overflow-wrap: anywhere; word-break: break-word; }
+
+  /* Pinned search + status filter bar */
+  .cm-m-toolbar {
+    position: sticky; top: var(--cm-head-h, 96px); z-index: 5; background: var(--surface);
+    margin: 0 -12px 8px; padding: 8px 12px; border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .cm-m-search { width: 100%; min-height: 44px; font-size: 16px !important; padding: 8px 12px; }
+  .cm-m-pills, .cm-m-pillrow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x proximity; }
+  .cm-m-pills::-webkit-scrollbar, .cm-m-pillrow::-webkit-scrollbar { display: none; }
+  .cm-m-pill {
+    flex: none; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border);
+    background: var(--raised); color: var(--text); font: 600 14px var(--font-body); white-space: nowrap; scroll-snap-align: start; cursor: pointer;
+  }
+  .cm-m-pill.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .cm-m-pillrow { margin: 8px 0 10px; }
+  .cm-m-summary { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--text-muted); margin-bottom: 8px; }
+  .cm-m-bulk { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px; margin-bottom: 10px; }
+  .cm-m-bulk .btn-sm { min-height: 44px; }
+  .cm-m-empty { padding: 16px; text-align: center; color: var(--text-muted); }
+  .cm-m-muted { color: var(--text-muted); }
+
+  /* Player cards */
+  .cm-m-list, .cm-m-chips, .cm-m-rows, .cm-m-games { list-style: none; margin: 0; padding: 0; }
+  .cm-m-list { display: flex; flex-direction: column; gap: 8px; }
+  .cm-m-card { background: var(--raised); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; scroll-margin-top: calc(var(--cm-head-h, 96px) + 130px); }
+  .cm-m-card.is-open { border-color: var(--accent); }
+  .cm-m-card-head {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    min-height: 64px; padding: 10px 12px; background: none; border: 0; color: var(--text); text-align: left; font: inherit; cursor: pointer;
+  }
+  .cm-m-who { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+  .cm-m-name { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cm-m-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+  .cm-m-tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); }
+  .cm-m-time { font-size: 12px; color: var(--text-muted); }
+  .cm-m-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+  .cm-m-count { font: 700 14px var(--font-body); padding: 2px 10px; border-radius: 999px; border: 1px solid currentColor; }
+  .cm-m-count.is-full { color: var(--win); }
+  .cm-m-count.is-partial, .cm-m-count.is-missing { color: var(--warn); }
+  .cm-m-tb { font-size: 12px; color: var(--text-muted); }
+  .cm-m-toggle { font-size: 13px; font-weight: 700; color: var(--accent-text); }
+  .cm-m-panel { padding: 0 12px 12px; border-top: 1px solid var(--border); }
+  .cm-m-jump { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 10px 0; }
+  .cm-m-jump .btn-sm { min-height: 44px; }
+  .cm-m-jump-pos { font-size: 13px; color: var(--text-muted); text-align: center; }
+  .cm-m-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13px; color: var(--text-muted); margin-bottom: 10px; }
+  .cm-m-stats strong { color: var(--text); }
+  .cm-m-stats .btn-sm { margin-left: auto; min-height: 44px; }
+  .cm-m-chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .cm-m-chip {
+    display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 4px 8px; min-width: 0;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+  }
+  .cm-m-chip.is-win { border-color: var(--win); }
+  .cm-m-chip.is-loss { border-color: var(--loss); }
+  .cm-m-chip.is-none { color: var(--text-muted); border-style: dashed; }
+  .cm-m-gnum { font-size: 12px; color: var(--text-muted); flex: none; min-width: 24px; }
+  .cm-m-pick { display: inline-flex; align-items: center; gap: 4px; min-width: 0; flex: 1 1 auto; font-weight: 700; overflow: hidden; white-space: nowrap; }
+  .cm-m-pick .team-logo { width: 22px; height: 22px; flex: none; font-size: 8px; }
+  .cm-m-grade { flex: none; font-size: 12px; }
+  .cm-m-actions { display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 10px; }
+  .cm-m-actions .btn-sm { min-height: 44px; font-size: 15px; }
+
+  /* Master grid: segmented switcher, by player, by game, matrix */
+  .cm-m-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; background: var(--raised); border-radius: 10px; padding: 4px; }
+  .cm-m-seg-btn { min-height: 44px; border: 0; border-radius: 8px; background: none; color: var(--text-muted); font: 600 13px var(--font-body); cursor: pointer; }
+  .cm-m-seg-btn.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35); }
+  .cm-m-card-head.is-static { cursor: default; }
+  .cm-m-ms-player .cm-m-stats, .cm-ms-player .cm-m-stats, .cm-ms-player .cm-m-rows { padding: 0 12px; }
+  .cm-m-rows { display: flex; flex-direction: column; padding-bottom: 12px !important; }
+  .cm-m-row { display: flex; align-items: center; gap: 8px; min-height: 48px; border-top: 1px solid var(--border); }
+  .cm-m-matchup { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; font-size: 14px; }
+  .cm-m-matchup small { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cm-m-row .cm-m-pick { flex: 0 1 auto; }
+  .cm-m-games { display: flex; flex-direction: column; gap: 8px; }
+  .cm-m-game { background: var(--raised); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .cm-m-game.is-open { border-color: var(--accent); }
+  .cm-m-game-head { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 8px; padding: 10px 12px; min-height: 60px; background: none; border: 0; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+  .cm-m-game-head .cm-m-matchup { display: block; }
+  .cm-m-game-head .cm-m-matchup small { display: block; }
+  .cm-m-split { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 3px; }
+  .cm-m-split-bar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+  .cm-m-split-bar > span { display: block; height: 100%; background: var(--accent); }
+  .cm-m-split-txt { font-size: 12px; color: var(--text-muted); }
+  .cm-m-who-picked { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 10px 12px 12px; border-top: 1px solid var(--border); }
+  .cm-m-who-picked h4 { margin: 0 0 4px; font-size: 13px; color: var(--text-muted); }
+  .cm-m-who-picked ul { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+  .cm-m-who-picked li { padding: 3px 0; overflow-wrap: anywhere; }
+  .cm-m-matrix-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; -webkit-overflow-scrolling: touch; }
+  .cm-m-matrix { border-collapse: separate; border-spacing: 0; font-size: 13px; }
+  .cm-m-matrix th, .cm-m-matrix td { padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; text-align: center; background: var(--surface); }
+  .cm-m-matrix thead th { position: sticky; top: 0; z-index: 3; background: var(--raised); }
+  .cm-m-matrix .cm-m-sticky {
+    position: sticky; left: 0; z-index: 4; background: var(--surface); box-shadow: 2px 0 6px rgba(0, 0, 0, 0.35);
+    text-align: left; max-width: 46vw;
+  }
+  .cm-m-matrix thead .cm-m-sticky { z-index: 5; background: var(--raised); }
+  .cm-m-mx-name { display: inline-block; max-width: 34vw; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
+  .cm-m-mx-pts { margin-left: 8px; color: var(--accent-text); font-weight: 800; }
+  .cm-m-matrix td.is-win { color: var(--win); font-weight: 700; }
+  .cm-m-matrix td.is-loss { color: var(--loss); }
+
+  /* Touch ergonomics across the app on phones */
+  .app-shell { overflow-x: clip; }
+  input, select, textarea { font-size: 16px !important; }
+  #settings-drawer-backdrop .btn-sm, #settings-drawer-backdrop select, #settings-drawer-backdrop input:not([type="checkbox"]):not([type="radio"]),
+  #full-cards-wrapper .btn-sm, #live-tracker-view-container .btn-sm, #standings-view-container .btn-sm, #condensed-view-container .btn-sm,
+  #live-tracker-view-container select, #standings-view-container select, #condensed-view-container select,
+  #full-cards-wrapper .search-input, #standings-view-container .search-input, #condensed-view-container .search-input { min-height: 44px; }
+  .acct-email, .email-svc-url input, [data-email], .users-email { overflow: hidden; text-overflow: ellipsis; overflow-wrap: anywhere; }
+}

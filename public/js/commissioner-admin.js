@@ -935,7 +935,7 @@ function renderReviewChecklistModalBody() {
     if (p) {
       selectedTotal++;
       var isAway = isSameTeamPick(p, g.away, g);
-      pts = isAway ? (g.mondayAwayPts || g.awayPts) : (g.mondayHomePts || g.homePts);
+      pts = getGamePickPts(g, isAway);
       if (pts === 3) count3x++;
       else if (pts === 2) count2x++;
       else count1x++;
@@ -1308,7 +1308,7 @@ renderCommissionerModalBody = function() {
         } else {
           var isAw = isSameTeamPick(pickTeam, gObj.away, gObj);
           var code = isAw ? gObj.awayCode : gObj.homeCode;
-          var pts = isAw ? (gObj.mondayAwayPts || gObj.awayPts) : (gObj.mondayHomePts || gObj.homePts);
+          var pts = getGamePickPts(gObj, isAw);
           var ls = LIVE_SCORES[gObj.id];
           var cellBg = "";
           var cellColor = pts === 3 ? "#fca5a5" : (pts === 2 ? "#fde68a" : "#e2e8f0");

@@ -43,7 +43,7 @@ function playerPicksHtml(desc) {
     }
     var pick = getResolvedPickForGame(desc.picks, g, !desc.isPoolMember);
     if (!pick) continue;
-    var pts = isSameTeamPick(pick, g.away, g) ? g.awayPts : g.homePts;
+    var pts = getGamePickPts(g, isSameTeamPick(pick, g.away, g));
     var sit = getGameSituation(LIVE_SCORES[g.id], g, desc.picks);
     var w = PICK_STATUS_WORDS[sit.myPickStatus];
     rows += '<li class="pp-row"><span class="pp-game">' + escapeShellHtml(g.awayCode + " at " + g.homeCode) + '</span>' +

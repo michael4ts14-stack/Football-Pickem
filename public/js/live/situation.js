@@ -137,7 +137,7 @@ function evaluateLiveGameAlertState(liveState, userPick, slateGame) {
   var is4QSweat = live && (sit.period >= 4 || sit.overtime) && margin <= LIVE_SITUATION_CONFIG.closeMargin;
 
   var mySide = userPick ? (isSameTeamPick(userPick, g.away, g) ? "away" : (isSameTeamPick(userPick, g.home, g) ? "home" : null)) : null;
-  var pickPts = mySide ? ((mySide === "away" ? g.awayPts : g.homePts) || 1) : 0;
+  var pickPts = mySide ? getGamePickPts(g, mySide === "away") : 0;
   var pickStatus = null;
   if (mySide && live) pickStatus = !sit.leader ? "TIED" : (sit.leader === mySide ? "HOLDING LEAD" : "CHASING");
 
@@ -145,7 +145,7 @@ function evaluateLiveGameAlertState(liveState, userPick, slateGame) {
   // leads or is within one score.
   var dog = underdogForGame(g);
   var dogSide = dog ? (isSameTeamPick(dog, g.away, g) ? "away" : "home") : null;
-  var dogPts = dogSide ? ((dogSide === "away" ? g.awayPts : g.homePts) || 1) : 0;
+  var dogPts = dogSide ? getGamePickPts(g, dogSide === "away") : 0;
   var isUpsetAlert = live && dogPts >= 2 && sit.period >= LIVE_SITUATION_CONFIG.upsetFromPeriod && sit.leader === dogSide;
   var isUpsetWatch = live && dogPts >= 2 && (sit.leader === dogSide || margin <= LIVE_SITUATION_CONFIG.closeMargin);
 

@@ -258,7 +258,7 @@ async function saveAndSendPickConfirmationReceipt() {
       summaryLines.push("#" + g.id + " [NO PICK SELECTED]");
       continue;
     }
-    var pts = isSameTeamPick(p, g.away, g) ? g.awayPts : g.homePts;
+    var pts = getGamePickPts(g, isSameTeamPick(p, g.away, g));
     summaryLines.push("#" + g.id + " " + p + " (" + pts + "x)");
   }
 

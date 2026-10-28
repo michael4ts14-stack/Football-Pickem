@@ -414,7 +414,9 @@ function countMatchingPicksForSlate(picksMap, gamesArr) {
       raw = picksMap[g.id - 1];
     }
     if (!raw) continue;
-    if (raw === g.away || raw === g.home || resolveSheetTeamFromCell(raw, g)) {
+    // Only a pick that resolves to a team in THIS game counts (resolveSheetTeamFromCell returns
+    // an object for a team found in some other game, e.g. last week's stale picks).
+    if (raw === g.away || raw === g.home || typeof resolveSheetTeamFromCell(raw, g) === "string") {
       matched++;
     }
   }

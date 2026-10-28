@@ -97,8 +97,8 @@ function renderCondensedTable() {
     var isDiff = (anyPairHidden || !kPick) ? false : !isSameTeamPick(mPick, kPick, g);
     if (diffOnly && !isDiff) continue;
 
-    var mPts = isSameTeamPick(mPick, g.away, g) ? g.awayPts : g.homePts;
-    var kPts = isSameTeamPick(kPick, g.away, g) ? g.awayPts : g.homePts;
+    var mPts = getGamePickPts(g, isSameTeamPick(mPick, g.away, g));
+    var kPts = getGamePickPts(g, isSameTeamPick(kPick, g.away, g));
     var swingPts = isDiff ? (mPts + kPts) : 0;
 
     // Pool split only once the game is locked (Friday 9 PM CT by default).
@@ -148,7 +148,7 @@ function renderCondensedTable() {
       var isEditableMine = isMyOwnInstanceProfile(uMeta.key);
       var uHidden = isProfileHiddenFromViewer(uMeta.key, g.id);
       var uPick = (state[uMeta.key] && state[uMeta.key].picks) ? getResolvedPickForGame(state[uMeta.key].picks, g, false) : null;
-      var uPts = uPick ? (isSameTeamPick(uPick, g.away, g) ? g.awayPts : g.homePts) : 0;
+      var uPts = uPick ? getGamePickPts(g, isSameTeamPick(uPick, g.away, g)) : 0;
       var uCode = uPick ? (isSameTeamPick(uPick, g.away, g) ? g.awayCode : g.homeCode) : "—";
 
       if (uHidden) {
@@ -183,7 +183,7 @@ function renderCondensedTable() {
     if (cmpTarget && cmpTarget.isPoolMember) {
       var pmPick = cmpTarget.hasPicks ? getResolvedPickForGame(cmpTarget.picks, g, false) : null;
       var pmCode = pmPick ? (isSameTeamPick(pmPick, g.away, g) ? g.awayCode : g.homeCode) : "No sheet yet";
-      var pmPts = pmPick ? (isSameTeamPick(pmPick, g.away, g) ? g.awayPts : g.homePts) : 1;
+      var pmPts = pmPick ? getGamePickPts(g, isSameTeamPick(pmPick, g.away, g)) : 1;
       profTdsHtml += '<td><span class="badge badge-1x" style="font-size:0.72rem;">' + pmCode + (pmPick ? ' · ' + pmPts + 'x' : '') + '</span></td>';
       profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:var(--border);">' +
         '<div class="cond-m-prof-label"><span>' + cmpTarget.shortName + '</span><span>' + (pmPick ? pmPts + 'x' : '') + '</span></div>' +
