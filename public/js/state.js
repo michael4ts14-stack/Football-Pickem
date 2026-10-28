@@ -547,7 +547,8 @@ function pushMultiUserAndPrivacyToFirebase() {
   if (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
     payload.fridayNightRevealOverride = !!state.fridayNightRevealOverride;
   }
-  if (fsDb) {
+  // Signed-out visitors and accounts not linked to a player save nothing (firestore.rules agree).
+  if (fsDb && AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
     try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }); } catch (e) {}
   }
   if (activeProfile && activeProfile !== "test") {

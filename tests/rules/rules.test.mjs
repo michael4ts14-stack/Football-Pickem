@@ -2,13 +2,16 @@
 import { test, before, after } from "node:test";
 import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, getDocs, collection, deleteField } from "firebase/firestore";
+import { doc, getDoc, setDoc, getDocs, collection, deleteField, deleteDoc } from "firebase/firestore";
 
 let env;
 const J = { uid: "uid-justin", email: "justin@example.com" };      // owns u_justinc
 const O = { uid: "uid-other", email: "other@example.com" };        // another player
 const L = { uid: "uid-legacy", email: "legacy@example.com" };      // owns u_legacy by account id
 const M = { uid: "uid-michael", email: "michael4ts14@gmail.com" }; // commissioner
+const S = { uid: "uid-steve", email: "steve@example.com" };        // pre-registered for Steve M
+const K = { uid: "uid-kin", email: "kin@example.com" };            // pre-registered for Kinyion C
+const B = { uid: "uid-blocked", email: "spam@example.com" };       // blocked by the commissioner
 const db = (who, verified = true) => env.authenticatedContext(who.uid, { email: who.email, email_verified: verified }).firestore();
 const guest = () => env.unauthenticatedContext().firestore();
 const SS = (d) => doc(d, "pickem_v14/shared_state");
@@ -26,8 +29,13 @@ async function seed() {
   await env.clearFirestore();
   await env.withSecurityRulesDisabled(async (c) => {
     const d = c.firestore();
-    await setDoc(SS(d), { currentWeek: 9, customGames: [{ id: 1 }], commissionerConfig: { x: 1 }, poolMembers: [], customUsers: [],
+    await setDoc(SS(d), { currentWeek: 9, customGames: [{ id: 1 }], poolMembers: [], customUsers: [],
+      commissionerConfig: { x: 1, playerEmailsMap: { "steve m": "steve@example.com", "kinyion c": "kin@example.com" },
+        blockedUsers: { [B.uid]: { email: B.email } }, securityConfig: { registrationMode: "midseason_protected" } },
       profilePrivacy: {}, u_justinc: { picks: {} }, michael: { picks: {} }, u_legacy: { picks: {} }, u_old: { picks: {} } });
+    await setDoc(doc(d, "pickem_v14_bindings/u_justinc"), { uid: J.uid, email: J.email, verifiedBy: "commish_approved" });
+    await setDoc(doc(d, "pickem_v14_bindings/michael"), { uid: M.uid, email: M.email, verifiedBy: "commish_approved" });
+    await setDoc(doc(d, "pickem_v14_security/invite"), { code: "TURF2026" });
     await setDoc(doc(d, "pickem_v14_users/u_justinc"), { ownerUid: J.uid, picks: {} });
     await setDoc(doc(d, "pickem_v14_users/michael"), { ownerUid: M.uid, picks: {} });
     await setDoc(doc(d, "pickem_v14_users/u_legacy"), { ownerUid: "email_legacy_example_com", picks: {} });
@@ -59,8 +67,10 @@ test("pool state: a player saves their own profile, not anyone else's", async ()
   await assertFails(setDoc(SS(db(J)), { u_justinc: other, michael: other, lastProfileWriter: "u_justinc" }, { merge: true }));
   await assertFails(setDoc(doc(guest(), "x/y"), { a: 1 }));
   await assertFails(setDoc(SS(db(O)), { u_justinc: other }, { merge: true }));     // no lastProfileWriter
-  await assertSucceeds(save(db(L), "u_legacy"));                                  // legacy owner (account id)
-  await assertFails(save(db(O), "u_old"));                                        // unowned: claim the pick doc first
+  await assertFails(save(db(L), "u_legacy"));                                     // legacy owner: bind first
+  await assertSucceeds(setDoc(doc(db(L), "pickem_v14_bindings/u_legacy"), bind(L, "Legacy", "legacy_owner")));
+  await assertSucceeds(save(db(L), "u_legacy"));
+  await assertFails(save(db(O), "u_old"));                                        // unowned: no binding
 });
 
 test("pool state: players can update the registry and privacy, nothing pool-wide", async () => {
@@ -78,7 +88,7 @@ test("pool state: commissioner writes anything; unverified or typo-domain accoun
   await assertFails(setDoc(SS(db({ uid: "t", email: "commissioner@separatedatturt.com" })), { customGames: [] }, { merge: true }));
 });
 
-test("pick docs: owner or commissioner only; owner can't be handed off; unowned can be claimed", async () => {
+test("pick docs: only the bound account or a commissioner writes", async () => {
   await seed();
   const U = (d, k) => doc(d, "pickem_v14_users/" + k);
   await assertSucceeds(getDoc(U(guest(), "u_justinc")));
@@ -86,12 +96,86 @@ test("pick docs: owner or commissioner only; owner can't be handed off; unowned 
   await assertFails(setDoc(U(db(O), "u_justinc"), { picks, ownerUid: O.uid }, { merge: true }));
   await assertFails(setDoc(U(db(J), "u_justinc"), { ownerUid: O.uid }, { merge: true }));
   await assertFails(setDoc(U(guest(), "u_justinc"), { picks }, { merge: true }));
-  await assertSucceeds(setDoc(U(db(O), "u_new"), { picks, ownerUid: O.uid }));
-  await assertFails(setDoc(U(db(O), "u_new2"), { picks, ownerUid: J.uid }));
-  await assertSucceeds(setDoc(U(db(O), "u_old"), { picks, ownerUid: O.uid }, { merge: true }));
-  await assertFails(setDoc(U(db(J), "u_old"), { picks, ownerUid: J.uid }, { merge: true })); // already claimed
-  await assertSucceeds(setDoc(U(db(L), "u_legacy"), { picks, ownerUid: L.uid }, { merge: true }));
+  await assertFails(setDoc(U(db(O), "u_new"), { picks, ownerUid: O.uid }));              // no binding
+  await assertFails(setDoc(U(db(O), "u_old"), { picks, ownerUid: O.uid }, { merge: true })); // unowned can't be claimed
   await assertSucceeds(setDoc(U(db(M), "u_justinc"), { picks }, { merge: true }));          // commissioner edit
+  await assertSucceeds(setDoc(U(db(M), "u_brandnew"), { picks }));
+});
+
+const bind = (who, memberName, verifiedBy) => ({ uid: who.uid, email: who.email, displayName: memberName, memberName,
+  memberLow: memberName.toLowerCase(), boundAt: "t", verifiedBy });
+const BD = (d, k) => doc(d, "pickem_v14_bindings/" + k);
+
+test("bindings: a pre-registered, Google-verified email links itself; nothing else does", async () => {
+  await seed();
+  await assertSucceeds(getDoc(BD(guest(), "u_justinc")));
+  await assertSucceeds(setDoc(BD(db(S), "u_stevem"), bind(S, "Steve M", "email_match")));
+  await assertSucceeds(setDoc(BD(db(K), "kinyion"), bind(K, "Kinyion C", "email_match")));
+  await seed();
+  await assertFails(setDoc(BD(db(S, false), "u_stevem"), bind(S, "Steve M", "email_match")));   // unverified email
+  await assertFails(setDoc(BD(db(O), "u_stevem"), bind(O, "Steve M", "email_match")));          // not their email
+  await assertFails(setDoc(BD(db(S), "u_justinc"), bind(S, "Steve M", "email_match")));         // key doesn't match name
+  await assertFails(setDoc(BD(db(S), "u_stevem"), Object.assign(bind(S, "Steve M", "email_match"), { uid: O.uid })));
+  await assertFails(setDoc(BD(db(S), "u_stevem"), bind(S, "Steve M", "commish_approved")));     // can't self-approve
+  await assertFails(setDoc(BD(db(O), "u_justinc"), bind(O, "Justin C", "legacy_owner")));       // already bound
+  await assertFails(setDoc(BD(db(O), "u_old"), bind(O, "Old", "legacy_owner")));                // pick doc has no owner
+  await assertFails(setDoc(BD(db(O), "u_newguy"), bind(O, "New Guy", "self_new")));             // midseason: no self-adds
+  await assertSucceeds(setDoc(BD(db(M), "u_old"), bind(O, "Old", "commish_approved")));          // commissioner approves
+  await assertFails(setDoc(BD(db(O), "u_old"), bind(O, "Old", "commish_approved"), { merge: true })); // only commish edits
+  await assertSucceeds(deleteDoc(BD(db(M), "u_old")));                                           // commissioner unlinks
+});
+
+test("blocked accounts write nothing", async () => {
+  await seed();
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), "pickem_v14_bindings/u_blk"), { uid: B.uid });
+  });
+  await assertFails(setDoc(doc(db(B), "pickem_v14_users/u_blk"), { picks, ownerUid: B.uid }));
+  await assertFails(save(db(B), "u_blk"));
+  await assertFails(setDoc(doc(db(B), "pickem_v14_link_requests/" + B.uid), { uid: B.uid, authEmail: B.email, status: "pending" }));
+});
+
+test("link requests: filed by the account itself, approved only by a commissioner", async () => {
+  await seed();
+  const R = (d, uid) => doc(d, "pickem_v14_link_requests/" + uid);
+  const req = (who, status = "pending") => ({ uid: who.uid, authEmail: who.email, authDisplayName: "x", requestedMember: "Old",
+    requestedMemberLow: "old", requestedPlayerKey: "u_old", requestedAt: "t", status });
+  await assertSucceeds(setDoc(R(db(O), O.uid), req(O)));
+  await assertSucceeds(getDoc(R(db(O), O.uid)));
+  await assertFails(getDoc(R(db(J), O.uid)));                         // someone else's
+  await assertFails(getDocs(collection(db(J), "pickem_v14_link_requests")));
+  await assertSucceeds(getDocs(collection(db(M), "pickem_v14_link_requests")));
+  await assertFails(setDoc(R(db(J), O.uid), req(O)));                 // filing for another account
+  await assertFails(setDoc(R(db(O), O.uid), req(O, "approved")));     // can't approve yourself
+  await assertSucceeds(setDoc(R(db(M), O.uid), req(O, "rejected")));  // commissioner rejects
+  await assertSucceeds(setDoc(R(db(O), O.uid), req(O)));              // asks again
+  await assertSucceeds(deleteDoc(R(db(O), O.uid)));                   // cancels
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), "pickem_v14/shared_state"), { commissionerConfig: { securityConfig: { registrationMode: "whitelist_strict" } } }, { merge: true });
+  });
+  await assertFails(setDoc(R(db(O), O.uid), req(O)));                 // whitelist: no requests
+});
+
+test("invite code season: right code gets a pass, then new players add themselves", async () => {
+  await seed();
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(doc(c.firestore(), "pickem_v14/shared_state"), { commissionerConfig: { securityConfig: { registrationMode: "invite_code_required" } } }, { merge: true });
+  });
+  const P = (d, uid) => doc(d, "pickem_v14_invite_passes/" + uid);
+  await assertFails(getDoc(doc(db(O), "pickem_v14_security/invite")));   // the code is secret
+  await assertSucceeds(getDoc(doc(db(M), "pickem_v14_security/invite")));
+  await assertFails(setDoc(doc(db(O), "pickem_v14_security/invite"), { code: "mine" }));
+  await assertFails(setDoc(BD(db(O), "u_newguy"), bind(O, "New Guy", "self_new")));        // no pass yet
+  const R = doc(db(O), "pickem_v14_link_requests/" + O.uid);
+  const req = { uid: O.uid, authEmail: O.email, status: "pending", requestedPlayerKey: "u_old" };
+  await assertFails(setDoc(R, req));                                                        // no pass yet
+  await assertFails(setDoc(P(db(O), O.uid), { code: "WRONG" }));
+  await assertFails(setDoc(P(db(O), J.uid), { code: "TURF2026" }));                          // someone else's pass
+  await assertSucceeds(setDoc(P(db(O), O.uid), { code: "TURF2026" }));
+  await assertSucceeds(setDoc(R, req));
+  await assertSucceeds(setDoc(BD(db(O), "u_newguy"), bind(O, "New Guy", "self_new")));
+  await assertFails(setDoc(BD(db(O), "u_old"), bind(O, "Old", "self_new")));                // existing player isn't "new"
+  await assertSucceeds(setDoc(doc(db(O), "pickem_v14_users/u_newguy"), { picks, ownerUid: O.uid }));
 });
 
 test("account records: private to their owner and commissioners; no password hashes", async () => {

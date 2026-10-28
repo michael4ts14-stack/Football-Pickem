@@ -405,6 +405,8 @@ function pushProfileToFirebase(profKey) {
   // Without a signed-in account nothing but the local sandbox is saved, so a visitor can
   // never overwrite a pool member's picks.
   if (!AUTH_SESSION) return;
+  // Only the player this account is bound to (account-security.js); anyone for a commissioner.
+  if (typeof canSaveProfileToCloud === "function" && !canSaveProfileToCloud(profKey)) return;
   var profObj = state[profKey];
   if (!profObj) return;
   var meta = getProfileMetaByKey(profKey);
@@ -456,6 +458,7 @@ function pushProfileToFirebase(profKey) {
 function isOwnEntry(profKey) {
   if (!AUTH_SESSION || !AUTH_SESSION.uid) return false;
   if (AUTH_SESSION.boundProfileKey === profKey) return true;
+  if (typeof bindingOwnerUid === "function" && bindingOwnerUid(profKey) === AUTH_SESSION.uid) return true;
   return (AUTH_SESSION.linkedEntries || []).some(function(e) { return e && e.profileKey === profKey; });
 }
 

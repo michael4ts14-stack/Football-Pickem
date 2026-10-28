@@ -61,12 +61,24 @@ Hosting/Actions use service accounts, so none of them are limited by these rules
 
 | Data | Read | Write |
 |---|---|---|
-| `pickem_v14/shared_state` (pool) | everyone | commissioner: anything. Signed-in player: the profile registry, privacy settings, and the one profile named in `lastProfileWriter`, only if they own its pick doc |
-| `pickem_v14_users/{profile}` (a player's picks) | everyone | its owner (`ownerUid`), or a commissioner; an unowned doc can be claimed once |
+| `pickem_v14/shared_state` (pool) | everyone | commissioner: anything. Signed-in, unblocked player: the profile registry, privacy settings, and the one profile named in `lastProfileWriter`, only if that profile is bound to them |
+| `pickem_v14_users/{profile}` (a player's picks) | everyone | the account bound to that profile, or a commissioner |
+| `pickem_v14_bindings/{profile}` (which account plays a player) | everyone | commissioner (approve, unlink). A player creates their own only when: the commissioner registered their Google-verified email for that roster player (`playerEmailsMap`), the pick doc already named them as `ownerUid`, or (invite-code season) they're a new player with an invite pass |
+| `pickem_v14_link_requests/{uid}` | that account, commissioner | that account files/cancels it (status `pending` only); commissioner decides |
+| `pickem_v14_security/invite` (league invite code) | commissioner | commissioner |
+| `pickem_v14_invite_passes/{uid}` | that account, commissioner | that account, only with the right invite code |
 | `pickem_v14_accounts/{email_…}` (email, linked player, rivals) | owner, commissioner | owner, commissioner; no password hashes |
 | `pickem_v14_commissioners/*` | everyone | commissioner |
 | `pickem_v14_email_log` | commissioner | nobody (Apps Script only) |
 | `live_games/*` | everyone | everyone, until the GitHub jobs get a service account (`GOOGLE_SERVICE_ACCOUNT_JSON`) |
+
+Account linking (`public/js/account-security.js`): League access is set in Commissioner ›
+Roster › League access & security (`commissionerConfig.securityConfig.registrationMode`:
+protected / invite code / registered emails only). Blocked accounts are
+`commissionerConfig.blockedUsers` and can't write anything. The app checks whether these rules
+are live (the bindings collection is readable) and links the old way until they are published.
+When they go live, each existing player's binding is created the next time their app loads (from
+`ownerUid` on their pick doc); tabs left open from before need a reload to save.
 
 A commissioner is a signed-in account with a Google-verified email that is built in
 (`michael4ts14@gmail.com`, `commissioner@separatedatturf.com`) or listed in

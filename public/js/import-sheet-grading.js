@@ -16,7 +16,9 @@ function standardizeParticipantName(rawName) {
   if (
     low === "kinyion" ||
     low === "kinyion c" ||
+    low === "kinyon" ||
     low === "kinyon c" ||
+    low === "kinyon cooper" ||
     low === "kinyion cooper" ||
     low === "kenyon" ||
     low === "kenyon cooper" ||

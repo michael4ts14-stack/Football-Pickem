@@ -1222,3 +1222,40 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
   .email-log td:nth-child(5) { grid-column: 1 / -1; grid-row: 3; color: var(--text-muted); font-size: 12px; } /* Details */
   .email-log .log-status { white-space: nowrap; display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: 12px; border: 1px solid currentColor; }
 }
+
+/* ---------- Account linking: player status card, commissioner approvals ---------- */
+.acct-link { display: flex; flex-direction: column; gap: 12px; }
+.acct-link-card { padding: 12px 14px; background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius); }
+.acct-link-title { font-family: var(--font-head); font-size: 19px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.acct-link-body { font-size: 14px; color: var(--text-muted); line-height: 1.45; overflow-wrap: anywhere; }
+.acct-link-body strong { color: var(--text); }
+.acct-link-label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 4px; }
+.acct-link-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.acct-link-row .search-input { flex: 1 1 200px; min-width: 0; min-height: 40px; }
+.acct-link-row .btn-sm, .acct-link-wide { min-height: 40px; }
+.acct-link-wide { width: 100%; }
+.acct-pending { margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--warn); border-radius: var(--radius); }
+.acct-pending .console-h { margin-top: 0; }
+.acct-req { display: flex; justify-content: space-between; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.acct-req:last-child { border-bottom: 0; }
+.acct-req-main { min-width: 0; flex: 1 1 220px; }
+.acct-req-name { font-weight: 600; color: var(--text); }
+.acct-req-sub { font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
+.acct-req-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.acct-req-actions .btn-sm { min-height: 36px; }
+.acct-approve { border-color: var(--win) !important; color: var(--win) !important; }
+.acct-danger { border-color: var(--loss) !important; color: var(--loss) !important; }
+.acct-tag { display: inline-block; padding: 0 7px; border: 1px solid var(--border); border-radius: 9px; font-size: 12px; font-weight: 500; color: var(--text-muted); vertical-align: middle; }
+.acct-tag.is-warn { border-color: var(--warn); color: var(--warn); }
+.acct-cell { display: flex; flex-direction: column; gap: 2px; font-size: 12px; min-width: 150px; }
+.acct-status { font-weight: 600; color: var(--text); white-space: nowrap; }
+.acct-email { color: var(--text-muted); overflow-wrap: anywhere; }
+.acct-cell .link-btn { align-self: flex-start; font-size: 12px; color: var(--accent-text); }
+.acct-access { margin-top: 16px; }
+.acct-mode { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; cursor: pointer; }
+.acct-mode input { margin-top: 4px; }
+.acct-invite { margin-top: 12px; }
+.acct-details { margin-top: 14px; }
+.acct-details summary { cursor: pointer; font-weight: 600; color: var(--text); padding: 6px 0; }
+.nav-alert-badge.is-link-req { background: var(--warn); color: #111111; }
+#btn-commish-console, #nav-more-commish { position: relative; }
