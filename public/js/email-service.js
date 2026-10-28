@@ -157,6 +157,7 @@ function poolEmailSummary(label, res) {
 }
 
 function reportPoolEmailResult(label, res) {
+  setTimeout(loadEmailLog, 1500);
   LAST_POOL_EMAIL_RESULT = { label: label, res: res, at: new Date().toISOString() };
   showAppToast(poolEmailSummary(label, res));
   if (typeof renderCommissionerModalBody === "function") renderCommissionerModalBody();
@@ -199,6 +200,40 @@ function emailServiceStatusHtml() {
     '</div>';
 }
 
+// ---------- Commissioner console: last 50 sends (pickem_v14_email_log) ----------
+var EMAIL_LOG_ROWS = null, EMAIL_LOG_ERROR = "";
+
+function loadEmailLog() {
+  if (typeof fsDb === "undefined" || !fsDb) return;
+  fsDb.collection("pickem_v14_email_log").orderBy("atMs", "desc").limit(50).get().then(function(snap) {
+    EMAIL_LOG_ROWS = snap.docs.map(function(d) { return d.data(); });
+    EMAIL_LOG_ERROR = "";
+    renderEmailServicePanel();
+  }, function(err) {
+    EMAIL_LOG_ERROR = (err && err.code === "permission-denied")
+      ? "The send log needs the updated Firestore rules (see README › Email service)."
+      : "Couldn't load the send log.";
+    renderEmailServicePanel();
+  });
+}
+
+function emailLogHtml() {
+  if (EMAIL_LOG_ERROR) return '<p class="muted-note">' + escapeShellHtml(EMAIL_LOG_ERROR) + '</p>';
+  if (!EMAIL_LOG_ROWS) return '<p class="muted-note">Loading recent sends…</p>';
+  if (!EMAIL_LOG_ROWS.length) return '<p class="muted-note">No sends logged yet.</p>';
+  var labels = { sendPickReceipt: "Receipt", sendWedThuNudge: "Nudge", sendSaturdayMasterSheet: "Master sheet", emailMasterCsvToAll: "Email CSV to all", setBroadcastsEnabled: "Pool emails switch" };
+  var rows = EMAIL_LOG_ROWS.map(function(r) {
+    var when = new Date(r.at);
+    var whenTxt = isNaN(when.getTime()) ? "" : when.toLocaleString("en-US", { weekday: "short", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
+    var detail = r.ok
+      ? (r.to ? r.to : ((r.sent || 0) + " sent" + (r.failed ? ", " + r.failed + " failed" : "") + (r.recipients ? " of " + r.recipients : ""))) + (r.test ? " · test" : "") + (r.code === "DUPLICATE" ? " · duplicate skipped" : "")
+      : (r.code ? r.code + ": " : "") + (r.message || "");
+    return '<tr><td>' + escapeShellHtml(whenTxt) + '</td><td>' + escapeShellHtml(labels[r.action] || r.action) + '</td><td>' + escapeShellHtml(r.caller || "—") + '</td>' +
+      '<td><span class="log-status ' + (r.ok ? 'is-ok' : 'is-error') + '">' + (r.ok ? 'OK' : 'Failed') + '</span></td><td>' + escapeShellHtml(detail) + '</td></tr>';
+  }).join("");
+  return '<div class="email-log-scroll"><table class="email-log"><thead><tr><th>When</th><th>What</th><th>Who</th><th>Result</th><th>Details</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
 // ---------- Commissioner console: Email service panel ----------
 function emailServicePanelHtml() {
   var url = emailServiceUrl();
@@ -212,6 +247,8 @@ function emailServicePanelHtml() {
     '<p class="muted-note" id="email-svc-msg"></p>' +
     (LAST_POOL_EMAIL_RESULT ? '<p class="email-svc-last' + (LAST_POOL_EMAIL_RESULT.res.ok ? '' : ' is-error') + '">Last pool email: ' + escapeShellHtml(poolEmailSummary(LAST_POOL_EMAIL_RESULT.label, LAST_POOL_EMAIL_RESULT.res)) +
       ((LAST_POOL_EMAIL_RESULT.res.failed || []).length ? '<br>Failed: ' + escapeShellHtml(LAST_POOL_EMAIL_RESULT.res.failed.map(function(f) { return f.to; }).join(", ")) : '') + '</p>' : '') +
+    '<div class="email-log-head"><h4 class="theater-h">Recent sends</h4><button type="button" class="link-btn" onclick="loadEmailLog()">Refresh</button></div>' +
+    emailLogHtml() +
   '</section>';
 }
 
@@ -233,6 +270,7 @@ renderCommissionerModalBody = function() {
   if (body && ACTIVE_COMMISH_TAB === "comms" && isVerifiedCommissioner()) {
     body.insertAdjacentHTML("afterbegin", emailServicePanelHtml());
     refreshEmailServiceStatus();
+    if (!EMAIL_LOG_ROWS && !EMAIL_LOG_ERROR) loadEmailLog();
   }
   return res;
 };

@@ -154,6 +154,42 @@ function currentWeekOrThrow_(shared, needGames) {
   return { week: curWeek, label: shared.weekLabel || ("Week " + curWeek), games: games || [] };
 }
 
+// ---------- Send log (pickem_v14_email_log) ----------
+// Written with the script owner's own Google login (ScriptApp.getOAuthToken, datastore
+// scope), which Firestore lets through regardless of security rules; the rules let only
+// commissioners read it and nobody write it from a browser. Never blocks a send.
+function writeEmailLog_(entry) {
+  try {
+    var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/pickem_v14_email_log", {
+      method: "post", contentType: "application/json", muteHttpExceptions: true,
+      headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+      payload: JSON.stringify(toFirestoreValue(entry).mapValue)
+    });
+    var code = res.getResponseCode();
+    return code >= 200 && code < 300 ? "" : "HTTP " + code;
+  } catch (e) {
+    return String(e.message || e);
+  }
+}
+
+function logEntryFor_(action, who, result) {
+  return {
+    at: new Date().toISOString(),
+    atMs: Date.now(),
+    action: action || "(none)",
+    caller: (who && who.email) || "",
+    ok: !!result.ok,
+    code: result.code || (result.suppressedDuplicate ? "DUPLICATE" : ""),
+    message: String(result.error || "").slice(0, 300),
+    to: result.sentTo || "",
+    recipients: result.recipients || (result.sentTo ? 1 : 0),
+    sent: result.sent !== undefined ? result.sent : (result.ok && result.sentTo && !result.suppressedDuplicate ? 1 : 0),
+    failed: (result.failed || []).length,
+    test: !!result.test,
+    quotaAfter: remainingQuota_()
+  };
+}
+
 // ---------- Router ----------
 function handleEmailPost_(e) {
   var data = {};
@@ -164,26 +200,35 @@ function handleEmailPost_(e) {
     return emailJson_({ ok: false, code: "BAD_REQUEST", error: "The request wasn't valid JSON." });
   }
   var action = String(data.action || "");
+  if (action === "ping") return emailJson_({ ok: true, message: "pong" });
+
+  var who = null, result;
   try {
-    if (action === "ping") return emailJson_({ ok: true, message: "pong" });
-
-    var who = verifyFirebaseIdToken_(data.idToken);
-    var shared = fetchFirebaseNode("") || {};
-
-    if (action === "sendPickReceipt") return emailJson_(sendPickReceipt_(who, shared, data));
-    if (action === "status") { requireCommissioner_(who); return emailJson_({ ok: true, broadcastsEnabled: broadcastsEnabled_() }); }
-    if (action === "setBroadcastsEnabled") {
-      requireCommissioner_(who);
-      PropertiesService.getScriptProperties().setProperty("BROADCASTS_ENABLED", data.enabled ? "true" : "false");
-      return emailJson_({ ok: true, broadcastsEnabled: broadcastsEnabled_() });
-    }
-    if (action === "sendWedThuNudge") { requireCommissioner_(who); requireBroadcastsAllowed_(data); return emailJson_(sendWedThuNudge_(who, shared, data)); }
-    if (action === "sendSaturdayMasterSheet" || action === "emailMasterCsvToAll") { requireCommissioner_(who); requireBroadcastsAllowed_(data); return emailJson_(sendMasterSheet_(who, shared, data)); }
-    throw emailError_("UNKNOWN_ACTION", "Unknown action: " + action);
+    who = verifyFirebaseIdToken_(data.idToken);
+    result = routeEmailAction_(action, who, data);
   } catch (err) {
     if (!err.emailCode && /too many times|quota/i.test(String(err))) err = emailError_("QUOTA_EXCEEDED", "Daily email limit reached. Try again tomorrow.");
-    return emailJson_(Object.assign({ ok: false, code: err.emailCode || "SERVER_ERROR", error: err.emailCode ? err.message : String(err) }, err.extra || {}));
+    result = Object.assign({ ok: false, code: err.emailCode || "SERVER_ERROR", error: err.emailCode ? err.message : String(err) }, err.extra || {});
   }
+  if (action !== "status") {
+    var logErr = writeEmailLog_(logEntryFor_(action, who, result));
+    if (logErr) result.logError = logErr;
+  }
+  return emailJson_(result);
+}
+
+function routeEmailAction_(action, who, data) {
+  var shared = fetchFirebaseNode("") || {};
+  if (action === "sendPickReceipt") return sendPickReceipt_(who, shared, data);
+  if (action === "status") { requireCommissioner_(who); return { ok: true, broadcastsEnabled: broadcastsEnabled_() }; }
+  if (action === "setBroadcastsEnabled") {
+    requireCommissioner_(who);
+    PropertiesService.getScriptProperties().setProperty("BROADCASTS_ENABLED", data.enabled ? "true" : "false");
+    return { ok: true, broadcastsEnabled: broadcastsEnabled_() };
+  }
+  if (action === "sendWedThuNudge") { requireCommissioner_(who); requireBroadcastsAllowed_(data); return sendWedThuNudge_(who, shared, data); }
+  if (action === "sendSaturdayMasterSheet" || action === "emailMasterCsvToAll") { requireCommissioner_(who); requireBroadcastsAllowed_(data); return sendMasterSheet_(who, shared, data); }
+  throw emailError_("UNKNOWN_ACTION", "Unknown action: " + action);
 }
 
 // ---------- Receipt ----------

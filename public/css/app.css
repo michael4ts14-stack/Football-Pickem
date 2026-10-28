@@ -1020,3 +1020,11 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 .email-svc-switch { padding: 10px 0; border-top: 1px solid var(--border); margin-top: 10px; }
 .email-svc-quota { margin: 0 0 4px; font-size: 14px; color: var(--text-muted); }
 .email-svc-quota strong { color: var(--text); font-size: 16px; }
+.email-log-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 14px; }
+.email-log-scroll { max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+.email-log { width: 100%; border-collapse: collapse; font-size: 13px; }
+.email-log th, .email-log td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.email-log th { position: sticky; top: 0; background: var(--raised); font-weight: 500; color: var(--text-muted); }
+.email-log td:nth-child(1), .email-log td:nth-child(4) { white-space: nowrap; }
+.log-status.is-ok { color: var(--win); font-weight: 600; }
+.log-status.is-error { color: var(--loss); font-weight: 600; }
