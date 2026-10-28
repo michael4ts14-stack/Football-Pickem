@@ -573,13 +573,24 @@ signOutAccountInstance = function() {
 };
 
 // Remember that this guest session made picks (used when carrying them into a new account).
+// Also kept on the device for this week, because phone sign-in leaves the page for Google
+// and comes back, which would forget a flag held only in memory.
+var GUEST_PICKS_TOUCHED_KEY = "sat_guest_picks_touched_week_v1";
+function markGuestPicksTouched() {
+  if (AUTH_SESSION || activeProfile !== "test") return;
+  window._guestPicksTouched = true;
+  safeSetStorage(GUEST_PICKS_TOUCHED_KEY, String(parseInt(state.currentWeek, 10) || 0));
+}
+function guestPicksTouchedThisWeek() {
+  return !!window._guestPicksTouched || safeGetStorage(GUEST_PICKS_TOUCHED_KEY) === String(parseInt(state.currentWeek, 10) || 0);
+}
 var _guestPrevPickSide = pickSide;
 pickSide = function() {
-  if (!AUTH_SESSION && activeProfile === "test") window._guestPicksTouched = true;
+  markGuestPicksTouched();
   return _guestPrevPickSide.apply(this, arguments);
 };
 var _guestPrevApplyPreset = applyPreset;
 applyPreset = function() {
-  if (!AUTH_SESSION && activeProfile === "test") window._guestPicksTouched = true;
+  markGuestPicksTouched();
   return _guestPrevApplyPreset.apply(this, arguments);
 };
