@@ -3,7 +3,10 @@
 // ============================================================================
 var firebaseConfig = {
   apiKey: "AIzaSyCMEUZaBOSyQt_Bhyi4mN33_fEwMcDi4_A",
-  authDomain: "football-pickem-46206.firebaseapp.com",
+  // Sign in through the app's own domain (Firebase Hosting serves /__/auth/handler there).
+  // With firebaseapp.com, Safari (iPhone) and Chrome (Android) block the cross-site storage
+  // the Google redirect needs, and sign-in silently does nothing.
+  authDomain: /^football-pickem-46206\.(web\.app|firebaseapp\.com)$/.test(location.hostname) ? location.hostname : "football-pickem-46206.firebaseapp.com",
   projectId: "football-pickem-46206",
   storageBucket: "football-pickem-46206.firebasestorage.app",
   messagingSenderId: "982061220945",
