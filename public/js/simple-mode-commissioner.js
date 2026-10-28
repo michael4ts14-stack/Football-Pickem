@@ -92,9 +92,24 @@ getAutoUnhideReason = function(profKey, gameId) {
 // automatically carry over into their newly created or signed-in account!
 var _origBindAuthenticatedAccountToProfile = bindAuthenticatedAccountToProfile;
 bindAuthenticatedAccountToProfile = async function(authUser, chosenMemberName) {
+  // Coming back from Google, the redirect result and the sign-in watcher both bind the same
+  // account; only the first one runs (a second could reload the account's empty picks).
+  var bindUid = authUser && authUser.uid;
+  if (bindUid && window._bindingAccountUid === bindUid) return;
+  window._bindingAccountUid = bindUid;
+  try {
+    return await _bindCarryingGuestPicks(authUser, chosenMemberName);
+  } finally {
+    window._bindingAccountUid = null;
+  }
+};
+
+async function _bindCarryingGuestPicks(authUser, chosenMemberName) {
   // Only picks made as a guest in this session (or an explicit "Create account") carry over, so older
   // sandbox experiments on a shared device never overwrite an account's real picks.
-  var hadGuestDraft = (window._guestPicksTouched || window._carryOverGuestPicksOnAuth) && state.test && state.test.picks && Object.keys(state.test.picks).length > 0;
+  var carryAsked = window._carryOverGuestPicksOnAuth || safeGetStorage("sat_carry_guest_picks_v1") === "1";
+  var touched = typeof guestPicksTouchedThisWeek === "function" ? guestPicksTouchedThisWeek() : !!window._guestPicksTouched;
+  var hadGuestDraft = (touched || carryAsked) && state.test && state.test.picks && Object.keys(state.test.picks).length > 0;
   var guestPicksCopy = hadGuestDraft ? JSON.parse(JSON.stringify(state.test.picks)) : null;
   var guestTbCopy = (hadGuestDraft && state.test.tiebreaker) ? state.test.tiebreaker : null;
 
@@ -103,6 +118,8 @@ bindAuthenticatedAccountToProfile = async function(authUser, chosenMemberName) {
   GUEST_BROWSING_MODE = false;
   window._carryOverGuestPicksOnAuth = false;
   window._guestPicksTouched = false;
+  safeSetStorage("sat_carry_guest_picks_v1", "");
+  safeSetStorage("sat_guest_picks_touched_week_v1", "");
 
   if (guestPicksCopy && AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
     var bKey = AUTH_SESSION.boundProfileKey;
@@ -116,9 +133,9 @@ bindAuthenticatedAccountToProfile = async function(authUser, chosenMemberName) {
     saveCurrentState(bKey, false);
     regradeAllPoolMembersLive();
     renderAll();
-    showAppToast("✅ Carried over all 23 of your Guest Picks into your account (" + AUTH_SESSION.displayName + ")!");
+    showAppToast("✅ Carried over your picks from this device into your account (" + AUTH_SESSION.displayName + ")!");
   }
-};
+}
 
 function startGuestPickingMode() {
   GUEST_BROWSING_MODE = true;
@@ -136,6 +153,7 @@ function startGuestPickingMode() {
 function openAuthModalCarryingGuestPicks(defaultMode) {
   if (GUEST_BROWSING_MODE || activeProfile === "test" || !AUTH_SESSION) {
     window._carryOverGuestPicksOnAuth = true;
+    safeSetStorage("sat_carry_guest_picks_v1", "1"); // survives the trip to Google on phones
   }
   AUTH_MODAL_MODE = defaultMode || "signup";
   openAuthModal();

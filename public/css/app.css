@@ -952,12 +952,17 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 /* ---------- Desktop layout: narrow lists, sticky tie-breaker bar ---------- */
 @media (min-width: 900px) {
   #standings-view-container, #more-view-container { max-width: var(--content-narrow); }
+  /* One row when there's room; when the picks column is narrow (both side panels pinned)
+     the buttons drop to a second row instead of squeezing the text into a sliver. */
   .tb-card {
     position: sticky; bottom: 0; z-index: 30;
-    grid-template-columns: minmax(0, 1fr) 140px auto; gap: 12px 20px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
     border-radius: 10px 10px 0 0; box-shadow: 0 -8px 20px #00000059;
   }
-  .tb-card-actions { grid-column: auto; flex-wrap: nowrap; }
+  .tb-card-text { flex: 1 1 240px; min-width: 0; }
+  .tb-card .tb-input { flex: 0 0 140px; width: 140px; }
+  .tb-card-actions { flex: 0 0 auto; margin-left: auto; flex-wrap: nowrap; }
+  .tb-card-actions .tool-btn { flex: 0 0 auto; }
 }
 
 /* ---------- Desktop sidebar: always laid out at full width (--sidebar-w) and clipped to the
