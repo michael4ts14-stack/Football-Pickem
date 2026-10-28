@@ -229,7 +229,7 @@ async function saveAndSendPickConfirmationReceipt() {
   var receiptPromise = startPickReceiptSend();
 
   // Open a clean Confirmation Receipt modal with 1-click Email / Copy / Guest-to-Account upgrade
-  document.getElementById("modal-team-title").textContent = "✅ Picks Saved & Confirmation Receipt (" + (state.weekLabel || "Week 8") + ")";
+  document.getElementById("modal-team-title").textContent = "✅ Picks Saved & Confirmation Receipt (" + (state.weekLabel || ("Week " + state.currentWeek)) + ")";
   document.getElementById("modal-team-body").innerHTML =
     '<div style="background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">' +
       '<div style="font-size:0.88rem;font-weight:900;color:var(--text);margin-bottom:4px;">Picks saved at ' + nowTime + '</div>' +
