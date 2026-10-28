@@ -110,7 +110,7 @@ function formatSentTime(iso) {
 // The main picks button: "Lock picks" saves, locks and emails your receipt; once locked it
 // becomes "Send picks", which opens the official form with your picks filled in.
 function primaryPicksActionIsSend() {
-  return isCurrentProfileManuallyLocked() || isGameLockedByCommissioner(1);
+  return isCurrentProfileManuallyLocked() || isWeekLockedForActiveProfile();
 }
 
 function onPrimaryPicksAction() {

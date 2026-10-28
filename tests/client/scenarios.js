@@ -186,6 +186,41 @@ function serve() {
   const pill = await page.evaluate(() => { const el = document.getElementById("bot-sync-pill"); return el ? { text: el.textContent, title: el.title } : null; });
   check("bot status pill shows the last clean bot run", pill && /^Bot (ok|errors) · (\d+[mhd] ago|never)$/.test(pill.text) && /Gmail bot/.test(pill.title), pill);
 
+  // 13. Commissioner hub (role check stubbed; writes are blocked at the network): overrides are
+  // logged, per-game locks apply, legacy tab names open Submissions, preview is read-only.
+  const r13 = await page.evaluate(() => {
+    const realVerify = isVerifiedCommissioner, realAssert = assertCommissionerRole, realPrompt = window.prompt;
+    isVerifiedCommissioner = () => true; assertCommissionerRole = () => true;
+    window.prompt = (m) => /Tiebreaker for/.test(m) ? "31-24" : "";
+    const out = {};
+    try {
+      const logBefore = ensureCommissionerConfig().overrideAuditLog.length;
+      overrideTiebreaker("Adam L");
+      forceUnlockPicks("Adam L");
+      out.tb = findPoolMemberByName("Adam L").tiebreaker;
+      out.unlocked = isMemberForceUnlocked("Adam L");
+      out.logged = ensureCommissionerConfig().overrideAuditLog.length - logBefore;
+      setGameLockOverride(GAMES[1].id, "locked");
+      out.gameLocked = isGameLockedByCommissioner(GAMES[1].id);
+      setGameLockOverride(GAMES[1].id, "auto");
+      openCommissionerModal("override");
+      out.tab = ACTIVE_COMMISH_TAB;
+      startPlayerPreview("Adam L");
+      const before = JSON.stringify(state[activeProfile].picks);
+      pickSide(GAMES[0].id, 1);
+      out.readOnly = before === JSON.stringify(state[activeProfile].picks);
+      out.banner = !document.getElementById("player-preview-banner").hidden;
+      exitPlayerPreview();
+      closeCommissionerModal();
+      forceUnlockPicks("Adam L");
+    } finally {
+      isVerifiedCommissioner = realVerify; assertCommissionerRole = realAssert; window.prompt = realPrompt;
+    }
+    return out;
+  });
+  check("commissioner overrides are logged; game locks, tab guard and read-only preview work",
+    r13.tb === "31-24" && r13.unlocked && r13.logged === 2 && r13.gameLocked && r13.tab === "submissions" && r13.readOnly && r13.banner, r13);
+
   // 12. Palette, custom colors and screen preset survive a reload (applied before first paint).
   await page.evaluate(() => { setAppTheme("turf"); applyCustomThemeColors({ accent: "#3b82f6" }); setScreenPreset("compact-grid"); });
   await page.reload({ waitUntil: "domcontentloaded" });

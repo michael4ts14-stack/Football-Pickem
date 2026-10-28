@@ -35,28 +35,57 @@ function ensureCommissionerConfig() {
   if (!cfg.duesPaidMap) cfg.duesPaidMap = {};
   if (!cfg.playerEmailsMap) cfg.playerEmailsMap = {};
   if (!cfg.savedReceiptsLog) cfg.savedReceiptsLog = {};
+  if (!cfg.deadlineConfig || typeof cfg.deadlineConfig !== "object") cfg.deadlineConfig = { day: "Fri", time: "21:00", tz: "America/Chicago" };
+  if (!cfg.gameLockOverrides || typeof cfg.gameLockOverrides !== "object") cfg.gameLockOverrides = {};
+  if (!cfg.forceUnlocked || typeof cfg.forceUnlocked !== "object") cfg.forceUnlocked = {};
+  if (!Array.isArray(cfg.overrideAuditLog)) cfg.overrideAuditLog = [];
+  if (!cfg.paymentLinks || typeof cfg.paymentLinks !== "object") cfg.paymentLinks = { venmoHandle: "", paypalLink: "", cashAppTag: "" };
   return cfg;
 }
 
-function isPastFriday9PmCST() {
+// ---------- Pick deadline (Locks tab) ----------
+// The weekly deadline: a weekday and time in a time zone (default Friday 9:00 PM Central).
+// A pick week runs Monday to Sunday, so the deadline has passed from that moment until Monday.
+var DEADLINE_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+var DEADLINE_ZONES = { "America/New_York": "ET", "America/Chicago": "CT", "America/Denver": "MT", "America/Los_Angeles": "PT" };
+
+function getDeadlineConfig() {
+  var d = ensureCommissionerConfig().deadlineConfig;
+  return {
+    day: DEADLINE_DAYS.indexOf(d.day) !== -1 ? d.day : "Fri",
+    time: /^\d{1,2}:\d{2}$/.test(d.time || "") ? d.time : "21:00",
+    tz: DEADLINE_ZONES[d.tz] ? d.tz : "America/Chicago"
+  };
+}
+
+function isPastPickDeadline() {
+  var d = getDeadlineConfig();
   try {
-    var now = new Date();
-    var parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/Chicago",
-      weekday: "short",
-      hour: "numeric",
-      minute: "numeric",
-      hour12: false
-    }).formatToParts(now);
-    var wkday = "", hr = 0;
+    var parts = new Intl.DateTimeFormat("en-US", { timeZone: d.tz, weekday: "short", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date());
+    var wkday = "", hr = 0, min = 0;
     for (var i = 0; i < parts.length; i++) {
       if (parts[i].type === "weekday") wkday = parts[i].value;
       if (parts[i].type === "hour") hr = parseInt(parts[i].value, 10) % 24;
+      if (parts[i].type === "minute") min = parseInt(parts[i].value, 10);
     }
-    if (wkday === "Sat" || wkday === "Sun") return true;
-    if (wkday === "Fri" && hr >= 21) return true; // 9:00 PM CST Friday night
+    var nowIdx = DEADLINE_DAYS.indexOf(wkday), dIdx = DEADLINE_DAYS.indexOf(d.day);
+    var tp = d.time.split(":");
+    var dMins = parseInt(tp[0], 10) * 60 + parseInt(tp[1], 10);
+    return nowIdx > dIdx || (nowIdx === dIdx && hr * 60 + min >= dMins);
   } catch (e) {}
   return false;
+}
+
+// "Fri 9:00 PM CT"
+function pickDeadlineLabel() {
+  var d = getDeadlineConfig();
+  var tp = d.time.split(":"), h = parseInt(tp[0], 10);
+  return d.day + " " + ((h % 12) || 12) + ":" + tp[1] + " " + (h < 12 ? "AM" : "PM") + " " + DEADLINE_ZONES[d.tz];
+}
+
+// Kept for older callers: the deadline is configurable now.
+function isPastFriday9PmCST() {
+  return isPastPickDeadline();
 }
 
 function isSaturdayMorningOrLaterCST() {
@@ -169,10 +198,10 @@ function renderSimpleGuestAccountBar() {
   // Lock line in the Picks head
   var lockPill = document.getElementById("simple-lock-deadline-pill");
   if (lockPill) {
-    var lockedNow = isGameLockedByCommissioner(1);
+    var lockedNow = isWeekLockedForActiveProfile();
     lockPill.className = "lock-text";
     if (cfg.lockMode === "friday_9pm_cst") {
-      lockPill.textContent = lockedNow ? "Locked" : "Locks Fri 9:00 PM CT";
+      lockPill.textContent = lockedNow ? "Locked" : "Locks " + pickDeadlineLabel();
     } else if (cfg.lockMode === "global_locked") {
       lockPill.textContent = "Locked by the commissioner";
     } else if (cfg.lockMode === "rolling_kickoff") {
@@ -186,7 +215,7 @@ function renderSimpleGuestAccountBar() {
   var recTxtEl = document.getElementById("simple-receipt-status-text");
   if (recTxtEl) {
     recTxtEl.textContent = (recLog && recLog.sentAt)
-      ? ("Submitted " + recLog.sentAt + ". You can still change picks until Fri 9:00 PM CT.")
+      ? ("Submitted " + recLog.sentAt + ". You can still change picks until " + pickDeadlineLabel() + ".")
       : "";
     recTxtEl.style.color = "";
   }
@@ -208,8 +237,8 @@ function renderSimpleGuestAccountBar() {
 
 async function saveAndSendPickConfirmationReceipt() {
   var cfg = ensureCommissionerConfig();
-  if (isGameLockedByCommissioner(1)) {
-    showAppToast("🔒 Picks are locked for the week (Friday 9:00 PM CST deadline has passed)!");
+  if (isWeekLockedForActiveProfile()) {
+    showAppToast("🔒 Picks are locked for the week (the " + pickDeadlineLabel() + " deadline has passed)!");
     return;
   }
   // If user is in Guest Mode and hasn't created an account yet, prompt them to enter an email or create an account while keeping their picks!
@@ -239,7 +268,7 @@ async function saveAndSendPickConfirmationReceipt() {
     email: userEmail || "Saved in Cloud Firestore",
     sentAt: nowTime,
     tiebreaker: tb,
-    editableUntil: "Friday 9:00 PM CST"
+    editableUntil: pickDeadlineLabel()
   };
   saveCommissionerConfigToCloud();
   renderSimpleGuestAccountBar();
@@ -259,7 +288,7 @@ async function saveAndSendPickConfirmationReceipt() {
       '<div style="font-size:0.74rem;color:var(--text);line-height:1.45;">' +
         '• <strong>Player:</strong> ' + escapeShellHtml(shownName) + (accountEmail ? (' (' + escapeShellHtml(accountEmail) + ')') : '') + '<br>' +
         '• <strong>Tie-Breaker:</strong> ' + tb + '<br>' +
-        '• <strong>🔒 Locked:</strong> tap <strong>Unlock picks</strong> to change anything before the official deadline, <strong>Friday at 9:00 PM CT</strong>. Then lock and send again.' +
+        '• <strong>🔒 Locked:</strong> tap <strong>Unlock picks</strong> to change anything before the official deadline, <strong>' + pickDeadlineLabel() + '</strong>. Then lock and send again.' +
       '</div>' +
     '</div>' +
     ((!AUTH_SESSION || GUEST_BROWSING_MODE) ? (
@@ -276,7 +305,7 @@ async function saveAndSendPickConfirmationReceipt() {
     '<textarea readonly rows="8" class="search-input" style="width:100%;font-family:monospace;font-size:0.71rem;color:var(--text);">' +
       'SEPARATED AT TURF PICK\'EM — ' + (state.weekLabel || ('Week ' + state.currentWeek)).toUpperCase() + ' CONFIRMATION RECEIPT\n' +
       'Player: ' + shownName + ' | Saved: ' + nowTime + '\n' +
-      'Status: SAVED (Editable until Friday 9:00 PM CST Official Lock)\n' +
+      'Status: SAVED (Editable until ' + pickDeadlineLabel() + ' official lock)\n' +
       'Tie-Breaker: ' + tb + '\n' +
       '----------------------------------------\n' +
       summaryLines.join('\n') +
@@ -474,12 +503,36 @@ function hasGameKickedOff(gameId) {
   return !isNaN(ms) && Date.now() >= ms;
 }
 
-function isGameLockedByCommissioner(gameId) {
+// Players the commissioner let past this week's deadline (Submissions > Force unlock), keyed by
+// standardized name with the week it applies to.
+function isProfileForceUnlocked(profKey) {
+  var cfg = ensureCommissionerConfig();
+  var name = getLinkedMemberNameForProfile(profKey);
+  var wk = name ? cfg.forceUnlocked[standardizeParticipantName(name).toLowerCase()] : null;
+  return !!wk && parseInt(wk, 10) === parseInt(state.currentWeek, 10);
+}
+
+// The whole week is closed for the active player (as opposed to single games locking at kickoff).
+function isWeekLockedForActiveProfile() {
   var cfg = ensureCommissionerConfig();
   if (AUTH_SESSION && AUTH_SESSION.adminUnlock) return false;
   if (cfg.lockMode === "global_locked") return true;
+  if (cfg.lockMode === "friday_9pm_cst") return isPastPickDeadline() && !isProfileForceUnlocked(activeProfile);
+  return false;
+}
+
+function isGameLockedByCommissioner(gameId) {
+  var cfg = ensureCommissionerConfig();
+  if (AUTH_SESSION && AUTH_SESSION.adminUnlock) return false;
+  // Per-game override from the Slate tab (e.g. lock a Thursday game early, reopen a delayed one).
+  var gameOverride = cfg.gameLockOverrides[String(gameId)];
+  if (gameOverride === "locked") return true;
+  if (gameOverride === "open") return false;
+  if (cfg.lockMode === "global_locked") return true;
   if (cfg.lockMode === "friday_9pm_cst") {
-    return isPastFriday9PmCST() || hasGameKickedOff(gameId);
+    // A force-unlocked player can still change games that haven't kicked off.
+    var pastDeadline = isPastPickDeadline() && !isProfileForceUnlocked(activeProfile);
+    return pastDeadline || hasGameKickedOff(gameId);
   }
   if (cfg.lockMode === "rolling_kickoff") {
     return hasGameKickedOff(gameId);
@@ -682,7 +735,7 @@ function renderCommissionerModalBody() {
 
       var tbVal = (linkedPf && state[linkedPf.key] && state[linkedPf.key].tiebreaker) ? state[linkedPf.key].tiebreaker : (pm.tiebreaker || "—");
       var statusBadge = isComplete
-        ? '<span class="badge badge-ev">✅ ' + cStats.matched + '/' + GAMES.length + ' Saved (Editable til Fri 9PM)</span>'
+        ? '<span class="badge badge-ev">✅ ' + cStats.matched + '/' + GAMES.length + ' Saved (Editable til ' + pickDeadlineLabel() + ')</span>'
         : (hasAny ? '<span class="badge badge-2x">⚠️ Partial (' + cStats.matched + '/' + GAMES.length + ')</span>' : '<span class="badge badge-3x">⏳ Missing (0/' + GAMES.length + ')</span>');
 
       var safeName = pm.name.replace(/'/g, "\\'");
@@ -700,7 +753,7 @@ function renderCommissionerModalBody() {
     var missingCount = pmList.length - submittedCount;
     body.innerHTML =
       '<div class="commish-kpi-strip">' +
-        '<div class="commish-kpi"><div class="metric-label">Active Week</div><div class="metric-val" style="color:var(--legacy-accent);">' + (state.weekLabel || "Week 8") + '</div><div class="metric-sub">' + GAMES.length + ' Games • Lock: Fri 9PM CST</div></div>' +
+        '<div class="commish-kpi"><div class="metric-label">Active Week</div><div class="metric-val" style="color:var(--legacy-accent);">' + (state.weekLabel || "Week 8") + '</div><div class="metric-sub">' + GAMES.length + ' Games • Lock: ' + pickDeadlineLabel() + '</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Sheets Saved</div><div class="metric-val" style="color:var(--green);">' + submittedCount + ' / ' + pmList.length + '</div><div class="metric-sub">' + Math.round((submittedCount / Math.max(1, pmList.length)) * 100) + '% Pool Completion</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Wed/Thu Nudge Target</div><div class="metric-val" style="color:' + (missingCount > 0 ? 'var(--amber)' : 'var(--green)') + ';">' + missingCount + ' Missing</div><div class="metric-sub">' + (cfg.lastWedThuNudgeSentAt ? ('Last Nudge: ' + cfg.lastWedThuNudgeSentAt) : 'Auto Wed & Thu Nudge Ready') + '</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Sat Morning Sheet</div><div class="metric-val" style="color:var(--win);font-size:0.95rem;">' + (cfg.lastSatSheetSentAt ? 'Sent!' : 'Auto 8AM Sat') + '</div><div class="metric-sub">Reveals & Emails All Picks</div></div>' +
@@ -752,6 +805,7 @@ function renderCommissionerModalBody() {
         '<td><span class="badge ' + (Math.max(g.awayPts, g.homePts) === 3 ? 'badge-3x' : (Math.max(g.awayPts, g.homePts) === 2 ? 'badge-2x' : 'badge-1x')) + '">' + g.awayCode + ' ' + g.awayPts + 'x / ' + g.homeCode + ' ' + g.homePts + 'x</span></td>' +
         '<td><input type="text" class="search-input" style="min-width:130px;padding:4px 7px;font-size:0.71rem;" value="' + (g.kick || "").replace(/"/g, '&quot;') + '" onchange="commishUpdateGameKick(' + g.id + ', this.value)" /></td>' +
         '<td><input type="radio" name="commish-tb-radio" ' + (isTb ? 'checked' : '') + ' onchange="setTiebreakerGame(' + g.id + ', false); renderCommissionerModalBody();" /> TB</td>' +
+        '<td>' + gameLockSelectHtml(g.id) + '</td>' +
       '</tr>';
     }
 
@@ -790,7 +844,7 @@ function renderCommissionerModalBody() {
       candidateHtml +
       '<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border-muted);border-radius:10px;margin-top:8px;">' +
         '<table class="condensed-table">' +
-          '<thead><tr><th>#</th><th>Matchup & Individual Game Swapper</th><th>Locked Pool Spread</th><th>Multiplier</th><th>Kickoff / TV</th><th>Tiebreaker</th></tr></thead>' +
+          '<thead><tr><th>#</th><th>Matchup & Individual Game Swapper</th><th>Locked Pool Spread</th><th>Multiplier</th><th>Kickoff / TV</th><th>Tiebreaker</th><th>Lock</th></tr></thead>' +
           '<tbody>' + gameRows + '</tbody>' +
         '</table>' +
       '</div>';
@@ -801,12 +855,12 @@ function renderCommissionerModalBody() {
     body.innerHTML =
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px;">' +
         '<div class="side-box">' +
-          '<div class="side-title"><span>🔒 Official Friday 9:00 PM CST Lock & Editable-All-Week Rule</span></div>' +
+          '<div class="side-title"><span>🔒 Weekly Deadline Lock & Editable-All-Week Rule</span></div>' +
           '<div style="font-size:0.73rem;color:var(--muted);margin-bottom:8px;">Players can save picks on Tuesday/Wednesday, get an email receipt immediately, and still change their picks if injuries or second thoughts come up until Friday night:</div>' +
           '<div style="display:flex;flex-direction:column;gap:8px;font-size:0.75rem;">' +
             '<label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;background:var(--panel-alt);padding:8px;border-radius:8px;border:1px solid ' + (cfg.lockMode === "friday_9pm_cst" ? "#10b981" : "var(--border-muted)") + ';">' +
               '<input type="radio" name="cm-lock-mode" ' + (cfg.lockMode === "friday_9pm_cst" ? "checked" : "") + ' onchange="setCommishLockMode(\'friday_9pm_cst\')" />' +
-              '<div><strong style="color:var(--win);">🌙 Friday 9:00 PM CST Official Lock (Editable All Week + Sat Morning Reveal)</strong><div style="font-size:0.69rem;color:var(--muted);">Even after saving & receiving an email receipt on Tuesday/Wednesday, players can freely revise picks until Friday at 9:00 PM CST. Saturday morning reveals all picks & emails the master spreadsheet!</div></div>' +
+              '<div><strong style="color:var(--win);">🌙 Weekly Deadline Lock: ' + pickDeadlineLabel() + ' (Editable All Week + Sat Morning Reveal)</strong><div style="font-size:0.69rem;color:var(--muted);">Even after saving & receiving an email receipt on Tuesday/Wednesday, players can freely revise picks until the deadline (' + pickDeadlineLabel() + ', set below). Saturday morning reveals all picks & emails the master spreadsheet!</div></div>' +
             '</label>' +
             '<label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;background:var(--panel-alt);padding:8px;border-radius:8px;border:1px solid ' + (cfg.lockMode === "rolling_kickoff" ? "#38bdf8" : "var(--border-muted)") + ';">' +
               '<input type="radio" name="cm-lock-mode" ' + (cfg.lockMode === "rolling_kickoff" ? "checked" : "") + ' onchange="setCommishLockMode(\'rolling_kickoff\')" />' +
@@ -827,7 +881,7 @@ function renderCommissionerModalBody() {
           '<div class="side-title"><span>📧 Automated Weekly Email Pipeline & WordPress Compatibility</span></div>' +
           '<div style="font-size:0.73rem;color:var(--muted);margin-bottom:8px;">Configure the automated emails for next season while keeping your current WordPress/Gmail scraper 100% active right now:</div>' +
           '<div style="display:flex;flex-direction:column;gap:7px;font-size:0.74rem;color:var(--text);margin-bottom:10px;">' +
-            '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;"><input type="checkbox" ' + (cfg.autoEmailReceiptOnSave !== false ? 'checked' : '') + ' onchange="state.commissionerConfig.autoEmailReceiptOnSave=this.checked; saveCommissionerConfigToCloud();" /> 📧 <strong>Instant Pick Confirmation Email on Save</strong> (Notes picks stay editable until Fri 9:00 PM CST)</label>' +
+            '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;"><input type="checkbox" ' + (cfg.autoEmailReceiptOnSave !== false ? 'checked' : '') + ' onchange="state.commissionerConfig.autoEmailReceiptOnSave=this.checked; saveCommissionerConfigToCloud();" /> 📧 <strong>Instant Pick Confirmation Email on Save</strong> (Notes picks stay editable until ' + pickDeadlineLabel() + ')</label>' +
             '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;"><input type="checkbox" ' + (cfg.autoWedThuNudgeEnabled !== false ? 'checked' : '') + ' onchange="state.commissionerConfig.autoWedThuNudgeEnabled=this.checked; saveCommissionerConfigToCloud();" /> ⏰ <strong>Automated Wednesday & Thursday Nudge Emails</strong> (Reminds players who haven\'t submitted yet)</label>' +
             '<label style="display:flex;align-items:center;gap:7px;cursor:pointer;"><input type="checkbox" ' + (cfg.autoSatMorningSheetEmail !== false ? 'checked' : '') + ' onchange="state.commissionerConfig.autoSatMorningSheetEmail=this.checked; saveCommissionerConfigToCloud();" /> 📊 <strong>Saturday Morning Auto-Reveal & Master Spreadsheet Email</strong> (Unlocks all picks & emails CSV to pool)</label>' +
           '</div>' +
@@ -868,8 +922,9 @@ function renderCommissionerModalBody() {
             (isPaid ? '💰 PAID ($' + entryFee + ')' : '⏳ Unpaid') +
           '</button>' +
         '</td>' +
-        '<td>' +
-          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;" onclick="commishQuickImpersonate(\'' + safeN + '\')">✏️ Edit Picks</button>' +
+        '<td style="display:flex;gap:4px;flex-wrap:wrap;">' +
+          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;" onclick="manuallySetPlayerPicks(\'' + safeN + '\')">✏️ Edit Picks</button>' +
+          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;" onclick="startPlayerPreview(\'' + safeN + '\')">Preview as player</button>' +
         '</td>' +
       '</tr>';
     }
@@ -894,7 +949,7 @@ function renderCommissionerModalBody() {
       '</div>' +
       '<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border-muted);border-radius:10px;">' +
         '<table class="condensed-table">' +
-          '<thead><tr><th>Player Name</th><th>Prior Season Pts (Editable)</th><th>New Live Total</th><th>League Dues Status</th><th>Edit Picks</th></tr></thead>' +
+          '<thead><tr><th>Player Name</th><th>Prior Season Pts (Editable)</th><th>New Live Total</th><th>League Dues Status</th><th>Picks</th></tr></thead>' +
           '<tbody>' + rosterRows + '</tbody>' +
         '</table>' +
       '</div>';
@@ -925,20 +980,9 @@ function renderCommissionerModalBody() {
 }
 
 function commishQuickImpersonate(memberName) {
-  if (!AUTH_SESSION) {
-    AUTH_SESSION = {
-      uid: "commish_local",
-      email: "commissioner@separatedatturf.com",
-      displayName: "Commissioner",
-      provider: "local",
-      boundProfileKey: activeProfile || "michael",
-      linkedMemberName: "Michael A",
-      instanceLocked: false,
-      adminUnlock: true
-    };
-  } else {
-    AUTH_SESSION.adminUnlock = true;
-  }
+  // Only a signed-in, verified commissioner (never a stand-in session) can edit another player.
+  if (!AUTH_SESSION || !assertCommissionerRole("editing another player's picks")) return;
+  AUTH_SESSION.adminUnlock = true;
   closeCommissionerModal();
   commissionerSwitchToMember(memberName);
   switchMainView("cards");
@@ -954,7 +998,7 @@ function copyMissingPlayersList() {
     var c = countMatchingPicksForSlate(pMap, GAMES);
     if (c.matched === 0 || pm.awaitingSheet) missing.push(pm.name);
   }
-  var txt = "⏰ Separated at Turf — " + (state.weekLabel || "Week 8") + " Wed/Thu Picks Nudge (Deadline: Friday 9:00 PM CST • " + missing.length + " Missing):\n" + (missing.join(", ") || "All 89 players have submitted!");
+  var txt = "⏰ Separated at Turf — " + (state.weekLabel || "Week 8") + " Wed/Thu Picks Nudge (Deadline: " + pickDeadlineLabel() + " • " + missing.length + " Missing):\n" + (missing.join(", ") || "All 89 players have submitted!");
   try { navigator.clipboard.writeText(txt); } catch (e) {}
   showAppToast("📧 Copied " + missing.length + " missing player names to clipboard!");
 }

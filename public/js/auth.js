@@ -569,21 +569,6 @@ function signOutAccountInstance() {
   showAppToast("🔓 Signed out of " + oldName + ". Multi-profile switching unlocked on this device.");
 }
 
-function toggleAdminInstanceOverride(checked) {
-  if (!AUTH_SESSION) return;
-  if (checked && !assertCommissionerRole("Commissioner Override")) { AUTH_SESSION.adminUnlock = false; openAuthModal(); return; }
-  AUTH_SESSION.adminUnlock = !!checked;
-  if (!checked && AUTH_SESSION.boundProfileKey && activeProfile !== "test") {
-    activeProfile = AUTH_SESSION.boundProfileKey;
-  }
-  saveDeviceAuthSession();
-  syncActiveProfileControlsUI();
-  updateAuthUI();
-  renderAll();
-  openAuthModal();
-  showAppToast(checked ? "👑 Commissioner Override ON: You can switch to & edit any player's profile on this device." : "🔒 Strict Instance Lock ON: Locked to " + AUTH_SESSION.displayName + ".");
-}
-
 function commissionerSwitchToMember(memberName) {
   if (!AUTH_SESSION || !AUTH_SESSION.adminUnlock || !memberName) return;
   if (!assertCommissionerRole("editing another player's picks")) return;
@@ -743,26 +728,16 @@ function openAuthModal() {
         '<span style="font-size:0.73rem;color:var(--text);">🕵️ <strong>Pre-Kickoff Pick Privacy:</strong> ' + ((state.profilePrivacy[AUTH_SESSION.boundProfileKey] && state.profilePrivacy[AUTH_SESSION.boundProfileKey].hidden) ? '<strong style="color:var(--win);">🔒 Hidden From Other Users Until Kickoff</strong>' : '<strong style="color:var(--warn);">👁️ Public to Other Users</strong>') + '</span>' +
         '<button type="button" class="btn-sm" style="padding:4px 9px;font-size:0.69rem;border-color:var(--border);color:var(--text);" onclick="toggleQuickLockActiveProfile(); openAuthModal();">Toggle Privacy</button>' +
       '</div>' +
-      (!isVerifiedCommissioner() ? '' : '<div style="background:var(--raised);border:1px solid var(--border);border-radius:9px;padding:9px 11px;margin-bottom:12px;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">' +
-          '<label style="font-size:0.73rem;font-weight:800;color:var(--warn);cursor:pointer;display:flex;align-items:center;gap:6px;">' +
-            '<input type="checkbox" ' + (AUTH_SESSION.adminUnlock ? 'checked' : '') + ' onchange="toggleAdminInstanceOverride(this.checked)" />' +
-            '👑 Commissioner Override Mode (Allow Multi-Profile Editing on This Device)' +
-          '</label>' +
-          '<span style="font-size:0.66rem;color:var(--muted);">Currently Editing: <strong style="color:var(--text);">' + getProfileMetaByKey(activeProfile).name + '</strong></span>' +
+      // Editing another player's picks lives in Commissioner > Submissions (one entry point, logged).
+      (!isVerifiedCommissioner() ? '' : '<div style="background:var(--raised);border:1px solid var(--border);border-radius:9px;padding:9px 11px;margin-bottom:12px;display:flex;flex-direction:column;gap:7px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;font-size:0.73rem;">' +
+          '<span>To edit another player\'s picks or tiebreaker, use <strong>Commissioner › Submissions</strong>.</span>' +
+          '<button type="button" class="btn-sm" onclick="openCommissionerModal(\'submissions\')">Open Submissions</button>' +
         '</div>' +
-        (AUTH_SESSION.adminUnlock ? (
-          '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:7px;">' +
-            '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
-              '<span style="font-size:0.7rem;color:var(--text);font-weight:700;">🏈 Edit Any Player\'s Picks:</span>' +
-              '<select class="search-input" style="flex:1;min-width:170px;padding:5px 8px;font-size:0.73rem;color:var(--warn);border-color:var(--border);" onchange="if(this.value && this.value !== \'__NEW_USER__\'){commissionerSwitchToMember(this.value);}">' + lbOpts + '</select>' +
-            '</div>' +
-            '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
-              '<input type="email" id="commish-reset-email-input" class="search-input" style="flex:1;min-width:170px;padding:5px 8px;font-size:0.72rem;" placeholder="Player email to unlock/reset password..." />' +
-              '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-size:0.69rem;padding:5px 9px;" onclick="commissionerResetPlayerPassword()">🔑 Reset Player Password</button>' +
-            '</div>' +
-          '</div>'
-        ) : '') +
+        '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+          '<input type="email" id="commish-reset-email-input" class="search-input" style="flex:1;min-width:170px;padding:5px 8px;font-size:0.72rem;" placeholder="Player email to send a password reset..." />' +
+          '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-size:0.69rem;padding:5px 9px;" onclick="commissionerResetPlayerPassword()">🔑 Reset Player Password</button>' +
+        '</div>' +
       '</div>') +
       '<div style="display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;">' +
         '<button type="button" class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;padding:8px 14px;" onclick="signOutAccountInstance()">🚪 Sign Out of Instance</button>' +
