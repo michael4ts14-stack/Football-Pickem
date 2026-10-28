@@ -88,13 +88,20 @@ function verifyFirebaseIdToken_(idToken) {
     try { why = JSON.parse(res.getContentText()).error.message; } catch (eWhy) {}
     throw emailError_("VERIFY_UNAVAILABLE", "The email service couldn't check sign-ins (HTTP " + lookupCode + (why ? ": " + why : "") + "). Nothing was sent.");
   }
-  if (lookupCode !== 200) throw emailError_("INVALID_TOKEN", "Your sign-in couldn't be verified. Sign out and back in.");
+  if (lookupCode !== 200) {
+    var reason = "";
+    try { reason = JSON.parse(res.getContentText()).error.message; } catch (eReason) {}
+    throw emailError_("INVALID_TOKEN", "Your sign-in couldn't be verified (" + (reason || "HTTP " + lookupCode) + "). Sign out and back in.");
+  }
   var users = (JSON.parse(res.getContentText()) || {}).users || [];
   var u = users[0];
-  if (!u || (claims.user_id && u.localId !== claims.user_id)) throw emailError_("INVALID_TOKEN", "Your sign-in couldn't be verified. Sign out and back in.");
+  if (!u) throw emailError_("INVALID_TOKEN", "Your sign-in couldn't be verified (no such account). Sign out and back in.");
+  if (claims.user_id && u.localId !== claims.user_id) throw emailError_("INVALID_TOKEN", "Your sign-in couldn't be verified (account mismatch). Sign out and back in.");
   var who = { uid: u.localId, email: String(u.email || "").toLowerCase(), emailVerified: !!u.emailVerified };
   if (!who.email) throw emailError_("NO_EMAIL", "Your account has no email address.");
-  cache.put(key, JSON.stringify(who), Math.max(1, Math.min(300, claims.exp - nowSec)));
+  // Remember only verified answers: someone who verifies their email a minute later must
+  // not keep getting "verify your email first" from a cached check.
+  if (who.emailVerified) cache.put(key, JSON.stringify(who), Math.max(1, Math.min(300, claims.exp - nowSec)));
   return who;
 }
 
@@ -202,6 +209,7 @@ function logEntryFor_(action, who, result) {
     sent: result.sent !== undefined ? result.sent : (result.ok && result.sentTo && !result.suppressedDuplicate ? 1 : 0),
     failed: (result.failed || []).length,
     test: !!result.test,
+    detail: result.broadcastsEnabled === undefined ? "" : (result.broadcastsEnabled ? "Pool emails turned on" : "Pool emails turned off"),
     quotaAfter: remainingQuota_()
   };
 }

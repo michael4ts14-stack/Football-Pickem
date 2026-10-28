@@ -58,9 +58,13 @@ triggerAppsScriptGmailScraper = function() {
 
 // The signed-in user's Firebase ID token; the email service checks it on every call.
 // Guests (no Firebase user) have none, so their requests stop here.
-function getEmailIdToken() {
+// fresh: reload the account and get a new token (e.g. right after verifying your email,
+// because the old token still says "not verified").
+function getEmailIdToken(fresh) {
   var u = (typeof fbAuth !== "undefined" && fbAuth) ? fbAuth.currentUser : null;
-  return u ? u.getIdToken() : Promise.resolve(null);
+  if (!u) return Promise.resolve(null);
+  if (!fresh) return u.getIdToken();
+  return u.reload().catch(function() {}).then(function() { return u.getIdToken(true); });
 }
 
 // One call to the email service. Always resolves to { ok, code?, error?, ... } that the UI
@@ -75,10 +79,10 @@ var EMAIL_ERROR_TEXT = {
   STALE_DEPLOYMENT: "The email service is running an old version. A commissioner needs to redeploy it in Apps Script (Manage deployments › New version)."
 };
 
-function callEmailService(action, extra) {
+function callEmailService(action, extra, freshToken) {
   var url = emailServiceUrl();
   if (!url) return Promise.resolve({ ok: false, code: "NOT_CONFIGURED", error: EMAIL_ERROR_TEXT.NOT_CONFIGURED });
-  return getEmailIdToken().then(function(idToken) {
+  return getEmailIdToken(freshToken).then(function(idToken) {
     if (!idToken && action !== "ping" && action !== "status") return { ok: false, code: "NOT_SIGNED_IN", error: EMAIL_ERROR_TEXT.NOT_SIGNED_IN };
     var body = Object.assign({ action: action, idToken: idToken || "" }, extra || {});
     return fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })
@@ -104,8 +108,8 @@ function waitForSavedPicks() {
   return Promise.race([fsDb.waitForPendingWrites().catch(function() {}), new Promise(function(r) { setTimeout(r, 8000); })]);
 }
 
-function startPickReceiptSend() {
-  return waitForSavedPicks().then(function() { return callEmailService("sendPickReceipt"); })
+function startPickReceiptSend(freshToken) {
+  return waitForSavedPicks().then(function() { return callEmailService("sendPickReceipt", null, freshToken); })
     .then(function(res) { LAST_RECEIPT_RESULT = res; return res; });
 }
 
@@ -120,7 +124,8 @@ function receiptStatusHtml(res) {
     (guest
       ? '<button type="button" class="link-btn" onclick="closeOppModal(); openAuthModalCarryingGuestPicks(\'signup\');">Create an account</button>'
       : (res.code === "EMAIL_NOT_VERIFIED"
-          ? '<button type="button" class="link-btn" onclick="resendEmailVerification()">Send verification email</button>'
+          ? '<button type="button" class="link-btn" onclick="resendEmailVerification()">Send verification email</button>' +
+            '<button type="button" class="link-btn" onclick="retryPickReceipt()">I\'ve verified it, try again</button>'
           : '<button type="button" class="link-btn" onclick="retryPickReceipt()">Retry</button>'));
 }
 
@@ -133,7 +138,8 @@ function showReceiptSendStatus(promise) {
   });
 }
 
-function retryPickReceipt() { showReceiptSendStatus(startPickReceiptSend()); }
+// Retry with a fresh sign-in token, so a just-verified email counts.
+function retryPickReceipt() { showReceiptSendStatus(startPickReceiptSend(true)); }
 
 function resendEmailVerification() {
   var u = (typeof fbAuth !== "undefined" && fbAuth) ? fbAuth.currentUser : null;
@@ -225,7 +231,7 @@ function emailLogHtml() {
   var rows = EMAIL_LOG_ROWS.map(function(r) {
     var when = new Date(r.at);
     var whenTxt = isNaN(when.getTime()) ? "" : when.toLocaleString("en-US", { weekday: "short", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
-    var detail = r.ok
+    var detail = r.detail ? r.detail : r.ok
       ? (r.to ? r.to : ((r.sent || 0) + " sent" + (r.failed ? ", " + r.failed + " failed" : "") + (r.recipients ? " of " + r.recipients : ""))) + (r.test ? " · test" : "") + (r.code === "DUPLICATE" ? " · duplicate skipped" : "")
       : (r.code ? r.code + ": " : "") + (r.message || "");
     return '<tr><td>' + escapeShellHtml(whenTxt) + '</td><td>' + escapeShellHtml(labels[r.action] || r.action) + '</td><td>' + escapeShellHtml(r.caller || "—") + '</td>' +

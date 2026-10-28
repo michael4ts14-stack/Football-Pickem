@@ -966,10 +966,10 @@ function renderReviewChecklistModalBody() {
         '<input type="text" class="search-input" style="width:90px;min-width:0;padding:4px 8px;font-weight:800;text-align:center;" value="' + tb.replace(/"/g, '&quot;') + '" oninput="syncSimpleTiebreakerInput(this.value); document.getElementById(\'simple-tiebreaker-input\').value=this.value;" />' +
       '</div>' +
       '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-        '<button type="button" class="btn-sm" style="font-weight:900;padding:6px 12px;' + (isLocked ? 'background:var(--accent);border-color:var(--border);color:var(--loss);' : 'background:var(--accent);color:var(--on-accent);border:none;') + '" onclick="toggleManualUserPickLock()">' +
-          (isLocked ? '🔓 Unlock Picks to Edit' : '🔒 Confirm & Lock My 23 Picks') +
+        '<button type="button" class="btn-sm" style="font-weight:900;padding:6px 12px;' + (isLocked ? 'background:var(--accent);border-color:var(--border);color:var(--loss);' : 'background:var(--accent);color:var(--on-accent);border:none;') + '" onclick="' + (isLocked ? 'toggleManualUserPickLock(false)' : 'closeReviewChecklistModal(); onPrimaryPicksAction();') + '">' +
+          (isLocked ? '🔓 Unlock Picks to Edit' : '🔒 Lock picks') +
         '</button>' +
-        '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;padding:6px 12px;" onclick="closeReviewChecklistModal(); saveAndSendPickConfirmationReceipt();">💾 Save & Email Receipt</button>' +
+        (isLocked ? '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;padding:6px 12px;" onclick="closeReviewChecklistModal(); sendPicksToOfficialForm();">Send picks</button>' : '') +
         '<button type="button" class="btn-sm" onclick="copyPicksToClipboard()">📋 Copy List</button>' +
       '</div>' +
     '</div>' +

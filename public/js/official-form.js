@@ -89,7 +89,63 @@ function formatSentTime(iso) {
   return d.toLocaleDateString("en-US", { weekday: "short" }) + " " + d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
 }
 
-// Button + status chip in the tie-breaker bar, once you've locked your picks.
+// ---------- Lock picks -> Send picks ----------
+// The main picks button: "Lock picks" saves, locks and emails your receipt; once locked it
+// becomes "Send picks", which opens the official form with your picks filled in.
+function primaryPicksActionIsSend() {
+  return isCurrentProfileManuallyLocked() || isGameLockedByCommissioner(1);
+}
+
+function onPrimaryPicksAction() {
+  if (primaryPicksActionIsSend()) { sendPicksToOfficialForm(); return; }
+  var picks = getMyPicksMap();
+  var done = countMatchingPicksForSlate(picks, GAMES).matched;
+  if (done < GAMES.length) {
+    confirmDanger("You've picked " + done + " of " + GAMES.length + " games. Lock your picks anyway?", "Lock picks", lockAndSavePicks);
+    return;
+  }
+  lockAndSavePicks();
+}
+
+function lockAndSavePicks() {
+  toggleManualUserPickLock(true);
+  if (!isCurrentProfileManuallyLocked()) return; // past the deadline: toggle explained why
+  saveAndSendPickConfirmationReceipt();
+}
+
+// The tie-breaker bar's button: unlock to edit, or lock exactly like the main button.
+function onTieBreakerLockToggle() {
+  if (isCurrentProfileManuallyLocked()) toggleManualUserPickLock(false);
+  else onPrimaryPicksAction();
+}
+
+// Opens the pre-filled official form straight away when nothing needs fixing (a click, so
+// the browser allows the new tab); otherwise the sheet shows what's missing.
+function sendPicksToOfficialForm() {
+  var name = officialFormDefaultName();
+  var sub = buildOfficialFormSubmission(name);
+  if (sub.problems.length) { openOfficialFormSheet(); return; }
+  safeSetStorage(OFFICIAL_FORM_NAME_KEY, name);
+  recordOfficialFormOpened(sub);
+  window.open(sub.url, "_blank", "noopener");
+  showAppToast("Opened the official form with your picks. Check it, then tap Submit on Google's page.");
+}
+
+function recordOfficialFormOpened() {
+  if (state[activeProfile]) {
+    state[activeProfile].officialFormSent = { at: new Date().toISOString(), week: parseInt(state.currentWeek, 10) || 0, sig: officialFormPicksSignature() };
+    saveCurrentState(activeProfile);
+  }
+  renderOfficialFormBar();
+}
+
+// Big button in the receipt window after locking.
+function officialFormReceiptButtonHtml() {
+  return '<button type="button" class="btn-submit is-ready receipt-send-btn" onclick="closeOppModal(); sendPicksToOfficialForm();">' +
+    'Send picks to Separated at Turf</button>';
+}
+
+// Status chip in the tie-breaker bar once you've locked your picks (the main button sends).
 function renderOfficialFormBar() {
   var slot = document.getElementById("official-form-slot");
   if (!slot) {
@@ -105,8 +161,7 @@ function renderOfficialFormBar() {
   var chip = !sent ? "" : (changed
     ? '<span class="form-chip is-changed">Changed since sent</span>'
     : '<span class="form-chip"><i data-lucide="check"></i>Sent ' + escapeShellHtml(formatSentTime(sent.at)) + '</span>');
-  slot.innerHTML = chip + '<button type="button" class="tool-btn is-primary" onclick="openOfficialFormSheet()"><i data-lucide="send"></i><span>' +
-    (sent ? "Send again" : "Send to Separated at Turf") + '</span></button>';
+  slot.innerHTML = chip;
 }
 
 function openOfficialFormSheet() {
@@ -146,13 +201,9 @@ function confirmOpenOfficialForm() {
   if (sub.problems.length) { refreshOfficialFormSummary(); return; }
   safeSetStorage(OFFICIAL_FORM_NAME_KEY, name);
   window.open(sub.url, "_blank", "noopener");
-  // Record it on your profile (synced like your picks when signed in; this device otherwise).
-  if (state[activeProfile]) {
-    state[activeProfile].officialFormSent = { at: new Date().toISOString(), week: parseInt(state.currentWeek, 10) || 0, sig: officialFormPicksSignature() };
-    saveCurrentState(activeProfile);
-  }
+  // Recorded on your profile (synced like your picks when signed in; this device otherwise).
+  recordOfficialFormOpened(sub);
   closePanelSheet();
-  renderOfficialFormBar();
 }
 
 // Commissioner: games the form map couldn't place, so nobody's link is guessed.

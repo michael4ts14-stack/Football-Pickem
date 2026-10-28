@@ -1,12 +1,12 @@
 // ============================================================================
 // DESKTOP LAYOUT: the right rail (season summary) as an overlay panel opened
-// from the page header, pinnable as a column at 1600px+. Layout only.
+// from the page header; at 1280px+ it's pinned as a column by default. Layout only.
 // ============================================================================
 var RAIL_PIN_KEY = "sat_rail_pinned_v1";
-var RAIL_PIN_MIN_WIDTH = 1600;
+var RAIL_PIN_MIN_WIDTH = 1280;
 
 function railPinAllowed() { return window.innerWidth >= RAIL_PIN_MIN_WIDTH; }
-function isRailPinned() { return safeGetStorage(RAIL_PIN_KEY) === "1"; }
+function isRailPinned() { return safeGetStorage(RAIL_PIN_KEY) !== "0"; } // pinned unless you unpinned it
 
 function syncRailPinnedClass() {
   var pinned = isRailPinned() && railPinAllowed();
@@ -15,7 +15,7 @@ function syncRailPinnedClass() {
   if (pin) {
     pin.setAttribute("aria-pressed", isRailPinned() ? "true" : "false");
     pin.disabled = !railPinAllowed();
-    pin.title = railPinAllowed() ? (isRailPinned() ? "Unpin panel" : "Keep this panel open") : "Pinning needs a window at least 1600px wide";
+    pin.title = railPinAllowed() ? (isRailPinned() ? "Unpin panel" : "Keep this panel open") : "Pinning needs a window at least 1280px wide";
   }
   if (pinned) closeRailPanel(true);
 }
@@ -100,7 +100,7 @@ var _sidebarPointerInside = false;
 var _sidebarHoverBlocked = false;   // after a nav click, until the pointer leaves
 var _sidebarReturnFocus = null;     // where focus was before the keyboard entered the sidebar
 
-function isSidebarPinned() { return safeGetStorage(SIDEBAR_PIN_KEY) === "1"; }
+function isSidebarPinned() { return safeGetStorage(SIDEBAR_PIN_KEY) !== "0"; } // pinned unless you unpinned it
 function appSidebarEl() { return document.querySelector(".app-sidebar"); }
 
 // Applies the current state as classes; safe to call on every render (no-op if nothing changed).
