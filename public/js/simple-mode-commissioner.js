@@ -226,7 +226,7 @@ async function saveAndSendPickConfirmationReceipt() {
   renderSimpleGuestAccountBar();
 
   // Email receipt: the service sends your own saved picks to your verified email.
-  var receiptPromise = startPickReceiptSend();
+  var receiptPromise = startPickReceiptSend(true);
   // Only the signed-in account's own email is shown (never another member's from the pool list).
   var accountEmail = (typeof fbAuth !== "undefined" && fbAuth && fbAuth.currentUser && fbAuth.currentUser.email) || "";
 
@@ -280,7 +280,7 @@ function sendReceiptToCustomEmail() {
   }
   var accountEmail = String(user.email || "").toLowerCase();
   if (!email || email === accountEmail) {
-    showReceiptSendStatus(startPickReceiptSend());
+    showReceiptSendStatus(startPickReceiptSend(true));
     return;
   }
   if (email.indexOf("@") === -1) {

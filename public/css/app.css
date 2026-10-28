@@ -84,7 +84,7 @@ svg.lucide { width: 18px; height: 18px; stroke-width: 2; flex-shrink: 0; }
 .app-rail .rail-head { display: none; }
 body.simple-ui-mode .app-rail { display: none; }
 /* Desktop: the right rail is an overlay panel opened from the page header, so it never
-   squeezes the picks. At 1600px+ it can be pinned open as a column. */
+   squeezes the picks. At 1280px+ it's pinned open as a column by default (unpin to hide). */
 .page-head .rail-open-btn { display: none; }
 @media (min-width: 900px) {
   .page-head .rail-open-btn { display: inline-flex; }
@@ -102,7 +102,7 @@ body.simple-ui-mode .app-rail { display: none; }
 .rail-head-title { font-family: var(--font-head); font-size: 22px; font-weight: 600; }
 .rail-head-actions { display: flex; gap: 4px; }
 .rail-head .icon-btn[aria-pressed="true"] svg.lucide { color: var(--accent-text); }
-@media (min-width: 1600px) {
+@media (min-width: 1280px) {
   body.rail-pinned #main-layout.layout {
     grid-template-columns: minmax(0, 1fr) var(--rail-w);
     max-width: calc(var(--content-max) + var(--rail-w) + 88px);
@@ -400,6 +400,14 @@ body.simple-ui-mode #flt-sway, body.simple-ui-mode #flt-diffs { display: none; }
 @media (min-width: 900px) {
   .sheet-backdrop { align-items: stretch; justify-content: flex-end; }
   .sheet { width: 440px; max-height: none; height: 100%; border-radius: 0; border-top: 0; border-left: 1px solid var(--border); }
+}
+/* Game details open in the middle of the screen on desktop. */
+@media (min-width: 900px) {
+  #detail-sheet-backdrop { align-items: center; justify-content: center; padding: 24px; }
+  #detail-sheet-backdrop .sheet {
+    width: min(760px, 100%); height: auto; max-height: min(88vh, 960px);
+    border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 24px 64px #0000008c;
+  }
 }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 8px 4px 16px; }
 .sheet-title { font-size: 24px; line-height: 1.1; }

@@ -30,20 +30,21 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="/css/tokens.css?v=2026-10-28b" />
-<link rel="stylesheet" href="/css/base.css?v=2026-10-28b" />
-<link rel="stylesheet" href="/css/views.css?v=2026-10-28b" />
-<link rel="stylesheet" href="/css/components.css?v=2026-10-28b" />
-<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-28b" />
-<link rel="stylesheet" href="/css/app.css?v=2026-10-28b" />
+<link rel="stylesheet" href="/css/tokens.css?v=2026-10-28c" />
+<link rel="stylesheet" href="/css/base.css?v=2026-10-28c" />
+<link rel="stylesheet" href="/css/views.css?v=2026-10-28c" />
+<link rel="stylesheet" href="/css/components.css?v=2026-10-28c" />
+<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-28c" />
+<link rel="stylesheet" href="/css/app.css?v=2026-10-28c" />
 </head>
 <body class="simple-ui-mode">
 <script>
   // Simple mode from the first paint. Only someone who switched to Advanced ("0") starts there;
   // initSimpleModeAndCommish() applies the same rule again at boot.
   try { if (localStorage.getItem("sat_simple_ui_mode_v16") === "0") document.body.classList.remove("simple-ui-mode"); } catch (e) {}
-  // Pinned sidebar from the first paint too, so it doesn't animate open on load.
-  try { if (localStorage.getItem("sat_sidebar_pinned_v1") === "1") document.body.classList.add("sidebar-pinned"); } catch (e) {}
+  // Side panels are pinned by default (unless you unpinned them), from the first paint.
+  try { if (localStorage.getItem("sat_sidebar_pinned_v1") !== "0") document.body.classList.add("sidebar-pinned"); } catch (e) { document.body.classList.add("sidebar-pinned"); }
+  try { if (localStorage.getItem("sat_rail_pinned_v1") !== "0" && window.innerWidth >= 1280) document.body.classList.add("rail-pinned"); } catch (e) {}
 </script>
 <a class="skip-link" href="#app-content">Skip to content</a>
 <span id="cloud-status-text" class="hidden">V16 COMMAND CENTER (`football-pickem-46206`)</span>
@@ -725,51 +726,51 @@
     <div id="review-checklist-body"></div>
   </div>
 </div>
-<script src="/js/00-boot-guard.js?v=2026-10-28b"></script>
-<script src="/js/config.js?v=2026-10-28b"></script>
-<script src="/js/data/teams.js?v=2026-10-28b"></script>
-<script src="/js/data/default-slate.js?v=2026-10-28b"></script>
-<script src="/js/state-globals.js?v=2026-10-28b"></script>
-<script src="/js/win-prob.js?v=2026-10-28b"></script>
-<script src="/js/data/week7-official.js?v=2026-10-28b"></script>
-<script src="/js/data/code-gs-source.js?v=2026-10-28b"></script>
-<script src="/js/state.js?v=2026-10-28b"></script>
-<script src="/js/team-match.js?v=2026-10-28b"></script>
-<script src="/js/firestore.js?v=2026-10-28b"></script>
-<script src="/js/picks.js?v=2026-10-28b"></script>
-<script src="/js/espn.js?v=2026-10-28b"></script>
-<script src="/js/profiles.js?v=2026-10-28b"></script>
-<script src="/js/auth.js?v=2026-10-28b"></script>
-<script src="/js/import-hub.js?v=2026-10-28b"></script>
-<script src="/js/render/condensed.js?v=2026-10-28b"></script>
-<script src="/js/import-sheet-grading.js?v=2026-10-28b"></script>
-<script src="/js/render/field-tracker.js?v=2026-10-28b"></script>
-<script src="/js/demo-sim.js?v=2026-10-28b"></script>
-<script src="/js/render/field.js?v=2026-10-28b"></script>
-<script src="/js/render/theater.js?v=2026-10-28b"></script>
-<script src="/js/live/live-feed.js?v=2026-10-28b"></script>
-<script src="/js/live-scores.js?v=2026-10-28b"></script>
-<script src="/js/leverage.js?v=2026-10-28b"></script>
-<script src="/js/simulator.js?v=2026-10-28b"></script>
-<script src="/js/archive.js?v=2026-10-28b"></script>
-<script src="/js/simple-mode-commissioner.js?v=2026-10-28b"></script>
-<script src="/js/commissioner-admin.js?v=2026-10-28b"></script>
-<script src="/js/shell.js?v=2026-10-28b"></script>
-<script src="/js/live/situation.js?v=2026-10-28b"></script>
-<script src="/js/picks-ui.js?v=2026-10-28b"></script>
-<script src="/js/matchups-ui.js?v=2026-10-28b"></script>
-<script src="/js/live-ui.js?v=2026-10-28b"></script>
-<script src="/js/standings-ui.js?v=2026-10-28b"></script>
-<script src="/js/dialogs-ui.js?v=2026-10-28b"></script>
-<script src="/js/player-sheet.js?v=2026-10-28b"></script>
-<script src="/js/official-form.js?v=2026-10-28b"></script>
-<script src="/js/email-service.js?v=2026-10-28b"></script>
-<script src="/js/layout.js?v=2026-10-28b"></script>
-<script src="/js/boot.js?v=2026-10-28b"></script>
+<script src="/js/00-boot-guard.js?v=2026-10-28c"></script>
+<script src="/js/config.js?v=2026-10-28c"></script>
+<script src="/js/data/teams.js?v=2026-10-28c"></script>
+<script src="/js/data/default-slate.js?v=2026-10-28c"></script>
+<script src="/js/state-globals.js?v=2026-10-28c"></script>
+<script src="/js/win-prob.js?v=2026-10-28c"></script>
+<script src="/js/data/week7-official.js?v=2026-10-28c"></script>
+<script src="/js/data/code-gs-source.js?v=2026-10-28c"></script>
+<script src="/js/state.js?v=2026-10-28c"></script>
+<script src="/js/team-match.js?v=2026-10-28c"></script>
+<script src="/js/firestore.js?v=2026-10-28c"></script>
+<script src="/js/picks.js?v=2026-10-28c"></script>
+<script src="/js/espn.js?v=2026-10-28c"></script>
+<script src="/js/profiles.js?v=2026-10-28c"></script>
+<script src="/js/auth.js?v=2026-10-28c"></script>
+<script src="/js/import-hub.js?v=2026-10-28c"></script>
+<script src="/js/render/condensed.js?v=2026-10-28c"></script>
+<script src="/js/import-sheet-grading.js?v=2026-10-28c"></script>
+<script src="/js/render/field-tracker.js?v=2026-10-28c"></script>
+<script src="/js/demo-sim.js?v=2026-10-28c"></script>
+<script src="/js/render/field.js?v=2026-10-28c"></script>
+<script src="/js/render/theater.js?v=2026-10-28c"></script>
+<script src="/js/live/live-feed.js?v=2026-10-28c"></script>
+<script src="/js/live-scores.js?v=2026-10-28c"></script>
+<script src="/js/leverage.js?v=2026-10-28c"></script>
+<script src="/js/simulator.js?v=2026-10-28c"></script>
+<script src="/js/archive.js?v=2026-10-28c"></script>
+<script src="/js/simple-mode-commissioner.js?v=2026-10-28c"></script>
+<script src="/js/commissioner-admin.js?v=2026-10-28c"></script>
+<script src="/js/shell.js?v=2026-10-28c"></script>
+<script src="/js/live/situation.js?v=2026-10-28c"></script>
+<script src="/js/picks-ui.js?v=2026-10-28c"></script>
+<script src="/js/matchups-ui.js?v=2026-10-28c"></script>
+<script src="/js/live-ui.js?v=2026-10-28c"></script>
+<script src="/js/standings-ui.js?v=2026-10-28c"></script>
+<script src="/js/dialogs-ui.js?v=2026-10-28c"></script>
+<script src="/js/player-sheet.js?v=2026-10-28c"></script>
+<script src="/js/official-form.js?v=2026-10-28c"></script>
+<script src="/js/email-service.js?v=2026-10-28c"></script>
+<script src="/js/layout.js?v=2026-10-28c"></script>
+<script src="/js/boot.js?v=2026-10-28c"></script>
 <div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>
   <span>Update available</span>
   <button type="button" id="pwa-update-reload" class="link-btn">Reload</button>
 </div>
-<script src="/js/pwa.js?v=2026-10-28b"></script>
+<script src="/js/pwa.js?v=2026-10-28c"></script>
 </body>
 </html>

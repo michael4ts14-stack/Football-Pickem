@@ -127,6 +127,23 @@ test("a second receipt within 45s is suppressed, and the hourly limit applies", 
   assert.strictEqual(post(h, { action: "sendPickReceipt", idToken: token("uid-player") }).code, "RATE_LIMITED");
 });
 
+test("verifying your email works right away (unverified checks aren't remembered)", () => {
+  const h = service();
+  const tok = token("uid-unverified");
+  assert.strictEqual(post(h, { action: "sendPickReceipt", idToken: tok }).code, "EMAIL_NOT_VERIFIED");
+  USERS["uid-unverified"].emailVerified = true;
+  try {
+    assert.notStrictEqual(post(h, { action: "sendPickReceipt", idToken: tok }).code, "EMAIL_NOT_VERIFIED");
+  } finally { USERS["uid-unverified"].emailVerified = false; }
+});
+
+test("the send log says what the Pool emails switch did", () => {
+  const h = service();
+  post(h, { action: "setBroadcastsEnabled", idToken: token("uid-commish"), enabled: true });
+  const entry = h.ctx.fromFirestoreValue({ mapValue: JSON.parse(logWrites(h)[0].params.payload) });
+  assert.strictEqual(entry.detail, "Pool emails turned on");
+});
+
 test("an unverified email can't get a receipt", () => {
   const r = post(service(), { action: "sendPickReceipt", idToken: token("uid-unverified") });
   assert.strictEqual(r.code, "EMAIL_NOT_VERIFIED");
