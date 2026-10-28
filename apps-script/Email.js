@@ -212,12 +212,49 @@ function sendPickReceipt_(who, shared, data) {
   return { ok: true, sentTo: who.email, picks: lines.filter(function(l) { return l.pick !== "No pick"; }).length };
 }
 
+// ---------- Email layout: light, readable, gold accent (matches the app's tokens) ----------
+var EMAIL_COLORS = { bg: "#f5f5f6", card: "#ffffff", text: "#16171a", muted: "#5c5f67", border: "#e3e4e8", accent: "#c9a227", onAccent: "#16171a" };
+
+function esc_(s) {
+  return String(s === undefined || s === null ? "" : s).replace(/[&<>"']/g, function(c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
+}
+
+function emailLayout_(heading, bodyHtml, cta) {
+  var C = EMAIL_COLORS;
+  return "<div style='background:" + C.bg + ";padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:" + C.text + ";'>" +
+    "<div style='max-width:560px;margin:0 auto;background:" + C.card + ";border:1px solid " + C.border + ";border-top:4px solid " + C.accent + ";border-radius:8px;padding:24px;'>" +
+      "<div style='font-size:13px;letter-spacing:1px;text-transform:uppercase;color:" + C.muted + ";margin-bottom:4px;'>Separated at Turf Pick'em</div>" +
+      "<h1 style='font-size:22px;line-height:1.25;margin:0 0 16px;color:" + C.text + ";'>" + esc_(heading) + "</h1>" +
+      bodyHtml +
+      (cta ? "<p style='margin:24px 0 8px;'><a href='" + esc_(cta.url) + "' style='display:inline-block;background:" + C.accent + ";color:" + C.onAccent + ";padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:600;font-size:15px;'>" + esc_(cta.label) + "</a></p>" : "") +
+      "<p style='margin:24px 0 0;padding-top:16px;border-top:1px solid " + C.border + ";font-size:12px;color:" + C.muted + ";'>Questions? Reply to this email. " +
+        "<a href='" + APP_URL + "' style='color:" + C.muted + ";'>" + APP_URL.replace(/^https:\/\//, "") + "</a></p>" +
+    "</div></div>";
+}
+
+function emailPara_(html) { return "<p style='font-size:15px;line-height:1.5;margin:0 0 12px;'>" + html + "</p>"; }
+
 function buildReceiptEmail_(name, wk, tb, lines) {
-  var text = "Hi " + name + ",\n\nYour picks for " + wk + " are saved.\n\nTie-breaker: " + tb + "\nYou can change picks until Friday 9:00 PM CT.\n\n" +
-    lines.map(function(l) { return l.game + ": " + l.pick + (l.pts ? " (" + l.pts + "x)" : ""); }).join("\n") + "\n\n— Separated at Turf Pick'em\n" + APP_URL;
-  var rows = lines.map(function(l) { return "<li>" + l.game + ": <strong>" + l.pick + "</strong>" + (l.pts ? " (" + l.pts + "x)" : "") + "</li>"; }).join("");
-  var html = "<div><h2>Separated at Turf Pick'em</h2><p>Hi " + name + ", your picks for " + wk + " are saved. Tie-breaker: " + tb + ".</p><ul>" + rows + "</ul></div>";
-  return { subject: "Separated at Turf — " + wk + " pick receipt (" + name + ")", text: text, html: html };
+  var C = EMAIL_COLORS;
+  var made = lines.filter(function(l) { return l.pick !== "No pick"; }).length;
+  var rows = lines.map(function(l) {
+    var none = l.pick === "No pick";
+    return "<tr><td style='padding:8px 0;border-bottom:1px solid " + C.border + ";font-size:13px;color:" + C.muted + ";'>" + esc_(l.game) + "</td>" +
+      "<td style='padding:8px 0;border-bottom:1px solid " + C.border + ";font-size:14px;text-align:right;" + (none ? "color:" + C.muted + ";" : "font-weight:600;") + "'>" + esc_(l.pick) +
+      (l.pts ? " <span style='display:inline-block;margin-left:4px;padding:0 6px;border:1px solid " + C.border + ";border-radius:4px;font-size:12px;font-weight:600;'>" + esc_(l.pts) + "x</span>" : "") + "</td></tr>";
+  }).join("");
+  var html = emailLayout_(wk + " picks saved",
+    emailPara_("Hi " + esc_(name) + ", your picks are saved. You can change them until <strong>Friday 9:00 PM CT</strong>.") +
+    "<table role='presentation' style='width:100%;border-collapse:collapse;margin:8px 0 4px;'>" +
+      "<tr><td style='font-size:14px;padding:4px 0;'>Picks</td><td style='font-size:14px;text-align:right;font-weight:600;'>" + made + " of " + lines.length + "</td></tr>" +
+      "<tr><td style='font-size:14px;padding:4px 0;'>Tie-breaker</td><td style='font-size:14px;text-align:right;font-weight:600;'>" + esc_(tb) + "</td></tr>" +
+    "</table>" +
+    "<table role='presentation' style='width:100%;border-collapse:collapse;margin-top:12px;'>" + rows + "</table>",
+    { url: APP_URL, label: "Review my picks" });
+  var text = "Hi " + name + ",\n\nYour picks for " + wk + " are saved (" + made + " of " + lines.length + "). Tie-breaker: " + tb + ".\n" +
+    "You can change them until Friday 9:00 PM CT.\n\n" +
+    lines.map(function(l) { return l.game + ": " + l.pick + (l.pts ? " (" + l.pts + "x)" : ""); }).join("\n") + "\n\nReview: " + APP_URL + "\n— Separated at Turf Pick'em";
+  return { subject: "Separated at Turf — " + wk + " picks saved (" + name + ")", text: text, html: html };
 }
 
 // ---------- Broadcasts ----------
@@ -289,8 +326,12 @@ function sendWedThuNudge_(who, shared, data) {
 }
 
 function buildNudgeEmail_(wk) {
-  var text = "Hi,\n\nReminder: submit your picks for " + wk + " before Friday 9:00 PM CT.\n\nMake your picks: " + APP_URL + "\n\n— Separated at Turf Pick'em";
-  return { subject: "Separated at Turf — " + wk + " picks due Friday 9:00 PM CT", text: text, html: "<p>" + text.replace(/\n/g, "<br>") + "</p>" };
+  var html = emailLayout_(wk + " picks are due Friday",
+    emailPara_("Friendly reminder: we don't have your picks for <strong>" + esc_(wk) + "</strong> yet.") +
+    emailPara_("Picks lock <strong>Friday at 9:00 PM CT</strong>. You can change them as often as you like until then."),
+    { url: APP_URL, label: "Make my picks" });
+  var text = "Friendly reminder: we don't have your picks for " + wk + " yet.\nPicks lock Friday at 9:00 PM CT.\n\nMake your picks: " + APP_URL + "\n— Separated at Turf Pick'em";
+  return { subject: "Separated at Turf — " + wk + " picks due Friday 9:00 PM CT", text: text, html: html };
 }
 
 function sendMasterSheet_(who, shared, data) {
@@ -305,6 +346,10 @@ function sendMasterSheet_(who, shared, data) {
 }
 
 function buildMasterSheetEmail_(wk) {
-  var text = "Hi everyone,\n\nAll picks for " + wk + " are locked. The master sheet with every player's picks is attached.\n\nGood luck this weekend!\n— Separated at Turf Pick'em\n" + APP_URL;
-  return { subject: "Separated at Turf — " + wk + " master pick sheet", text: text, html: "<p>" + text.replace(/\n/g, "<br>") + "</p>" };
+  var html = emailLayout_(wk + " master pick sheet",
+    emailPara_("All picks for <strong>" + esc_(wk) + "</strong> are locked. The attached sheet has every player's picks and tie-breaker.") +
+    emailPara_("Good luck this weekend!"),
+    { url: APP_URL, label: "Follow the games live" });
+  var text = "All picks for " + wk + " are locked. The attached sheet has every player's picks and tie-breaker.\n\nGood luck this weekend!\nFollow the games: " + APP_URL + "\n— Separated at Turf Pick'em";
+  return { subject: "Separated at Turf — " + wk + " master pick sheet", text: text, html: html };
 }
