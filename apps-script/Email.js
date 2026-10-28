@@ -170,7 +170,10 @@ function writeEmailLog_(entry) {
       payload: JSON.stringify(toFirestoreValue(entry).mapValue)
     });
     var code = res.getResponseCode();
-    return code >= 200 && code < 300 ? "" : "HTTP " + code;
+    if (code >= 200 && code < 300) return "";
+    var detail = "";
+    try { var j = JSON.parse(res.getContentText()); detail = (j.error && (j.error.status + ": " + j.error.message)) || ""; } catch (eJson) {}
+    return ("HTTP " + code + (detail ? " " + detail : "")).slice(0, 300);
   } catch (e) {
     return String(e.message || e);
   }

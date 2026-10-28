@@ -70,6 +70,15 @@ function authorizeAndTestEmailService() {
   Logger.log("✓ Sent test verification email to: " + myEmail);
 }
 
+// Run this in the Apps Script editor if the bot or the send log reports "insufficient
+// authentication scopes": it asks again for the Firestore permission (tick every box on
+// Google's consent screen), then reads the pool document to prove it works.
+function authorizeFirestoreAccess() {
+  if (ScriptApp.requireScopes) ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, ["https://www.googleapis.com/auth/datastore"]);
+  var res = UrlFetchApp.fetch(FIRESTORE_DOC_URL, { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
+  Logger.log("Firestore as the script owner: HTTP " + res.getResponseCode() + (res.getResponseCode() === 200 ? " (OK)" : " " + String(res.getContentText()).slice(0, 300)));
+}
+
 // Run this function ONCE in the Apps Script editor to install automated triggers:
 // 1. Every 1 Minute: `pollEspnLiveGamesSubMinute` (tracks ESPN live scores & play-by-play every 20s during live games!)
 // 2. Every 5 Minutes: `autoScrapeWeeklyPickemToFirebase` (scrapes Gmail .xlsx/.csv sheets, standings & new slates)
