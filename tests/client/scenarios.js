@@ -221,6 +221,19 @@ function serve() {
   check("commissioner overrides are logged; game locks, tab guard and read-only preview work",
     r13.tb === "31-24" && r13.unlocked && r13.logged === 2 && r13.gameLocked && r13.tab === "submissions" && r13.readOnly && r13.banner, r13);
 
+  // 14. Pick status line, "Next unpicked", and the review sheet before locking.
+  const r14 = await page.evaluate(async () => {
+    const line = (document.querySelector(".pick-status-line") || {}).textContent || "";
+    jumpToNextUnpicked();
+    const flashed = !!document.querySelector(".pick-card.is-flash");
+    onPrimaryPicksAction();
+    const title = document.getElementById("panel-sheet-title").textContent;
+    const summary = myPicksSummaryText();
+    closePanelSheet();
+    return { line, flashed, title, summaryOk: /picked · .* favorites \(1x\)/.test(summary) && /Tiebreaker:/.test(summary) };
+  });
+  check("pick status, next unpicked and review sheet", /picked/.test(r14.line) && /Max \d+ pts/.test(r14.line) && r14.flashed && r14.title === "Review your picks" && r14.summaryOk, r14);
+
   // 12. Palette, custom colors and screen preset survive a reload (applied before first paint).
   await page.evaluate(() => { setAppTheme("turf"); applyCustomThemeColors({ accent: "#3b82f6" }); setScreenPreset("compact-grid"); });
   await page.reload({ waitUntil: "domcontentloaded" });

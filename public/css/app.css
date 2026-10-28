@@ -1128,3 +1128,25 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 }
 .preview-banner[hidden] { display: none; }
 .preview-banner .btn-sm { background: var(--on-accent); color: var(--accent); border: 0; }
+
+/* ---------- Pick progress status + review (picks-ui.js) ---------- */
+.pick-status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; font-size: 13px; color: var(--text-muted); }
+.pick-status-line:empty { display: none; }
+.pick-status-line strong { color: var(--text); }
+.pick-status-line .is-missing { color: var(--warn); }
+.pick-status-line .link-btn { margin-left: auto; color: var(--accent-text); font-weight: 600; font-size: 13px; }
+.pick-status-line.in-bar { margin-bottom: 8px; }
+.pick-status-line.in-tb { margin-top: 6px; }
+@media (max-width: 899px) {
+  .pick-status-line.in-tb { display: none; }
+  #full-cards-wrapper { padding-bottom: 112px; }
+}
+.pick-card.is-flash { animation: pick-flash 1.6s ease-out; }
+@keyframes pick-flash { 0%, 40% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 3px transparent; } }
+@media (prefers-reduced-motion: reduce) { .pick-card.is-flash { animation: none; box-shadow: 0 0 0 3px var(--accent); } }
+.review-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.review-stats > div { display: flex; flex-direction: column; padding: 10px 12px; background: var(--raised); border-radius: var(--radius); font-size: 13px; color: var(--text-muted); }
+.review-num { font-family: var(--font-head); font-size: 26px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.review-warn { color: var(--warn); font-size: 14px; margin-bottom: 12px; }
+.review-actions { display: flex; flex-direction: column; gap: 8px; }
+.review-actions .btn-sm { min-height: 44px; }

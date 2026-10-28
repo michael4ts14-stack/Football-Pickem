@@ -38,12 +38,12 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="/css/tokens.css?v=2026-10-28m" />
-<link rel="stylesheet" href="/css/base.css?v=2026-10-28m" />
-<link rel="stylesheet" href="/css/views.css?v=2026-10-28m" />
-<link rel="stylesheet" href="/css/components.css?v=2026-10-28m" />
-<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-28m" />
-<link rel="stylesheet" href="/css/app.css?v=2026-10-28m" />
+<link rel="stylesheet" href="/css/tokens.css?v=2026-10-28n" />
+<link rel="stylesheet" href="/css/base.css?v=2026-10-28n" />
+<link rel="stylesheet" href="/css/views.css?v=2026-10-28n" />
+<link rel="stylesheet" href="/css/components.css?v=2026-10-28n" />
+<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-28n" />
+<link rel="stylesheet" href="/css/app.css?v=2026-10-28n" />
 </head>
 <body class="simple-ui-mode">
 <script>
@@ -170,7 +170,7 @@
           </label>
           <label class="check-field">
             <input type="checkbox" id="chk-cond-diff-only" onchange="renderCondensedTable()" />
-            Differences only
+            Swing games only
           </label>
           <button type="button" class="tool-btn" onclick="printCheckmarkSheet()"><i data-lucide="printer"></i><span>Print sheet</span></button>
         </div>
@@ -348,6 +348,7 @@
         <div class="tb-card-text">
           <h2 class="tb-card-title" id="tb-card-title">Tie-breaker</h2>
           <p class="tb-card-sub" id="tb-card-matchup">Total points, highest score first (e.g. 28-24)</p>
+          <div class="pick-status-line in-tb" aria-live="polite"></div>
         </div>
         <input type="text" id="simple-tiebreaker-input" value="28-24" class="search-input tb-input" inputmode="numeric" aria-label="Tie-breaker score, highest first" oninput="syncSimpleTiebreakerInput(this.value)" />
         <div class="tb-card-actions">
@@ -357,6 +358,7 @@
       </section>
 
       <div class="submit-bar">
+        <div class="pick-status-line in-bar" aria-live="polite"></div>
         <button type="button" class="btn-submit" id="btn-submit-picks" onclick="onPrimaryPicksAction()">Lock picks</button>
       </div>
     </div>
@@ -734,52 +736,52 @@
     <div id="review-checklist-body"></div>
   </div>
 </div>
-<script src="/js/00-boot-guard.js?v=2026-10-28m"></script>
-<script src="/js/config.js?v=2026-10-28m"></script>
-<script src="/js/data/teams.js?v=2026-10-28m"></script>
-<script src="/js/data/default-slate.js?v=2026-10-28m"></script>
-<script src="/js/state-globals.js?v=2026-10-28m"></script>
-<script src="/js/win-prob.js?v=2026-10-28m"></script>
-<script src="/js/data/week7-official.js?v=2026-10-28m"></script>
-<script src="/js/data/code-gs-source.js?v=2026-10-28m"></script>
-<script src="/js/state.js?v=2026-10-28m"></script>
-<script src="/js/team-match.js?v=2026-10-28m"></script>
-<script src="/js/firestore.js?v=2026-10-28m"></script>
-<script src="/js/picks.js?v=2026-10-28m"></script>
-<script src="/js/espn.js?v=2026-10-28m"></script>
-<script src="/js/profiles.js?v=2026-10-28m"></script>
-<script src="/js/auth.js?v=2026-10-28m"></script>
-<script src="/js/import-hub.js?v=2026-10-28m"></script>
-<script src="/js/render/condensed.js?v=2026-10-28m"></script>
-<script src="/js/import-sheet-grading.js?v=2026-10-28m"></script>
-<script src="/js/render/field-tracker.js?v=2026-10-28m"></script>
-<script src="/js/demo-sim.js?v=2026-10-28m"></script>
-<script src="/js/render/field.js?v=2026-10-28m"></script>
-<script src="/js/render/theater.js?v=2026-10-28m"></script>
-<script src="/js/live/live-feed.js?v=2026-10-28m"></script>
-<script src="/js/live-scores.js?v=2026-10-28m"></script>
-<script src="/js/leverage.js?v=2026-10-28m"></script>
-<script src="/js/simulator.js?v=2026-10-28m"></script>
-<script src="/js/archive.js?v=2026-10-28m"></script>
-<script src="/js/simple-mode-commissioner.js?v=2026-10-28m"></script>
-<script src="/js/commissioner-admin.js?v=2026-10-28m"></script>
-<script src="/js/shell.js?v=2026-10-28m"></script>
-<script src="/js/live/situation.js?v=2026-10-28m"></script>
-<script src="/js/picks-ui.js?v=2026-10-28m"></script>
-<script src="/js/matchups-ui.js?v=2026-10-28m"></script>
-<script src="/js/live-ui.js?v=2026-10-28m"></script>
-<script src="/js/standings-ui.js?v=2026-10-28m"></script>
-<script src="/js/dialogs-ui.js?v=2026-10-28m"></script>
-<script src="/js/player-sheet.js?v=2026-10-28m"></script>
-<script src="/js/official-form.js?v=2026-10-28m"></script>
-<script src="/js/email-service.js?v=2026-10-28m"></script>
-<script src="/js/commish-hub.js?v=2026-10-28m"></script>
-<script src="/js/layout.js?v=2026-10-28m"></script>
-<script src="/js/boot.js?v=2026-10-28m"></script>
+<script src="/js/00-boot-guard.js?v=2026-10-28n"></script>
+<script src="/js/config.js?v=2026-10-28n"></script>
+<script src="/js/data/teams.js?v=2026-10-28n"></script>
+<script src="/js/data/default-slate.js?v=2026-10-28n"></script>
+<script src="/js/state-globals.js?v=2026-10-28n"></script>
+<script src="/js/win-prob.js?v=2026-10-28n"></script>
+<script src="/js/data/week7-official.js?v=2026-10-28n"></script>
+<script src="/js/data/code-gs-source.js?v=2026-10-28n"></script>
+<script src="/js/state.js?v=2026-10-28n"></script>
+<script src="/js/team-match.js?v=2026-10-28n"></script>
+<script src="/js/firestore.js?v=2026-10-28n"></script>
+<script src="/js/picks.js?v=2026-10-28n"></script>
+<script src="/js/espn.js?v=2026-10-28n"></script>
+<script src="/js/profiles.js?v=2026-10-28n"></script>
+<script src="/js/auth.js?v=2026-10-28n"></script>
+<script src="/js/import-hub.js?v=2026-10-28n"></script>
+<script src="/js/render/condensed.js?v=2026-10-28n"></script>
+<script src="/js/import-sheet-grading.js?v=2026-10-28n"></script>
+<script src="/js/render/field-tracker.js?v=2026-10-28n"></script>
+<script src="/js/demo-sim.js?v=2026-10-28n"></script>
+<script src="/js/render/field.js?v=2026-10-28n"></script>
+<script src="/js/render/theater.js?v=2026-10-28n"></script>
+<script src="/js/live/live-feed.js?v=2026-10-28n"></script>
+<script src="/js/live-scores.js?v=2026-10-28n"></script>
+<script src="/js/leverage.js?v=2026-10-28n"></script>
+<script src="/js/simulator.js?v=2026-10-28n"></script>
+<script src="/js/archive.js?v=2026-10-28n"></script>
+<script src="/js/simple-mode-commissioner.js?v=2026-10-28n"></script>
+<script src="/js/commissioner-admin.js?v=2026-10-28n"></script>
+<script src="/js/shell.js?v=2026-10-28n"></script>
+<script src="/js/live/situation.js?v=2026-10-28n"></script>
+<script src="/js/picks-ui.js?v=2026-10-28n"></script>
+<script src="/js/matchups-ui.js?v=2026-10-28n"></script>
+<script src="/js/live-ui.js?v=2026-10-28n"></script>
+<script src="/js/standings-ui.js?v=2026-10-28n"></script>
+<script src="/js/dialogs-ui.js?v=2026-10-28n"></script>
+<script src="/js/player-sheet.js?v=2026-10-28n"></script>
+<script src="/js/official-form.js?v=2026-10-28n"></script>
+<script src="/js/email-service.js?v=2026-10-28n"></script>
+<script src="/js/commish-hub.js?v=2026-10-28n"></script>
+<script src="/js/layout.js?v=2026-10-28n"></script>
+<script src="/js/boot.js?v=2026-10-28n"></script>
 <div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>
   <span>Update available</span>
   <button type="button" id="pwa-update-reload" class="link-btn">Reload</button>
 </div>
-<script src="/js/pwa.js?v=2026-10-28m"></script>
+<script src="/js/pwa.js?v=2026-10-28n"></script>
 </body>
 </html>

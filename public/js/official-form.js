@@ -115,13 +115,8 @@ function primaryPicksActionIsSend() {
 
 function onPrimaryPicksAction() {
   if (primaryPicksActionIsSend()) { sendPicksToOfficialForm(); return; }
-  var picks = getMyPicksMap();
-  var done = countMatchingPicksForSlate(picks, GAMES).matched;
-  if (done < GAMES.length) {
-    confirmDanger("You've picked " + done + " of " + GAMES.length + " games. Lock your picks anyway?", "Lock picks", lockAndSavePicks);
-    return;
-  }
-  lockAndSavePicks();
+  // Picks autosave as they're tapped; locking first shows a summary (and any missing games).
+  openPicksReviewSheet();
 }
 
 function lockAndSavePicks() {
