@@ -999,3 +999,9 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 #official-form-summary .btn-submit { width: 100%; }
 #official-form-summary .btn-submit[disabled] { opacity: 0.6; cursor: not-allowed; }
 .form-commish-note { margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px; }
+
+/* ---------- Email service (Commissioner console) ---------- */
+.email-svc { margin-bottom: 16px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); }
+.email-svc-status { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
+.email-svc-url { display: flex; gap: 8px; flex-wrap: wrap; }
+.email-svc-url .search-input { flex: 1 1 320px; min-height: 40px; }
