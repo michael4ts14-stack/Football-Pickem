@@ -1280,3 +1280,12 @@ body.theater-open #app-toast-banner { top: calc(env(safe-area-inset-top) + 8px);
 .live-filter-bar, .gameday-strip { top: env(safe-area-inset-top, 0px); }
 body.has-preview-banner { padding-top: calc(env(safe-area-inset-top) + 64px); }
 body.has-preview-banner .live-filter-bar, body.has-preview-banner .gameday-strip { top: calc(env(safe-area-inset-top) + 64px); }
+
+/* Page scroll lock while an overlay is open (dialogs-ui.js sets top to the saved offset). */
+body.page-scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overflow: hidden; }
+/* Overlays keep their own scroll: reaching the end doesn't hand the scroll to the page. */
+#commish-modal-backdrop, #commish-modal-box, #auth-modal-backdrop, #pin-modal-backdrop, #opp-modal-backdrop, #opp-modal,
+#field-theater-backdrop, #field-theater-modal, .slideout-backdrop, .slideout-drawer, .sheet-backdrop, .sheet-body,
+#review-checklist-backdrop, #review-checklist-box, #auth-modal-box, #pin-modal-box, .app-rail.is-open, .sidebar.mobile-drawer-open, .rail-backdrop {
+  overscroll-behavior: contain;
+}
