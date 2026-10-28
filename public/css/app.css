@@ -1360,3 +1360,32 @@ body.page-scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overf
   #commish-modal-body [style*="display:flex"] > input.search-input { flex: 1 1 140px; width: auto !important; }
   #commish-modal-body .side-box, #commish-modal-body .console-section { padding-left: 10px; padding-right: 10px; }
 }
+
+/* ---------- Commissioner › Users ---------- */
+.users-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.users-toolbar .search-input { flex: 1 1 220px; min-width: 0; }
+.users-list { list-style: none; margin: 0 0 12px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius); max-height: min(65vh, 640px); overflow-y: auto; overscroll-behavior: contain; }
+.users-row { display: grid; grid-template-columns: minmax(160px, 1.2fr) minmax(0, 2fr); gap: 6px 14px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.users-row:last-child { border-bottom: 0; }
+.users-name { font-weight: 600; overflow-wrap: anywhere; }
+.users-sub { font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
+.users-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 10px; margin: 0; }
+.users-facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.users-facts dd { margin: 0; font-size: 14px; }
+.users-paid { color: var(--win); }
+.users-unpaid { color: var(--loss); }
+.users-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+.users-role select { min-width: 160px; }
+.users-merge-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.users-merge-row label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-muted); flex: 1 1 220px; min-width: 0; }
+@media (max-width: 640px) {
+  .users-row { grid-template-columns: minmax(0, 1fr); }
+  .users-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+.users-toolbar .chip-row { flex: 1 1 100%; flex-wrap: wrap; overflow: visible; }
+@media (max-width: 640px) {
+  .users-row { gap: 6px; padding: 10px; }
+  .users-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px 6px; }
+  .users-facts dt { font-size: 10px; }
+  .users-facts dd { font-size: 13px; }
+}

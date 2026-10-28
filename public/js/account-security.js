@@ -821,18 +821,30 @@ async function mergeProfileInto(dupKey, targetName) {
 
   var dupPicks = (state[dupKey] && state[dupKey].picks) || dupDoc.picks || {};
   var targetPicks = (state[targetKey] && state[targetKey].picks) || {};
-  var movePicks = !hasSubmittedPicksForCurrentSlate(targetPicks, GAMES) && hasSubmittedPicksForCurrentSlate(dupPicks, GAMES);
+  // Combine: the kept record's picks win; the duplicate fills games the kept record hasn't
+  // picked this week. Only this week's games move (older keys belong to other slates).
+  var combined = Object.assign({}, targetPicks);
+  var filled = 0;
+  GAMES.forEach(function(g) {
+    var mine = getResolvedPickForGame(targetPicks, g, false);
+    var theirs = getResolvedPickForGame(dupPicks, g, false);
+    if (!mine && theirs) { combined[g.id] = theirs; filled++; }
+  });
+  var movePicks = filled > 0;
+  var targetTb = state[targetKey] && state[targetKey].tiebreaker;
   var msg = "Merge \"" + cu.name + "\" into " + shownTarget + "?\n\n" +
     (email ? "• " + email + " becomes " + shownTarget + "'s account and lands on their picks.\n" : "• No sign-in is attached to \"" + cu.name + "\".\n") +
-    (movePicks ? "• " + shownTarget + " has no picks this week, so the duplicate's picks move over.\n" : "• " + shownTarget + "'s own picks are kept.\n") +
+    (movePicks ? "• " + filled + " of the duplicate's picks fill games " + shownTarget + " hasn't picked; " + shownTarget + "'s own picks stay.\n" : "• " + shownTarget + "'s own picks are kept (nothing to add).\n") +
     "• \"" + cu.name + "\" is then removed (archived; its picks history is kept).";
   confirmDanger(msg, "Merge", async function() {
     try {
       var now = new Date().toISOString();
       if (movePicks) {
         if (!state[targetKey]) state[targetKey] = { picks: {}, tiebreaker: "28-24", target: 20 };
-        state[targetKey].picks = Object.assign({}, dupPicks);
-        if ((state[dupKey] && state[dupKey].tiebreaker) || dupDoc.tiebreaker) state[targetKey].tiebreaker = (state[dupKey] && state[dupKey].tiebreaker) || dupDoc.tiebreaker;
+        state[targetKey].picks = combined;
+        var hadOwnPicks = hasSubmittedPicksForCurrentSlate(targetPicks, GAMES);
+        if (!hadOwnPicks && ((state[dupKey] && state[dupKey].tiebreaker) || dupDoc.tiebreaker)) state[targetKey].tiebreaker = (state[dupKey] && state[dupKey].tiebreaker) || dupDoc.tiebreaker;
+        else if (targetTb) state[targetKey].tiebreaker = targetTb;
         state[targetKey]._picksCleared = false;
       }
       var userDoc = { profileKey: targetKey, linkedMemberName: rosterDisplayName(targetName), updatedAt: now };
@@ -862,6 +874,7 @@ async function mergeProfileInto(dupKey, targetName) {
       }
       await Promise.all(jobs);
       await archiveProfile(dupKey, "Merged into " + shownTarget);
+      logCommishAction("Merged " + cu.name + " into " + shownTarget + (email ? " (account " + email + " moved)" : "") + (movePicks ? ", " + filled + " picks added" : ""), shownTarget, "");
       regradeAllPoolMembersLive();
       pushWatchlistOrStandingsToFirebase();
       renderAll();

@@ -50,3 +50,72 @@ switchCommissionerTab = function(tab) {
   });
   return res;
 };
+
+// ---------- Commissioner log: every action, who / what / when ----------
+// Actions that don't write their own entry are wrapped here. A wrapped action that opens the
+// confirm dialog logs only when it's confirmed; one that changes nothing (describe returns
+// null) isn't logged. Actions with their own entries: pick overrides, force unlocks, game locks,
+// danger zone (logCommissionerOverride), archive/restore and merge (account-security.js), dues
+// (commish-dues.js), and the Users tab actions (commish-users.js).
+function wrapCommishActionLog(name, describe) {
+  var orig = window[name];
+  if (typeof orig !== "function") return;
+  window[name] = function() {
+    var args = arguments;
+    var cbBefore = typeof _confirmDangerCallback !== "undefined" ? _confirmDangerCallback : null;
+    var res = orig.apply(this, args);
+    var log = function() {
+      if (!isVerifiedCommissioner()) return;
+      var d = describe.apply(null, args);
+      if (d) logCommishAction(d[0], d[1] || "", d[2] || "");
+    };
+    if (typeof _confirmDangerCallback !== "undefined" && _confirmDangerCallback && _confirmDangerCallback !== cbBefore) {
+      var cb = _confirmDangerCallback;
+      _confirmDangerCallback = function() { var r = cb.apply(this, arguments); log(); return r; };
+    } else {
+      log();
+    }
+    return res;
+  };
+}
+
+(function() {
+  var cfg = function() { return ensureCommissionerConfig(); };
+  var nm = function(n) { return fixDisplaySpelling(standardizeParticipantName(n || "")); };
+  var reqName = function(uid) {
+    var r = (typeof LINK_REQUESTS !== "undefined" ? LINK_REQUESTS : []).filter(function(x) { return x && (x.claimId === uid || x.uid === uid); })[0] || {};
+    return [r.authEmail || uid, r.requestedMember ? nm(r.requestedMember) : ""];
+  };
+  var actions = {
+    setCommishLockMode: function(m) { return ["Pick lock mode set to " + m]; },
+    setCommishScrapingMode: function(m) { return ["Site mode set to " + m]; },
+    setDeadlineConfig: function(f, v) { return ["Pick deadline " + f + " set to " + v]; },
+    setPaymentLink: function(f, v) { return ["Payment link " + f + " set to " + (v || "(blank)")]; },
+    setPotSetting: function(f, v) { return ["Payout " + f + " set to " + v]; },
+    commishSaveBanner: function() { var b = cfg().announcementBanner; return [b ? "Published banner: " + b : "Cleared the banner"]; },
+    commishAddPoolMember: function() { return ["Added a player to the roster"]; },
+    commishAdjustPlayerPriorPts: function(n, v) { return ["Set prior points to " + v, nm(n)]; },
+    commishAutoFillMissingPlayers: function(s) { return ["Auto-filled missing players' picks (" + (s || "favorites") + ")"]; },
+    commishPublishSelectedEspnSlate: function() { return ["Published a new slate (Week " + state.currentWeek + ", " + GAMES.length + " games)"]; },
+    commishSwapIndividualGame: function(id) { var g = findGameById(id); return g ? ["Swapped game #" + id + " to " + g.away + " at " + g.home] : null; },
+    commishUpdateGameSpread: function(id, line) { return ["Game #" + id + " line set to " + line]; },
+    commishUpdateGameKick: function(id, k) { return ["Game #" + id + " kickoff set to " + k]; },
+    setTiebreakerGame: function(id) { return ["Tiebreaker game set to #" + id]; },
+    triggerWedThuAutomatedNudge: function() { return ["Sent the Wed/Thu nudge email"]; },
+    triggerSaturdayMorningMasterSheetBroadcast: function() { return ["Sent the Saturday reveal / master sheet"]; },
+    commishGrantRole: function(k, label) { var key = String(k || "").toLowerCase(); return cfg().authorizedCommissioners[key] || key.indexOf("@") === -1 ? ["Granted co-commissioner", label || k] : null; },
+    commishRevokeRole: function(k) { return cfg().authorizedCommissioners[k] ? null : ["Revoked commissioner access", k]; },
+    commishToggleRoleEnabled: function(k) { var r = cfg().authorizedCommissioners[k]; return r ? [(r.enabled ? "Re-enabled" : "Suspended") + " commissioner access", k] : null; },
+    commishUpdatePrimaryEmail: function() { return ["Primary commissioner email set to " + cfg().primaryCommissionerEmail]; },
+    approveLinkRequest: function(uid) { var r = reqName(uid); return ["Approved account link " + r[0], r[1]]; },
+    rejectLinkRequest: function(uid, block) { var r = reqName(uid); return [(block ? "Blocked " : "Denied link for ") + r[0], r[1]]; },
+    unlinkPlayerAccount: function(k) { return ["Unlinked the account from " + (getLinkedMemberNameForProfile(k) || k), getLinkedMemberNameForProfile(k) || k]; },
+    unblockAccount: function(uid) { return ["Unblocked account " + uid]; },
+    setRegisteredPlayerEmail: function(n) { var e = (cfg().playerEmailsMap || {})[memberLowOf(n)]; return [e ? "Pre-approved email " + e : "Cleared the pre-approved email", nm(n)]; },
+    setRegistrationMode: function(m) { return ["League access set to " + m]; },
+    commishDeletePlayerPicks: null, // logged by commish-hub's override wrapper
+    startPlayerPreview: function(n) { return ["Previewed the app as", nm(n)]; },
+    commishQuickImpersonate: function(n) { return ["Opened picks to edit as", nm(n)]; }
+  };
+  Object.keys(actions).forEach(function(name) { if (actions[name]) wrapCommishActionLog(name, actions[name]); });
+})();

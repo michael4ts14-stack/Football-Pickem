@@ -96,17 +96,20 @@ function forceUnlockButtonHtml(memberName) {
 }
 
 function auditLogHtml() {
-  var log = ensureCommissionerConfig().overrideAuditLog.slice(0, 50);
+  // Entries appended with arrayUnion land at the end; show newest first by time.
+  var log = ensureCommissionerConfig().overrideAuditLog.slice().sort(function(a, b) {
+    return String(b.timestamp || "").localeCompare(String(a.timestamp || ""));
+  }).slice(0, 100);
   var rows = log.map(function(e) {
     var when = e.timestamp ? new Date(e.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
     return '<tr><td>' + escapeShellHtml(when) + '</td><td>' + escapeShellHtml(e.commishEmail || "") + '</td><td>' + escapeShellHtml(e.targetPlayer || "") + '</td><td>' + escapeShellHtml(e.action || "") + '</td><td>' + escapeShellHtml(e.reason || "") + '</td></tr>';
   }).join("");
   return '<section class="console-section" id="commish-audit-log">' +
-    '<h3 class="console-h">Override log</h3>' +
-    '<p class="sheet-meta">Every pick edit, tiebreaker override and force unlock, newest first. Read-only.</p>' +
+    '<h3 class="console-h">Commissioner log</h3>' +
+    '<p class="sheet-meta">Who did what and when: pick edits, overrides, dues, roles, links, removals and settings. Newest first, last 100. Read-only.</p>' +
     (rows
       ? '<div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;"><table class="condensed-table"><thead><tr><th>When</th><th>Commissioner</th><th>Player</th><th>Action</th><th>Reason</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-      : '<p class="empty-note">No overrides yet.</p>') +
+      : '<p class="empty-note">Nothing logged yet.</p>') +
   '</section>';
 }
 
@@ -387,7 +390,6 @@ renderCommissionerModalBody = function() {
   var res = _hubPrevCommishBody.apply(this, arguments);
   var body = document.getElementById("commish-modal-body");
   if (!body || !isVerifiedCommissioner()) return res;
-  if (ACTIVE_COMMISH_TAB === "submissions") body.insertAdjacentHTML("beforeend", auditLogHtml());
   if (ACTIVE_COMMISH_TAB === "locks") body.insertAdjacentHTML("beforeend", deadlineSettingsHtml());
   if (ACTIVE_COMMISH_TAB === "slate") body.insertAdjacentHTML("beforeend", dangerZoneHtml());
   if (ACTIVE_COMMISH_TAB === "roster") body.insertAdjacentHTML("beforeend", paymentSettingsHtml());
@@ -396,7 +398,7 @@ renderCommissionerModalBody = function() {
 
 // One entry point: unknown or legacy tab names (e.g. "override" from old links or saved state)
 // open Submissions. Also highlights the Master Grid and Admins tabs, which the original skipped.
-var COMMISH_TABS = ["submissions", "mastersheet", "slate", "locks", "roster", "comms", "admin"];
+var COMMISH_TABS = ["submissions", "mastersheet", "slate", "locks", "roster", "users", "comms", "admin"];
 var _hubPrevSwitchTab = switchCommissionerTab;
 switchCommissionerTab = function(tabName) {
   var tab = COMMISH_TABS.indexOf(tabName) !== -1 ? tabName : "submissions";

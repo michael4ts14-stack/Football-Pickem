@@ -28,6 +28,7 @@ var REMOTE_APPLY_DEBOUNCE_MS = 200;
 var pendingSharedStateData = null;
 var pendingSharedStateTimer = null;
 var pendingUsersRenderTimer = null;
+var USER_DOC_META = {}; // pick doc id -> { updatedAt, archived } (Commissioner › Users: last active)
 
 function startFirebaseRealtimeListeners() {
   if (fsDb) {
@@ -72,6 +73,7 @@ function startFirebaseRealtimeListeners() {
           if (ch.type !== "added" && ch.type !== "modified") continue;
           var docId = ch.doc.id;
           var uData = ch.doc.data();
+          if (docId && uData) USER_DOC_META[docId] = { updatedAt: uData.updatedAt || "", archived: !!uData.archived };
           if (!docId || !uData || !uData.picks) continue;
 
           // Never overwrite the local device's own Test Sim or actively-edited profile during a click

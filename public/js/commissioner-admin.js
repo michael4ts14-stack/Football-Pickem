@@ -140,13 +140,15 @@ function syncCommissionerRolesToFirestore() {
           emailsMap[k] = true;
         }
       }
+      // Replaces the doc: a merge set kept revoked emails in authorizedEmails, and
+      // firestore.rules read that map, so a revoked co-commissioner kept write access.
       fsDb.collection("pickem_v14_commissioners").doc("roles").set({
         primaryCommissionerEmail: cfg.primaryCommissionerEmail,
         authorizedEmails: emailsMap,
         authorizedCommissioners: cfg.authorizedCommissioners,
         updatedBy: (AUTH_SESSION && AUTH_SESSION.email) || "commissioner",
         updatedAt: new Date().toISOString()
-      }, { merge: true }).catch(function() {});
+      }).catch(function(e) { reportCloudSaveFailure("commissioner roles", e); });
     } catch (e) {}
   }
 }
@@ -1172,7 +1174,7 @@ function renderEvSimulatorDrawerBody() {
 switchCommissionerTab = function(tabName) {
   if (!assertCommissionerRole("Commissioner Console")) return;
   ACTIVE_COMMISH_TAB = tabName;
-  var tabs = ["submissions", "mastersheet", "slate", "locks", "roster", "comms", "admin"];
+  var tabs = ["submissions", "mastersheet", "slate", "locks", "roster", "users", "comms", "admin"];
   for (var i = 0; i < tabs.length; i++) {
     var b = document.getElementById("cm-tab-" + tabs[i]);
     if (b) b.className = "hub-tab-btn" + (tabs[i] === tabName ? " active" : "");
