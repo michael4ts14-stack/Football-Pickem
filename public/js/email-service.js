@@ -94,6 +94,73 @@ function callEmailService(action, extra) {
   }, function() { return { ok: false, code: "NOT_SIGNED_IN", error: EMAIL_ERROR_TEXT.NOT_SIGNED_IN }; });
 }
 
+// ---------- Pick receipt: "Sending receipt…" then the real result ----------
+var LAST_RECEIPT_RESULT = null;
+
+// The service reads your picks from Firestore, so wait until the save just made is confirmed.
+function waitForSavedPicks() {
+  if (typeof fsDb === "undefined" || !fsDb || typeof fsDb.waitForPendingWrites !== "function") return Promise.resolve();
+  return Promise.race([fsDb.waitForPendingWrites().catch(function() {}), new Promise(function(r) { setTimeout(r, 8000); })]);
+}
+
+function startPickReceiptSend() {
+  return waitForSavedPicks().then(function() { return callEmailService("sendPickReceipt"); })
+    .then(function(res) { LAST_RECEIPT_RESULT = res; return res; });
+}
+
+function receiptStatusHtml(res) {
+  if (!res) return '<span class="email-status-line"><span class="spinner" aria-hidden="true"></span>Sending receipt…</span>';
+  if (res.ok) {
+    return '<span class="email-status-line is-ok"><i data-lucide="check"></i>' +
+      (res.suppressedDuplicate ? 'Receipt already sent to ' : 'Receipt sent to ') + escapeShellHtml(res.sentTo || "your email") + '</span>';
+  }
+  var guest = res.code === "NOT_SIGNED_IN";
+  return '<span class="email-status-line is-error"><i data-lucide="circle-alert"></i>' + escapeShellHtml(res.error || "The receipt wasn't sent.") + '</span>' +
+    (guest
+      ? '<button type="button" class="link-btn" onclick="closeOppModal(); openAuthModalCarryingGuestPicks(\'signup\');">Create an account</button>'
+      : (res.code === "EMAIL_NOT_VERIFIED"
+          ? '<button type="button" class="link-btn" onclick="resendEmailVerification()">Send verification email</button>'
+          : '<button type="button" class="link-btn" onclick="retryPickReceipt()">Retry</button>'));
+}
+
+function showReceiptSendStatus(promise) {
+  var el = document.getElementById("receipt-email-status");
+  if (el) el.innerHTML = receiptStatusHtml(null);
+  promise.then(function(res) {
+    var box = document.getElementById("receipt-email-status");
+    if (box) box.innerHTML = receiptStatusHtml(res);
+  });
+}
+
+function retryPickReceipt() { showReceiptSendStatus(startPickReceiptSend()); }
+
+function resendEmailVerification() {
+  var u = (typeof fbAuth !== "undefined" && fbAuth) ? fbAuth.currentUser : null;
+  var box = document.getElementById("receipt-email-status");
+  if (!u) return;
+  u.sendEmailVerification().then(function() {
+    if (box) box.innerHTML = '<span class="email-status-line">Verification email sent to ' + escapeShellHtml(u.email || "") + '. Open the link, then tap Retry.</span><button type="button" class="link-btn" onclick="retryPickReceipt()">Retry</button>';
+  }, function(err) {
+    if (box) box.innerHTML = '<span class="email-status-line is-error">' + escapeShellHtml((err && err.message) || "Couldn't send the verification email.") + '</span>';
+  });
+}
+
+// ---------- Pool emails (nudge, master sheet): sent / skipped / failed ----------
+var LAST_POOL_EMAIL_RESULT = null;
+
+function poolEmailSummary(label, res) {
+  if (!res.ok) return label + " not sent: " + (res.error || "unknown error");
+  var failed = (res.failed || []).length;
+  return label + (res.test ? " (test)" : "") + ": " + (res.sent || 0) + " sent, " + (res.skipped || 0) + " skipped, " + failed + " failed" +
+    (res.recipients !== undefined ? " of " + res.recipients : "") + ".";
+}
+
+function reportPoolEmailResult(label, res) {
+  LAST_POOL_EMAIL_RESULT = { label: label, res: res, at: new Date().toISOString() };
+  showAppToast(poolEmailSummary(label, res));
+  if (typeof renderCommissionerModalBody === "function") renderCommissionerModalBody();
+}
+
 // ---------- Commissioner console: Email service panel ----------
 function emailServicePanelHtml() {
   var url = emailServiceUrl();
@@ -104,6 +171,8 @@ function emailServicePanelHtml() {
     '<div class="email-svc-url"><input type="url" id="email-svc-url" class="search-input" value="' + escapeShellHtml(url) + '" placeholder="https://script.google.com/macros/s/…/exec" aria-label="Apps Script Web App URL" />' +
       '<button type="button" class="tool-btn" onclick="saveEmailServiceUrlFromConsole()">Save for everyone</button></div>' +
     '<p class="muted-note" id="email-svc-msg"></p>' +
+    (LAST_POOL_EMAIL_RESULT ? '<p class="email-svc-last' + (LAST_POOL_EMAIL_RESULT.res.ok ? '' : ' is-error') + '">Last pool email: ' + escapeShellHtml(poolEmailSummary(LAST_POOL_EMAIL_RESULT.label, LAST_POOL_EMAIL_RESULT.res)) +
+      ((LAST_POOL_EMAIL_RESULT.res.failed || []).length ? '<br>Failed: ' + escapeShellHtml(LAST_POOL_EMAIL_RESULT.res.failed.map(function(f) { return f.to; }).join(", ")) : '') + '</p>' : '') +
   '</section>';
 }
 

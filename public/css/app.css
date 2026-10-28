@@ -1005,3 +1005,15 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 .email-svc-status { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 15px; }
 .email-svc-url { display: flex; gap: 8px; flex-wrap: wrap; }
 .email-svc-url .search-input { flex: 1 1 320px; min-height: 40px; }
+.email-status { margin: 4px 0 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 14px; }
+.email-status-line { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
+.email-status-line svg.lucide { width: 16px; height: 16px; }
+.email-status-line.is-ok { color: var(--text); }
+.email-status-line.is-ok svg.lucide { color: var(--win); }
+.email-status-line.is-error { color: var(--text); }
+.email-status-line.is-error svg.lucide { color: var(--loss); }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+.email-svc-last { margin: 8px 0 0; font-size: 14px; }
+.email-svc-last.is-error { color: var(--text); border-left: 3px solid var(--loss); padding-left: 8px; }

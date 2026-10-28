@@ -225,15 +225,15 @@ async function saveAndSendPickConfirmationReceipt() {
   saveCommissionerConfigToCloud();
   renderSimpleGuestAccountBar();
 
-  // If Google Apps Script Web App URL is configured, also trigger automated confirmation email receipt
   // Email receipt: the service sends your own saved picks to your verified email.
-  var receiptPromise = callEmailService("sendPickReceipt");
+  var receiptPromise = startPickReceiptSend();
 
   // Open a clean Confirmation Receipt modal with 1-click Email / Copy / Guest-to-Account upgrade
   document.getElementById("modal-team-title").textContent = "✅ Picks Saved & Confirmation Receipt (" + (state.weekLabel || "Week 8") + ")";
   document.getElementById("modal-team-body").innerHTML =
     '<div style="background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">' +
-      '<div style="font-size:0.88rem;font-weight:900;color:var(--win);margin-bottom:4px;">📧 Pick Receipt Logged at ' + nowTime + '</div>' +
+      '<div style="font-size:0.88rem;font-weight:900;color:var(--text);margin-bottom:4px;">Picks saved at ' + nowTime + '</div>' +
+      '<div id="receipt-email-status" class="email-status" role="status" aria-live="polite"></div>' +
       '<div style="font-size:0.74rem;color:var(--text);line-height:1.45;">' +
         '• <strong>Player:</strong> ' + meta.name + (userEmail ? (' (' + userEmail + ')') : '') + '<br>' +
         '• <strong>Tie-Breaker:</strong> ' + tb + '<br>' +
@@ -260,6 +260,7 @@ async function saveAndSendPickConfirmationReceipt() {
       summaryLines.join('\n') +
     '</textarea>';
   document.getElementById("opp-modal-backdrop").style.display = "flex";
+  showReceiptSendStatus(receiptPromise);
 }
 
 function sendReceiptToCustomEmail() {
@@ -579,25 +580,26 @@ function triggerWedThuAutomatedNudge() {
     if (c.matched === 0 || pm.awaitingSheet) missing.push(pm.name);
   }
   var nowStr = new Date().toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", hour: "numeric", minute: "2-digit" }) + " CST";
-  cfg.lastWedThuNudgeSentAt = nowStr;
-  saveCommissionerConfigToCloud();
   copyMissingPlayersList();
-  var nudgePromise = callEmailService("sendWedThuNudge");
-  renderCommissionerModalBody();
-  showAppToast("⏰ Automated Wed/Thu Nudge triggered for " + missing.length + " unsubmitted players (copied list + sent to Apps Script Bot)!");
+  showAppToast("Sending the Wed/Thu nudge…");
+  callEmailService("sendWedThuNudge").then(function(res) {
+    if (res.ok && !res.test) { cfg.lastWedThuNudgeSentAt = nowStr; saveCommissionerConfigToCloud(); }
+    reportPoolEmailResult("Wed/Thu nudge", res);
+  });
 }
 
 function triggerSaturdayMorningMasterSheetBroadcast() {
   var cfg = ensureCommissionerConfig();
   var nowStr = new Date().toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", hour: "numeric", minute: "2-digit" }) + " CST";
-  cfg.lastSatSheetSentAt = nowStr;
   state.fridayNightRevealOverride = true;
   saveCommissionerConfigToCloud();
   exportOfficialMasterCsv();
-  var sheetPromise = callEmailService("sendSaturdayMasterSheet");
   renderAll();
-  renderCommissionerModalBody();
-  showAppToast("📊 Saturday Morning Reveal & Master Sheet Broadcast triggered! All picks are now visible to the pool & CSV exported.");
+  showAppToast("Picks revealed. Emailing the master sheet…");
+  callEmailService("sendSaturdayMasterSheet").then(function(res) {
+    if (res.ok && !res.test) { cfg.lastSatSheetSentAt = nowStr; saveCommissionerConfigToCloud(); }
+    reportPoolEmailResult("Master sheet email", res);
+  });
 }
 
 function renderCommissionerModalBody() {
