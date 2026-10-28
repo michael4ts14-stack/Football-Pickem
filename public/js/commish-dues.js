@@ -3,9 +3,8 @@
 // with Mark paid / Mark unpaid, Mark all paid (each bulk change asks first).
 // Tapping Paid changes that one row in place and saves just that player's flag
 // (commissionerConfig.duesPaidMap.<name>), so the list never re-renders, refetches or jumps.
-// A failed save puts the row back. Loaded after account-security.js: its
-// renderCommissionerModalBody wrapper is the outermost, so it also keeps the console's scroll
-// position when anything else re-renders it.
+// A failed save puts the row back. Loaded after account-security.js; its
+// renderCommissionerModalBody wrapper adds the panel to the Roster tab.
 // ============================================================================
 var DUES_FILTER = "all"; // "all" | "paid" | "unpaid"
 var DUES_SELECTED = {};  // low name -> true
@@ -237,13 +236,6 @@ function setDuesEntryFee(v) {
 // ---------- Console wiring ----------
 var _duesPrevCommishBody = renderCommissionerModalBody;
 renderCommissionerModalBody = function() {
-  // Keep the console where it was when anything re-renders it (a link request arriving, a
-  // save elsewhere): the box and any inner list marked data-keep-scroll.
-  var box = document.getElementById("commish-modal-box");
-  var tabBefore = ACTIVE_COMMISH_TAB;
-  var keep = { box: box ? box.scrollTop : 0 };
-  document.querySelectorAll("#commish-modal-body [data-keep-scroll]").forEach(function(el) { keep[el.getAttribute("data-keep-scroll")] = el.scrollTop; });
-
   var res = _duesPrevCommishBody.apply(this, arguments);
   var body = document.getElementById("commish-modal-body");
   if (body && ACTIVE_COMMISH_TAB === "roster" && isVerifiedCommissioner()) {
@@ -251,23 +243,5 @@ renderCommissionerModalBody = function() {
     if (anchor) anchor.insertAdjacentHTML("afterend", duesPanelHtml());
     else body.insertAdjacentHTML("afterbegin", duesPanelHtml());
   }
-
-  if (box && tabBefore === ACTIVE_COMMISH_TAB) {
-    box.scrollTop = keep.box;
-    document.querySelectorAll("#commish-modal-body [data-keep-scroll]").forEach(function(el) {
-      var k = el.getAttribute("data-keep-scroll");
-      if (keep[k] !== undefined) el.scrollTop = keep[k];
-    });
-  }
-  return res;
-};
-
-// Switching tabs starts the new tab at the top.
-var _duesPrevSwitchTab = switchCommissionerTab;
-switchCommissionerTab = function(tab) {
-  var box = document.getElementById("commish-modal-box");
-  var changed = tab !== ACTIVE_COMMISH_TAB;
-  var res = _duesPrevSwitchTab.apply(this, arguments);
-  if (box && changed) box.scrollTop = 0;
   return res;
 };

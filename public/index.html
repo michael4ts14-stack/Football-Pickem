@@ -599,24 +599,24 @@
 </div>
 <div id="commish-modal-backdrop" onclick="closeCommissionerModal()">
   <div id="commish-modal-box" onclick="event.stopPropagation()">
-    <div class="commish-modal-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-muted);">
-      <div>
-        <h3 style="font-size:1.05rem;color:var(--warn);font-weight:900;">Commissioner</h3>
-        <div style="font-size:0.72rem;color:var(--muted);">Submissions, master sheet, slate, locks, roster, banner and admins.</div>
+    <div class="commish-modal-head">
+      <div class="commish-head-text">
+        <h3 class="commish-title">Commissioner</h3>
+        <div class="commish-sub">Submissions, master sheet, slate, locks, roster, banner and admins.</div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center;">
+      <div class="commish-head-actions">
         <span id="commish-mode-pill" class="badge badge-ev">Hybrid Scraper Mode Active</span>
-        <button type="button" class="btn-sm" onclick="closeCommissionerModal()">Close</button>
+        <button type="button" class="btn-sm commish-close" onclick="closeCommissionerModal()" aria-label="Close commissioner console">Close</button>
       </div>
-    </div>
-    <div class="hub-tabs" style="margin-bottom:10px;">
-      <button type="button" id="cm-tab-submissions" class="hub-tab-btn active" onclick="switchCommissionerTab('submissions')">1. Submissions & Pick Mgmt</button>
-      <button type="button" id="cm-tab-mastersheet" class="hub-tab-btn" onclick="switchCommissionerTab('mastersheet')">2. Master Spreadsheet Grid</button>
-      <button type="button" id="cm-tab-slate" class="hub-tab-btn" onclick="switchCommissionerTab('slate')">3. ESPN Slate Builder</button>
-      <button type="button" id="cm-tab-locks" class="hub-tab-btn" onclick="switchCommissionerTab('locks')">4. Locks & Rules</button>
-      <button type="button" id="cm-tab-roster" class="hub-tab-btn" onclick="switchCommissionerTab('roster')">5. Roster & Dues ($)</button>
-      <button type="button" id="cm-tab-comms" class="hub-tab-btn" onclick="switchCommissionerTab('comms')">6. Banner & Recap</button>
-      <button type="button" id="cm-tab-admin" class="hub-tab-btn" onclick="switchCommissionerTab('admin')">7. Multi-Commish & Admin Email</button>
+      <div class="hub-tabs" role="tablist" aria-label="Commissioner sections">
+        <button type="button" id="cm-tab-submissions" class="hub-tab-btn active" onclick="switchCommissionerTab('submissions')">Submissions</button>
+        <button type="button" id="cm-tab-mastersheet" class="hub-tab-btn" onclick="switchCommissionerTab('mastersheet')">Master grid</button>
+        <button type="button" id="cm-tab-slate" class="hub-tab-btn" onclick="switchCommissionerTab('slate')">Slate</button>
+        <button type="button" id="cm-tab-locks" class="hub-tab-btn" onclick="switchCommissionerTab('locks')">Locks &amp; rules</button>
+        <button type="button" id="cm-tab-roster" class="hub-tab-btn" onclick="switchCommissionerTab('roster')">Roster &amp; dues</button>
+        <button type="button" id="cm-tab-comms" class="hub-tab-btn" onclick="switchCommissionerTab('comms')">Banner &amp; recap</button>
+        <button type="button" id="cm-tab-admin" class="hub-tab-btn" onclick="switchCommissionerTab('admin')">Admins &amp; email</button>
+      </div>
     </div>
     <div id="commish-modal-body"></div>
     <!-- Always mounted; shown on the Submissions tab -->
@@ -787,6 +787,7 @@
 <script src="/js/commish-hub.js?v=2026-10-28q"></script>
 <script src="/js/account-security.js?v=2026-10-28q"></script>
 <script src="/js/commish-dues.js?v=2026-10-28q"></script>
+<script src="/js/commish-console.js?v=2026-10-28q"></script>
 <script src="/js/layout.js?v=2026-10-28q"></script>
 <script src="/js/boot.js?v=2026-10-28q"></script>
 <div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>

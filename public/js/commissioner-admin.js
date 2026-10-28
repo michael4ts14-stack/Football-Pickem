@@ -1329,7 +1329,7 @@ renderCommissionerModalBody = function() {
           '<div style="font-size:0.71rem;color:var(--muted);">Sticky player column on left • Scroll horizontally to inspect every game pick, underdog multiplier, and live grade.</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
-          '<input type="text" class="search-input" style="min-width:180px;padding:5px 9px;font-size:0.74rem;" placeholder="🔍 Filter player name..." value="' + MASTER_SHEET_SEARCH_Q.replace(/"/g, '&quot;') + '" oninput="MASTER_SHEET_SEARCH_Q=this.value; renderCommissionerModalBody();" />' +
+          '<input type="text" id="master-sheet-filter" aria-label="Filter players" class="search-input" style="min-width:180px;padding:5px 9px;font-size:0.74rem;" placeholder="🔍 Filter player name..." value="' + MASTER_SHEET_SEARCH_Q.replace(/"/g, '&quot;') + '" oninput="MASTER_SHEET_SEARCH_Q=this.value; renderCommissionerModalBody();" />' +
           '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="exportOfficialMasterCsv()">📥 Download Master .CSV</button>' +
         '</div>' +
       '</div>' +

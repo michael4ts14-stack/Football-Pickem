@@ -1318,3 +1318,45 @@ body.page-scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overf
 .dues-row.is-paid .dues-name { color: var(--text-muted); }
 .dues-empty { padding: 16px; color: var(--text-muted); }
 @media (max-width: 640px) { .dues-all-paid { margin-left: 0; } }
+
+/* ---------- Commissioner console layout ----------
+   One sticky header: title + Close on one row, tabs on the next. Desktop tabs fit one row
+   (short labels); phones get one swipeable row instead of a 4-row grid that pushed every
+   tab's content below the fold. Controls are at least 36px on desktop and 44px on touch. */
+#commish-modal-box > .commish-modal-head {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px;
+  margin-bottom: 12px; padding-bottom: 0; border-bottom: 0;
+}
+.commish-title { font-size: 1.15rem; color: var(--warn); font-weight: 900; margin: 0; }
+.commish-sub { font-size: 13px; color: var(--text-muted); }
+.commish-head-actions { display: flex; align-items: center; gap: 8px; }
+#commish-modal-box .commish-modal-head .hub-tabs {
+  grid-column: 1 / -1; display: flex; flex-wrap: nowrap; gap: 4px; margin: 0;
+  overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; padding-bottom: 8px;
+}
+#commish-modal-box .commish-modal-head .hub-tabs::-webkit-scrollbar { display: none; }
+#commish-modal-box .commish-modal-head .hub-tab-btn {
+  flex: none; white-space: nowrap; text-align: center; border: 1px solid transparent; min-width: 0; overflow: visible;
+}
+#commish-modal-box .commish-modal-head .hub-tab-btn.active { border-color: var(--border); }
+#commish-modal-box .btn-sm, #commish-modal-box .link-btn, #commish-modal-box select,
+#commish-modal-box input:not([type="checkbox"]):not([type="radio"]), #commish-modal-box .hub-tab-btn { min-height: 36px; }
+#commish-modal-box input[type="checkbox"], #commish-modal-box input[type="radio"] { width: 18px; height: 18px; flex: none; }
+#commish-modal-box .condensed-table, #commish-modal-box .acct-req-sub, #commish-modal-box .acct-email { overflow-wrap: anywhere; }
+#commish-modal-box input, #commish-modal-box select, #commish-modal-box textarea { max-width: 100%; }
+@media (max-width: 899px), (pointer: coarse) {
+  #commish-modal-box .btn-sm, #commish-modal-box .link-btn, #commish-modal-box select,
+  #commish-modal-box input:not([type="checkbox"]):not([type="radio"]), #commish-modal-box .hub-tab-btn { min-height: 44px; }
+  #commish-modal-box .link-btn { display: inline-flex; align-items: center; padding: 0 6px; }
+  #commish-modal-box input[type="checkbox"], #commish-modal-box input[type="radio"] { width: 22px; height: 22px; }
+  /* Master grid cells stay compact: they're a dense table, scrolled sideways. */
+  #commish-modal-box .master-sheet-wrap .btn-sm, #commish-modal-box .master-sheet-wrap button { min-height: 32px; min-width: 32px; }
+}
+@media (max-width: 640px) {
+  .commish-sub, #commish-mode-pill { display: none; }
+  #commish-modal-box { padding-left: 12px; padding-right: 12px; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  #commish-modal-box > .commish-modal-head { margin-left: -12px; margin-right: -12px; padding-left: 12px; padding-right: 12px; }
+  /* Inline-styled rows of controls wrap and let fields take the full width. */
+  #commish-modal-body [style*="display:flex"] > input.search-input { flex: 1 1 140px; width: auto !important; }
+  #commish-modal-body .side-box, #commish-modal-body .console-section { padding-left: 10px; padding-right: 10px; }
+}
