@@ -377,36 +377,12 @@ renderStandingsAndGradingView = function() {
 };
 
 // ---------- Commissioner pieces live in the Console (Submissions tab) ----------
-// Grading cards and the pool-wide watchlist editor are parked in #console-parking;
-// they move into the Console while it shows Submissions and go back before each redraw.
-var CONSOLE_PARKED_IDS = ["automated-grading-cards", "standings-watchlist-box"];
-function parkConsolePieces() {
-  var park = document.getElementById("console-parking");
-  if (!park) return;
-  CONSOLE_PARKED_IDS.forEach(function(id) {
-    var n = document.getElementById(id);
-    if (n && n.parentNode !== park) park.appendChild(n);
-  });
-  var sec = document.getElementById("console-grading-section");
-  if (sec) sec.parentNode.removeChild(sec);
-}
+// Grading cards and the pool-wide watchlist editor stay mounted in #console-grading-section
+// (never moved, so typing in the watchlist keeps focus); only their visibility follows the tab.
 var _standingsPrevCommishBody = renderCommissionerModalBody;
 renderCommissionerModalBody = function() {
-  parkConsolePieces();
   var res = _standingsPrevCommishBody.apply(this, arguments);
-  var body = document.getElementById("commish-modal-body");
-  if (body && ACTIVE_COMMISH_TAB === "submissions" && isVerifiedCommissioner()) {
-    var sec = document.createElement("section");
-    sec.id = "console-grading-section";
-    sec.className = "console-grading";
-    sec.innerHTML = '<h3 class="console-h">Grading and watchlist</h3>';
-    CONSOLE_PARKED_IDS.forEach(function(id) { var n = document.getElementById(id); if (n) sec.appendChild(n); });
-    body.appendChild(sec);
-  }
+  var sec = document.getElementById("console-grading-section");
+  if (sec) sec.hidden = !(ACTIVE_COMMISH_TAB === "submissions" && isVerifiedCommissioner());
   return res;
-};
-var _standingsPrevCloseCommish = closeCommissionerModal;
-closeCommissionerModal = function() {
-  parkConsolePieces();
-  return _standingsPrevCloseCommish.apply(this, arguments);
 };

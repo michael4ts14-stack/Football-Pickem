@@ -193,7 +193,6 @@ function openOfficialFormSheet() {
       '<input type="text" id="official-form-name" class="search-input" autocomplete="name" value="' + escapeShellHtml(officialFormDefaultName()) + '" oninput="refreshOfficialFormSummary()" /></label>' +
     '<div id="official-form-summary"></div>';
   bd.hidden = false;
-  document.body.classList.add("sheet-open");
   refreshOfficialFormSummary();
 }
 

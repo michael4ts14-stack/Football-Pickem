@@ -74,13 +74,11 @@ function openPanelSheet(title, nodeId) {
   body.appendChild(node);
   document.getElementById("panel-sheet-title").textContent = title;
   bd.hidden = false;
-  document.body.classList.add("sheet-open");
 }
 
 function closePanelSheet() {
   var bd = document.getElementById("panel-sheet-backdrop");
   if (bd) bd.hidden = true;
-  document.body.classList.remove("sheet-open");
   if (_panelSheetNode && _panelSheetHome) _panelSheetHome.insertBefore(_panelSheetNode, _panelSheetNext);
   _panelSheetNode = _panelSheetHome = _panelSheetNext = null;
 }
@@ -91,6 +89,81 @@ openMoreSection = function(section) {
   if (section !== "weeks") return _dlgPrevOpenMoreSection.apply(this, arguments);
   closeSettingsDrawer();
   closeEvSimulatorDrawer();
+  var bd = document.getElementById("panel-sheet-backdrop");
+  var body = document.getElementById("panel-sheet-body");
+  if (!bd || !body) return;
+  closePanelSheet();
+  body.innerHTML = '<div class="side-box" id="season-archive-hub-container"></div>';
+  document.getElementById("panel-sheet-title").textContent = "Past weeks";
+  bd.hidden = false;
   if (typeof renderSeasonArchiveHub === "function") renderSeasonArchiveHub();
-  openPanelSheet("Past weeks", "season-archive-hub-container");
+};
+
+// ---------- New account: which pool player are you? ----------
+// Shown when a new account's name doesn't match a roster name, so the player links to their
+// existing row instead of creating a duplicate. Resolves to the chosen name, or "" for a new player.
+var _rosterChooserResolve = null;
+var _rosterChooserPromise = null;
+
+function unclaimedRosterNames() {
+  var seen = {}, out = [];
+  (state.leaderboard || []).concat(state.poolMembers || []).forEach(function(row) {
+    var name = row && row.name ? standardizeParticipantName(row.name) : "";
+    var low = name.toLowerCase();
+    if (!name || seen[low]) return;
+    seen[low] = true;
+    var pf = getProfileLinkedToMemberName(name);
+    var cu = pf && !pf.isBuiltIn ? (state.customUsers || []).filter(function(c) { return c.key === pf.key; })[0] : null;
+    if (pf && (pf.isBuiltIn || (cu && cu.ownerUid))) return; // already someone's account
+    out.push(name);
+  });
+  return out.sort(function(a, b) { return a.localeCompare(b); });
+}
+
+function chooseRosterNameForNewAccount(accountName) {
+  if (_rosterChooserPromise) return _rosterChooserPromise;
+  var names = unclaimedRosterNames();
+  var bd = document.getElementById("panel-sheet-backdrop");
+  var body = document.getElementById("panel-sheet-body");
+  if (!names.length || !bd || !body) return Promise.resolve("");
+  closePanelSheet();
+  _rosterChooserPromise = new Promise(function(resolve) { _rosterChooserResolve = resolve; });
+  document.getElementById("panel-sheet-title").textContent = "Which player are you?";
+  body.innerHTML =
+    '<p class="sheet-meta">We couldn\'t match ' + escapeShellHtml(accountName || "your account") + ' to the pool roster. Pick your name so your points and picks stay together.</p>' +
+    '<input type="search" class="search-input" id="roster-chooser-q" placeholder="Search names" oninput="filterRosterChooser(this.value)" style="width:100%;margin-bottom:10px;" />' +
+    '<div class="list-card" id="roster-chooser-list">' +
+      names.map(function(n) {
+        return '<button type="button" class="list-row" data-name="' + escapeShellHtml(n.toLowerCase()) + '" onclick="finishRosterChooser(this.textContent)"><span class="list-row-title">' + escapeShellHtml(n) + '</span></button>';
+      }).join("") +
+    '</div>' +
+    '<button type="button" class="btn-sm" style="margin-top:12px;width:100%;" onclick="finishRosterChooser(\'\')">I\'m new to the pool</button>';
+  bd.hidden = false;
+  return _rosterChooserPromise;
+}
+
+function filterRosterChooser(q) {
+  q = String(q || "").trim().toLowerCase();
+  var rows = document.querySelectorAll("#roster-chooser-list .list-row");
+  for (var i = 0; i < rows.length; i++) rows[i].hidden = !!q && rows[i].getAttribute("data-name").indexOf(q) === -1;
+}
+
+function finishRosterChooser(name) {
+  var resolve = _rosterChooserResolve;
+  _rosterChooserResolve = null;
+  _rosterChooserPromise = null;
+  if (resolve) resolve(String(name || "").trim());
+  closePanelSheet();
+}
+
+// Closing the sheet without choosing means a new player.
+var _dlgPrevClosePanelSheet = closePanelSheet;
+closePanelSheet = function() {
+  if (_rosterChooserResolve) {
+    var resolve = _rosterChooserResolve;
+    _rosterChooserResolve = null;
+    _rosterChooserPromise = null;
+    resolve("");
+  }
+  return _dlgPrevClosePanelSheet.apply(this, arguments);
 };

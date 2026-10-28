@@ -546,6 +546,12 @@ function pushMultiUserAndPrivacyToFirebase() {
   }
 }
 var MEMORY_STORE = {};
+// Sets an input's value unless the person is typing in it (a background update must never
+// replace a half-typed tiebreaker).
+function setInputValueUnlessEditing(el, val) {
+  if (el && document.activeElement !== el) el.value = val;
+}
+
 function safeGetStorage(key) {
   try {
     var ls = window["local" + "Storage"];

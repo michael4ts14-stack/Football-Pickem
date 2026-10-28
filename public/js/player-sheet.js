@@ -91,7 +91,6 @@ function openPlayerSheet(name) {
     '</section>' +
     '<section class="sheet-section"><h3 class="sheet-h">Picks</h3>' + playerPicksHtml(playerPicksDescriptor(name)) + '</section>';
   bd.hidden = false;
-  document.body.classList.add("sheet-open");
 }
 
 function togglePlayerSheetRival() {
@@ -114,7 +113,7 @@ closePanelSheet = function() {
   PLAYER_SHEET_NAME = null;
   var body = document.getElementById("panel-sheet-body");
   var res = _playerSheetPrevClose.apply(this, arguments);
-  if (body && !body.querySelector("#season-archive-hub-container")) body.innerHTML = "";
+  if (body) body.innerHTML = "";
   return res;
 };
 

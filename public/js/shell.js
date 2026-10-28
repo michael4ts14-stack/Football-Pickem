@@ -380,3 +380,59 @@ syncCommissionerVisibilityDOM = function() {
   });
   return result;
 };
+
+// ---------- Overlays: one open at a time, page scroll locked only while one is open ----------
+// Each overlay shows itself its own way (style.display, the hidden attribute or a class), so
+// the scroll lock follows what is actually visible instead of each open/close toggling it.
+var OVERLAY_CLOSERS = {
+  "commish-modal-backdrop": function() { closeCommissionerModal(); },
+  "settings-drawer-backdrop": function() { closeSettingsDrawer(); },
+  "ev-sim-drawer-backdrop": function() { closeEvSimulatorDrawer(); },
+  "auth-modal-backdrop": function() { closeAuthModal(); },
+  "review-checklist-backdrop": function() { closeReviewChecklistModal(); },
+  "panel-sheet-backdrop": function() { closePanelSheet(); },
+  "detail-sheet-backdrop": function() { closeGameDetail(); },
+  "opp-modal-backdrop": function() { closeOppModal(); },
+  "rail-backdrop": function() { closeRailPanel(true); }
+};
+var OVERLAY_IDS = Object.keys(OVERLAY_CLOSERS).concat(["pin-modal-backdrop", "confirm-backdrop", "field-theater-backdrop"]);
+
+function isOverlayVisible(el) {
+  if (!el || el.hidden) return false;
+  return window.getComputedStyle(el).display !== "none";
+}
+
+function syncOverlayScrollLock() {
+  var any = OVERLAY_IDS.some(function(id) { return isOverlayVisible(document.getElementById(id)); });
+  document.body.classList.toggle("modal-open", any);
+}
+
+function closeAllModalsExcept(activeModalId) {
+  Object.keys(OVERLAY_CLOSERS).forEach(function(id) {
+    if (id === activeModalId || !isOverlayVisible(document.getElementById(id))) return;
+    try { OVERLAY_CLOSERS[id](); } catch (e) {}
+  });
+  syncOverlayScrollLock();
+}
+
+if (window.MutationObserver) {
+  var overlayObserver = new MutationObserver(syncOverlayScrollLock);
+  OVERLAY_IDS.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) overlayObserver.observe(el, { attributes: true, attributeFilter: ["style", "hidden", "class"] });
+  });
+}
+
+// Opening one of the full-screen dialogs or drawers closes whatever else is open first, so
+// two darkened backdrops never stack.
+[["openCommissionerModal", "commish-modal-backdrop"], ["openSettingsDrawer", "settings-drawer-backdrop"],
+ ["openEvSimulatorDrawer", "ev-sim-drawer-backdrop"], ["openAuthModal", "auth-modal-backdrop"],
+ ["openReviewChecklistModal", "review-checklist-backdrop"]].forEach(function(pair) {
+  var name = pair[0], id = pair[1];
+  var orig = window[name];
+  if (typeof orig !== "function") return;
+  window[name] = function() {
+    closeAllModalsExcept(id);
+    return orig.apply(this, arguments);
+  };
+});

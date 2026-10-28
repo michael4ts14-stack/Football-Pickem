@@ -454,14 +454,24 @@ function applySimpleUiModeDOM() {
 
   var sTb = document.getElementById("simple-tiebreaker-input");
   if (sTb && state[activeProfile]) {
-    sTb.value = state[activeProfile].tiebreaker || "28-24";
+    setInputValueUnlessEditing(sTb, state[activeProfile].tiebreaker || "28-24");
   }
 }
 
 function syncSimpleTiebreakerInput(val) {
   var mainTb = document.getElementById("tiebreaker-input");
   if (mainTb) mainTb.value = val;
+  lastLocalPickTs = Date.now(); // the cloud echo of an earlier save must not undo this edit
   saveCurrentState(activeProfile, true);
+}
+
+// A game is locked once ESPN shows it started or its scheduled kickoff has passed (ESPN's
+// status can lag a few minutes; Thursday and Friday games lock on their own kickoff).
+function hasGameKickedOff(gameId) {
+  if (isGameStartedOrFinal(gameId)) return true;
+  var g = findGameById(gameId);
+  var ms = g && g.kickoffIso ? new Date(g.kickoffIso).getTime() : NaN;
+  return !isNaN(ms) && Date.now() >= ms;
 }
 
 function isGameLockedByCommissioner(gameId) {
@@ -469,10 +479,10 @@ function isGameLockedByCommissioner(gameId) {
   if (AUTH_SESSION && AUTH_SESSION.adminUnlock) return false;
   if (cfg.lockMode === "global_locked") return true;
   if (cfg.lockMode === "friday_9pm_cst") {
-    return isPastFriday9PmCST() || isGameStartedOrFinal(gameId);
+    return isPastFriday9PmCST() || hasGameKickedOff(gameId);
   }
   if (cfg.lockMode === "rolling_kickoff") {
-    return isGameStartedOrFinal(gameId);
+    return hasGameKickedOff(gameId);
   }
   return false;
 }
@@ -1112,6 +1122,7 @@ async function commishPublishSelectedEspnSlate() {
       id: newGames.length + 1,
       espnEventId: cg.espnEventId,
       cstWindow: cstWindowFromIsoDate(cg.dateIso) || "11:00 AM CST Window",
+      kickoffIso: cg.dateIso || "",
       away: cg.away, awayCode: getCleanTeamCode(cg.away), awayRec: cg.awayRec,
       home: cg.home, homeCode: getCleanTeamCode(cg.home), homeRec: cg.homeRec,
       kick: "Saturday CST",

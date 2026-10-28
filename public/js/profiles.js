@@ -210,9 +210,9 @@ function syncActiveProfileControlsUI() {
   var tbEl = document.getElementById("tiebreaker-input");
   var simpleTbEl = document.getElementById("simple-tiebreaker-input");
   var slEl = document.getElementById("target-slider");
-  if (tbEl) tbEl.value = tbVal;
-  if (simpleTbEl) simpleTbEl.value = tbVal;
-  if (slEl) slEl.value = state[activeProfile].target || 20;
+  setInputValueUnlessEditing(tbEl, tbVal);
+  setInputValueUnlessEditing(simpleTbEl, tbVal);
+  setInputValueUnlessEditing(slEl, state[activeProfile].target || 20);
 }
 
 
