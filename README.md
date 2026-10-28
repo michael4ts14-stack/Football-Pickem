@@ -17,6 +17,42 @@ folder: the next deploy from this repo will overwrite those changes.
 The bot writes `live_games/bot_status` on every run (`gmail` and `espn` entries with
 `lastRunAt`, `lastSuccessAt`, `errors`). Commissioners see this as the 🤖 pill in the top bar.
 
+## Email service
+
+Pick receipts and pool emails (Wed/Thu nudge, Saturday master sheet) go through the Apps Script
+Web App's `doPost` (`apps-script/Email.js`).
+
+- **One URL for everyone.** The `/exec` URL lives in `pickem_v14_commissioners/email_service`
+  (commissioners write it from Console › Banner & Recap › Email service; everyone reads it).
+- **Every request is signed in.** The app sends the caller's Firebase ID token. `Email.js` checks
+  `aud`/`iss`/`exp` and confirms the token with Identity Toolkit `accounts:lookup`. Receipts go only
+  to the caller's own verified email, with picks read from Firestore on the server. Broadcasts are
+  commissioner-only. Guests get "sign in".
+- **Kill switch.** Script Property `BROADCASTS_ENABLED` (`true`/`false`, off when unset) gates the
+  nudge, the master sheet and "email CSV to all". Commissioners flip it from the Console. Receipts
+  aren't affected. A commissioner can always send to explicit test recipients.
+- **Limits.** 45s duplicate guard and 5 receipts per user per hour. Every reply includes
+  `MailApp.getRemainingDailyQuota()`. A broadcast with more recipients than the quota sends nothing.
+- **Send log.** Every attempt is written to `pickem_v14_email_log` with the script owner's login.
+  Only commissioners can read it (Console shows the last 50). The script owner needs access to the
+  Firebase project (Owner or Cloud Datastore User); otherwise replies carry `logError`.
+
+### Deploying Code.js / Email.js
+
+The editor always runs the latest code, but the Web App (`/exec`) keeps running the version it was
+deployed with until you publish a new version. Keep the same deployment so the URL never changes:
+
+1. `cd apps-script && clasp push` (or paste `Code.js`, `Email.js` and `appsscript.json` into the editor).
+2. In the editor: **Deploy › Manage deployments ›** pencil on the existing Web App ›
+   **Version: New version** › Deploy. Execute as **Me**, Who has access **Anyone**.
+   (CLI equivalent: `clasp deployments`, then `clasp deploy -i <deploymentId> -d "describe change"`.)
+3. If Google asks to authorize new permissions (Firestore `datastore`), accept: run
+   `authorizeAndTestEmailService` once in the editor.
+4. Publish rules if they changed: `firebase deploy --only firestore:rules`.
+
+The app checks `apiVersion` in every reply. An old deployment shows "The email service is running
+an old version" in the app instead of failing silently.
+
 ## Tests
 
 ```sh
