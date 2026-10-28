@@ -121,7 +121,8 @@ renderLiveScoreboardTab = function() {
       if (leader && h2h && h2h.pick && isSameTeamPick(leader, h2h.pick, g)) { kLivePts += isSameTeamPick(h2h.pick, g.away, g) ? g.awayPts : g.homePts; kWinCnt++; }
     }
     var sit = getGameSituation(ls, g, myHidden ? null : myPicks);
-    var alert = (ls.inProgress && !ls.completed) ? evaluateLiveGameAlertState(ls, myHidden ? null : myPick, g) : null;
+    var alertLs = liveStateForAlerts(g); // the demo sim's drive when this game is running it
+    var alert = (alertLs && alertLs.inProgress && !alertLs.completed) ? evaluateLiveGameAlertState(alertLs, myHidden ? null : myPick, g) : null;
     if (liveTabFilter === "active" && !ls.inProgress) continue;
     if (liveTabFilter === "redzone" && !(alert && alert.isRedZone)) continue;
     if (liveTabFilter === "sweat" && !(alert && alert.is4QSweat)) continue;

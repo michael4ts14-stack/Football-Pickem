@@ -113,16 +113,24 @@ service cloud.firestore {
 
     // ---------- League invite code ----------
     // The code itself is commissioner-only. Entering the right code creates your invite pass
-    // (the check happens here, so the code never has to be shown to anyone).
+    // (the check happens here, so the code never has to be shown to anyone). A revoked or
+    // expired link (revoked == true, or expiresAtTs in the past) creates no passes.
     match /pickem_v14_security/{docId} {
       allow read, write: if isVerifiedCommissioner();
     }
+    function inviteDoc() {
+      return get(/databases/$(database)/documents/pickem_v14_security/invite).data;
+    }
+    function inviteIsLive() {
+      return exists(/databases/$(database)/documents/pickem_v14_security/invite) &&
+        inviteDoc().get('code', '') != '' &&
+        inviteDoc().get('revoked', false) != true &&
+        (inviteDoc().get('expiresAtTs', null) == null || request.time < inviteDoc().get('expiresAtTs', null));
+    }
     match /pickem_v14_invite_passes/{uid} {
       allow read: if isVerifiedCommissioner() || (signedIn() && request.auth.uid == uid);
-      allow create: if notBlocked() && request.auth.uid == uid &&
-        exists(/databases/$(database)/documents/pickem_v14_security/invite) &&
-        get(/databases/$(database)/documents/pickem_v14_security/invite).data.get('code', '') != '' &&
-        request.resource.data.code == get(/databases/$(database)/documents/pickem_v14_security/invite).data.code;
+      allow create: if notBlocked() && request.auth.uid == uid && inviteIsLive() &&
+        request.resource.data.code == inviteDoc().code;
       allow update, delete: if isVerifiedCommissioner();
     }
 
@@ -172,6 +180,16 @@ service cloud.firestore {
     match /pickem_v14_commissioners/{docId} {
       allow read: if true;
       allow write: if isVerifiedCommissioner();
+    }
+
+    // ---------- Commissioner log (who / what / when) ----------
+    // One doc per action. Commissioners read it and add entries under their own email
+    // (or "migrated" copies of the old log); nobody edits or deletes entries.
+    match /pickem_v14_commish_log/{entryId} {
+      allow read: if isVerifiedCommissioner();
+      allow create: if isVerifiedCommissioner() &&
+        (request.resource.data.get('commishEmail', '') == myEmail() || request.resource.data.get('migrated', false) == true);
+      allow update, delete: if false;
     }
 
     // ---------- Email send log ----------

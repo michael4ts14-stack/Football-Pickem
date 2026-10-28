@@ -38,7 +38,6 @@ function ensureCommissionerConfig() {
   if (!cfg.deadlineConfig || typeof cfg.deadlineConfig !== "object") cfg.deadlineConfig = { day: "Fri", time: "21:00", tz: "America/Chicago" };
   if (!cfg.gameLockOverrides || typeof cfg.gameLockOverrides !== "object") cfg.gameLockOverrides = {};
   if (!cfg.forceUnlocked || typeof cfg.forceUnlocked !== "object") cfg.forceUnlocked = {};
-  if (!Array.isArray(cfg.overrideAuditLog)) cfg.overrideAuditLog = [];
   if (!cfg.paymentLinks || typeof cfg.paymentLinks !== "object") cfg.paymentLinks = { venmoHandle: "", paypalLink: "", cashAppTag: "" };
   return cfg;
 }
@@ -540,19 +539,47 @@ function isGameLockedByCommissioner(gameId) {
   return false;
 }
 
+// Saves the whole commissionerConfig. update() replaces the field (a merge set kept keys that
+// were deleted here: an unblocked account, a removed force-unlock or per-game lock override all
+// came back after a refresh). Only commissioners can write it (firestore.rules); the returned
+// promise rejects when the save fails, and a failure is always shown.
 function saveCommissionerConfigToCloud() {
   ensureCommissionerConfig();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  if (fsDb && !isApplyingRemoteUpdate) {
-    try {
-      fsDb.collection("pickem_v14").doc("shared_state").set({
-        commissionerConfig: state.commissionerConfig,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-    } catch (e) {}
+  var job = Promise.resolve();
+  if (fsDb && !isApplyingRemoteUpdate && typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
+    var ref = fsDb.collection("pickem_v14").doc("shared_state");
+    var patch = { commissionerConfig: state.commissionerConfig, updatedAt: new Date().toISOString() };
+    job = ref.update(patch).catch(function(e) {
+      if (e && e.code === "not-found") return ref.set(patch, { merge: true });
+      throw e;
+    });
+    job.catch(function(e) { reportCloudSaveFailure("commissioner settings", e); });
   }
   renderCommishAnnouncementBanner();
   renderSimpleGuestAccountBar();
+  return job;
+}
+
+// Applies `mutate` to a copy of commissionerConfig, saves the copy, and only then makes it this
+// device's config, so the screen shows what the cloud confirmed. Resolves with the new config.
+function commitCommissionerConfig(mutate) {
+  ensureCommissionerConfig();
+  var next = JSON.parse(JSON.stringify(state.commissionerConfig));
+  mutate(next);
+  if (!fsDb || !(typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) {
+    return Promise.reject({ code: "permission-denied" });
+  }
+  var ref = fsDb.collection("pickem_v14").doc("shared_state");
+  var patch = { commissionerConfig: next, updatedAt: new Date().toISOString() };
+  return ref.update(patch).catch(function(e) {
+    if (e && e.code === "not-found") return ref.set(patch, { merge: true });
+    throw e;
+  }).then(function() {
+    state.commissionerConfig = next;
+    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    return next;
+  });
 }
 
 function renderCommishAnnouncementBanner() {
@@ -669,6 +696,7 @@ function commishSwapIndividualGame(gameId, candidateIdxStr) {
   rebuildDynamicGameInsights(g);
   sanitizeStateForActiveSlate();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  pushCustomGamesToFirebase(); // other devices (and this one after a refresh) load the slate from the cloud
   renderAll();
   renderCommissionerModalBody();
   showAppToast("🔄 Swapped Game #" + gameId + " to " + g.away + " at " + g.home + " (" + g.poolLine + ")!");
@@ -902,26 +930,16 @@ function renderCommissionerModalBody() {
 
   if (ACTIVE_COMMISH_TAB === "roster") {
     var pmListR = state.poolMembers || [];
-    var paidCount = 0;
-    var entryFee = parseFloat(cfg.entryFeeDollars) || 25;
     var rosterRows = "";
 
     for (var r = 0; r < pmListR.length; r++) {
       var pmR = pmListR[r];
-      var keyDues = standardizeParticipantName(pmR.name).toLowerCase();
-      var isPaid = !!cfg.duesPaidMap[keyDues];
-      if (isPaid) paidCount++;
       var safeN = pmR.name.replace(/'/g, "\\'");
 
       rosterRows += '<tr>' +
         '<td><strong>' + pmR.name + '</strong></td>' +
         '<td><input type="number" class="search-input" style="width:76px;min-width:0;padding:4px 6px;font-size:0.73rem;font-weight:800;" value="' + (pmR.priorPts || 0) + '" onchange="commishAdjustPlayerPriorPts(\'' + safeN + '\', this.value)" /></td>' +
         '<td><strong>' + (pmR.newLiveTotal || pmR.priorPts || 0) + ' pts</strong></td>' +
-        '<td>' +
-          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.68rem;' + (isPaid ? 'background:var(--raised);border-color:var(--border);color:var(--win);' : 'background:var(--raised);border-color:var(--border);color:var(--loss);') + '" onclick="commishToggleDuesPaid(\'' + safeN + '\')">' +
-            (isPaid ? '💰 PAID ($' + entryFee + ')' : '⏳ Unpaid') +
-          '</button>' +
-        '</td>' +
         '<td>' + (typeof accountLinkCellHtml === "function" ? accountLinkCellHtml(pmR.name) : '') + '</td>' +
         '<td style="display:flex;gap:4px;flex-wrap:wrap;">' +
           '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;" onclick="manuallySetPlayerPicks(\'' + safeN + '\')">✏️ Edit Picks</button>' +
@@ -930,12 +948,9 @@ function renderCommissionerModalBody() {
       '</tr>';
     }
 
-    var totalPot = paidCount * entryFee;
     body.innerHTML =
       '<div class="commish-kpi-strip">' +
         '<div class="commish-kpi"><div class="metric-label">Total Pool Roster</div><div class="metric-val">' + pmListR.length + ' Players</div><div class="metric-sub">Active League Entries</div></div>' +
-        '<div class="commish-kpi"><div class="metric-label">League Dues Paid</div><div class="metric-val" style="color:var(--green);">' + paidCount + ' / ' + pmListR.length + '</div><div class="metric-sub">$' + entryFee + ' Entry Fee</div></div>' +
-        '<div class="commish-kpi"><div class="metric-label">Collected Prize Pot</div><div class="metric-val" style="color:var(--gold);">$' + totalPot + '</div><div class="metric-sub">Season + Top 5 Weekly Pot</div></div>' +
       '</div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;background:var(--panel-alt);padding:8px 10px;border-radius:9px;border:1px solid var(--border-muted);">' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
@@ -943,14 +958,10 @@ function renderCommissionerModalBody() {
           '<input type="number" id="commish-new-player-pts" class="search-input" style="width:85px;min-width:0;padding:5px 8px;font-size:0.74rem;" placeholder="Prior Pts" value="0" />' +
           '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="commishAddPoolMember()">➕ Add Player to Pool</button>' +
         '</div>' +
-        '<div style="display:flex;gap:6px;align-items:center;">' +
-          '<label style="font-size:0.72rem;color:var(--muted);">Entry Fee ($):</label>' +
-          '<input type="number" class="search-input" style="width:68px;min-width:0;padding:4px 6px;font-size:0.73rem;" value="' + entryFee + '" onchange="state.commissionerConfig.entryFeeDollars=parseFloat(this.value)||25; saveCommissionerConfigToCloud(); renderCommissionerModalBody();" />' +
-        '</div>' +
       '</div>' +
-      '<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border-muted);border-radius:10px;">' +
+      '<div data-keep-scroll="roster-table" style="max-height:360px;overflow-y:auto;border:1px solid var(--border-muted);border-radius:10px;">' +
         '<table class="condensed-table">' +
-          '<thead><tr><th>Player Name</th><th>Prior Season Pts (Editable)</th><th>New Live Total</th><th>League Dues Status</th><th>Account</th><th>Picks</th></tr></thead>' +
+          '<thead><tr><th>Player Name</th><th>Prior Season Pts (Editable)</th><th>New Live Total</th><th>Account</th><th>Picks</th></tr></thead>' +
           '<tbody>' + rosterRows + '</tbody>' +
         '</table>' +
       '</div>';
@@ -1068,6 +1079,7 @@ function commishUpdateGameSpread(gameId, newPoolLine) {
   rebuildDynamicGameInsights(g);
   regradeAllPoolMembersLive();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  pushCustomGamesToFirebase(); // other devices (and this one after a refresh) load the slate from the cloud
   renderAll();
   renderCommissionerModalBody();
 }
@@ -1077,6 +1089,7 @@ function commishUpdateGameKick(gameId, newKick) {
   if (!g) return;
   g.kick = String(newKick || "").trim();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  pushCustomGamesToFirebase(); // other devices (and this one after a refresh) load the slate from the cloud
   renderAll();
 }
 
@@ -1242,14 +1255,6 @@ function commishAdjustPlayerPriorPts(memberName, newPts) {
   pushWatchlistOrStandingsToFirebase();
   renderAll();
   showAppToast("✅ Updated " + memberName + " prior points to " + val + " pts!");
-}
-
-function commishToggleDuesPaid(memberName) {
-  var cfg = ensureCommissionerConfig();
-  var key = standardizeParticipantName(memberName).toLowerCase();
-  cfg.duesPaidMap[key] = !cfg.duesPaidMap[key];
-  saveCommissionerConfigToCloud();
-  renderCommissionerModalBody();
 }
 
 function commishAddPoolMember() {

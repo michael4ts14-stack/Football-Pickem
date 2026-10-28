@@ -12,18 +12,62 @@ function commishEmailForLog() {
   return (AUTH_SESSION && AUTH_SESSION.email) || "";
 }
 
-// Every override is recorded in commissionerConfig.overrideAuditLog (newest first, last 200).
+// ---------- Commissioner log (who / what / when) ----------
+// Entries live in pickem_v14_commish_log, one doc each, readable and writable only by
+// commissioners (firestore.rules). The older log was an array in commissionerConfig, which
+// every visitor can read; moveLegacyLogToPrivate() copies it over and deletes it.
+var COMMISH_LOG = [];           // newest first, last 100 (commissioner only)
+var COMMISH_LOG_WATCHING = false;
+
+function logCommishAction(action, targetPlayer, reason) {
+  if (!fsDb || !isVerifiedCommissioner()) return Promise.resolve();
+  var entry = { timestamp: new Date().toISOString(), commishEmail: commishEmailForLog(), targetPlayer: targetPlayer || "", action: action, reason: reason || "" };
+  COMMISH_LOG.unshift(entry);
+  return fsDb.collection("pickem_v14_commish_log").add(entry).catch(function(e) { reportCloudSaveFailure("the commissioner log", e); });
+}
+
+// Overrides change a setting, then log: the setting is saved here, the entry goes to the log.
 function logCommissionerOverride(targetPlayer, action, reason) {
-  var cfg = ensureCommissionerConfig();
-  cfg.overrideAuditLog.unshift({
-    timestamp: new Date().toISOString(),
-    commishEmail: commishEmailForLog(),
-    targetPlayer: targetPlayer || "",
-    action: action,
-    reason: reason || ""
-  });
-  if (cfg.overrideAuditLog.length > 200) cfg.overrideAuditLog.length = 200;
+  logCommishAction(action, targetPlayer, reason);
   saveCommissionerConfigToCloud();
+}
+
+function watchCommishLog() {
+  if (COMMISH_LOG_WATCHING || !fsDb || !isVerifiedCommissioner()) return;
+  COMMISH_LOG_WATCHING = true;
+  fsDb.collection("pickem_v14_commish_log").orderBy("timestamp", "desc").limit(100).onSnapshot(function(snap) {
+    COMMISH_LOG = snap.docs.map(function(d) { return d.data(); });
+    var sec = document.getElementById("commish-audit-log");
+    if (sec) sec.outerHTML = auditLogHtml();
+  }, function() { COMMISH_LOG_WATCHING = false; });
+}
+
+function legacyAuditLog() {
+  var cfg = state.commissionerConfig || {};
+  return Array.isArray(cfg.overrideAuditLog) ? cfg.overrideAuditLog : [];
+}
+
+// One-time move of the old public log (commissionerConfig.overrideAuditLog) into the private
+// collection, then the old array is deleted from the pool doc. Run from the Users tab.
+function moveLegacyLogToPrivate() {
+  if (!assertCommissionerRole("moving the log")) return;
+  var old = legacyAuditLog().slice(0, 450);
+  if (!old.length) return;
+  confirmDanger("Move " + old.length + " older log entries to the commissioner-only log? They're copied first, then removed from the pool settings every visitor can read.", "Move entries", function() {
+    var batch = fsDb.batch();
+    var col = fsDb.collection("pickem_v14_commish_log");
+    old.forEach(function(e) {
+      batch.set(col.doc(), { timestamp: e.timestamp || "", commishEmail: e.commishEmail || "", targetPlayer: e.targetPlayer || "", action: e.action || "", reason: e.reason || "", migrated: true });
+    });
+    batch.commit().then(function() {
+      return fsDb.collection("pickem_v14").doc("shared_state").update(new firebase.firestore.FieldPath("commissionerConfig", "overrideAuditLog"), firebase.firestore.FieldValue.delete());
+    }).then(function() {
+      delete state.commissionerConfig.overrideAuditLog;
+      logCommishAction("Moved " + old.length + " older log entries to the commissioner-only log", "", "");
+      showAppToast("Moved " + old.length + " entries. The log is now commissioner-only.");
+      renderCommissionerModalBody();
+    }, function(e) { showAppToast("Couldn't move the log (" + ((e && e.code) || "error") + "). Are the latest Firestore rules published?"); });
+  });
 }
 
 // ---------- Submissions row actions ----------
@@ -82,17 +126,25 @@ function forceUnlockButtonHtml(memberName) {
 }
 
 function auditLogHtml() {
-  var log = ensureCommissionerConfig().overrideAuditLog.slice(0, 50);
+  watchCommishLog();
+  var legacy = legacyAuditLog();
+  var log = COMMISH_LOG.concat(legacy).sort(function(a, b) {
+    return String(b.timestamp || "").localeCompare(String(a.timestamp || ""));
+  }).slice(0, 100);
   var rows = log.map(function(e) {
     var when = e.timestamp ? new Date(e.timestamp).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
     return '<tr><td>' + escapeShellHtml(when) + '</td><td>' + escapeShellHtml(e.commishEmail || "") + '</td><td>' + escapeShellHtml(e.targetPlayer || "") + '</td><td>' + escapeShellHtml(e.action || "") + '</td><td>' + escapeShellHtml(e.reason || "") + '</td></tr>';
   }).join("");
   return '<section class="console-section" id="commish-audit-log">' +
-    '<h3 class="console-h">Override log</h3>' +
-    '<p class="sheet-meta">Every pick edit, tiebreaker override and force unlock, newest first. Read-only.</p>' +
+    '<h3 class="console-h">Commissioner log</h3>' +
+    '<p class="sheet-meta">Who did what and when: pick edits, overrides, dues, roles, links, removals and settings. Newest first, last 100. Only commissioners can see it.</p>' +
+    (legacy.length
+      ? '<div class="acct-link-row"><span class="muted-note">' + legacy.length + ' older entries are still in the pool settings, which anyone can read.</span>' +
+        '<button type="button" class="btn-sm" onclick="moveLegacyLogToPrivate()">Move them to the private log</button></div>'
+      : '') +
     (rows
       ? '<div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;"><table class="condensed-table"><thead><tr><th>When</th><th>Commissioner</th><th>Player</th><th>Action</th><th>Reason</th></tr></thead><tbody>' + rows + '</tbody></table></div>'
-      : '<p class="empty-note">No overrides yet.</p>') +
+      : '<p class="empty-note">Nothing logged yet.</p>') +
   '</section>';
 }
 
@@ -331,6 +383,8 @@ function exitPlayerPreview() {
 
 function renderPreviewBanner() {
   var el = document.getElementById("player-preview-banner");
+  // The banner is fixed at the top; the page leaves room for it so it never sits on content.
+  document.body.classList.toggle("has-preview-banner", !!PLAYER_PREVIEW);
   if (!PLAYER_PREVIEW) { if (el) el.hidden = true; return; }
   if (!el) {
     el = document.createElement("div");
@@ -371,7 +425,6 @@ renderCommissionerModalBody = function() {
   var res = _hubPrevCommishBody.apply(this, arguments);
   var body = document.getElementById("commish-modal-body");
   if (!body || !isVerifiedCommissioner()) return res;
-  if (ACTIVE_COMMISH_TAB === "submissions") body.insertAdjacentHTML("beforeend", auditLogHtml());
   if (ACTIVE_COMMISH_TAB === "locks") body.insertAdjacentHTML("beforeend", deadlineSettingsHtml());
   if (ACTIVE_COMMISH_TAB === "slate") body.insertAdjacentHTML("beforeend", dangerZoneHtml());
   if (ACTIVE_COMMISH_TAB === "roster") body.insertAdjacentHTML("beforeend", paymentSettingsHtml());
@@ -380,7 +433,7 @@ renderCommissionerModalBody = function() {
 
 // One entry point: unknown or legacy tab names (e.g. "override" from old links or saved state)
 // open Submissions. Also highlights the Master Grid and Admins tabs, which the original skipped.
-var COMMISH_TABS = ["submissions", "mastersheet", "slate", "locks", "roster", "comms", "admin"];
+var COMMISH_TABS = ["submissions", "mastersheet", "slate", "locks", "roster", "users", "comms", "admin"];
 var _hubPrevSwitchTab = switchCommissionerTab;
 switchCommissionerTab = function(tabName) {
   var tab = COMMISH_TABS.indexOf(tabName) !== -1 ? tabName : "submissions";

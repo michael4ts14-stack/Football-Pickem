@@ -65,12 +65,20 @@ Hosting/Actions use service accounts, so none of them are limited by these rules
 | `pickem_v14_users/{profile}` (a player's picks) | everyone | the account bound to that profile, or a commissioner |
 | `pickem_v14_bindings/{profile}` (which account plays a player) | everyone | commissioner (approve, unlink). A player creates their own only when: the commissioner registered their Google-verified email for that roster player (`playerEmailsMap`), the pick doc already named them as `ownerUid`, or (invite-code season) they're a new player with an invite pass |
 | `pickem_v14_link_requests/{uid}` | that account, commissioner | that account files/cancels it (status `pending` only); commissioner decides |
-| `pickem_v14_security/invite` (league invite code) | commissioner | commissioner |
-| `pickem_v14_invite_passes/{uid}` | that account, commissioner | that account, only with the right invite code |
+| `pickem_v14_security/invite` (league invite code, `expiresAtTs`, `revoked`) | commissioner | commissioner |
+| `pickem_v14_invite_passes/{uid}` | that account, commissioner | that account, only with the current code of a live link (not revoked, not past `expiresAtTs`) |
 | `pickem_v14_accounts/{email_…}` (email, linked player, rivals) | owner, commissioner | owner, commissioner; no password hashes |
 | `pickem_v14_commissioners/*` | everyone | commissioner |
 | `pickem_v14_email_log` | commissioner | nobody (Apps Script only) |
+| `pickem_v14_commish_log` (commissioner action log) | commissioner | commissioner: add entries under their own email; no edits or deletes |
 | `live_games/*` | everyone | everyone, until the GitHub jobs get a service account (`GOOGLE_SERVICE_ACCOUNT_JSON`) |
+
+Invite links (`public/js/invite-links.js`): Commissioner › Roster & dues › League access makes,
+regenerates, turns off and sets the expiry of the league link (`/?joinCode=…`). The code-free
+status (`commissionerConfig.inviteLink`) lets the link's "You're invited" page say when it has
+expired. That page offers "I'm new" or "I'm already in the league" (claim a roster name; names
+linked to an account can't be picked). Removed players (`commissionerConfig.archivedProfiles`)
+can't be claimed until restored from Commissioner › Users.
 
 Account linking (`public/js/account-security.js`): League access is set in Commissioner ›
 Roster › League access & security (`commissionerConfig.securityConfig.registrationMode`:

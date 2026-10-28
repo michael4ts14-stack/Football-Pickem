@@ -172,8 +172,12 @@ function isMineOwnerValue(owner, uid, email) {
 // { ok: false, status, memberName, message } to leave the account signed in but unlinked.
 async function gateAccountLink(who, targetMember, explicitChoice) {
   await loadBoundAccounts();
-  if (!ACCOUNT_SECURITY_LIVE) return { ok: true, memberName: targetMember };
   var uid = who.uid, email = String(who.email || "").toLowerCase();
+  // A removed (archived) player stays removed until a commissioner restores it.
+  if (targetMember && isProfileArchived(profileKeyForMember(targetMember)) && !isCommissionerAccountEmail(email, who.emailVerified)) {
+    return { ok: false, status: "archived", memberName: targetMember };
+  }
+  if (!ACCOUNT_SECURITY_LIVE) return { ok: true, memberName: targetMember };
   var mode = getSecurityConfig().registrationMode;
 
   if (isAccountBlocked(uid, email)) return { ok: false, status: "blocked", memberName: targetMember };
@@ -455,6 +459,8 @@ function unlinkedAccountModalHtml() {
     html = card("Private football pool", 'Contact the commissioner to be added. They need to register <strong>' + who + '</strong> for your player.');
   } else if (status === "blocked") {
     html = card("Account not allowed", '<strong>' + who + '</strong> can\'t join this pool. Contact the commissioner if this is a mistake.');
+  } else if (status === "archived") {
+    html = card("Player removed", '<strong>' + player + '</strong> was removed from the pool by the commissioner. Ask them to restore it, or link to your roster name.') + chooser;
   } else {
     html = chooser;
   }
@@ -482,6 +488,7 @@ renderSimpleGuestAccountBar = function() {
     var st = AUTH_SESSION.linkState.status;
     var txt = st === "pending" ? "⏳ Waiting for the commissioner to link you to " + fixDisplaySpelling(AUTH_SESSION.linkState.memberName) + ". Picks here aren't saved."
       : st === "blocked" ? "This account can't join the pool."
+      : st === "archived" ? "This player was removed by the commissioner. Picks here aren't saved."
       : st === "whitelist" ? "Private pool: contact the commissioner to be added."
       : "Your account isn't linked to a player yet. Picks here aren't saved.";
     el.innerHTML = '<span>' + escapeShellHtml(txt) + '</span><span class="account-note-links"><button type="button" class="link-btn" onclick="openAuthModal()">Details</button></span>';
@@ -672,7 +679,7 @@ function copyInviteLink() {
 // match a name), and duplicates whose name belongs to another profile ("Kinyon" = kinyion).
 function appOnlyProfiles() {
   return (state.customUsers || []).filter(function(cu) {
-    if (!cu || !cu.key) return false;
+    if (!cu || !cu.key || isProfileArchived(cu.key)) return false;
     var name = cu.linkedMemberName || cu.name;
     return !findLeaderboardEntryByName(name) || profileKeyForMember(name) !== cu.key;
   });
@@ -683,44 +690,111 @@ function isDuplicateProfile(cu) {
   return profileKeyForMember(name) !== cu.key;
 }
 
-// Deletes an app-only / duplicate profile everywhere: pick doc, pool entry, registry,
-// privacy, its binding, and the empty pool row the app added for it.
-function deleteProfileEverywhere(profKey) {
+// Removing a player is a soft delete (archive): the record moves to
+// commissionerConfig.archivedProfiles (commissioner-only, so no player device can bring it back),
+// the pick doc is kept and flagged `archived`, the account is unlinked, and the player leaves the
+// registry. Week archives and the pick doc keep their history, so Restore puts them back as they were.
+// Every write is confirmed before this device's state changes.
+async function archiveProfile(profKey, reason) {
   var cu = (state.customUsers || []).filter(function(c) { return c.key === profKey; })[0];
-  var rowName = cu ? cu.name : "";
-  state.customUsers = (state.customUsers || []).filter(function(c) { return c.key !== profKey; });
-  delete state[profKey];
-  if (state.profilePrivacy) delete state.profilePrivacy[profKey];
-  var hadRow = false;
-  if (rowName && Array.isArray(state.poolMembers)) {
-    state.poolMembers = state.poolMembers.filter(function(pm) {
-      var drop = pm && pm.name === rowName && pm.awaitingSheet && !findLeaderboardEntryByName(pm.name);
-      if (drop) hadRow = true;
-      return !drop;
-    });
-  }
-  var shared = { customUsers: state.customUsers, profilePrivacy: state.profilePrivacy || {}, updatedAt: new Date().toISOString() };
-  shared[profKey] = firebase.firestore.FieldValue.delete();
-  if (hadRow) shared.poolMembers = state.poolMembers;
+  if (!cu) throw { code: "not-found" };
+  var now = new Date().toISOString();
+  var binding = BOUND_ACCOUNTS[profKey] || null;
+  var rowName = cu.name;
+  // Only the empty row the app added for this player goes; a row with sheet history stays.
+  var dropRow = function(pm) { return pm && pm.name === rowName && pm.awaitingSheet && !findLeaderboardEntryByName(pm.name) && !hasSubmittedPicksForCurrentSlate(pm.picks || {}, GAMES); };
+  var hadRow = Array.isArray(state.poolMembers) && state.poolMembers.some(dropRow);
+  var who = commishEmailForLog();
+
+  await commitCommissionerConfig(function(cfg) {
+    if (!cfg.archivedProfiles) cfg.archivedProfiles = {};
+    cfg.archivedProfiles[profKey] = {
+      record: JSON.parse(JSON.stringify(cu)),
+      privacy: (state.profilePrivacy && state.profilePrivacy[profKey]) || null,
+      name: cu.name, email: (binding && binding.email) || cu.email || "", uid: (binding && binding.uid) || "",
+      archivedAt: now, archivedBy: who, reason: reason || ""
+    };
+  });
+  logCommishAction("Removed (archived) player " + cu.name, cu.name, reason || "");
+
+  var remaining = (state.customUsers || []).filter(function(c) { return c.key !== profKey; });
+  var shared = { customUsers: remaining, updatedAt: now };
+  if (hadRow) shared.poolMembers = state.poolMembers.filter(function(pm) { return !dropRow(pm); });
   var jobs = [
     fsDb.collection("pickem_v14").doc("shared_state").set(shared, { merge: true }),
-    fsDb.collection("pickem_v14_users").doc(profKey).delete()
+    // ownerUid cleared: the old owner value would let that account re-link itself.
+    fsDb.collection("pickem_v14_users").doc(profKey).set({ archived: true, archivedAt: now, archivedBy: who, ownerUid: "" }, { merge: true })
   ];
-  if (BOUND_ACCOUNTS[profKey]) jobs.push(fsDb.collection("pickem_v14_bindings").doc(profKey).delete());
-  return Promise.all(jobs);
+  if (binding) jobs.push(fsDb.collection("pickem_v14_bindings").doc(profKey).delete());
+  await Promise.all(jobs);
+
+  // Confirmed: now this device.
+  state.customUsers = remaining;
+  if (hadRow) state.poolMembers = shared.poolMembers;
+  delete BOUND_ACCOUNTS[profKey];
+  if (activeProfile === profKey) activeProfile = getMyInstanceProfileKey();
+  if (state.compareTargetKey === profKey) state.compareTargetKey = "";
+  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+}
+
+async function restoreArchivedProfile(profKey) {
+  var entry = (ensureCommissionerConfig().archivedProfiles || {})[profKey];
+  if (!entry) throw { code: "not-found" };
+  var now = new Date().toISOString();
+  var record = Object.assign({}, entry.record || { key: profKey, name: entry.name || profKey, linkedMemberName: entry.name || profKey }, { ownerUid: "" });
+  await commitCommissionerConfig(function(cfg) {
+    delete cfg.archivedProfiles[profKey];
+  });
+  logCommishAction("Restored player " + record.name, record.name, "");
+  var list = (state.customUsers || []).filter(function(c) { return c.key !== profKey; }).concat([record]);
+  var shared = { customUsers: list, updatedAt: now };
+  if (entry.privacy) { shared.profilePrivacy = {}; shared.profilePrivacy[profKey] = entry.privacy; }
+  var uRef = fsDb.collection("pickem_v14_users").doc(profKey);
+  await Promise.all([
+    fsDb.collection("pickem_v14").doc("shared_state").set(shared, { merge: true }),
+    uRef.set({ archived: false, restoredAt: now }, { merge: true })
+  ]);
+  state.customUsers = list;
+  if (entry.privacy) state.profilePrivacy[profKey] = entry.privacy;
+  try {
+    var snap = await uRef.get();
+    var d = snap && snap.exists ? snap.data() : null;
+    if (d && d.picks) state[profKey] = Object.assign({}, state[profKey] || {}, { picks: d.picks, tiebreaker: d.tiebreaker || "28-24", target: d.target || 20, linkedMemberName: d.linkedMemberName || record.linkedMemberName });
+  } catch (e) {}
+  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
 }
 
 function removeAppOnlyPlayer(profKey) {
   if (!assertCommissionerRole("removing players")) return;
   var cu = (state.customUsers || []).filter(function(c) { return c.key === profKey; })[0];
   if (!cu) return;
-  confirmDanger("Remove the app-only player \"" + cu.name + "\"? Their picks for this week are deleted and the account (if any) is unlinked. Roster players aren't affected.", "Remove", function() {
-    deleteProfileEverywhere(profKey).then(function() {
+  var b = BOUND_ACCOUNTS[profKey];
+  confirmDanger("Remove \"" + cu.name + "\" from the pool?\n\n" +
+    "• They disappear from the app on every device.\n" +
+    (b ? "• " + (b.email || "Their account") + " is unlinked.\n" : "") +
+    "• Their picks and past weeks are kept, and you can restore them under Removed players.\n" +
+    "• Roster players aren't affected.", "Remove", function() {
+    showAppToast("Removing " + cu.name + "…");
+    archiveProfile(profKey, "Removed from Roster › App-only players").then(function() {
       regradeAllPoolMembersLive();
       renderAll();
       renderCommissionerModalBody();
-      showAppToast("Removed " + cu.name + ".");
-    }, function(e) { showAppToast("Couldn't remove (" + ((e && e.code) || "error") + ")."); });
+      showAppToast("Removed " + cu.name + ". Restore it any time under Removed players.");
+    }, function(e) { showAppToast("Couldn't remove " + cu.name + " (" + ((e && e.code) || "error") + "). Nothing was changed."); });
+  });
+}
+
+function restoreArchivedPlayer(profKey) {
+  if (!assertCommissionerRole("restoring players")) return;
+  var entry = (ensureCommissionerConfig().archivedProfiles || {})[profKey];
+  if (!entry) return;
+  confirmDanger("Restore \"" + (entry.name || profKey) + "\"? They come back with their saved picks. Their account isn't re-linked; they sign in again and you approve the link.", "Restore", function() {
+    restoreArchivedProfile(profKey).then(function() {
+      regradeAllPoolMembersLive();
+      renderAll();
+      renderCommissionerModalBody();
+      showAppToast("Restored " + (entry.name || profKey) + ".");
+    }, function(e) { showAppToast("Couldn't restore (" + ((e && e.code) || "error") + ")."); });
   });
 }
 
@@ -747,18 +821,30 @@ async function mergeProfileInto(dupKey, targetName) {
 
   var dupPicks = (state[dupKey] && state[dupKey].picks) || dupDoc.picks || {};
   var targetPicks = (state[targetKey] && state[targetKey].picks) || {};
-  var movePicks = !hasSubmittedPicksForCurrentSlate(targetPicks, GAMES) && hasSubmittedPicksForCurrentSlate(dupPicks, GAMES);
+  // Combine: the kept record's picks win; the duplicate fills games the kept record hasn't
+  // picked this week. Only this week's games move (older keys belong to other slates).
+  var combined = Object.assign({}, targetPicks);
+  var filled = 0;
+  GAMES.forEach(function(g) {
+    var mine = getResolvedPickForGame(targetPicks, g, false);
+    var theirs = getResolvedPickForGame(dupPicks, g, false);
+    if (!mine && theirs) { combined[g.id] = theirs; filled++; }
+  });
+  var movePicks = filled > 0;
+  var targetTb = state[targetKey] && state[targetKey].tiebreaker;
   var msg = "Merge \"" + cu.name + "\" into " + shownTarget + "?\n\n" +
     (email ? "• " + email + " becomes " + shownTarget + "'s account and lands on their picks.\n" : "• No sign-in is attached to \"" + cu.name + "\".\n") +
-    (movePicks ? "• " + shownTarget + " has no picks this week, so the duplicate's picks move over.\n" : "• " + shownTarget + "'s own picks are kept.\n") +
-    "• \"" + cu.name + "\" is then deleted.";
+    (movePicks ? "• " + filled + " of the duplicate's picks fill games " + shownTarget + " hasn't picked; " + shownTarget + "'s own picks stay.\n" : "• " + shownTarget + "'s own picks are kept (nothing to add).\n") +
+    "• \"" + cu.name + "\" is then removed (archived; its picks history is kept).";
   confirmDanger(msg, "Merge", async function() {
     try {
       var now = new Date().toISOString();
       if (movePicks) {
         if (!state[targetKey]) state[targetKey] = { picks: {}, tiebreaker: "28-24", target: 20 };
-        state[targetKey].picks = Object.assign({}, dupPicks);
-        if ((state[dupKey] && state[dupKey].tiebreaker) || dupDoc.tiebreaker) state[targetKey].tiebreaker = (state[dupKey] && state[dupKey].tiebreaker) || dupDoc.tiebreaker;
+        state[targetKey].picks = combined;
+        var hadOwnPicks = hasSubmittedPicksForCurrentSlate(targetPicks, GAMES);
+        if (!hadOwnPicks && ((state[dupKey] && state[dupKey].tiebreaker) || dupDoc.tiebreaker)) state[targetKey].tiebreaker = (state[dupKey] && state[dupKey].tiebreaker) || dupDoc.tiebreaker;
+        else if (targetTb) state[targetKey].tiebreaker = targetTb;
         state[targetKey]._picksCleared = false;
       }
       var userDoc = { profileKey: targetKey, linkedMemberName: rosterDisplayName(targetName), updatedAt: now };
@@ -787,7 +873,8 @@ async function mergeProfileInto(dupKey, targetName) {
         if (!map[targetLow]) { map[targetLow] = email; saveCommissionerConfigToCloud(); }
       }
       await Promise.all(jobs);
-      await deleteProfileEverywhere(dupKey);
+      await archiveProfile(dupKey, "Merged into " + shownTarget);
+      logCommishAction("Merged " + cu.name + " into " + shownTarget + (email ? " (account " + email + " moved)" : "") + (movePicks ? ", " + filled + " picks added" : ""), shownTarget, "");
       regradeAllPoolMembersLive();
       pushWatchlistOrStandingsToFirebase();
       renderAll();
@@ -903,6 +990,21 @@ function appOnlyPlayersHtml() {
     }).join("") + '</div></details>';
 }
 
+function archivedPlayersHtml() {
+  var arch = ensureCommissionerConfig().archivedProfiles || {};
+  var keys = Object.keys(arch);
+  if (!keys.length) return "";
+  keys.sort(function(a, b) { return String(arch[b].archivedAt || "").localeCompare(String(arch[a].archivedAt || "")); });
+  return '<details class="acct-details"><summary>Removed players (' + keys.length + ')</summary>' +
+    '<p class="muted-note">Removed players are hidden everywhere but keep their picks history. Restore brings them back.</p>' +
+    '<div class="list-card">' + keys.map(function(k) {
+      var e = arch[k] || {};
+      return '<div class="acct-req"><div class="acct-req-main"><div class="acct-req-name">' + escapeShellHtml(e.name || k) + '</div>' +
+        '<div class="acct-req-sub">' + escapeShellHtml(k) + (e.email ? ' · ' + escapeShellHtml(e.email) : '') + ' · removed ' + escapeShellHtml(formatRequestTime(e.archivedAt)) + (e.archivedBy ? ' by ' + escapeShellHtml(e.archivedBy) : '') + '</div></div>' +
+        '<div class="acct-req-actions"><button type="button" class="btn-sm" onclick="restoreArchivedPlayer(\'' + jsArgAttr(k) + '\')">Restore</button></div></div>';
+    }).join("") + '</div></details>';
+}
+
 function blockedAccountsHtml() {
   var blocked = ensureCommissionerConfig().blockedUsers || {};
   var ids = Object.keys(blocked);
@@ -923,7 +1025,7 @@ renderCommissionerModalBody = function() {
   startLinkRequestWatch();
   if (ACTIVE_COMMISH_TAB === "roster") {
     body.insertAdjacentHTML("afterbegin", pendingLinkRequestsCardHtml());
-    body.insertAdjacentHTML("beforeend", leagueAccessHtml() + appOnlyPlayersHtml() + blockedAccountsHtml());
+    body.insertAdjacentHTML("beforeend", leagueAccessHtml() + appOnlyPlayersHtml() + archivedPlayersHtml() + blockedAccountsHtml());
   } else if (ACTIVE_COMMISH_TAB === "submissions") {
     body.insertAdjacentHTML("afterbegin", pendingLinkRequestsCardHtml());
   }

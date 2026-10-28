@@ -147,9 +147,9 @@ function chooseRosterNameForNewAccount(accountName) {
   return _rosterChooserPromise;
 }
 
-function filterRosterChooser(q) {
+function filterRosterChooser(q, listId) {
   q = String(q || "").trim().toLowerCase();
-  var rows = document.querySelectorAll("#roster-chooser-list .list-row");
+  var rows = document.querySelectorAll("#" + (listId || "roster-chooser-list") + " .list-row");
   for (var i = 0; i < rows.length; i++) rows[i].hidden = !!q && rows[i].getAttribute("data-name").indexOf(q) === -1;
 }
 
@@ -172,3 +172,74 @@ closePanelSheet = function() {
   }
   return _dlgPrevClosePanelSheet.apply(this, arguments);
 };
+
+// ---------- Page scroll lock while an overlay is open ----------
+// Scrolling inside an open overlay (Commissioner console, drawers, sheets, GameCast) used to
+// scroll the page behind it too: iOS Safari ignores overflow:hidden on <body>, and Android
+// Chrome chains the scroll once the overlay reaches its end. While any overlay is showing, the
+// page is pinned with position:fixed at its current offset (works on iOS), overlays get
+// overscroll-behavior: contain (css), and the offset is restored when the last one closes.
+// Every overlay opens and closes by changing its own style/hidden/class, so one observer covers
+// them all without touching each open/close function.
+var OVERLAY_BACKDROP_IDS = ["commish-modal-backdrop", "auth-modal-backdrop", "pin-modal-backdrop", "opp-modal-backdrop",
+  "field-theater-backdrop", "settings-drawer-backdrop", "ev-sim-drawer-backdrop", "confirm-backdrop",
+  "panel-sheet-backdrop", "detail-sheet-backdrop", "review-checklist-backdrop", "rail-backdrop"];
+var PAGE_SCROLL_LOCK = null; // { y } while locked
+
+function isOverlayShowing(el) {
+  if (!el || el.hidden) return false;
+  var cs = getComputedStyle(el);
+  return cs.display !== "none" && cs.visibility !== "hidden";
+}
+
+function anyOverlayOpen() {
+  for (var i = 0; i < OVERLAY_BACKDROP_IDS.length; i++) {
+    if (isOverlayShowing(document.getElementById(OVERLAY_BACKDROP_IDS[i]))) return true;
+  }
+  // Phone sidebar drawer (base.css .mobile-drawer-open)
+  return !!document.querySelector(".sidebar.mobile-drawer-open");
+}
+
+function syncPageScrollLock() {
+  var open = anyOverlayOpen();
+  var body = document.body;
+  if (open && !PAGE_SCROLL_LOCK) {
+    var y = window.scrollY || window.pageYOffset || 0;
+    PAGE_SCROLL_LOCK = { y: y };
+    body.style.top = (-y) + "px";
+    body.classList.add("page-scroll-locked");
+  } else if (!open && PAGE_SCROLL_LOCK) {
+    var restoreY = PAGE_SCROLL_LOCK.y;
+    PAGE_SCROLL_LOCK = null;
+    body.classList.remove("page-scroll-locked");
+    body.style.top = "";
+    window.scrollTo({ top: restoreY, left: 0, behavior: "instant" });
+  }
+}
+
+(function watchOverlaysForScrollLock() {
+  var pending = false;
+  var schedule = function() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function() { pending = false; syncPageScrollLock(); });
+  };
+  var observer = new MutationObserver(schedule);
+  var attach = function() {
+    OVERLAY_BACKDROP_IDS.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el && !el._scrollLockWatched) {
+        el._scrollLockWatched = true;
+        observer.observe(el, { attributes: true, attributeFilter: ["style", "hidden", "class"] });
+      }
+    });
+    var sb = document.querySelector(".sidebar");
+    if (sb && !sb._scrollLockWatched) {
+      sb._scrollLockWatched = true;
+      observer.observe(sb, { attributes: true, attributeFilter: ["class"] });
+    }
+    schedule();
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attach);
+  else attach();
+})();

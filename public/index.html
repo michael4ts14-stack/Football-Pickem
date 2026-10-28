@@ -40,12 +40,12 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="/css/tokens.css?v=2026-10-28q" />
-<link rel="stylesheet" href="/css/base.css?v=2026-10-28q" />
-<link rel="stylesheet" href="/css/views.css?v=2026-10-28q" />
-<link rel="stylesheet" href="/css/components.css?v=2026-10-28q" />
-<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-28q" />
-<link rel="stylesheet" href="/css/app.css?v=2026-10-28q" />
+<link rel="stylesheet" href="/css/tokens.css?v=2026-10-28r" />
+<link rel="stylesheet" href="/css/base.css?v=2026-10-28r" />
+<link rel="stylesheet" href="/css/views.css?v=2026-10-28r" />
+<link rel="stylesheet" href="/css/components.css?v=2026-10-28r" />
+<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-28r" />
+<link rel="stylesheet" href="/css/app.css?v=2026-10-28r" />
 </head>
 <body class="simple-ui-mode">
 <script>
@@ -599,24 +599,25 @@
 </div>
 <div id="commish-modal-backdrop" onclick="closeCommissionerModal()">
   <div id="commish-modal-box" onclick="event.stopPropagation()">
-    <div class="commish-modal-head" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border-muted);">
-      <div>
-        <h3 style="font-size:1.05rem;color:var(--warn);font-weight:900;">Commissioner</h3>
-        <div style="font-size:0.72rem;color:var(--muted);">Submissions, master sheet, slate, locks, roster, banner and admins.</div>
+    <div class="commish-modal-head">
+      <div class="commish-head-text">
+        <h3 class="commish-title">Commissioner</h3>
+        <div class="commish-sub">Submissions, master grid, slate, locks, roster, users, banner and admins.</div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center;">
+      <div class="commish-head-actions">
         <span id="commish-mode-pill" class="badge badge-ev">Hybrid Scraper Mode Active</span>
-        <button type="button" class="btn-sm" onclick="closeCommissionerModal()">Close</button>
+        <button type="button" class="btn-sm commish-close" onclick="closeCommissionerModal()" aria-label="Close commissioner console">Close</button>
       </div>
-    </div>
-    <div class="hub-tabs" style="margin-bottom:10px;">
-      <button type="button" id="cm-tab-submissions" class="hub-tab-btn active" onclick="switchCommissionerTab('submissions')">1. Submissions & Pick Mgmt</button>
-      <button type="button" id="cm-tab-mastersheet" class="hub-tab-btn" onclick="switchCommissionerTab('mastersheet')">2. Master Spreadsheet Grid</button>
-      <button type="button" id="cm-tab-slate" class="hub-tab-btn" onclick="switchCommissionerTab('slate')">3. ESPN Slate Builder</button>
-      <button type="button" id="cm-tab-locks" class="hub-tab-btn" onclick="switchCommissionerTab('locks')">4. Locks & Rules</button>
-      <button type="button" id="cm-tab-roster" class="hub-tab-btn" onclick="switchCommissionerTab('roster')">5. Roster & Dues ($)</button>
-      <button type="button" id="cm-tab-comms" class="hub-tab-btn" onclick="switchCommissionerTab('comms')">6. Banner & Recap</button>
-      <button type="button" id="cm-tab-admin" class="hub-tab-btn" onclick="switchCommissionerTab('admin')">7. Multi-Commish & Admin Email</button>
+      <div class="hub-tabs" role="tablist" aria-label="Commissioner sections">
+        <button type="button" id="cm-tab-submissions" class="hub-tab-btn active" onclick="switchCommissionerTab('submissions')">Submissions</button>
+        <button type="button" id="cm-tab-mastersheet" class="hub-tab-btn" onclick="switchCommissionerTab('mastersheet')">Master grid</button>
+        <button type="button" id="cm-tab-slate" class="hub-tab-btn" onclick="switchCommissionerTab('slate')">Slate</button>
+        <button type="button" id="cm-tab-locks" class="hub-tab-btn" onclick="switchCommissionerTab('locks')">Locks &amp; rules</button>
+        <button type="button" id="cm-tab-roster" class="hub-tab-btn" onclick="switchCommissionerTab('roster')">Roster &amp; dues</button>
+        <button type="button" id="cm-tab-users" class="hub-tab-btn" onclick="switchCommissionerTab('users')">Users</button>
+        <button type="button" id="cm-tab-comms" class="hub-tab-btn" onclick="switchCommissionerTab('comms')">Banner &amp; recap</button>
+        <button type="button" id="cm-tab-admin" class="hub-tab-btn" onclick="switchCommissionerTab('admin')">Admins &amp; email</button>
+      </div>
     </div>
     <div id="commish-modal-body"></div>
     <!-- Always mounted; shown on the Submissions tab -->
@@ -745,53 +746,57 @@
     <div id="review-checklist-body"></div>
   </div>
 </div>
-<script src="/js/00-boot-guard.js?v=2026-10-28q"></script>
-<script src="/js/config.js?v=2026-10-28q"></script>
-<script src="/js/data/teams.js?v=2026-10-28q"></script>
-<script src="/js/data/default-slate.js?v=2026-10-28q"></script>
-<script src="/js/state-globals.js?v=2026-10-28q"></script>
-<script src="/js/win-prob.js?v=2026-10-28q"></script>
-<script src="/js/data/week7-official.js?v=2026-10-28q"></script>
-<script src="/js/data/code-gs-source.js?v=2026-10-28q"></script>
-<script src="/js/state.js?v=2026-10-28q"></script>
-<script src="/js/team-match.js?v=2026-10-28q"></script>
-<script src="/js/firestore.js?v=2026-10-28q"></script>
-<script src="/js/picks.js?v=2026-10-28q"></script>
-<script src="/js/espn.js?v=2026-10-28q"></script>
-<script src="/js/profiles.js?v=2026-10-28q"></script>
-<script src="/js/auth.js?v=2026-10-28q"></script>
-<script src="/js/import-hub.js?v=2026-10-28q"></script>
-<script src="/js/render/condensed.js?v=2026-10-28q"></script>
-<script src="/js/import-sheet-grading.js?v=2026-10-28q"></script>
-<script src="/js/render/field-tracker.js?v=2026-10-28q"></script>
-<script src="/js/demo-sim.js?v=2026-10-28q"></script>
-<script src="/js/render/field.js?v=2026-10-28q"></script>
-<script src="/js/render/theater.js?v=2026-10-28q"></script>
-<script src="/js/live/live-feed.js?v=2026-10-28q"></script>
-<script src="/js/live-scores.js?v=2026-10-28q"></script>
-<script src="/js/leverage.js?v=2026-10-28q"></script>
-<script src="/js/simulator.js?v=2026-10-28q"></script>
-<script src="/js/archive.js?v=2026-10-28q"></script>
-<script src="/js/simple-mode-commissioner.js?v=2026-10-28q"></script>
-<script src="/js/commissioner-admin.js?v=2026-10-28q"></script>
-<script src="/js/shell.js?v=2026-10-28q"></script>
-<script src="/js/live/situation.js?v=2026-10-28q"></script>
-<script src="/js/picks-ui.js?v=2026-10-28q"></script>
-<script src="/js/matchups-ui.js?v=2026-10-28q"></script>
-<script src="/js/live-ui.js?v=2026-10-28q"></script>
-<script src="/js/standings-ui.js?v=2026-10-28q"></script>
-<script src="/js/dialogs-ui.js?v=2026-10-28q"></script>
-<script src="/js/player-sheet.js?v=2026-10-28q"></script>
-<script src="/js/official-form.js?v=2026-10-28q"></script>
-<script src="/js/email-service.js?v=2026-10-28q"></script>
-<script src="/js/commish-hub.js?v=2026-10-28q"></script>
-<script src="/js/account-security.js?v=2026-10-28q"></script>
-<script src="/js/layout.js?v=2026-10-28q"></script>
-<script src="/js/boot.js?v=2026-10-28q"></script>
+<script src="/js/00-boot-guard.js?v=2026-10-28r"></script>
+<script src="/js/config.js?v=2026-10-28r"></script>
+<script src="/js/data/teams.js?v=2026-10-28r"></script>
+<script src="/js/data/default-slate.js?v=2026-10-28r"></script>
+<script src="/js/state-globals.js?v=2026-10-28r"></script>
+<script src="/js/win-prob.js?v=2026-10-28r"></script>
+<script src="/js/data/week7-official.js?v=2026-10-28r"></script>
+<script src="/js/data/code-gs-source.js?v=2026-10-28r"></script>
+<script src="/js/state.js?v=2026-10-28r"></script>
+<script src="/js/team-match.js?v=2026-10-28r"></script>
+<script src="/js/firestore.js?v=2026-10-28r"></script>
+<script src="/js/picks.js?v=2026-10-28r"></script>
+<script src="/js/espn.js?v=2026-10-28r"></script>
+<script src="/js/profiles.js?v=2026-10-28r"></script>
+<script src="/js/auth.js?v=2026-10-28r"></script>
+<script src="/js/import-hub.js?v=2026-10-28r"></script>
+<script src="/js/render/condensed.js?v=2026-10-28r"></script>
+<script src="/js/import-sheet-grading.js?v=2026-10-28r"></script>
+<script src="/js/render/field-tracker.js?v=2026-10-28r"></script>
+<script src="/js/demo-sim.js?v=2026-10-28r"></script>
+<script src="/js/render/field.js?v=2026-10-28r"></script>
+<script src="/js/render/theater.js?v=2026-10-28r"></script>
+<script src="/js/live/live-feed.js?v=2026-10-28r"></script>
+<script src="/js/live-scores.js?v=2026-10-28r"></script>
+<script src="/js/leverage.js?v=2026-10-28r"></script>
+<script src="/js/simulator.js?v=2026-10-28r"></script>
+<script src="/js/archive.js?v=2026-10-28r"></script>
+<script src="/js/simple-mode-commissioner.js?v=2026-10-28r"></script>
+<script src="/js/commissioner-admin.js?v=2026-10-28r"></script>
+<script src="/js/shell.js?v=2026-10-28r"></script>
+<script src="/js/live/situation.js?v=2026-10-28r"></script>
+<script src="/js/picks-ui.js?v=2026-10-28r"></script>
+<script src="/js/matchups-ui.js?v=2026-10-28r"></script>
+<script src="/js/live-ui.js?v=2026-10-28r"></script>
+<script src="/js/standings-ui.js?v=2026-10-28r"></script>
+<script src="/js/dialogs-ui.js?v=2026-10-28r"></script>
+<script src="/js/player-sheet.js?v=2026-10-28r"></script>
+<script src="/js/official-form.js?v=2026-10-28r"></script>
+<script src="/js/email-service.js?v=2026-10-28r"></script>
+<script src="/js/commish-hub.js?v=2026-10-28r"></script>
+<script src="/js/account-security.js?v=2026-10-28r"></script>
+<script src="/js/commish-dues.js?v=2026-10-28r"></script>
+<script src="/js/commish-users.js?v=2026-10-28r"></script>
+<script src="/js/invite-links.js?v=2026-10-28r"></script>
+<script src="/js/commish-console.js?v=2026-10-28r"></script>
+<script src="/js/layout.js?v=2026-10-28r"></script>
+<script src="/js/boot.js?v=2026-10-28r"></script>
 <div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>
   <span>Update available</span>
   <button type="button" id="pwa-update-reload" class="link-btn">Reload</button>
 </div>
-<script src="/js/pwa.js?v=2026-10-28q"></script>
+<script src="/js/pwa.js?v=2026-10-28r"></script>
 </body>
 </html>

@@ -140,13 +140,15 @@ function syncCommissionerRolesToFirestore() {
           emailsMap[k] = true;
         }
       }
+      // Replaces the doc: a merge set kept revoked emails in authorizedEmails, and
+      // firestore.rules read that map, so a revoked co-commissioner kept write access.
       fsDb.collection("pickem_v14_commissioners").doc("roles").set({
         primaryCommissionerEmail: cfg.primaryCommissionerEmail,
         authorizedEmails: emailsMap,
         authorizedCommissioners: cfg.authorizedCommissioners,
         updatedBy: (AUTH_SESSION && AUTH_SESSION.email) || "commissioner",
         updatedAt: new Date().toISOString()
-      }, { merge: true }).catch(function() {});
+      }).catch(function(e) { reportCloudSaveFailure("commissioner roles", e); });
     } catch (e) {}
   }
 }
@@ -1172,7 +1174,7 @@ function renderEvSimulatorDrawerBody() {
 switchCommissionerTab = function(tabName) {
   if (!assertCommissionerRole("Commissioner Console")) return;
   ACTIVE_COMMISH_TAB = tabName;
-  var tabs = ["submissions", "mastersheet", "slate", "locks", "roster", "comms", "admin"];
+  var tabs = ["submissions", "mastersheet", "slate", "locks", "roster", "users", "comms", "admin"];
   for (var i = 0; i < tabs.length; i++) {
     var b = document.getElementById("cm-tab-" + tabs[i]);
     if (b) b.className = "hub-tab-btn" + (tabs[i] === tabName ? " active" : "");
@@ -1329,7 +1331,7 @@ renderCommissionerModalBody = function() {
           '<div style="font-size:0.71rem;color:var(--muted);">Sticky player column on left • Scroll horizontally to inspect every game pick, underdog multiplier, and live grade.</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
-          '<input type="text" class="search-input" style="min-width:180px;padding:5px 9px;font-size:0.74rem;" placeholder="🔍 Filter player name..." value="' + MASTER_SHEET_SEARCH_Q.replace(/"/g, '&quot;') + '" oninput="MASTER_SHEET_SEARCH_Q=this.value; renderCommissionerModalBody();" />' +
+          '<input type="text" id="master-sheet-filter" aria-label="Filter players" class="search-input" style="min-width:180px;padding:5px 9px;font-size:0.74rem;" placeholder="🔍 Filter player name..." value="' + MASTER_SHEET_SEARCH_Q.replace(/"/g, '&quot;') + '" oninput="MASTER_SHEET_SEARCH_Q=this.value; renderCommissionerModalBody();" />' +
           '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="exportOfficialMasterCsv()">📥 Download Master .CSV</button>' +
         '</div>' +
       '</div>' +
