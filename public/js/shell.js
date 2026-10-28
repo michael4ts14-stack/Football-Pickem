@@ -14,17 +14,283 @@ function escapeShellHtml(str) {
 }
 
 // ---------- Theme ----------
+// Palettes are defined in css/tokens.css; the pre-paint script in index.html applies the saved one.
+var APP_THEMES = [
+  { id: "dark", name: "Stadium Night", bg: "#0e0f11", accent: "#c9a227" },
+  { id: "light", name: "Daylight Broadcast", bg: "#f5f5f6", accent: "#b8860b" },
+  { id: "turf", name: "Saturday Turf", bg: "#071710", accent: "#2ecc71" },
+  { id: "gridiron-navy", name: "Prime Time Navy", bg: "#0a1120", accent: "#f4d35e" },
+  { id: "crimson", name: "Tradition Crimson", bg: "#16090c", accent: "#e63946" },
+  { id: "high-contrast", name: "High Contrast", bg: "#000000", accent: "#ffd60a" }
+];
+
 function getAppTheme() {
-  return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  var t = document.documentElement.getAttribute("data-theme");
+  return APP_THEMES.some(function(x) { return x.id === t; }) ? t : "dark";
 }
 
 function setAppTheme(theme) {
-  var t = (theme === "light") ? "light" : "dark";
+  var t = APP_THEMES.some(function(x) { return x.id === theme; }) ? theme : "dark";
   document.documentElement.setAttribute("data-theme", t);
   safeSetStorage(THEME_STORAGE_KEY, t);
-  var metaTheme = document.querySelector('meta[name="theme-color"]');
-  if (metaTheme) metaTheme.setAttribute("content", t === "light" ? "#f5f5f6" : "#0e0f11");
+  syncThemeColorMeta();
   if (currentMainView === "more") renderMoreView();
+  if (isAppearanceSheetOpen()) renderAppearanceSheet();
+}
+
+function themeName(id) {
+  var t = APP_THEMES.filter(function(x) { return x.id === id; })[0];
+  return t ? t.name : "Stadium Night";
+}
+
+function screenPresetName(id) {
+  var p = SCREEN_PRESETS.filter(function(x) { return x.id === id; })[0];
+  return p ? p.name : "Standard matchup cards";
+}
+
+function syncThemeColorMeta() {
+  var metaTheme = document.querySelector('meta[name="theme-color"]');
+  var bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+  if (metaTheme && bg) metaTheme.setAttribute("content", bg);
+}
+
+// ---------- Custom colors ----------
+var CUSTOM_COLORS_KEY = "pickem_custom_colors";
+var CUSTOM_COLOR_VARS = ["--accent", "--accent-text", "--accent-soft", "--on-accent", "--bg", "--surface", "--raised", "--border"];
+
+function hexToRgb(hex) {
+  var m = /^#?([0-9a-f]{6})$/i.exec(String(hex || "").trim());
+  if (!m) return null;
+  var n = parseInt(m[1], 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+function rgbToHex(rgb) {
+  return "#" + rgb.map(function(v) { return ("0" + Math.round(Math.max(0, Math.min(255, v))).toString(16)).slice(-2); }).join("");
+}
+
+function mixHex(a, b, amount) {
+  var x = hexToRgb(a), y = hexToRgb(b);
+  if (!x || !y) return a;
+  return rgbToHex([0, 1, 2].map(function(i) { return x[i] + (y[i] - x[i]) * amount; }));
+}
+
+// WCAG relative luminance and contrast ratio.
+function relativeLuminance(hex) {
+  var rgb = hexToRgb(hex) || [0, 0, 0];
+  var c = rgb.map(function(v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+
+function contrastRatio(a, b) {
+  var la = relativeLuminance(a), lb = relativeLuminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+// Inline overrides on <html> for the accent and backgrounds, plus the tokens that follow from
+// them: a soft accent, button text that stays readable on the accent, and raised/border shades.
+function customThemeVars(colors) {
+  var vars = {};
+  var accent = hexToRgb(colors.accent) ? colors.accent : null;
+  var bg = hexToRgb(colors.bg) ? colors.bg : null;
+  var surface = hexToRgb(colors.surface) ? colors.surface : null;
+  var baseBg = bg || getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#0e0f11";
+  var darkBase = relativeLuminance(baseBg) < 0.2;
+  if (accent) {
+    vars["--accent"] = accent;
+    vars["--accent-soft"] = accent + "26"; // 15% alpha
+    vars["--on-accent"] = contrastRatio(accent, "#0e0f11") >= contrastRatio(accent, "#ffffff") ? "#0e0f11" : "#ffffff";
+    var accentText = accent;
+    for (var i = 0; i < 6 && contrastRatio(accentText, baseBg) < 4.5; i++) accentText = mixHex(accentText, darkBase ? "#ffffff" : "#000000", 0.2);
+    vars["--accent-text"] = accentText;
+  }
+  if (bg) vars["--bg"] = bg;
+  if (surface) {
+    vars["--surface"] = surface;
+    vars["--raised"] = mixHex(surface, darkBase ? "#ffffff" : "#000000", 0.06);
+    vars["--border"] = mixHex(surface, darkBase ? "#ffffff" : "#000000", 0.14);
+  }
+  return vars;
+}
+
+function applyCustomThemeColors(colors) {
+  var root = document.documentElement;
+  CUSTOM_COLOR_VARS.forEach(function(k) { root.style.removeProperty(k); });
+  var saved = { accent: colors.accent || "", bg: colors.bg || "", surface: colors.surface || "" };
+  var vars = customThemeVars(saved);
+  Object.keys(vars).forEach(function(k) { root.style.setProperty(k, vars[k]); });
+  saved.vars = vars;
+  safeSetStorage(CUSTOM_COLORS_KEY, JSON.stringify(saved));
+  if (!state.uiPrefs) state.uiPrefs = {};
+  state.uiPrefs.customColors = saved;
+  syncThemeColorMeta();
+}
+
+function getCustomThemeColors() {
+  try { return JSON.parse(safeGetStorage(CUSTOM_COLORS_KEY) || "null") || {}; } catch (e) { return {}; }
+}
+
+function resetCustomThemeColors() {
+  var root = document.documentElement;
+  CUSTOM_COLOR_VARS.forEach(function(k) { root.style.removeProperty(k); });
+  try { localStorage.removeItem(CUSTOM_COLORS_KEY); } catch (e) {}
+  if (state.uiPrefs) delete state.uiPrefs.customColors;
+  syncThemeColorMeta();
+  if (isAppearanceSheetOpen()) renderAppearanceSheet();
+}
+
+// ---------- Screen setup presets ----------
+var SCREEN_PRESET_KEY = "pickem_screen_preset";
+var SCREEN_PRESETS = [
+  { id: "standard", name: "Standard matchup cards", sub: "Full cards with team details" },
+  { id: "compact-grid", name: "Compact slate", sub: "Tighter cards, two columns on wider screens" },
+  { id: "gameday-live", name: "Saturday Game Day", sub: "Opens to Live on Saturdays, live scores pinned on top, auto-refresh on" },
+  { id: "quick-sheet", name: "Quick-pick sheet", sub: "One row per game for fast picking" }
+];
+
+function getScreenPreset() {
+  var p = document.documentElement.dataset.screenPreset;
+  return SCREEN_PRESETS.some(function(x) { return x.id === p; }) ? p : "standard";
+}
+
+function setScreenPreset(preset) {
+  var p = SCREEN_PRESETS.some(function(x) { return x.id === preset; }) ? preset : "standard";
+  document.documentElement.dataset.screenPreset = p;
+  safeSetStorage(SCREEN_PRESET_KEY, p);
+  if (!state.uiPrefs) state.uiPrefs = {};
+  state.uiPrefs.screenPreset = p;
+  if (p === "gameday-live") startGameDayAutoSync();
+  renderAll();
+  if (isAppearanceSheetOpen()) renderAppearanceSheet();
+}
+
+function isSaturdayCentral() {
+  try { return new Date().toLocaleDateString("en-US", { timeZone: "America/Chicago", weekday: "short" }) === "Sat"; } catch (e) { return false; }
+}
+
+function startGameDayAutoSync() {
+  if (typeof livePollTimer !== "undefined" && !livePollTimer && typeof toggleAutoPoll === "function") toggleAutoPoll(true);
+}
+
+// Boot: bring back appearance kept in state when this device's storage was cleared, and open
+// Saturday's Game Day screen.
+function restoreAppearanceOnBoot() {
+  var prefs = state.uiPrefs || {};
+  if (!safeGetStorage(CUSTOM_COLORS_KEY) && prefs.customColors && (prefs.customColors.accent || prefs.customColors.bg || prefs.customColors.surface)) {
+    applyCustomThemeColors(prefs.customColors);
+  }
+  if (!safeGetStorage(SCREEN_PRESET_KEY) && prefs.screenPreset) {
+    document.documentElement.dataset.screenPreset = prefs.screenPreset;
+    safeSetStorage(SCREEN_PRESET_KEY, prefs.screenPreset);
+  }
+  syncThemeColorMeta();
+  if (getScreenPreset() === "gameday-live" && isSaturdayCentral()) {
+    switchMainView("live");
+    startGameDayAutoSync();
+  }
+}
+
+// Compact score strip for the Game Day preset, pinned above Picks and Standings.
+function gameDayStripHtml() {
+  var chips = [];
+  for (var i = 0; i < GAMES.length; i++) {
+    var g = GAMES[i], ls = LIVE_SCORES[g.id];
+    if (!ls || !(ls.inProgress || ls.completed)) continue;
+    chips.push('<button type="button" class="gd-chip' + (ls.inProgress ? ' is-live' : '') + '" onclick="openGameDetail(' + g.id + ')">' +
+      '<span>' + escapeShellHtml(g.awayCode) + ' ' + (ls.awayScore || 0) + '</span>' +
+      '<span>' + escapeShellHtml(g.homeCode) + ' ' + (ls.homeScore || 0) + '</span>' +
+      '<span class="gd-chip-status">' + escapeShellHtml(ls.completed ? "Final" : (ls.detail || "Live")) + '</span>' +
+    '</button>');
+  }
+  return chips.length ? chips.join("") : '<span class="gd-empty">No games have kicked off yet.</span>';
+}
+
+function renderGameDayStrips() {
+  var on = getScreenPreset() === "gameday-live";
+  ["full-cards-wrapper", "standings-view-container"].forEach(function(id) {
+    var host = document.getElementById(id);
+    if (!host) return;
+    var strip = host.querySelector(":scope > .gameday-strip");
+    if (!on) { if (strip) strip.hidden = true; return; }
+    if (!strip) {
+      strip = document.createElement("div");
+      strip.className = "gameday-strip";
+      strip.setAttribute("aria-label", "Live scores");
+      host.insertBefore(strip, host.firstChild);
+    }
+    strip.hidden = false;
+    strip.innerHTML = gameDayStripHtml();
+  });
+}
+
+// ---------- Appearance sheet (More > Appearance) ----------
+function isAppearanceSheetOpen() {
+  var bd = document.getElementById("panel-sheet-backdrop");
+  var title = document.getElementById("panel-sheet-title");
+  return !!(bd && !bd.hidden && title && title.textContent === "Appearance");
+}
+
+function openAppearanceSheet() {
+  var bd = document.getElementById("panel-sheet-backdrop");
+  if (!bd) return;
+  closePanelSheet();
+  document.getElementById("panel-sheet-title").textContent = "Appearance";
+  renderAppearanceSheet();
+  bd.hidden = false;
+}
+
+function currentTokenHex(name) {
+  var v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return /^#[0-9a-f]{6}$/i.test(v) ? v : (/^#[0-9a-f]{8}$/i.test(v) ? v.slice(0, 7) : "#000000");
+}
+
+function renderAppearanceSheet() {
+  var body = document.getElementById("panel-sheet-body");
+  if (!body) return;
+  var theme = getAppTheme(), preset = getScreenPreset(), custom = getCustomThemeColors();
+  var colorRow = function(key, label, token) {
+    var val = custom[key] || currentTokenHex(token);
+    return '<label class="color-row"><span class="color-row-label">' + label + '</span>' +
+      '<input type="color" id="custom-color-' + key + '" value="' + val + '" oninput="onCustomColorInput()" />' +
+      '<code class="color-hex" id="custom-color-' + key + '-hex">' + val.toUpperCase() + '</code></label>';
+  };
+  body.innerHTML =
+    '<h3 class="sheet-subhead">Color palette</h3>' +
+    '<div class="palette-grid">' +
+      APP_THEMES.map(function(t) {
+        return '<button type="button" class="palette-btn" aria-pressed="' + (t.id === theme) + '" onclick="setAppTheme(\'' + t.id + '\')">' +
+          '<span class="palette-swatch" style="background:' + t.bg + '"><span style="background:' + t.accent + '"></span></span>' +
+          '<span>' + escapeShellHtml(t.name) + '</span></button>';
+      }).join("") +
+    '</div>' +
+    '<h3 class="sheet-subhead">Custom colors</h3>' +
+    '<p class="sheet-meta">Applied on top of the palette. Button text switches between dark and light so it stays readable.</p>' +
+    colorRow("accent", "Buttons and accent", "--accent") +
+    colorRow("bg", "App background", "--bg") +
+    colorRow("surface", "Cards", "--surface") +
+    '<button type="button" class="btn-sm" onclick="resetCustomThemeColors()"' + ((custom.accent || custom.bg || custom.surface) ? '' : ' disabled') + '>Reset to theme default</button>' +
+    '<h3 class="sheet-subhead">Screen setup</h3>' +
+    '<div class="list-card">' +
+      SCREEN_PRESETS.map(function(p) {
+        return '<button type="button" class="list-row preset-row" aria-pressed="' + (p.id === preset) + '" onclick="setScreenPreset(\'' + p.id + '\')">' +
+          iconHtml(p.id === preset ? "circle-check" : "circle") +
+          '<span class="list-row-text"><span class="list-row-title">' + escapeShellHtml(p.name) + '</span><span class="list-row-sub">' + escapeShellHtml(p.sub) + '</span></span></button>';
+      }).join("") +
+    '</div>';
+}
+
+// Color inputs update live without redrawing the sheet (a redraw would close the picker).
+function onCustomColorInput() {
+  var colors = {};
+  ["accent", "bg", "surface"].forEach(function(k) {
+    var el = document.getElementById("custom-color-" + k);
+    var prev = getCustomThemeColors()[k];
+    // Only colors the player changed become overrides.
+    if (el && (prev || el.value.toLowerCase() !== currentTokenHex("--" + (k === "accent" ? "accent" : k)).toLowerCase())) colors[k] = el.value;
+    var hex = document.getElementById("custom-color-" + k + "-hex");
+    if (hex && el) hex.textContent = el.value.toUpperCase();
+  });
+  applyCustomThemeColors(colors);
 }
 
 // ---------- Icons (Lucide) ----------
@@ -253,13 +519,7 @@ function renderMoreView() {
     '<section class="list-section" id="more-sec-settings" aria-labelledby="more-h-settings">' +
       '<h2 class="section-label" id="more-h-settings">Settings</h2>' +
       '<div class="list-card">' +
-        '<div class="list-row static">' + iconHtml(theme === "light" ? "sun" : "moon") +
-          '<span class="list-row-text"><span class="list-row-title">Theme</span></span>' +
-          '<div class="segmented" role="group" aria-label="Theme">' +
-            '<button type="button" aria-pressed="' + (theme === "dark") + '" onclick="setAppTheme(\'dark\')">Dark</button>' +
-            '<button type="button" aria-pressed="' + (theme === "light") + '" onclick="setAppTheme(\'light\')">Light</button>' +
-          '</div>' +
-        '</div>' +
+        moreRowHtml({ icon: "palette", title: "Appearance", sub: themeName(theme) + " · " + screenPresetName(getScreenPreset()), onclick: "openAppearanceSheet()" }) +
         '<div class="list-row static">' + iconHtml("sliders-horizontal") +
           '<span class="list-row-text"><span class="list-row-title">Advanced mode</span><span class="list-row-sub">EV, ownership, leverage, table view and simulators</span></span>' +
           '<button type="button" class="switch" role="switch" aria-checked="' + (!SIMPLE_UI_MODE) + '" aria-label="Advanced mode" onclick="toggleSimpleUiMode(); renderMoreView();"><span></span></button>' +
@@ -366,6 +626,7 @@ var _shellOrigRenderAll = renderAll;
 renderAll = function() {
   var result = _shellOrigRenderAll.apply(this, arguments);
   try { renderRightRail(); } catch (e) {}
+  try { renderGameDayStrips(); } catch (eGd) {}
   if (currentMainView === "more") renderMoreView();
   return result;
 };

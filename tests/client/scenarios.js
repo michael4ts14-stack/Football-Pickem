@@ -186,6 +186,18 @@ function serve() {
   const pill = await page.evaluate(() => { const el = document.getElementById("bot-sync-pill"); return el ? { text: el.textContent, title: el.title } : null; });
   check("bot status pill shows the last clean bot run", pill && /^Bot (ok|errors) · (\d+[mhd] ago|never)$/.test(pill.text) && /Gmail bot/.test(pill.title), pill);
 
+  // 12. Palette, custom colors and screen preset survive a reload (applied before first paint).
+  await page.evaluate(() => { setAppTheme("turf"); applyCustomThemeColors({ accent: "#3b82f6" }); setScreenPreset("compact-grid"); });
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const r12 = await page.evaluate(() => ({
+    theme: document.documentElement.getAttribute("data-theme"),
+    accent: document.documentElement.style.getPropertyValue("--accent"),
+    onAccent: document.documentElement.style.getPropertyValue("--on-accent"),
+    preset: document.documentElement.dataset.screenPreset
+  }));
+  await page.evaluate(() => { resetCustomThemeColors(); setScreenPreset("standard"); setAppTheme("dark"); });
+  check("appearance settings persist across reloads", r12.theme === "turf" && r12.accent === "#3b82f6" && r12.onAccent === "#0e0f11" && r12.preset === "compact-grid", r12);
+
   check("no page errors", pageErrors.length === 0, pageErrors);
 
   let failed = 0;
