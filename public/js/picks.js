@@ -138,7 +138,7 @@ function updateSingleGameCardPickUI(g) {
 
 function pickSide(gameId, sideCode) {
   var g = findGameById(gameId);
-  if (!g) return;
+  if (!g || isAwaitingFirstSlate()) return;
   if (typeof isGameLockedByCommissioner === "function" && isGameLockedByCommissioner(g.id) && activeProfile !== "test") {
     showAppToast("🔒 Game #" + g.id + " (" + g.awayCode + " at " + g.homeCode + ") is locked (Kickoff / Commissioner Lock)!");
     return;

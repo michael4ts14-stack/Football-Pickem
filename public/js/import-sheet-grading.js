@@ -2,7 +2,8 @@
 // FEATURE 1: PARTICIPANT NAME NORMALIZER, CSV/EXCEL IMPORTER & POOL AUTO-GRADER
 // ============================================================================
 function standardizeParticipantName(rawName) {
-  var clean = String(rawName || "").trim();
+  // "Chad C." / "Chad  C" / " chad c" all name the same player.
+  var clean = String(rawName || "").replace(/\s+/g, " ").trim().replace(/\.$/, "");
   var low = clean.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
   if (
     low === "michael" ||

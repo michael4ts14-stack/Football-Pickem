@@ -21,6 +21,10 @@ syncCommissionerVisibilityDOM();
 syncManualLockButtonUI();
 renderMultiBuyInEntryStrip();
 syncSimpleModeTabHighlights();
+// Offline or Firestore unreachable: stop waiting for the pool's slate after 8 seconds.
+setTimeout(function() {
+  if (!CLOUD_HYDRATED) { CLOUD_HYDRATED = true; renderAll(); }
+}, 8000);
 setTimeout(function() {
   if (!window._fullWeekEnrichmentRunning) {
     syncAllLiveTrackingData(false);

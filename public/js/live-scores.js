@@ -109,6 +109,7 @@ async function pollLiveSaturdayScores(manual) {
       var hLead = extractCompLeaders(sheetHomeComp);
       if (aLead && !g.awayLeaderText) g.awayLeaderText = aLead;
       if (hLead && !g.homeLeaderText) g.homeLeaderText = hLead;
+      if (item.ev.date && g.kickoffIso !== item.ev.date) g.kickoffIso = item.ev.date; // pick locks
       if (g.cstWindowAuto !== false && item.ev.date) {
         var win = cstWindowFromIsoDate(item.ev.date);
         if (win && win !== g.cstWindow) { g.cstWindow = win; gamesChanged = true; }

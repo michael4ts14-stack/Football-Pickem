@@ -187,6 +187,18 @@ async function memberLinkedToAnotherAccount(memberName, uid, email) {
   }
 }
 
+// Roster name for an account name: exact (ignoring case, spacing and a trailing period), or
+// first name + last initial ("Steve Miller" -> "Steve M").
+function findRosterMatchForAccountName(name) {
+  var exact = findLeaderboardEntryByName(name) || findPoolMemberByName(name);
+  if (exact) return exact.name;
+  var parts = standardizeParticipantName(name).split(" ");
+  if (parts.length < 2) return "";
+  var short = parts[0] + " " + parts[parts.length - 1].charAt(0).toUpperCase();
+  var hit = findLeaderboardEntryByName(short) || findPoolMemberByName(short);
+  return hit ? hit.name : "";
+}
+
 async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
   var email = String(authUser.email || "").trim().toLowerCase();
   var uid = authUser.uid || ("acct_" + email.replace(/[^a-z0-9]/g, "_"));
@@ -205,15 +217,17 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
   var targetMember = chosenMemberName || (acctDoc && acctDoc.linkedMemberName) || "";
   if (!targetMember) {
     // Try auto-matching displayName or email prefix to the 89-player leaderboard
-    var matchLb = findLeaderboardEntryByName(dispName) || findPoolMemberByName(dispName);
+    var matchLb = findRosterMatchForAccountName(dispName);
     if (matchLb) {
-      targetMember = matchLb.name;
+      targetMember = matchLb;
     } else if (email.indexOf("michael") !== -1) {
       targetMember = "Michael A";
     } else if (email.indexOf("kinyion") !== -1 || email.indexOf("kenyon") !== -1) {
       targetMember = "Kinyon C";
     } else {
-      targetMember = dispName;
+      // Ask before creating a new player, so "Steve Miller" can pick his "Steve M" row.
+      var chosen = (typeof chooseRosterNameForNewAccount === "function") ? await chooseRosterNameForNewAccount(dispName) : "";
+      targetMember = chosen || dispName;
     }
   }
 
@@ -849,7 +863,7 @@ function initState() {
   if (saved) {
     try {
       var parsed = JSON.parse(saved);
-      if (parsed.customGames && Array.isArray(parsed.customGames) && parsed.customGames.length === 23 && !isHardcodedWeek7Slate(parsed.customGames)) {
+      if (parsed.customGames && Array.isArray(parsed.customGames) && parsed.customGames.length > 0 && !isHardcodedWeek7Slate(parsed.customGames)) {
         GAMES = parsed.customGames;
         if (!isHardcodedWeek7Slate(GAMES)) hasLockedCustomSlate = true;
         for (var cg = 0; cg < GAMES.length; cg++) {
@@ -925,6 +939,27 @@ function initState() {
   startFirebaseRealtimeListeners();
 }
 
+var AUTOSAVE_DELAY_MS = 2500;
+var PENDING_SAVE_PROFILES = {};
+
+function hasPendingProfileSave(profKey) {
+  return !!PENDING_SAVE_PROFILES[profKey];
+}
+
+function flushPendingProfileSaves() {
+  if (saveStateDebounceTimer) clearTimeout(saveStateDebounceTimer);
+  saveStateDebounceTimer = null;
+  var keys = Object.keys(PENDING_SAVE_PROFILES);
+  PENDING_SAVE_PROFILES = {};
+  keys.forEach(function(k) { pushProfileToFirebase(k); });
+}
+
+// Leaving or hiding the app (switching apps, locking the phone) saves right away.
+document.addEventListener("visibilitychange", function() {
+  if (document.visibilityState === "hidden") flushPendingProfileSaves();
+});
+window.addEventListener("pagehide", flushPendingProfileSaves);
+
 function saveCurrentState(profOverride, debounceWrite) {
   var targetProf = profOverride || activeProfile;
   var tbEl = document.getElementById("tiebreaker-input");
@@ -934,13 +969,14 @@ function saveCurrentState(profOverride, debounceWrite) {
   state.customGames = GAMES;
 
   if (debounceWrite) {
+    // Picks save to this device at once and to Firestore once taps pause (every write is
+    // re-read by every open phone, so one write per burst instead of one per tap).
+    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    PENDING_SAVE_PROFILES[targetProf] = true;
     if (saveStateDebounceTimer) clearTimeout(saveStateDebounceTimer);
-    saveStateDebounceTimer = setTimeout(function() {
-      saveStateDebounceTimer = null;
-      safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-      pushProfileToFirebase(targetProf);
-    }, 180);
+    saveStateDebounceTimer = setTimeout(flushPendingProfileSaves, AUTOSAVE_DELAY_MS);
   } else {
+    delete PENDING_SAVE_PROFILES[targetProf];
     safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
     pushProfileToFirebase(targetProf);
   }

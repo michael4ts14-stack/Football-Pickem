@@ -193,6 +193,7 @@ function gamePassesPicksFilter(g, myPick, q, ownInfo, h2h) {
 }
 
 function renderPickCardsHtml() {
+  if (isAwaitingFirstSlate()) return '<p class="empty-note">Loading this week\'s games…</p>';
   ensureMondayLockedOddsOnGames();
   var qEl = document.getElementById("team-search");
   var q = (qEl ? qEl.value : "").trim().toLowerCase();
@@ -417,7 +418,6 @@ function openGameDetail(gameId) {
   _detailSheetReturnFocus = document.activeElement;
   renderGameDetailSheet();
   bd.hidden = false;
-  document.body.classList.add("sheet-open");
   var closeBtn = document.getElementById("detail-sheet-close");
   if (closeBtn) closeBtn.focus();
 }
@@ -425,7 +425,6 @@ function openGameDetail(gameId) {
 function closeGameDetail() {
   var bd = document.getElementById("detail-sheet-backdrop");
   if (bd) bd.hidden = true;
-  document.body.classList.remove("sheet-open");
   DETAIL_SHEET_GAME_ID = null;
   if (_detailSheetReturnFocus && _detailSheetReturnFocus.focus) _detailSheetReturnFocus.focus();
   _detailSheetReturnFocus = null;

@@ -77,6 +77,7 @@ function startFirebaseRealtimeListeners() {
           // Never overwrite the local device's own Test Sim or actively-edited profile during a click
           if (docId === "test") continue;
           if (docId === activeProfile && withinMyLocalEdit) continue;
+          if (hasPendingProfileSave(docId)) continue; // newer local picks are waiting to save
 
           // While a past week is on screen, live picks belong to the parked live week.
           var viewingArchive = typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY && LIVE_WEEK_SNAPSHOT;
@@ -153,8 +154,17 @@ function startFirebaseRealtimeListeners() {
   }
 }
 
+// False until the pool's shared state first arrives (or boot gives up waiting). Until then a
+// device with no saved slate only has the built-in Week 7 games, which must not be shown or picked.
+var CLOUD_HYDRATED = false;
+
+function isAwaitingFirstSlate() {
+  return !CLOUD_HYDRATED && isHardcodedWeek7Slate(GAMES);
+}
+
 function applyRemoteCloudData(data, sourceLabel) {
   if (!data) return;
+  CLOUD_HYDRATED = true;
 
   // 1. ANTI-FLICKER GUARD: Never let a stale Week 7 snapshot (e.g. from Cloud Firestore when Code.gs only updated RTDB)
   //    overwrite an active Week 8+ slate already loaded in memory!
@@ -252,7 +262,7 @@ function applyRemoteCloudData(data, sourceLabel) {
   }
   var shouldAcceptProfile = function(profKey) {
     if (profKey === "test") return false; // Test Sim is always isolated per-device!
-    if (withinLocalPickLock) return false;
+    if (withinLocalPickLock || hasPendingProfileSave(profKey)) return false;
     var pMeta = getProfileMetaByKey(profKey);
     var pLow = standardizeParticipantName((pMeta && (pMeta.linkedMemberName || pMeta.name)) || "").toLowerCase();
     if (pLow && state.deletedPicksByMember && state.deletedPicksByMember[pLow]) return false;
@@ -352,8 +362,8 @@ function applyRemoteCloudData(data, sourceLabel) {
   ensureWatchlistDefaults();
   regradeAllPoolMembersLive();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  document.getElementById("tiebreaker-input").value = state[activeProfile].tiebreaker || "28-24";
-  document.getElementById("target-slider").value = state[activeProfile].target || 20;
+  setInputValueUnlessEditing(document.getElementById("tiebreaker-input"), state[activeProfile].tiebreaker || "28-24");
+  setInputValueUnlessEditing(document.getElementById("target-slider"), state[activeProfile].target || 20);
 
   renderSwayFeed();
   renderAll();

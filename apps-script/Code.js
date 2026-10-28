@@ -641,6 +641,14 @@ function countSlatePicks_(picks, activeGames) {
   return n;
 }
 
+// Removes a player's "picks cleared" flag. The app keys Kinyon C as "kinyion c" (its older
+// spelling), so both spellings are cleared for him.
+function dropClearedFlag_(delMap, name) {
+  var low = standardizeBotParticipantName(name).toLowerCase();
+  delete delMap[low];
+  if (low === "kinyon c") delete delMap["kinyion c"];
+}
+
 // Merges a parsed official sheet into shared_state.poolMembers: members in the sheet get
 // the sheet's picks/tiebreaker; members NOT in the sheet are kept as they are (never dropped).
 function importPoolSheetResult_(poolResult, sheetWkNum, fileName, currentCloud) {
@@ -669,7 +677,7 @@ function importPoolSheetResult_(poolResult, sheetWkNum, fileName, currentCloud) 
 
   var clearedDelMap = (currentCloud && currentCloud.deletedPicksByMember) ? Object.assign({}, currentCloud.deletedPicksByMember) : {};
   poolResult.poolMembers.forEach(function(pm) {
-    delete clearedDelMap[pm.name.toLowerCase()];
+    dropClearedFlag_(clearedDelMap, pm.name);
   });
   var nowIso = new Date().toISOString();
   var ok = patchFirebaseNode("", {
@@ -786,7 +794,7 @@ function decodeXmlEntities(str) {
 }
 
 function standardizeBotParticipantName(rawName) {
-  var clean = String(rawName || "").replace(/\s+/g, " ").trim();
+  var clean = String(rawName || "").replace(/\s+/g, " ").trim().replace(/\.$/, "");
   var low = clean.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
   if (low === "michael" || low === "michael a" || low.indexOf("michael adams") === 0) return "Michael A";
   if (low === "kinyon" || low === "kinyon c" || low === "kinyion" || low === "kinyion c" || low.indexOf("kinyon") === 0 || low.indexOf("kinyion") === 0 || low.indexOf("kenyon") === 0) return "Kinyon C";
@@ -1386,9 +1394,9 @@ function savePicksToTargetProfile(target, pickResult, currentCloud) {
     });
     var linkedLow = standardizeBotParticipantName(linkedName).toLowerCase();
     var curDel = (currentCloud && currentCloud.deletedPicksByMember) || {};
-    if (linkedLow && curDel[linkedLow]) {
+    if (linkedLow && (curDel[linkedLow] || (linkedLow === "kinyon c" && curDel["kinyion c"]))) {
       var delMapP = Object.assign({}, curDel);
-      delete delMapP[linkedLow];
+      dropClearedFlag_(delMapP, linkedName);
       currentCloud.deletedPicksByMember = delMapP;
       patchFirebaseNode("", { deletedPicksByMember: delMapP });
     }
@@ -1403,7 +1411,7 @@ function savePicksToTargetProfile(target, pickResult, currentCloud) {
         delete pms[m]._picksCleared;
         // New picks replace an earlier clear; a leftover flag would make the app hide them.
         var delMap = Object.assign({}, (currentCloud && currentCloud.deletedPicksByMember) || {});
-        delete delMap[standardizeBotParticipantName(pms[m].name).toLowerCase()];
+        dropClearedFlag_(delMap, pms[m].name);
         if (currentCloud) currentCloud.deletedPicksByMember = delMap;
         patchFirebaseNode("", { poolMembers: pms, deletedPicksByMember: delMap });
         break;

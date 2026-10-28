@@ -30,12 +30,12 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="/css/tokens.css?v=2026-10-28j" />
-<link rel="stylesheet" href="/css/base.css?v=2026-10-28j" />
-<link rel="stylesheet" href="/css/views.css?v=2026-10-28j" />
-<link rel="stylesheet" href="/css/components.css?v=2026-10-28j" />
-<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-28j" />
-<link rel="stylesheet" href="/css/app.css?v=2026-10-28j" />
+<link rel="stylesheet" href="/css/tokens.css?v=2026-10-28k" />
+<link rel="stylesheet" href="/css/base.css?v=2026-10-28k" />
+<link rel="stylesheet" href="/css/views.css?v=2026-10-28k" />
+<link rel="stylesheet" href="/css/components.css?v=2026-10-28k" />
+<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-28k" />
+<link rel="stylesheet" href="/css/app.css?v=2026-10-28k" />
 </head>
 <body class="simple-ui-mode">
 <script>
@@ -231,22 +231,6 @@
         <div class="mc-sim-box" id="monte-carlo-sim-container"></div>
       </details>
 
-      <!-- Commissioner pieces parked here; the Console (Submissions tab) and More › Past weeks show them -->
-      <div id="console-parking" hidden>
-        <div class="grading-grid" id="automated-grading-cards"></div>
-        <div class="side-box" id="season-archive-hub-container"></div>
-        <!-- Custom Pool Member Watchlist Configuration -->
-        <div id="standings-watchlist-box" class="side-box" style="margin-bottom:14px;">
-          <div class="side-title">
-            <span>Custom Pool Member Watchlist (Track Up to 3 Key Rivals)</span>
-            <span style="color:var(--accent);font-size:0.7rem;">Auto-Syncs to Firebase</span>
-          </div>
-          <div style="font-size:0.73rem;color:var(--muted);margin-bottom:8px;">
-            Rename your 3 tracked pool opponents below or import their confirmation email picks. You can also tap their picks in the <strong>Both Picks</strong> table!
-          </div>
-          <div id="watchlist-editor-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
-        </div>
-      </div>
     </div>
 
     <!-- COMMISSIONER ACTIVE PICK MANAGEMENT BAR (Strictly visible only when Verified Commissioner is editing a player) -->
@@ -510,7 +494,7 @@
           NO Team Names! HIGHEST score FIRST (Ex: 28-24):
         </div>
         <div style="display:flex;gap:6px;margin-bottom:6px;">
-          <input type="text" id="tiebreaker-input" value="28-24" class="search-input" style="min-width:0;padding:6px 10px;font-weight:700;" oninput="saveCurrentState()" />
+          <input type="text" id="tiebreaker-input" value="28-24" class="search-input" style="min-width:0;padding:6px 10px;font-weight:700;" oninput="lastLocalPickTs = Date.now(); saveCurrentState(activeProfile, true)" />
           <button class="btn-sm" onclick="copyPicksToClipboard()" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;">Copy Picks</button>
         </div>
         <div id="copy-status" style="font-size:0.72rem;color:var(--green);min-height:14px;"></div>
@@ -616,6 +600,22 @@
       <button type="button" id="cm-tab-admin" class="hub-tab-btn" onclick="switchCommissionerTab('admin')">7. Multi-Commish & Admin Email</button>
     </div>
     <div id="commish-modal-body"></div>
+    <!-- Always mounted; shown on the Submissions tab -->
+    <section id="console-grading-section" class="console-grading" hidden>
+      <h3 class="console-h">Grading and watchlist</h3>
+      <div class="grading-grid" id="automated-grading-cards"></div>
+      <!-- Custom Pool Member Watchlist Configuration -->
+      <div id="standings-watchlist-box" class="side-box" style="margin-bottom:14px;">
+        <div class="side-title">
+          <span>Custom Pool Member Watchlist (Track Up to 3 Key Rivals)</span>
+          <span style="color:var(--accent);font-size:0.7rem;">Auto-Syncs to Firebase</span>
+        </div>
+        <div style="font-size:0.73rem;color:var(--muted);margin-bottom:8px;">
+          Rename your 3 tracked pool opponents below or import their confirmation email picks. You can also tap their picks in the <strong>Both Picks</strong> table!
+        </div>
+        <div id="watchlist-editor-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;"></div>
+      </div>
+    </section>
   </div>
 </div>
 <div id="app-toast-banner"></div>
@@ -726,51 +726,51 @@
     <div id="review-checklist-body"></div>
   </div>
 </div>
-<script src="/js/00-boot-guard.js?v=2026-10-28j"></script>
-<script src="/js/config.js?v=2026-10-28j"></script>
-<script src="/js/data/teams.js?v=2026-10-28j"></script>
-<script src="/js/data/default-slate.js?v=2026-10-28j"></script>
-<script src="/js/state-globals.js?v=2026-10-28j"></script>
-<script src="/js/win-prob.js?v=2026-10-28j"></script>
-<script src="/js/data/week7-official.js?v=2026-10-28j"></script>
-<script src="/js/data/code-gs-source.js?v=2026-10-28j"></script>
-<script src="/js/state.js?v=2026-10-28j"></script>
-<script src="/js/team-match.js?v=2026-10-28j"></script>
-<script src="/js/firestore.js?v=2026-10-28j"></script>
-<script src="/js/picks.js?v=2026-10-28j"></script>
-<script src="/js/espn.js?v=2026-10-28j"></script>
-<script src="/js/profiles.js?v=2026-10-28j"></script>
-<script src="/js/auth.js?v=2026-10-28j"></script>
-<script src="/js/import-hub.js?v=2026-10-28j"></script>
-<script src="/js/render/condensed.js?v=2026-10-28j"></script>
-<script src="/js/import-sheet-grading.js?v=2026-10-28j"></script>
-<script src="/js/render/field-tracker.js?v=2026-10-28j"></script>
-<script src="/js/demo-sim.js?v=2026-10-28j"></script>
-<script src="/js/render/field.js?v=2026-10-28j"></script>
-<script src="/js/render/theater.js?v=2026-10-28j"></script>
-<script src="/js/live/live-feed.js?v=2026-10-28j"></script>
-<script src="/js/live-scores.js?v=2026-10-28j"></script>
-<script src="/js/leverage.js?v=2026-10-28j"></script>
-<script src="/js/simulator.js?v=2026-10-28j"></script>
-<script src="/js/archive.js?v=2026-10-28j"></script>
-<script src="/js/simple-mode-commissioner.js?v=2026-10-28j"></script>
-<script src="/js/commissioner-admin.js?v=2026-10-28j"></script>
-<script src="/js/shell.js?v=2026-10-28j"></script>
-<script src="/js/live/situation.js?v=2026-10-28j"></script>
-<script src="/js/picks-ui.js?v=2026-10-28j"></script>
-<script src="/js/matchups-ui.js?v=2026-10-28j"></script>
-<script src="/js/live-ui.js?v=2026-10-28j"></script>
-<script src="/js/standings-ui.js?v=2026-10-28j"></script>
-<script src="/js/dialogs-ui.js?v=2026-10-28j"></script>
-<script src="/js/player-sheet.js?v=2026-10-28j"></script>
-<script src="/js/official-form.js?v=2026-10-28j"></script>
-<script src="/js/email-service.js?v=2026-10-28j"></script>
-<script src="/js/layout.js?v=2026-10-28j"></script>
-<script src="/js/boot.js?v=2026-10-28j"></script>
+<script src="/js/00-boot-guard.js?v=2026-10-28k"></script>
+<script src="/js/config.js?v=2026-10-28k"></script>
+<script src="/js/data/teams.js?v=2026-10-28k"></script>
+<script src="/js/data/default-slate.js?v=2026-10-28k"></script>
+<script src="/js/state-globals.js?v=2026-10-28k"></script>
+<script src="/js/win-prob.js?v=2026-10-28k"></script>
+<script src="/js/data/week7-official.js?v=2026-10-28k"></script>
+<script src="/js/data/code-gs-source.js?v=2026-10-28k"></script>
+<script src="/js/state.js?v=2026-10-28k"></script>
+<script src="/js/team-match.js?v=2026-10-28k"></script>
+<script src="/js/firestore.js?v=2026-10-28k"></script>
+<script src="/js/picks.js?v=2026-10-28k"></script>
+<script src="/js/espn.js?v=2026-10-28k"></script>
+<script src="/js/profiles.js?v=2026-10-28k"></script>
+<script src="/js/auth.js?v=2026-10-28k"></script>
+<script src="/js/import-hub.js?v=2026-10-28k"></script>
+<script src="/js/render/condensed.js?v=2026-10-28k"></script>
+<script src="/js/import-sheet-grading.js?v=2026-10-28k"></script>
+<script src="/js/render/field-tracker.js?v=2026-10-28k"></script>
+<script src="/js/demo-sim.js?v=2026-10-28k"></script>
+<script src="/js/render/field.js?v=2026-10-28k"></script>
+<script src="/js/render/theater.js?v=2026-10-28k"></script>
+<script src="/js/live/live-feed.js?v=2026-10-28k"></script>
+<script src="/js/live-scores.js?v=2026-10-28k"></script>
+<script src="/js/leverage.js?v=2026-10-28k"></script>
+<script src="/js/simulator.js?v=2026-10-28k"></script>
+<script src="/js/archive.js?v=2026-10-28k"></script>
+<script src="/js/simple-mode-commissioner.js?v=2026-10-28k"></script>
+<script src="/js/commissioner-admin.js?v=2026-10-28k"></script>
+<script src="/js/shell.js?v=2026-10-28k"></script>
+<script src="/js/live/situation.js?v=2026-10-28k"></script>
+<script src="/js/picks-ui.js?v=2026-10-28k"></script>
+<script src="/js/matchups-ui.js?v=2026-10-28k"></script>
+<script src="/js/live-ui.js?v=2026-10-28k"></script>
+<script src="/js/standings-ui.js?v=2026-10-28k"></script>
+<script src="/js/dialogs-ui.js?v=2026-10-28k"></script>
+<script src="/js/player-sheet.js?v=2026-10-28k"></script>
+<script src="/js/official-form.js?v=2026-10-28k"></script>
+<script src="/js/email-service.js?v=2026-10-28k"></script>
+<script src="/js/layout.js?v=2026-10-28k"></script>
+<script src="/js/boot.js?v=2026-10-28k"></script>
 <div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>
   <span>Update available</span>
   <button type="button" id="pwa-update-reload" class="link-btn">Reload</button>
 </div>
-<script src="/js/pwa.js?v=2026-10-28j"></script>
+<script src="/js/pwa.js?v=2026-10-28k"></script>
 </body>
 </html>

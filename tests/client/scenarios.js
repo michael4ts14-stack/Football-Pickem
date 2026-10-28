@@ -126,6 +126,62 @@ function serve() {
   });
   check("linked account without app picks keeps its sheet picks", r6.count === r6.games && !r6.awaiting && r6.writes === 0, r6);
 
+  // 7. Opening a dialog closes an open drawer, and page scroll is locked only while one is open.
+  const r7 = await page.evaluate(async () => {
+    openSettingsDrawer();
+    await new Promise((r) => setTimeout(r, 0));
+    const drawerLock = document.body.classList.contains("modal-open");
+    openAuthModal();
+    const drawerAfter = document.getElementById("settings-drawer-backdrop").style.display;
+    closeAuthModal();
+    return { drawerLock, drawerAfter };
+  });
+  await sleep(50);
+  const lockAfterClose = await page.evaluate(() => document.body.classList.contains("modal-open"));
+  check("one overlay at a time; scroll unlocks after closing", r7.drawerLock && r7.drawerAfter === "none" && !lockAfterClose, Object.assign({ lockAfterClose }, r7));
+
+  // 8. A background update doesn't replace a tiebreaker the player is typing.
+  const r8 = await page.evaluate(() => {
+    const el = document.getElementById("simple-tiebreaker-input");
+    el.focus(); el.value = "35-2";
+    state[activeProfile].tiebreaker = "28-24";
+    syncSimpleModeTabHighlights();
+    const kept = el.value; el.blur();
+    return kept;
+  });
+  check("typing in the tiebreaker survives a background update", r8 === "35-2", r8);
+
+  // 9. A burst of pick taps is one Firestore save, made after the taps pause.
+  const r9 = await page.evaluate(async () => {
+    const prev = AUTH_SESSION;
+    AUTH_SESSION = { uid: "scenario", email: "s@example.com", boundProfileKey: "michael" };
+    const before = window.__writes.length;
+    GAMES.slice(0, 5).forEach(() => { saveCurrentState("michael", true); });
+    const during = window.__writes.length - before;
+    await new Promise((r) => setTimeout(r, AUTOSAVE_DELAY_MS + 300));
+    const after = window.__writes.filter((w, i) => i >= before && w.path.indexOf("pickem_v14_users/") === 0).length;
+    AUTH_SESSION = prev;
+    return { during, after };
+  });
+  check("pick taps are batched into one save", r9.during === 0 && r9.after === 1, r9);
+
+  // 10. Name matching ignores case, extra spaces and a trailing period.
+  const r10 = await page.evaluate(() => [standardizeParticipantName(" Chad  C. "), findRosterMatchForAccountName("chad c")]);
+  check("player names match despite spacing and periods", r10[0] === "Chad C" && /^Chad C/.test(r10[1] || ""), r10);
+
+  // 11. A new account with no roster match picks its row (or "new") from unclaimed names.
+  const r11 = await page.evaluate(async () => {
+    const p = chooseRosterNameForNewAccount("Someone Unknown");
+    const first = document.querySelector("#roster-chooser-list .list-row");
+    const name = first ? first.textContent : "";
+    if (first) first.click();
+    const chosen = await p;
+    const p2 = chooseRosterNameForNewAccount("Someone Unknown");
+    closePanelSheet();
+    return { name, chosen, dismissed: await p2 };
+  });
+  check("roster chooser returns the chosen name, or new when closed", r11.name && r11.chosen === r11.name && r11.dismissed === "", r11);
+
   // 5. Commissioner bot-status pill reads live_games/bot_status.
   const pill = await page.evaluate(() => { const el = document.getElementById("bot-sync-pill"); return el ? { text: el.textContent, title: el.title } : null; });
   check("bot status pill shows the last clean bot run", pill && /^Bot (ok|errors) · (\d+[mhd] ago|never)$/.test(pill.text) && /Gmail bot/.test(pill.title), pill);
