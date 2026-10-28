@@ -22,8 +22,13 @@ var EMAIL_REPLY_TO = "separatedatturf@gmail.com";
 var APP_URL = "https://football-pickem-46206.web.app";
 var RECEIPTS_PER_HOUR = 5;
 
+function remainingQuota_() {
+  try { return MailApp.getRemainingDailyQuota(); } catch (e) { return null; }
+}
+
 function emailJson_(obj) {
   obj.apiVersion = EMAIL_API_VERSION;
+  obj.quota = remainingQuota_();
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -167,6 +172,7 @@ function handleEmailPost_(e) {
     if (action === "sendSaturdayMasterSheet" || action === "emailMasterCsvToAll") { requireCommissioner_(who); requireBroadcastsAllowed_(data); return emailJson_(sendMasterSheet_(who, shared, data)); }
     throw emailError_("UNKNOWN_ACTION", "Unknown action: " + action);
   } catch (err) {
+    if (!err.emailCode && /too many times|quota/i.test(String(err))) err = emailError_("QUOTA_EXCEEDED", "Daily email limit reached. Try again tomorrow.");
     return emailJson_(Object.assign({ ok: false, code: err.emailCode || "SERVER_ERROR", error: err.emailCode ? err.message : String(err) }, err.extra || {}));
   }
 }
@@ -190,6 +196,8 @@ function sendPickReceipt_(who, shared, data) {
   cache.put(rlKey, String(count + 1), 3600);
   cache.put(dupKey, "sent", 45);
 
+  var quota = remainingQuota_();
+  if (quota !== null && quota < 1) throw emailError_("QUOTA_EXCEEDED", "Daily email limit reached. Try again tomorrow.");
   var lines = receiptLines_(games, mine.picks);
   var msg = buildReceiptEmail_(mine.name, wk, mine.tiebreaker || "—", lines);
   MailApp.sendEmail({ to: who.email, subject: msg.subject, body: msg.text, htmlBody: msg.html, name: EMAIL_FROM_NAME, replyTo: EMAIL_REPLY_TO });
@@ -228,7 +236,16 @@ function chooseRecipients_(data, fallback) {
   return out;
 }
 
+// Never send half a broadcast: stop first if the day's quota can't cover everyone.
+function requireQuotaFor_(count) {
+  var quota = remainingQuota_();
+  if (quota !== null && count > quota) {
+    throw emailError_("QUOTA_TOO_LOW", count + " recipients but only " + quota + " emails left today. Nothing was sent.", { recipients: count });
+  }
+}
+
 function sendEach_(recipients, buildFn) {
+  requireQuotaFor_(recipients.length);
   var sent = 0, failed = [];
   recipients.forEach(function(to) {
     try { var m = buildFn(to); MailApp.sendEmail({ to: to, subject: m.subject, body: m.text, htmlBody: m.html, attachments: m.attachments, name: EMAIL_FROM_NAME, replyTo: EMAIL_REPLY_TO }); sent++; }
@@ -256,6 +273,7 @@ function sendWedThuNudge_(who, shared, data) {
       }
     });
     var recipients = chooseRecipients_(data, missing);
+    requireQuotaFor_(recipients.length);
     if (!isTest) props.setProperty("WED_THU_NUDGE_SENT_WEEK_" + dayKey, new Date().toISOString());
     var r = sendEach_(recipients, function() { return buildNudgeEmail_(wk); });
     return { ok: true, action: "sendWedThuNudge", recipients: recipients.length, sent: r.sent, failed: r.failed, skipped: 0, test: !!isTest };

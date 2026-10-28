@@ -89,6 +89,7 @@ function callEmailService(action, extra) {
         if (!json || typeof json !== "object") return { ok: false, code: "BAD_RESPONSE", error: EMAIL_ERROR_TEXT.BAD_RESPONSE };
         if (!json.apiVersion || json.apiVersion < EMAIL_API_VERSION) return { ok: false, code: "STALE_DEPLOYMENT", error: EMAIL_ERROR_TEXT.STALE_DEPLOYMENT, quota: json.quota };
         if (!json.ok && !json.error) json.error = "The email service said no (" + (json.code || "unknown") + ").";
+        if (typeof json.quota === "number" && EMAIL_SVC_STATUS) EMAIL_SVC_STATUS.quota = json.quota;
         return json;
       }, function() { return { ok: false, code: "NETWORK", error: EMAIL_ERROR_TEXT.NETWORK }; });
   }, function() { return { ok: false, code: "NOT_SIGNED_IN", error: EMAIL_ERROR_TEXT.NOT_SIGNED_IN }; });
@@ -189,7 +190,9 @@ function emailServiceStatusHtml() {
   if (!st) return '<p class="muted-note">Checking the email service…</p>';
   if (!st.ok && st.code !== "BROADCASTS_OFF") return '<p class="email-svc-last is-error">' + escapeShellHtml(st.error || "The email service didn't answer.") + '</p>';
   var on = !!st.broadcastsEnabled;
-  return '<div class="list-row static email-svc-switch">' +
+  var quota = (typeof st.quota === "number") ? st.quota : null;
+  return (quota !== null ? '<p class="email-svc-quota"><strong>' + quota + '</strong> emails left today (Google\'s daily limit for this account)</p>' : '') +
+    '<div class="list-row static email-svc-switch">' +
       '<span class="list-row-text"><span class="list-row-title">Pool emails</span>' +
       '<span class="list-row-sub">Nudge, Saturday master sheet and email-to-all. Receipts to one player always work.</span></span>' +
       '<button type="button" class="switch" role="switch" aria-checked="' + on + '" aria-label="Pool emails" onclick="setPoolEmailsEnabled(' + !on + ')"><span></span></button>' +
