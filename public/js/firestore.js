@@ -1,3 +1,22 @@
+// A player's saved picks belong to another week when fewer than half of them fit this week's
+// games. Compared with the number of games (not every saved key), so leftover keys from older
+// weeks ("game_14", ids past this slate) can't hide a full, valid set of this week's picks.
+// "Picks cleared" means the profile was emptied (clearing saves picks: {} with the flag). A
+// profile holding picks for this week's games was picked again after a clear, and the flag
+// is a leftover that would hide those picks on every other screen, so it's dropped.
+function withStaleClearFlagDropped(prof) {
+  if (prof && prof._picksCleared && countMatchingPicksForSlate(prof.picks || {}, GAMES).matched > 0) {
+    prof = Object.assign({}, prof, { _picksCleared: false });
+  }
+  return prof;
+}
+
+function picksLookLikeAnotherWeek(picks, games) {
+  var m = countMatchingPicksForSlate(picks, games);
+  var expected = Math.min(m.total, (games || []).length);
+  return m.total >= 5 && m.matched < Math.ceil(expected * 0.5);
+}
+
 // ============================================================================
 // FIREBASE REAL-TIME SYNC ENGINE (100% CLOUD FIRESTORE + PER-USER INSTANCE DOCS)
 // Supports 6 users now and scales to 80+ concurrent users without profile switching
@@ -62,8 +81,7 @@ function startFirebaseRealtimeListeners() {
           // While a past week is on screen, live picks belong to the parked live week.
           var viewingArchive = typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY && LIVE_WEEK_SNAPSHOT;
           var store = (viewingArchive && (docId === "michael" || docId === "kinyion")) ? LIVE_WEEK_SNAPSHOT : state;
-          var matchStats = countMatchingPicksForSlate(uData.picks, viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES);
-          if (matchStats.total >= 5 && matchStats.matched < Math.ceil(matchStats.total * 0.5)) continue;
+          if (picksLookLikeAnotherWeek(uData.picks, viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES)) continue;
 
           // Register custom user metadata if this is one of the 80+ user accounts not yet in state.customUsers
           if (docId !== "michael" && docId !== "kinyion" && docId !== "test") {
@@ -266,9 +284,8 @@ function applyRemoteCloudData(data, sourceLabel) {
     for (var cuIdx = 0; cuIdx < state.customUsers.length; cuIdx++) {
       var cKey = state.customUsers[cuIdx].key;
       if (cKey && data[cKey] && data[cKey].picks && shouldAcceptProfile(cKey)) {
-        var cMatch = countMatchingPicksForSlate(data[cKey].picks, GAMES);
-        if (cMatch.total < 5 || cMatch.matched >= Math.ceil(cMatch.total * 0.5)) {
-          state[cKey] = data[cKey];
+        if (!picksLookLikeAnotherWeek(data[cKey].picks, GAMES)) {
+          state[cKey] = withStaleClearFlagDropped(data[cKey]);
         }
       }
     }
