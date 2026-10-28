@@ -211,3 +211,20 @@ test("bad JSON body is answered, not thrown", () => {
   const r = JSON.parse(h.ctx.doPost({ postData: { contents: "{not json" } }).text);
   assert.strictEqual(r.code, "BAD_REQUEST");
 });
+
+test("the open GET link does nothing (no bot run, no emergency stop)", () => {
+  const h = service();
+  for (const action of ["", "emergencyStop", "syncEspn", "pollSubMinute"]) {
+    const r = JSON.parse(h.ctx.doGet({ parameter: { action, force: "1" } }).text);
+    assert.strictEqual(r.ok, true);
+  }
+  assert.strictEqual(h.calls.length, 0);
+});
+
+test("running the Gmail bot or the emergency stop needs a commissioner", () => {
+  const h = service();
+  for (const action of ["runGmailBot", "emergencyStop"]) {
+    assert.strictEqual(post(h, { action }).code, "NOT_SIGNED_IN", action);
+    assert.strictEqual(post(h, { action, idToken: token("uid-player") }).code, "NOT_COMMISSIONER", action);
+  }
+});

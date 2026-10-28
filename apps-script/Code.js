@@ -26,33 +26,12 @@ function broadcastsEnabled_() {
   return PropertiesService.getScriptProperties().getProperty("BROADCASTS_ENABLED") === "true";
 }
 
-// Web App GET endpoint so index.html can trigger an instant Gmail scrape or live ESPN sync from any browser
+// Web App GET endpoint: does nothing but say it's alive. Running the Gmail bot and the
+// emergency stop used to be open GET links that anyone with the URL could hit; they are
+// now signed-in commissioner actions on doPost (runGmailBot, emergencyStop in Email.js).
 function doGet(e) {
-  var action = (e && e.parameter && e.parameter.action) ? String(e.parameter.action) : "";
-  var force = e && e.parameter && e.parameter.force === "1";
-  if (action === "emergencyStop") {
-    var stopRes = emergencyStopEmailLoopAndCleanState();
-    return ContentService
-      .createTextOutput(JSON.stringify(stopRes))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  if (action === "syncEspn") {
-    var espnRes = syncEspnLiveStateToFirestore(true);
-    return ContentService
-      .createTextOutput(JSON.stringify(espnRes))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  if (action === "pollSubMinute") {
-    var subRes = pollEspnLiveGamesSubMinute();
-    return ContentService
-      .createTextOutput(JSON.stringify(subRes))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  var summary = runMasterPickemEmailBot(force);
-  var liveSync = syncEspnLiveStateToFirestore(force);
-  summary.espnLiveSync = liveSync;
   return ContentService
-    .createTextOutput(JSON.stringify(summary))
+    .createTextOutput(JSON.stringify({ ok: true, message: "Pick'em bot. Actions need a signed-in commissioner (POST).", apiVersion: EMAIL_API_VERSION }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -84,7 +63,7 @@ function authorizeFirestoreAccess() {
 // 2. Every 5 Minutes: `autoScrapeWeeklyPickemToFirebase` (scrapes Gmail .xlsx/.csv sheets, standings & new slates)
 // ============================================================================
 // 1-CLICK EMERGENCY STOP & RESET BAD SATURDAY SCRAPE (MANDATORY FIX 4)
-// Run this function in the Apps Script Editor or visit ?action=emergencyStop
+// Run this function in the Apps Script Editor, or Console › Import / Bot (commissioners)
 // ============================================================================
 function emergencyStopEmailLoopAndCleanState() {
   Logger.log("🚨 INITIATING EMERGENCY STOP FOR OUTBOUND EMAIL LOOP & CLEANING STATE...");
