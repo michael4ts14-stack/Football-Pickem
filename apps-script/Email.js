@@ -99,8 +99,21 @@ function requireCommissioner_(who) {
 // ---------- The caller's own profile and picks ----------
 function accountDocKey_(email) { return "email_" + String(email).toLowerCase().replace(/[^a-z0-9]/g, "_"); }
 
+// Account doc by uid (after an email change the doc id still has the old address).
+function findAccountByUid_(uid) {
+  var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + ":runQuery", {
+    method: "post", contentType: "application/json", muteHttpExceptions: true,
+    payload: JSON.stringify({ structuredQuery: { from: [{ collectionId: "pickem_v14_accounts" }],
+      where: { fieldFilter: { field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } } }, limit: 1 } })
+  });
+  if (res.getResponseCode() !== 200) return null;
+  var rows = JSON.parse(res.getContentText()) || [];
+  var doc = rows[0] && rows[0].document;
+  return doc && doc.fields ? fromFirestoreValue({ mapValue: { fields: doc.fields } }) : null;
+}
+
 function resolveCallerPicks_(who, shared) {
-  var acct = readFirestoreDoc_("pickem_v14_accounts/" + accountDocKey_(who.email));
+  var acct = readFirestoreDoc_("pickem_v14_accounts/" + accountDocKey_(who.email)) || findAccountByUid_(who.uid);
   var profKey = acct && acct.boundProfileKey;
   if (!profKey || profKey === "test") throw emailError_("NO_PROFILE", "Your account isn't linked to a pool entry yet.");
   var prof = (shared && shared[profKey]) || readFirestoreDoc_("pickem_v14_users/" + encodeURIComponent(profKey)) || {};

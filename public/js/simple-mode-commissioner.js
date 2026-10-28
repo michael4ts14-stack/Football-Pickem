@@ -247,7 +247,7 @@ async function saveAndSendPickConfirmationReceipt() {
       '</div>'
     ) : '') +
     '<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">' +
-      '<input type="email" id="receipt-email-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.75rem;" placeholder="Enter email address for confirmation receipt..." value="' + (userEmail || "").replace(/"/g, '&quot;') + '" />' +
+      '<input type="email" id="receipt-email-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.75rem;" placeholder="Your account email" value="' + String((fbAuth && fbAuth.currentUser && fbAuth.currentUser.email) || userEmail || "").replace(/"/g, '&quot;') + '" />' +
       '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;padding:6px 12px;" onclick="sendReceiptToCustomEmail()">📨 Send Email Receipt</button>' +
       '<button type="button" class="btn-sm" onclick="copyPicksToClipboard()">📋 Copy Receipt Text</button>' +
     '</div>' +
@@ -263,19 +263,40 @@ async function saveAndSendPickConfirmationReceipt() {
   showReceiptSendStatus(receiptPromise);
 }
 
+// Receipts only go to your verified account email. A different address goes through
+// Firebase's verified email change first (a link to the new address), then receipts go there.
 function sendReceiptToCustomEmail() {
   var inp = document.getElementById("receipt-email-input");
-  var email = inp ? String(inp.value || "").trim() : "";
-  if (!email || email.indexOf("@") === -1) {
-    showAppToast("⚠️ Please enter a valid email address.");
+  var email = inp ? String(inp.value || "").trim().toLowerCase() : "";
+  var user = (typeof fbAuth !== "undefined" && fbAuth) ? fbAuth.currentUser : null;
+  var box = document.getElementById("receipt-email-status");
+  var say = function(html) { if (box) box.innerHTML = html; };
+  if (!user) {
+    say(receiptStatusHtml({ ok: false, code: "NOT_SIGNED_IN", error: EMAIL_ERROR_TEXT.NOT_SIGNED_IN }));
     return;
   }
-  var meta = getProfileMetaByKey(activeProfile);
-  var cfg = ensureCommissionerConfig();
-  cfg.playerEmailsMap[standardizeParticipantName(meta.name).toLowerCase()] = email;
-  if (AUTH_SESSION) AUTH_SESSION.email = email;
-  saveCommissionerConfigToCloud();
-  showAppToast("📨 Confirmation receipt queued for " + email + " (Editable until Fri 9:00 PM CST)!");
+  var accountEmail = String(user.email || "").toLowerCase();
+  if (!email || email === accountEmail) {
+    showReceiptSendStatus(startPickReceiptSend());
+    return;
+  }
+  if (email.indexOf("@") === -1) {
+    say('<span class="email-status-line is-error">Enter a valid email address.</span>');
+    return;
+  }
+  confirmDanger("Receipts only go to your account email (" + accountEmail + "). We'll send a confirmation link to " + email +
+    ". Once you open it, " + email + " becomes your account email and receipts go there.", "Send confirmation link", function() {
+    user.verifyBeforeUpdateEmail(email).then(function() {
+      say('<span class="email-status-line">Confirmation link sent to ' + escapeShellHtml(email) + '. Open it, sign in again, then tap Retry.</span>' +
+        '<button type="button" class="link-btn" onclick="retryPickReceipt()">Retry</button>');
+    }, function(err) {
+      var code = err && err.code;
+      var msg = code === "auth/requires-recent-login" ? "For your security, sign out and back in, then try again."
+        : (code === "auth/operation-not-allowed" ? "This account's email can't be changed here (Google sign-in uses your Google address)."
+        : ((err && err.message) || "Couldn't start the email change."));
+      say('<span class="email-status-line is-error">' + escapeShellHtml(msg) + '</span>');
+    });
+  });
 }
 
 function parseTiebreakerDiff(tbStr, actualHigh, actualLow) {
