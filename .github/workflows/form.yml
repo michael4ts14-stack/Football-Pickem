@@ -6,8 +6,7 @@ on:
   schedule:
     - cron: "41 */3 * * *"
   workflow_dispatch:
-  push:
-    branches: [claude/desktop-layout]
+  pull_request:
     paths: ["tools/form/**", "tools/lib/**", "tests/form/**", ".github/workflows/form.yml"]
 
 concurrency:
@@ -25,11 +24,11 @@ jobs:
           node-version: 22
       - name: Unit tests
         run: node --test "tests/form/*.test.mjs"
-      - name: Dry run (branch push)
-        if: github.event_name == 'push'
+      - name: Dry run (pull request)
+        if: github.event_name == 'pull_request'
         run: node tools/form/build-form.mjs --dry-run
       - name: Read the form and write to Firestore
-        if: github.event_name != 'push'
+        if: github.event_name != 'pull_request'
         env:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: node tools/form/build-form.mjs
