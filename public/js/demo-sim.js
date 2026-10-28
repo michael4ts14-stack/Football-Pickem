@@ -66,13 +66,56 @@ function setGameDriveViewMode(gameId, mode, event) {
   if (ACTIVE_THEATER_GAME_ID === gameId) renderFieldTheaterModalContent(gameId);
 }
 
+// The sim as a LIVE_SCORES-style entry, so live alerts (red zone, 4Q sweat) follow the sim
+// drive. Alerts only read LIVE_SCORES, which the sim never touched, so a sim drive into the
+// red zone moved the ball on the field but never raised an alert. Null unless this game is
+// showing the sim and a play has been run (turning the Field Sim on alone raises nothing).
+function demoSimLiveState(g) {
+  if (!g) return null;
+  var mode = GAME_DRIVE_VIEW_MODE[g.id];
+  var showingSim = mode === "demo" || (DEMO_FIELD_PREVIEW && mode !== "final" && mode !== "scoring");
+  var sim = DEMO_SIM_STATE[g.id];
+  if (!showingSim || !sim || !sim.touched) return null;
+  var real = LIVE_SCORES[g.id] || {};
+  var toGoal = sim.possessionSide === "away" ? 100 - sim.yl100 : sim.yl100;
+  var nth = sim.down + (sim.down === 1 ? "st" : (sim.down === 2 ? "nd" : (sim.down === 3 ? "rd" : "th")));
+  var clk = String((sim.plays[0] && sim.plays[0].clock) || "").match(/(\d{1,2}:\d{2})/);
+  var q = sim.quarter || 4;
+  return {
+    _demo: true, inProgress: true, completed: false, matchupKey: gameMatchupKey(g),
+    awayScore: typeof real.awayScore === "number" ? real.awayScore : 0,
+    homeScore: typeof real.homeScore === "number" ? real.homeScore : 0,
+    period: q, detail: (clk ? clk[1] : "0:00") + " - " + q + (q === 1 ? "st" : (q === 2 ? "nd" : (q === 3 ? "rd" : "th"))),
+    possessionSide: sim.possessionSide, yardLine100: sim.yl100,
+    isRedZone: toGoal > 0 && toGoal <= LIVE_SITUATION_CONFIG.redZoneYards,
+    downDistanceText: nth + (toGoal <= sim.distance ? " & Goal" : " & " + sim.distance) + " at " + formatYl100ToSpotText(sim.yl100, g),
+    awayAbbr: real.awayAbbr || g.awayCode, homeAbbr: real.homeAbbr || g.homeCode
+  };
+}
+
 function simulateNextDemoPlay(gameId, actionType, event) {
   if (event && event.stopPropagation) event.stopPropagation();
   var g = findGameById(gameId);
   if (!g) return;
+  var wasRedZone = !!((demoSimLiveState(g) || {}).isRedZone);
+  try { simulateNextDemoPlayStep(g, gameId, actionType); } finally {
+    var nowSim = demoSimLiveState(g);
+    if (nowSim && nowSim.isRedZone && !wasRedZone) {
+      showAppToast("Red zone: " + (nowSim.possessionSide === "away" ? g.away : g.home) + " ball, " + nowSim.downDistanceText + " (sim)");
+    }
+    renderAll();
+    if (ACTIVE_THEATER_GAME_ID === gameId) renderFieldTheaterModalContent(gameId);
+  }
+}
+
+function simulateNextDemoPlayStep(g, gameId, actionType) {
   GAME_DRIVE_VIEW_MODE[gameId] = "demo";
   EXPANDED_FIELD_TRACKERS[gameId] = true;
   var sim = ensureDemoSimState(g);
+  sim.touched = true;
+  // After a touchdown the ball sits in the end zone; the next snap starts the other team's
+  // drive (manual taps used to "score" again from 0 yards forever; only Auto-sim reset it).
+  if (actionType === "next" && (sim.yl100 >= 100 || sim.yl100 <= 0)) actionType = "reset";
   sim.prevYl100 = sim.yl100;
 
   var isAway = sim.possessionSide === "away";
@@ -98,8 +141,7 @@ function simulateNextDemoPlay(gameId, actionType, event) {
       isScore: false,
       isTurnover: false
     }];
-    renderAll();
-    if (ACTIVE_THEATER_GAME_ID === gameId) renderFieldTheaterModalContent(gameId);
+    sim.touched = true;
     return;
   }
 
@@ -117,8 +159,6 @@ function simulateNextDemoPlay(gameId, actionType, event) {
       isScore: false,
       isTurnover: false
     });
-    renderAll();
-    if (ACTIVE_THEATER_GAME_ID === gameId) renderFieldTheaterModalContent(gameId);
     return;
   }
 
@@ -206,9 +246,6 @@ function simulateNextDemoPlay(gameId, actionType, event) {
     isTurnover: isTurnover
   });
   if (sim.plays.length > 6) sim.plays.pop();
-
-  renderAll();
-  if (ACTIVE_THEATER_GAME_ID === gameId) renderFieldTheaterModalContent(gameId);
 }
 
 function toggleDemoAutoLoop(gameId, event) {

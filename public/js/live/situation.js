@@ -174,8 +174,16 @@ function evaluateLiveGameAlertState(liveState, userPick, slateGame) {
 }
 
 // Alert for a slate game from the current scores and the viewer's own (visible) pick.
+// The live state alerts read: the demo sim's drive while this game is showing the sim
+// (demo-sim.js), otherwise the real score.
+function liveStateForAlerts(g) {
+  var sim = typeof demoSimLiveState === "function" ? demoSimLiveState(g) : null;
+  if (sim) return sim;
+  return (typeof LIVE_SCORES !== "undefined" && LIVE_SCORES[g.id]) || null;
+}
+
 function liveAlertForGame(g) {
-  var ls = (typeof LIVE_SCORES !== "undefined" && LIVE_SCORES[g.id]) || null;
+  var ls = liveStateForAlerts(g);
   if (!ls || !ls.inProgress || ls.completed) return null;
   var hidden = (typeof isProfileHiddenFromViewer === "function") && isProfileHiddenFromViewer(activeProfile, g.id);
   var pick = hidden ? null : getResolvedPickForGame(getMyPicksMap(), g, false);
