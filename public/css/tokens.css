@@ -1,5 +1,7 @@
 /* Design tokens. Accent is gold: picked teams, primary buttons, active tab, top-3 ranks. Red is reserved for results (--loss) and the live dot (--live), so a picked team never reads as a loss. Every other stylesheet uses these variables only.
-   Dark is the default; html[data-theme="light"] is set from Settings (localStorage sat_theme_v1). */
+   Dark is the default; html[data-theme] is set from More > Appearance (localStorage sat_theme_v1):
+   dark, light, turf, gridiron-navy, crimson, high-contrast. Custom colors (pickem_custom_colors)
+   are inline overrides on <html> on top of any palette. */
 :root,
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -66,4 +68,68 @@ html[data-theme="light"] {
   --alert: #a86f00;
   --redzone-tint: #c2372f1a;
   /* the field stays dark green in both themes */
+}
+
+/* Saturday Turf: green accent, so wins use lime to stay distinct from a picked team. */
+html[data-theme="turf"] {
+  --bg: #071710;
+  --surface: #0f241b;
+  --raised: #163327;
+  --border: #23463a;
+  --text: #e8f2ec;
+  --text-muted: #93ad9f;
+  --accent: #2ecc71;
+  --accent-text: #4fdc8a;
+  --accent-soft: #2ecc7126;
+  --on-accent: #071710;
+  --win: #b5e655;
+}
+
+/* Prime Time Navy */
+html[data-theme="gridiron-navy"] {
+  --bg: #0a1120;
+  --surface: #121d33;
+  --raised: #1b2a47;
+  --border: #283c60;
+  --text: #e9eef7;
+  --text-muted: #9ba9c3;
+  --accent: #f4d35e;
+  --accent-text: #f6dc7c;
+  --accent-soft: #f4d35e26;
+  --on-accent: #0a1120;
+}
+
+/* Tradition Crimson: red accent, so losses and the live dot move to orange. */
+html[data-theme="crimson"] {
+  --bg: #16090c;
+  --surface: #241015;
+  --raised: #33171e;
+  --border: #4b232c;
+  --text: #f4eaec;
+  --text-muted: #b59ca2;
+  --accent: #e63946;
+  --accent-text: #f2707a;
+  --accent-soft: #e6394626;
+  --on-accent: #16090c;
+  --loss: #f59e0b;
+  --live: #f59e0b;
+  --redzone-tint: #f59e0b1f;
+}
+
+/* High contrast: pure black, white text, strong borders. */
+html[data-theme="high-contrast"] {
+  --bg: #000000;
+  --surface: #121212;
+  --raised: #1f1f1f;
+  --border: #555555;
+  --text: #ffffff;
+  --text-muted: #d4d4d4;
+  --accent: #ffd60a;
+  --accent-text: #ffd60a;
+  --accent-soft: #ffd60a2e;
+  --on-accent: #000000;
+  --win: #4ade80;
+  --loss: #ff6b6b;
+  --live: #ff6b6b;
+  --overlay: #000000d9;
 }

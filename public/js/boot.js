@@ -15,6 +15,7 @@ if (savedCardStyle === "detailed" || savedCardStyle === "condensed") {
 ensureMondayLockedOddsOnGames();
 initSimpleModeAndCommish();
 initState();
+restoreAppearanceOnBoot();
 enterGuestModeIfSignedOut();
 renderAll();
 syncCommissionerVisibilityDOM();

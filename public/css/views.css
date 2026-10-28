@@ -250,3 +250,65 @@
   }
 
 
+
+/* ---------- Appearance sheet (More > Appearance) ---------- */
+.sheet-subhead { font-family: var(--font-head); font-size: 18px; font-weight: 600; margin: 18px 0 8px; }
+.sheet-subhead:first-child { margin-top: 0; }
+.palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+.palette-btn {
+  display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 10px; text-align: left;
+  background: var(--raised); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); cursor: pointer; font-size: 14px;
+}
+.palette-btn[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.palette-swatch { position: relative; flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); overflow: hidden; }
+.palette-swatch span { position: absolute; right: 0; bottom: 0; width: 50%; height: 50%; }
+.color-row { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 0; }
+.color-row-label { flex: 1; font-size: 15px; }
+.color-row input[type="color"] { width: 44px; height: 36px; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-btn); background: transparent; cursor: pointer; }
+.color-hex { min-width: 72px; font-size: 13px; color: var(--text-muted); }
+.preset-row[aria-pressed="true"] .list-row-title { color: var(--accent-text); }
+
+/* ---------- Game Day preset: live score strip ---------- */
+.gameday-strip {
+  display: flex; gap: 8px; overflow-x: auto; padding: 8px 0 10px; margin-bottom: 4px;
+  position: sticky; top: 0; z-index: 5; background: var(--bg);
+}
+.gameday-strip[hidden] { display: none; }
+.gd-chip {
+  flex: none; display: grid; grid-template-columns: auto auto; gap: 0 10px; padding: 6px 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
+  font-size: 13px; font-weight: 600; cursor: pointer; text-align: left;
+}
+.gd-chip.is-live { border-color: var(--live); }
+.gd-chip-status { grid-column: 1 / -1; font-size: 12px; font-weight: 400; color: var(--text-muted); }
+.gd-empty { font-size: 13px; color: var(--text-muted); }
+
+/* ---------- Compact slate preset ---------- */
+html[data-screen-preset="compact-grid"] #games-container.games-list { gap: 8px; }
+html[data-screen-preset="compact-grid"] .pick-card { padding: 3px 7px 7px; }
+html[data-screen-preset="compact-grid"] .team-pick { min-height: 44px; padding: 6px 8px; gap: 8px; }
+html[data-screen-preset="compact-grid"] .team-pick-name { font-size: 15px; }
+html[data-screen-preset="compact-grid"] .pick-card-extras,
+html[data-screen-preset="compact-grid"] .matchup-line,
+html[data-screen-preset="compact-grid"] .card-info,
+html[data-screen-preset="compact-grid"] .team-pick-stats { display: none; }
+@media (min-width: 768px) {
+  html[data-screen-preset="compact-grid"] #games-container.games-list { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+}
+
+/* ---------- Quick-pick sheet preset: one row per game ---------- */
+html[data-screen-preset="quick-sheet"] #games-container.games-list { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+html[data-screen-preset="quick-sheet"] .pick-card { padding: 6px; }
+html[data-screen-preset="quick-sheet"] .pick-card-meta,
+html[data-screen-preset="quick-sheet"] .pick-card-extras,
+html[data-screen-preset="quick-sheet"] .matchup-line,
+html[data-screen-preset="quick-sheet"] .card-info,
+html[data-screen-preset="quick-sheet"] .pool-bar,
+html[data-screen-preset="quick-sheet"] .team-pick-stats > :not(.mult-badge),
+html[data-screen-preset="quick-sheet"] .card-field { display: none; }
+html[data-screen-preset="quick-sheet"] .team-pick-stats { margin-top: 2px; }
+html[data-screen-preset="quick-sheet"] .team-pick { min-height: 44px; padding: 6px 10px; }
+html[data-screen-preset="quick-sheet"] .team-pick-name { font-size: 15px; }
+@media (min-width: 900px) {
+  html[data-screen-preset="quick-sheet"] #games-container.games-list { max-width: 760px; }
+}
