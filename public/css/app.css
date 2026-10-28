@@ -1289,3 +1289,32 @@ body.page-scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overf
 #review-checklist-backdrop, #review-checklist-box, #auth-modal-box, #pin-modal-box, .app-rail.is-open, .sidebar.mobile-drawer-open, .rail-backdrop {
   overscroll-behavior: contain;
 }
+
+/* ---------- Commissioner › Roster › League dues ---------- */
+.dues-panel { margin: 12px 0; }
+.dues-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.dues-total { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: var(--radius); background: var(--raised); }
+.dues-total strong { font-family: var(--font-head); font-size: 22px; color: var(--win); }
+.dues-total.is-owed strong { color: var(--loss); }
+.dues-total-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.dues-total-sub { font-size: 13px; color: var(--text-muted); }
+.dues-toolbar, .dues-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.dues-toolbar .chip-row { flex: 1 1 auto; }
+.dues-fee { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-muted); }
+.dues-fee .search-input { width: 84px; min-width: 0; min-height: 40px; }
+.dues-bulk .btn-sm, .dues-toolbar .btn-sm { min-height: 40px; }
+.dues-bulk .btn-sm[disabled] { opacity: 0.45; cursor: not-allowed; }
+.dues-all-paid { margin-left: auto; }
+.dues-selected-count { font-size: 13px; color: var(--text-muted); min-width: 0; }
+.dues-list { list-style: none; margin: 0; padding: 0; max-height: min(60vh, 520px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: var(--radius); }
+.dues-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; min-height: 52px; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--border); }
+.dues-row:last-child { border-bottom: 0; }
+.dues-check { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; cursor: pointer; }
+.dues-check input { width: 20px; height: 20px; }
+.dues-bulk .dues-check { justify-content: flex-start; padding-right: 6px; font-size: 14px; }
+.dues-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.dues-toggle { min-width: 92px; min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--raised); color: var(--loss); font-weight: 600; cursor: pointer; }
+.dues-toggle.is-paid { color: var(--win); border-color: currentColor; }
+.dues-row.is-paid .dues-name { color: var(--text-muted); }
+.dues-empty { padding: 16px; color: var(--text-muted); }
+@media (max-width: 640px) { .dues-all-paid { margin-left: 0; } }

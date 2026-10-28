@@ -945,26 +945,16 @@ function renderCommissionerModalBody() {
 
   if (ACTIVE_COMMISH_TAB === "roster") {
     var pmListR = state.poolMembers || [];
-    var paidCount = 0;
-    var entryFee = parseFloat(cfg.entryFeeDollars) || 25;
     var rosterRows = "";
 
     for (var r = 0; r < pmListR.length; r++) {
       var pmR = pmListR[r];
-      var keyDues = standardizeParticipantName(pmR.name).toLowerCase();
-      var isPaid = !!cfg.duesPaidMap[keyDues];
-      if (isPaid) paidCount++;
       var safeN = pmR.name.replace(/'/g, "\\'");
 
       rosterRows += '<tr>' +
         '<td><strong>' + pmR.name + '</strong></td>' +
         '<td><input type="number" class="search-input" style="width:76px;min-width:0;padding:4px 6px;font-size:0.73rem;font-weight:800;" value="' + (pmR.priorPts || 0) + '" onchange="commishAdjustPlayerPriorPts(\'' + safeN + '\', this.value)" /></td>' +
         '<td><strong>' + (pmR.newLiveTotal || pmR.priorPts || 0) + ' pts</strong></td>' +
-        '<td>' +
-          '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.68rem;' + (isPaid ? 'background:var(--raised);border-color:var(--border);color:var(--win);' : 'background:var(--raised);border-color:var(--border);color:var(--loss);') + '" onclick="commishToggleDuesPaid(\'' + safeN + '\')">' +
-            (isPaid ? '💰 PAID ($' + entryFee + ')' : '⏳ Unpaid') +
-          '</button>' +
-        '</td>' +
         '<td>' + (typeof accountLinkCellHtml === "function" ? accountLinkCellHtml(pmR.name) : '') + '</td>' +
         '<td style="display:flex;gap:4px;flex-wrap:wrap;">' +
           '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;" onclick="manuallySetPlayerPicks(\'' + safeN + '\')">✏️ Edit Picks</button>' +
@@ -973,12 +963,9 @@ function renderCommissionerModalBody() {
       '</tr>';
     }
 
-    var totalPot = paidCount * entryFee;
     body.innerHTML =
       '<div class="commish-kpi-strip">' +
         '<div class="commish-kpi"><div class="metric-label">Total Pool Roster</div><div class="metric-val">' + pmListR.length + ' Players</div><div class="metric-sub">Active League Entries</div></div>' +
-        '<div class="commish-kpi"><div class="metric-label">League Dues Paid</div><div class="metric-val" style="color:var(--green);">' + paidCount + ' / ' + pmListR.length + '</div><div class="metric-sub">$' + entryFee + ' Entry Fee</div></div>' +
-        '<div class="commish-kpi"><div class="metric-label">Collected Prize Pot</div><div class="metric-val" style="color:var(--gold);">$' + totalPot + '</div><div class="metric-sub">Season + Top 5 Weekly Pot</div></div>' +
       '</div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;background:var(--panel-alt);padding:8px 10px;border-radius:9px;border:1px solid var(--border-muted);">' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
@@ -986,14 +973,10 @@ function renderCommissionerModalBody() {
           '<input type="number" id="commish-new-player-pts" class="search-input" style="width:85px;min-width:0;padding:5px 8px;font-size:0.74rem;" placeholder="Prior Pts" value="0" />' +
           '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="commishAddPoolMember()">➕ Add Player to Pool</button>' +
         '</div>' +
-        '<div style="display:flex;gap:6px;align-items:center;">' +
-          '<label style="font-size:0.72rem;color:var(--muted);">Entry Fee ($):</label>' +
-          '<input type="number" class="search-input" style="width:68px;min-width:0;padding:4px 6px;font-size:0.73rem;" value="' + entryFee + '" onchange="state.commissionerConfig.entryFeeDollars=parseFloat(this.value)||25; saveCommissionerConfigToCloud(); renderCommissionerModalBody();" />' +
-        '</div>' +
       '</div>' +
-      '<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border-muted);border-radius:10px;">' +
+      '<div data-keep-scroll="roster-table" style="max-height:360px;overflow-y:auto;border:1px solid var(--border-muted);border-radius:10px;">' +
         '<table class="condensed-table">' +
-          '<thead><tr><th>Player Name</th><th>Prior Season Pts (Editable)</th><th>New Live Total</th><th>League Dues Status</th><th>Account</th><th>Picks</th></tr></thead>' +
+          '<thead><tr><th>Player Name</th><th>Prior Season Pts (Editable)</th><th>New Live Total</th><th>Account</th><th>Picks</th></tr></thead>' +
           '<tbody>' + rosterRows + '</tbody>' +
         '</table>' +
       '</div>';
@@ -1287,14 +1270,6 @@ function commishAdjustPlayerPriorPts(memberName, newPts) {
   pushWatchlistOrStandingsToFirebase();
   renderAll();
   showAppToast("✅ Updated " + memberName + " prior points to " + val + " pts!");
-}
-
-function commishToggleDuesPaid(memberName) {
-  var cfg = ensureCommissionerConfig();
-  var key = standardizeParticipantName(memberName).toLowerCase();
-  cfg.duesPaidMap[key] = !cfg.duesPaidMap[key];
-  saveCommissionerConfigToCloud();
-  renderCommissionerModalBody();
 }
 
 function commishAddPoolMember() {

@@ -26,6 +26,20 @@ function logCommissionerOverride(targetPlayer, action, reason) {
   saveCommissionerConfigToCloud();
 }
 
+// One commissioner action, logged without re-saving the whole commissionerConfig: the entry is
+// appended with arrayUnion (who / what / when), so it can ride along with targeted saves like
+// a single dues flag.
+function logCommishAction(action, targetPlayer, reason) {
+  var entry = { timestamp: new Date().toISOString(), commishEmail: commishEmailForLog(), targetPlayer: targetPlayer || "", action: action, reason: reason || "" };
+  var cfg = ensureCommissionerConfig();
+  cfg.overrideAuditLog.unshift(entry);
+  if (cfg.overrideAuditLog.length > 200) cfg.overrideAuditLog.length = 200;
+  if (!fsDb || !isVerifiedCommissioner()) return Promise.resolve();
+  return fsDb.collection("pickem_v14").doc("shared_state")
+    .update(new firebase.firestore.FieldPath("commissionerConfig", "overrideAuditLog"), firebase.firestore.FieldValue.arrayUnion(entry))
+    .catch(function(e) { reportCloudSaveFailure("the commissioner log", e); });
+}
+
 // ---------- Submissions row actions ----------
 function manuallySetPlayerPicks(memberName) {
   if (!assertCommissionerRole("Edit Picks")) return;
