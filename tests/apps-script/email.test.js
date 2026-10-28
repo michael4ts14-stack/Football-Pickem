@@ -84,6 +84,7 @@ test("a token for another project or an expired one is rejected", () => {
   assert.strictEqual(post(h, { action: "sendPickReceipt", idToken: token("uid-player", { aud: "other-app" }) }).code, "INVALID_TOKEN");
   assert.strictEqual(post(h, { action: "sendPickReceipt", idToken: token("uid-player", { exp: 1 }) }).code, "TOKEN_EXPIRED");
   assert.strictEqual(post(h, { action: "sendPickReceipt", idToken: token("uid-nobody") }).code, "INVALID_TOKEN");
+  assert.strictEqual(post(h, { action: "sendPickReceipt", idToken: "a.b.c" }).code, "INVALID_TOKEN");
   assert.strictEqual(h.sentMail.length, 0);
 });
 

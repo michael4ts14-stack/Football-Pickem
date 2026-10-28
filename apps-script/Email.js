@@ -54,7 +54,11 @@ function decodeJwtPayload_(token) {
   if (parts.length !== 3) throw emailError_("INVALID_TOKEN", "Your sign-in couldn't be read. Sign in again.");
   var b64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
   while (b64.length % 4) b64 += "=";
-  return JSON.parse(Utilities.newBlob(Utilities.base64Decode(b64)).getDataAsString());
+  try {
+    return JSON.parse(Utilities.newBlob(Utilities.base64Decode(b64)).getDataAsString());
+  } catch (e) {
+    throw emailError_("INVALID_TOKEN", "Your sign-in couldn't be read. Sign in again.");
+  }
 }
 
 // Returns { uid, email, emailVerified } or throws an emailError_.
