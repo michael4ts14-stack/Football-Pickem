@@ -226,24 +226,8 @@ async function saveAndSendPickConfirmationReceipt() {
   renderSimpleGuestAccountBar();
 
   // If Google Apps Script Web App URL is configured, also trigger automated confirmation email receipt
-  if (state.gasWebAppUrl && userEmail) withEmailIdToken(function(idToken) {
-    try {
-      fetch(state.gasWebAppUrl, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          action: "sendPickReceipt",
-          idToken: idToken,
-          email: userEmail,
-          playerName: meta.name,
-          weekLabel: state.weekLabel || "Week 8",
-          tiebreaker: tb,
-          picksSummary: summaryLines.join("\n")
-        })
-      }).catch(function() {});
-    } catch (e) {}
-  });
+  // Email receipt: the service sends your own saved picks to your verified email.
+  var receiptPromise = callEmailService("sendPickReceipt");
 
   // Open a clean Confirmation Receipt modal with 1-click Email / Copy / Guest-to-Account upgrade
   document.getElementById("modal-team-title").textContent = "✅ Picks Saved & Confirmation Receipt (" + (state.weekLabel || "Week 8") + ")";
@@ -598,21 +582,7 @@ function triggerWedThuAutomatedNudge() {
   cfg.lastWedThuNudgeSentAt = nowStr;
   saveCommissionerConfigToCloud();
   copyMissingPlayersList();
-  if (state.gasWebAppUrl) withEmailIdToken(function(idToken) {
-    try {
-      fetch(state.gasWebAppUrl, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          action: "sendWedThuNudge",
-          idToken: idToken,
-          weekLabel: state.weekLabel || "Week 8",
-          missingPlayers: missing
-        })
-      }).catch(function() {});
-    } catch (e) {}
-  });
+  var nudgePromise = callEmailService("sendWedThuNudge");
   renderCommissionerModalBody();
   showAppToast("⏰ Automated Wed/Thu Nudge triggered for " + missing.length + " unsubmitted players (copied list + sent to Apps Script Bot)!");
 }
@@ -624,20 +594,7 @@ function triggerSaturdayMorningMasterSheetBroadcast() {
   state.fridayNightRevealOverride = true;
   saveCommissionerConfigToCloud();
   exportOfficialMasterCsv();
-  if (state.gasWebAppUrl) withEmailIdToken(function(idToken) {
-    try {
-      fetch(state.gasWebAppUrl, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({
-          action: "sendSaturdayMasterSheet",
-          idToken: idToken,
-          weekLabel: state.weekLabel || "Week 8"
-        })
-      }).catch(function() {});
-    } catch (e) {}
-  });
+  var sheetPromise = callEmailService("sendSaturdayMasterSheet");
   renderAll();
   renderCommissionerModalBody();
   showAppToast("📊 Saturday Morning Reveal & Master Sheet Broadcast triggered! All picks are now visible to the pool & CSV exported.");

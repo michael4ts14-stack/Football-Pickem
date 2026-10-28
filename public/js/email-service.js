@@ -57,13 +57,41 @@ triggerAppsScriptGmailScraper = function() {
 };
 
 // The signed-in user's Firebase ID token; the email service checks it on every call.
-// Guests (no Firebase user) get nothing, so nothing is sent for them.
+// Guests (no Firebase user) have none, so their requests stop here.
 function getEmailIdToken() {
   var u = (typeof fbAuth !== "undefined" && fbAuth) ? fbAuth.currentUser : null;
   return u ? u.getIdToken() : Promise.resolve(null);
 }
-function withEmailIdToken(fn) {
-  getEmailIdToken().then(function(t) { if (t) fn(t); }, function() {});
+
+// One call to the email service. Always resolves to { ok, code?, error?, ... } that the UI
+// can show as is. A plain-text POST is a "simple" request (no CORS preflight); Apps Script
+// redirects to googleusercontent.com, whose reply the browser lets us read.
+var EMAIL_API_VERSION = 2; // must match EMAIL_API_VERSION in apps-script/Email.js
+var EMAIL_ERROR_TEXT = {
+  NOT_CONFIGURED: "Email service not configured. A commissioner can set it in Console › Banner & Recap.",
+  NOT_SIGNED_IN: "Not signed in. Create an account or sign in to get email receipts.",
+  NETWORK: "Couldn't reach the email service. Check your connection and try again.",
+  BAD_RESPONSE: "The email service URL didn't answer like the email service. Check the URL, and that the Web App is deployed for \"Anyone\".",
+  STALE_DEPLOYMENT: "The email service is running an old version. A commissioner needs to redeploy it in Apps Script (Manage deployments › New version)."
+};
+
+function callEmailService(action, extra) {
+  var url = emailServiceUrl();
+  if (!url) return Promise.resolve({ ok: false, code: "NOT_CONFIGURED", error: EMAIL_ERROR_TEXT.NOT_CONFIGURED });
+  return getEmailIdToken().then(function(idToken) {
+    if (!idToken && action !== "ping" && action !== "status") return { ok: false, code: "NOT_SIGNED_IN", error: EMAIL_ERROR_TEXT.NOT_SIGNED_IN };
+    var body = Object.assign({ action: action, idToken: idToken || "" }, extra || {});
+    return fetch(url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(body) })
+      .then(function(res) { return res.text(); })
+      .then(function(text) {
+        var json = null;
+        try { json = JSON.parse(text); } catch (e) {}
+        if (!json || typeof json !== "object") return { ok: false, code: "BAD_RESPONSE", error: EMAIL_ERROR_TEXT.BAD_RESPONSE };
+        if (!json.apiVersion || json.apiVersion < EMAIL_API_VERSION) return { ok: false, code: "STALE_DEPLOYMENT", error: EMAIL_ERROR_TEXT.STALE_DEPLOYMENT, quota: json.quota };
+        if (!json.ok && !json.error) json.error = "The email service said no (" + (json.code || "unknown") + ").";
+        return json;
+      }, function() { return { ok: false, code: "NETWORK", error: EMAIL_ERROR_TEXT.NETWORK }; });
+  }, function() { return { ok: false, code: "NOT_SIGNED_IN", error: EMAIL_ERROR_TEXT.NOT_SIGNED_IN }; });
 }
 
 // ---------- Commissioner console: Email service panel ----------
