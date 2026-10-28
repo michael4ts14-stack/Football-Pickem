@@ -394,20 +394,58 @@ function sendWedThuNudge_(who, shared, data) {
     var dayKey = curWeek + "_" + Utilities.formatDate(new Date(), "America/Chicago", "u");
     var props = PropertiesService.getScriptProperties();
     var isTest = Array.isArray(data.testRecipients) && data.testRecipients.length;
-    if (!isTest && props.getProperty("WED_THU_NUDGE_SENT_WEEK_" + dayKey)) throw emailError_("ALREADY_SENT", "Today's nudge was already sent.");
-    var missing = [];
-    (shared.poolMembers || []).forEach(function(pm) {
-      if (!Object.keys(pm.picks || {}).length || pm.awaitingSheet) {
-        var em = (cfg.playerEmailsMap || {})[standardizeBotParticipantName(pm.name).toLowerCase()] || pm.linkedAuthEmail;
-        if (em) missing.push(em);
-      }
-    });
-    var recipients = chooseRecipients_(data, missing);
+    if (!isTest && props.getProperty("WED_THU_NUDGE_SENT_V2_" + dayKey)) throw emailError_("ALREADY_SENT", "Today's nudge was already sent.");
+    var m = missingPickers_(shared, cfg);
+    var recipients = chooseRecipients_(data, m.emails);
+    if (!recipients.length) {
+      throw emailError_("NO_RECIPIENTS", m.missingCount
+        ? "None of the " + m.missingCount + " players missing picks has an email address the app knows (app account or the commissioner's email list). Nothing was sent."
+        : "Everyone has picks for " + wk + ". Nothing was sent.", { recipients: 0, skipped: m.missingCount });
+    }
     requireQuotaFor_(recipients.length);
-    if (!isTest) props.setProperty("WED_THU_NUDGE_SENT_WEEK_" + dayKey, new Date().toISOString());
+    if (!isTest) props.setProperty("WED_THU_NUDGE_SENT_V2_" + dayKey, new Date().toISOString());
     var r = sendEach_(recipients, function() { return buildNudgeEmail_(wk); });
-    return { ok: true, action: "sendWedThuNudge", recipients: recipients.length, sent: r.sent, failed: r.failed, skipped: 0, test: !!isTest };
+    return { ok: true, action: "sendWedThuNudge", recipients: recipients.length, sent: r.sent, failed: r.failed, skipped: isTest ? 0 : m.noEmail, test: !!isTest };
   } finally { lock.releaseLock(); }
+}
+
+// App accounts (email, linked pool player, bound profile), read as the script owner.
+function listAccounts_() {
+  var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/pickem_v14_accounts?pageSize=300", { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
+  if (res.getResponseCode() !== 200) return [];
+  return ((JSON.parse(res.getContentText()) || {}).documents || []).map(function(d) {
+    return fromFirestoreValue({ mapValue: { fields: d.fields || {} } }) || {};
+  });
+}
+
+// Players without picks this week (neither the imported sheet nor the app), and the email
+// addresses we have for them: their app account first, then the commissioner's email list,
+// then the pool entry. { emails, missingCount, noEmail }
+function missingPickers_(shared, cfg) {
+  var games = shared.customGames || [];
+  var ids = games.map(function(g) { return String(g.id); });
+  var hasSlatePicks = function(picks) {
+    picks = picks || {};
+    return ids.filter(function(id) { return picks[id]; }).length >= Math.ceil(ids.length / 2);
+  };
+  var byMember = {};
+  listAccounts_().forEach(function(a) {
+    if (a.linkedMemberName && a.email) byMember[standardizeBotParticipantName(a.linkedMemberName).toLowerCase()] = a;
+  });
+  var emailsMap = cfg.playerEmailsMap || {};
+  var seen = {}, emails = [], missingCount = 0, noEmail = 0;
+  (shared.poolMembers || []).forEach(function(pm) {
+    var low = standardizeBotParticipantName(pm.name).toLowerCase();
+    var acct = byMember[low];
+    var sheetPicks = !pm.awaitingSheet && hasSlatePicks(pm.picks);
+    var appPicks = acct && acct.boundProfileKey && shared[acct.boundProfileKey] && hasSlatePicks(shared[acct.boundProfileKey].picks);
+    if (sheetPicks || appPicks) return;
+    missingCount++;
+    var em = String((acct && acct.email) || emailsMap[low] || pm.linkedAuthEmail || "").trim().toLowerCase();
+    if (em.indexOf("@") === -1) { noEmail++; return; }
+    if (!seen[em]) { seen[em] = true; emails.push(em); }
+  });
+  return { emails: emails, missingCount: missingCount, noEmail: noEmail };
 }
 
 function buildNudgeEmail_(wk) {
