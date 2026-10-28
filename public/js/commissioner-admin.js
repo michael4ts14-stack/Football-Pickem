@@ -645,8 +645,8 @@ function isCurrentProfileManuallyLocked() {
 
 function toggleManualUserPickLock(forceLockState) {
   if (!state[activeProfile]) state[activeProfile] = { picks: {}, tiebreaker: "28-24", target: 20 };
-  if (isGameLockedByCommissioner(1) && !(AUTH_SESSION && AUTH_SESSION.adminUnlock && isVerifiedCommissioner())) {
-    showAppToast("🔒 Official Friday 9:00 PM CST deadline has passed — picks are permanently locked for the week.");
+  if (isWeekLockedForActiveProfile() && !(AUTH_SESSION && AUTH_SESSION.adminUnlock && isVerifiedCommissioner())) {
+    showAppToast("🔒 The " + pickDeadlineLabel() + " deadline has passed — picks are locked for the week.");
     return;
   }
   var nextState = (typeof forceLockState === "boolean") ? forceLockState : !state[activeProfile].userLockedPicks;
@@ -668,7 +668,7 @@ function syncManualLockButtonUI() {
   var btn = document.getElementById("btn-simple-manual-lock");
   var pill = document.getElementById("simple-lock-deadline-pill");
   var isUserLocked = isCurrentProfileManuallyLocked();
-  var isCommishLocked = isGameLockedByCommissioner(1);
+  var isCommishLocked = isWeekLockedForActiveProfile();
 
   if (btn) {
     btn.textContent = isCommishLocked ? "Locked for the week" : (isUserLocked ? "Unlock picks" : "Lock picks");
@@ -676,13 +676,12 @@ function syncManualLockButtonUI() {
   }
   if (pill) {
     pill.className = "lock-text";
-    pill.textContent = isCommishLocked ? "Locked" : (isUserLocked ? "You locked your picks" : "Locks Fri 9:00 PM CT");
+    pill.textContent = isCommishLocked ? "Locked" : (isUserLocked ? "You locked your picks" : "Locks " + pickDeadlineLabel());
   }
 
   var revCountEl = document.getElementById("top-review-count");
   if (revCountEl) {
-    var myPicks = (state[activeProfile] && state[activeProfile].picks) ? state[activeProfile].picks : {};
-    var c = countMatchingPicksForSlate(myPicks, GAMES);
+    var c = countMatchingPicksForSlate(getMyPicksMap(), GAMES);
     revCountEl.textContent = c.matched + "/" + GAMES.length;
   }
 }
@@ -744,7 +743,7 @@ function renderCondensedSimpleGamesHtml() {
   ensureMondayLockedOddsOnGames();
   var q = (document.getElementById("team-search") ? document.getElementById("team-search").value : "").trim().toLowerCase();
   var picks = (state[activeProfile] && state[activeProfile].picks) ? state[activeProfile].picks : {};
-  var isLocked = isCurrentProfileManuallyLocked() || isGameLockedByCommissioner(1);
+  var isLocked = isCurrentProfileManuallyLocked() || isWeekLockedForActiveProfile();
   var html = '<div class="simple-condensed-list">';
   var countRendered = 0;
 
@@ -1228,7 +1227,9 @@ renderCommissionerModalBody = function() {
         '<td>' + statusBadge + '</td>' +
         '<td><strong>' + tbVal + '</strong></td>' +
         '<td style="display:flex;gap:4px;flex-wrap:wrap;">' +
-          '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:var(--warn);" onclick="commishQuickImpersonate(\'' + safeName + '\')">✏️ Edit Picks</button>' +
+          '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:var(--warn);" onclick="manuallySetPlayerPicks(\'' + safeName + '\')">✏️ Edit Picks / Override</button>' +
+          '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:var(--text);" onclick="overrideTiebreaker(\'' + safeName + '\')">Tiebreaker</button>' +
+          forceUnlockButtonHtml(pm.name) +
           '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:var(--text);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'optimal\')">⚡ Auto-Pick</button>' +
           '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:var(--loss);" onclick="commishDeletePlayerPicks(\'' + safeName + '\')">🗑️ Delete Picks</button>' +
         '</td>' +
@@ -1238,7 +1239,7 @@ renderCommissionerModalBody = function() {
     var missingCount = pmList.length - submittedCount;
     body.innerHTML =
       '<div class="commish-kpi-strip">' +
-        '<div class="commish-kpi"><div class="metric-label">Active Week</div><div class="metric-val" style="color:var(--legacy-accent);">' + (state.weekLabel || "Week 8") + '</div><div class="metric-sub">' + GAMES.length + ' Games • Lock: Fri 9PM CST</div></div>' +
+        '<div class="commish-kpi"><div class="metric-label">Active Week</div><div class="metric-val" style="color:var(--legacy-accent);">' + (state.weekLabel || "Week 8") + '</div><div class="metric-sub">' + GAMES.length + ' Games • Lock: ' + pickDeadlineLabel() + '</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Sheets Saved</div><div class="metric-val" style="color:var(--green);">' + submittedCount + ' / ' + pmList.length + '</div><div class="metric-sub">' + Math.round((submittedCount / Math.max(1, pmList.length)) * 100) + '% Pool Completion</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Missing / Deleted</div><div class="metric-val" style="color:' + (missingCount > 0 ? 'var(--amber)' : 'var(--green)') + ';">' + missingCount + ' Missing</div><div class="metric-sub">' + (cfg.lastWedThuNudgeSentAt ? ('Last Nudge: ' + cfg.lastWedThuNudgeSentAt) : 'Wed/Thu Auto-Nudge Ready') + '</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Master Grid</div><div class="metric-val" style="color:var(--win);font-size:0.95rem;cursor:pointer;" onclick="switchCommissionerTab(\'mastersheet\')">📊 Open Grid →</div><div class="metric-sub">All 89 Players Side-by-Side</div></div>' +
@@ -1252,7 +1253,6 @@ renderCommissionerModalBody = function() {
         '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
           '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);font-weight:800;" onclick="commishAutoFillMissingPlayers(\'chalk\')">⚡ Auto-Fill Missing (' + missingCount + ')</button>' +
           '<button type="button" class="btn-sm" style="border-color:var(--amber);color:var(--warn);font-weight:800;" onclick="triggerWedThuAutomatedNudge()">⏰ Send Wed/Thu Nudge</button>' +
-          '<button type="button" class="btn-sm danger-btn" onclick="resetPoolPicksForNewWeek(true)" title="Clear all other pool members\' picks for the new week until the Friday/Saturday sheet arrives">New week reset (clear pool picks)</button>' +
           '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:900;" onclick="triggerSaturdayMorningMasterSheetBroadcast()">📊 Sat Reveal & Export CSV</button>' +
         '</div>' +
       '</div>' +

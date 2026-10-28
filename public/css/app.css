@@ -1103,3 +1103,28 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 .receipt-send-btn { width: 100%; margin: 10px 0 6px; }
 .pick-card { cursor: pointer; }
 .pick-card .pick-card-teams, .pick-card .dual-panel, .pick-card .insights-grid, .pick-card .card-field { cursor: auto; }
+
+/* ---------- Commissioner hub additions (commish-hub.js) ---------- */
+.console-section { margin-top: 18px; }
+.console-fields { display: flex; flex-wrap: wrap; gap: 10px 14px; }
+.console-fields label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--text-muted); }
+.console-fields .search-input { min-width: 140px; }
+.danger-zone { margin-top: 18px; border: 1px solid var(--loss); border-radius: var(--radius); padding: 0 12px; }
+.danger-zone summary { cursor: pointer; padding: 12px 0; font-weight: 600; color: var(--loss); }
+.danger-zone[open] { padding-bottom: 12px; }
+.danger-zone-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.dues-banner {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0 0 12px; padding: 10px 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); font-size: 14px;
+}
+.dues-banner[hidden] { display: none; }
+.dues-banner a { color: var(--accent-text); font-weight: 600; }
+.dues-banner .link-btn { margin-left: auto; color: var(--text-muted); }
+.preview-banner {
+  position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000; width: max-content; max-width: calc(100vw - 32px);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 12px;
+  padding: 8px 10px 8px 16px; border-radius: 14px; background: var(--accent); color: var(--on-accent); font-size: 14px;
+  box-shadow: 0 6px 24px #00000066;
+}
+.preview-banner[hidden] { display: none; }
+.preview-banner .btn-sm { background: var(--on-accent); color: var(--accent); border: 0; }
