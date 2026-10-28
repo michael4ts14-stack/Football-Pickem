@@ -39,9 +39,9 @@ function emailError_(code, message, extra) {
   return e;
 }
 
-// ---------- Firestore reads (public documents) ----------
+// ---------- Firestore reads (as the script owner, like the bot: firestoreAuthHeaders_) ----------
 function readFirestoreDoc_(path) {
-  var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/" + path, { muteHttpExceptions: true });
+  var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/" + path, { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
   if (res.getResponseCode() === 404) return null;
   if (res.getResponseCode() !== 200) throw emailError_("FIRESTORE_READ", "Couldn't read " + path + " (HTTP " + res.getResponseCode() + ").");
   var json = JSON.parse(res.getContentText());
@@ -108,7 +108,7 @@ function accountDocKey_(email) { return "email_" + String(email).toLowerCase().r
 // Account doc by uid (after an email change the doc id still has the old address).
 function findAccountByUid_(uid) {
   var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + ":runQuery", {
-    method: "post", contentType: "application/json", muteHttpExceptions: true,
+    method: "post", contentType: "application/json", muteHttpExceptions: true, headers: firestoreAuthHeaders_(),
     payload: JSON.stringify({ structuredQuery: { from: [{ collectionId: "pickem_v14_accounts" }],
       where: { fieldFilter: { field: { fieldPath: "uid" }, op: "EQUAL", value: { stringValue: uid } } }, limit: 1 } })
   });
@@ -162,7 +162,7 @@ function writeEmailLog_(entry) {
   try {
     var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/pickem_v14_email_log", {
       method: "post", contentType: "application/json", muteHttpExceptions: true,
-      headers: { Authorization: "Bearer " + ScriptApp.getOAuthToken() },
+      headers: firestoreAuthHeaders_(),
       payload: JSON.stringify(toFirestoreValue(entry).mapValue)
     });
     var code = res.getResponseCode();

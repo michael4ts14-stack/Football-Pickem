@@ -608,7 +608,7 @@ function saveProcessedIds_(props, processedIds) {
 // missing or unreadable.
 function fetchFirestoreDoc_(docPath) {
   try {
-    var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/" + docPath, { muteHttpExceptions: true });
+    var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/" + docPath, { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
     if (res.getResponseCode() !== 200) return null;
     var json = JSON.parse(res.getContentText());
     return json && json.fields ? fromFirestoreValue({ mapValue: { fields: json.fields } }) : null;
@@ -1161,18 +1161,27 @@ function scrapeGoogleFormGames(formUrl) {
 
     var data = JSON.parse(match[1]);
     var questions = (data[1] && data[1][1]) ? data[1][1] : [];
-    var rawLines = [];
+    var games = [];
 
+    // One form question = one game: title "Away 6-1\nat Home 6-1 (-3.5)" (or "vs." for a
+    // neutral site) and two answer choices that are the pool's team codes ("Arizona", "TTech").
     for (var i = 0; i < questions.length; i++) {
       var qTitle = questions[i][1] ? String(questions[i][1]).trim() : "";
-      if (qTitle) {
-        var parts = qTitle.split(/\r?\n/);
-        for (var p = 0; p < parts.length; p++) {
-          if (parts[p].trim()) rawLines.push(parts[p].trim());
-        }
+      var titleLines = qTitle.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean);
+      if (titleLines.length < 2) continue;
+      var parsed = buildGamesArrayFromLines(titleLines);
+      if (parsed.length !== 1) continue;
+      var game = parsed[0];
+      game.id = games.length + 1;
+      game.rationale = "Auto-Scraped by Gmail Bot (Row #" + game.id + ")";
+      var opts = (questions[i][4] && questions[i][4][0] && questions[i][4][0][1]) || [];
+      if (opts.length === 2 && opts[0][0] && opts[1][0]) {
+        game.awayCode = String(opts[0][0]).trim();
+        game.homeCode = String(opts[1][0]).trim();
       }
+      games.push(game);
     }
-    return buildGamesArrayFromLines(rawLines);
+    return games;
   } catch (e) {
     Logger.log("Form scrape error: " + e.message);
     return [];
@@ -1181,13 +1190,15 @@ function scrapeGoogleFormGames(formUrl) {
 
 function buildGamesArrayFromLines(lines) {
   var parsedGames = [];
+  // "at Home" for a home game, "vs. Home" / "vs Home" for a neutral site (e.g. Florida vs. Georgia).
+  var HOME_PREFIX = /^(?:at|vs\.?)\s+/i;
   for (var i = 0; i < lines.length - 1; i++) {
-    if (lines[i + 1].toLowerCase().indexOf("at ") === 0) {
+    if (HOME_PREFIX.test(lines[i + 1])) {
       var awayLine = lines[i];
-      var homeLine = lines[i + 1].substring(3).trim();
+      var homeLine = lines[i + 1].replace(HOME_PREFIX, "").trim();
       var candKick = lines[i + 2] || "";
       var nextAfterCand = lines[i + 3] || "";
-      var isCandTeam = (nextAfterCand.toLowerCase().indexOf("at ") === 0) || /\(\s*-\d/.test(candKick) || /\b\d{1,2}-\d{1,2}\b/.test(candKick);
+      var isCandTeam = HOME_PREFIX.test(nextAfterCand) || /\(\s*-\d/.test(candKick) || /\b\d{1,2}-\d{1,2}\b/.test(candKick);
       var kickLine = (!candKick || isCandTeam) ? "Saturday CST" : candKick;
 
       var spAway = awayLine.match(/\(\s*-(\d+\.?\d*)/);
@@ -1516,7 +1527,7 @@ function fromFirestoreValue(fVal) {
 
 function fetchFirebaseNode(subPath) {
   try {
-    var res = UrlFetchApp.fetch(FIRESTORE_DOC_URL, { muteHttpExceptions: true });
+    var res = UrlFetchApp.fetch(FIRESTORE_DOC_URL, { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
     var code = res.getResponseCode();
     if (code !== 200) {
       recordBotError_("GET shared_state -> HTTP " + code + ": " + String(res.getContentText()).slice(0, 200));
@@ -2160,6 +2171,13 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
   };
 }
 
+// Firestore calls are made as the script owner (OAuth token with the datastore scope from
+// appsscript.json). Owner/IAM-authenticated REST calls are not subject to security rules,
+// so the bot keeps working when the rules stop accepting anonymous writes.
+function firestoreAuthHeaders_() {
+  return { Authorization: "Bearer " + ScriptApp.getOAuthToken() };
+}
+
 // Every Firestore write goes through here. Returns true only on HTTP 2xx; failures are
 // logged and collected so they show up in live_games/bot_status instead of vanishing.
 function patchFirestoreDocUrl(docUrl, dataObj) {
@@ -2176,6 +2194,7 @@ function patchFirestoreDocUrl(docUrl, dataObj) {
       method: "patch",
       contentType: "application/json",
       payload: JSON.stringify(fsDoc),
+      headers: firestoreAuthHeaders_(),
       muteHttpExceptions: true
     });
     var code = res.getResponseCode();

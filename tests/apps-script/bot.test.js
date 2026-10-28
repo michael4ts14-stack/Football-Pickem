@@ -353,3 +353,24 @@ test("'Away @ Home' headers map columns even with extra columns before the games
   assert.strictEqual(adam.tiebreaker, "31-17");
   assert.strictEqual(adam.priorPts, 100);
 });
+
+test("real Week 9 Google Form: all 23 games, including the neutral-site 'vs.' game, with the form's team codes", () => {
+  const formHtml = require("fs").readFileSync(require("path").join(__dirname, "fixtures", "week9-form.html"), "utf8");
+  const { makeResponse } = require("./harness");
+  const h = loadBot({ fetchHandler: () => makeResponse(200, formHtml) });
+  const games = h.ctx.scrapeGoogleFormGames("https://docs.google.com/forms/d/e/x/viewform");
+  assert.strictEqual(games.length, 23);
+  assert.deepStrictEqual([games[8].id, games[8].away, games[8].home], [9, "Florida", "Georgia"]);
+  assert.deepStrictEqual([games[0].awayCode, games[0].homeCode], ["Arizona", "TTech"]);
+  assert.deepStrictEqual([games[10].away, games[10].awayCode], ["Arizona State", "ArizSt"]);
+  assert.strictEqual(games[22].id, 23);
+});
+
+test("Firestore requests carry the owner's OAuth token; ESPN requests don't", () => {
+  const h = loadBot({ cloud: baseCloud({ customGames: realSlate }), espnBody: espnBoard(realSlate, "in") });
+  h.ctx.pollEspnLiveGamesSubMinute();
+  const fs = h.calls.filter((c) => c.url.indexOf("firestore.googleapis.com") !== -1);
+  const espn = h.calls.filter((c) => c.url.indexOf("espn.com") !== -1);
+  assert.ok(fs.length > 0 && fs.every((c) => c.params.headers && c.params.headers.Authorization === "Bearer owner-token"));
+  assert.ok(espn.length > 0 && espn.every((c) => !c.params.headers));
+});
