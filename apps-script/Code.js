@@ -463,6 +463,8 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           // STEP 3: Reset pool picks & initialize `live_games/week_state` for the new week
           var resetMembers = (currentCloud && currentCloud.poolMembers && Array.isArray(currentCloud.poolMembers)) ? currentCloud.poolMembers : [];
           for (var rm = 0; rm < resetMembers.length; rm++) {
+            delete resetMembers[rm]._picksCleared;
+            resetMembers[rm].awaitingSheet = true;
             resetMembers[rm].picks = {};
             resetMembers[rm].livePts = 0;
             resetMembers[rm].inProgressPts = 0;
@@ -480,6 +482,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             liveScores: {},
             poolMembers: resetMembers,
             watchlist: resetWl,
+            deletedPicksByMember: {}, // "picks cleared" flags belong to the outgoing week
             scrapedAt: new Date().toISOString()
           });
           if (!rolledOver) {
@@ -557,7 +560,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           var targetProfile = detectProfileOwner(subject, plainBody, msg.getFrom(), currentCloud);
           if (targetProfile) {
             // Guard: Never overwrite in-app picks if player already has active saved picks in Firestore!
-            if (hasActiveInAppPicks_(targetProfile, currentCloud)) {
+            if (hasActiveInAppPicks_(targetProfile, currentCloud, activeGames)) {
               Logger.log("ℹ️ Skipping confirmation email for " + targetProfile + ": player already has active in-app picks in Firestore.");
             } else {
               savePicksToTargetProfile(targetProfile, pickResult, currentCloud);
@@ -606,20 +609,36 @@ function fetchFirestoreDoc_(docPath) {
 }
 
 // True if this player already saved picks in the app this week, in which case a
-// Google Form confirmation email must not overwrite them.
-function hasActiveInAppPicks_(targetProfile, currentCloud) {
+// Google Form confirmation email must not overwrite them. Only picks for this week's games
+// count: leftover keys from older weeks used to block every confirmation.
+function hasActiveInAppPicks_(targetProfile, currentCloud, activeGames) {
+  var need = Math.min(15, (activeGames || []).length) || 15;
   if (targetProfile.indexOf("pm:") === 0) {
     var nameLow = standardizeBotParticipantName(targetProfile.slice(3)).toLowerCase();
     var pms = (currentCloud && Array.isArray(currentCloud.poolMembers)) ? currentCloud.poolMembers : [];
     for (var i = 0; i < pms.length; i++) {
       if (standardizeBotParticipantName(pms[i].name).toLowerCase() === nameLow) {
-        return Object.keys(pms[i].picks || {}).length >= 15;
+        return countSlatePicks_(pms[i].picks, activeGames) >= need;
       }
     }
     return false;
   }
   var userDoc = fetchFirestoreDoc_("pickem_v14_users/" + encodeURIComponent(targetProfile));
-  return !!(userDoc && (userDoc._manualEditsThisWeek || (userDoc.picks && Object.keys(userDoc.picks).length >= 15)));
+  return !!(userDoc && countSlatePicks_(userDoc.picks, activeGames) >= need);
+}
+
+// Picks that name a team in this week's game with that id.
+function countSlatePicks_(picks, activeGames) {
+  if (!picks || !activeGames) return 0;
+  var n = 0;
+  for (var i = 0; i < activeGames.length; i++) {
+    var g = activeGames[i];
+    var v = picks[g.id] || picks[String(g.id)];
+    if (!v) continue;
+    var k = normalizeBotTeamKey(v);
+    if (k && (k === normalizeBotTeamKey(g.away) || k === normalizeBotTeamKey(g.home))) n++;
+  }
+  return n;
 }
 
 // Merges a parsed official sheet into shared_state.poolMembers: members in the sheet get
@@ -640,6 +659,7 @@ function importPoolSheetResult_(poolResult, sheetWkNum, fileName, currentCloud) 
     }
     var cur = existing[indexByName[key]];
     var merged = Object.assign({}, cur);
+    delete merged._picksCleared; // the sheet's picks replace an earlier clear
     merged.picks = Object.assign({}, cur.picks || {}, pm.picks);
     if (pm.tiebreaker && pm.tiebreaker !== "—") merged.tiebreaker = pm.tiebreaker;
     if (pm.priorPts) merged.priorPts = pm.priorPts;
@@ -1349,14 +1369,29 @@ function savePicksToTargetProfile(target, pickResult, currentCloud) {
     if (pickResult.tiebreaker) existing.tiebreaker = pickResult.tiebreaker;
     existing.manualEditsWeek = curWk;
     existing.updatedAt = nowIso;
+    existing._picksCleared = false; // new picks replace an earlier clear
     patchFirebaseNode("/" + target, existing);
     patchFirestoreUserDoc(target, {
       profileKey: target,
       picks: existing.picks,
+      _picksCleared: false,
       tiebreaker: existing.tiebreaker || "28-24",
       manualEditsWeek: curWk,
+      currentWeek: curWk,
       updatedAt: nowIso
     });
+    var linkedName = existing.linkedMemberName || (target === "michael" ? "Michael A" : (target === "kinyion" ? "Kinyion C" : ""));
+    ((currentCloud && currentCloud.customUsers) || []).forEach(function(cu) {
+      if (!linkedName && cu && cu.key === target) linkedName = cu.linkedMemberName || cu.name || "";
+    });
+    var linkedLow = standardizeBotParticipantName(linkedName).toLowerCase();
+    var curDel = (currentCloud && currentCloud.deletedPicksByMember) || {};
+    if (linkedLow && curDel[linkedLow]) {
+      var delMapP = Object.assign({}, curDel);
+      delete delMapP[linkedLow];
+      currentCloud.deletedPicksByMember = delMapP;
+      patchFirebaseNode("", { deletedPicksByMember: delMapP });
+    }
   } else if (target.indexOf("pm:") === 0) {
     var mName = target.slice(3);
     var pms = (currentCloud && Array.isArray(currentCloud.poolMembers)) ? currentCloud.poolMembers : [];
@@ -1365,7 +1400,12 @@ function savePicksToTargetProfile(target, pickResult, currentCloud) {
         pms[m].picks = pickResult.picks;
         if (pickResult.tiebreaker) pms[m].tiebreaker = pickResult.tiebreaker;
         pms[m].awaitingSheet = false;
-        patchFirebaseNode("", { poolMembers: pms });
+        delete pms[m]._picksCleared;
+        // New picks replace an earlier clear; a leftover flag would make the app hide them.
+        var delMap = Object.assign({}, (currentCloud && currentCloud.deletedPicksByMember) || {});
+        delete delMap[standardizeBotParticipantName(pms[m].name).toLowerCase()];
+        if (currentCloud) currentCloud.deletedPicksByMember = delMap;
+        patchFirebaseNode("", { poolMembers: pms, deletedPicksByMember: delMap });
         break;
       }
     }

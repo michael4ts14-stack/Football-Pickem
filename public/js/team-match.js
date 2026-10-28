@@ -424,7 +424,10 @@ function countMatchingPicksForSlate(picksMap, gamesArr) {
 function hasSubmittedPicksForCurrentSlate(picksMap, gamesArr) {
   var c = countMatchingPicksForSlate(picksMap, gamesArr);
   if (c.matched === 0) return false;
-  if (c.total >= 5 && c.matched < Math.ceil(c.total * 0.5)) return false;
+  // Against the number of games, not every saved key: leftover keys from older weeks must not
+  // outweigh a full set of this week's picks (same rule as picksLookLikeAnotherWeek).
+  var expected = Math.min(c.total, (gamesArr || GAMES || []).length);
+  if (c.total >= 5 && c.matched < Math.ceil(expected * 0.5)) return false;
   return true;
 }
 
@@ -905,7 +908,14 @@ function resetPoolPicksForNewWeek(syncToCloud) {
       state.poolMembers[i].won2x = 0;
       state.poolMembers[i].won3x = 0;
       state.poolMembers[i].awaitingSheet = true;
+      delete state.poolMembers[i]._picksCleared;
     }
+  }
+  // "Picks cleared" flags belong to the week they were set in. update() replaces the whole map
+  // (a merge set would keep the old keys).
+  state.deletedPicksByMember = {};
+  if (fsDb && canWriteSharedPoolState()) {
+    try { fsDb.collection("pickem_v14").doc("shared_state").update({ deletedPicksByMember: {} }).catch(function() {}); } catch (eDel) {}
   }
   if (state.watchlist && Array.isArray(state.watchlist)) {
     for (var w = 0; w < state.watchlist.length; w++) {

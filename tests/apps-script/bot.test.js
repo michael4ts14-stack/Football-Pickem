@@ -29,11 +29,16 @@ test("week rollover from a Google Form email does not crash (prevWkNum)", () => 
     subject: "Separated at Turf Week 10 Pick'em Form Is Live",
     body: "Week 10 is here! https://docs.google.com/forms/d/e/abc123/viewform",
   };
-  const h = loadBot({ cloud: baseCloud(), threads: [fakeThread([formEmail])], isoDay: 2 });
+  const cloud = baseCloud({ poolMembers: [{ name: "Adam L", picks: { 1: "x" }, _picksCleared: true }], deletedPicksByMember: { "adam l": true } });
+  const h = loadBot({ cloud, threads: [fakeThread([formEmail])], isoDay: 2 });
   h.ctx.scrapeGoogleFormGames = () => slate(23, 1).map((g) => Object.assign({}, g, { away: "New " + g.away }));
   assert.doesNotThrow(() => h.ctx.runMasterPickemEmailBot(false));
   const archived = h.patches().some((c) => c.url.indexOf("/live_games/week_9_archive") !== -1);
   assert.ok(archived, "outgoing week 9 should be archived before the reset");
+  const reset = sharedStateWrites(h).find((w) => w.currentWeek === 10);
+  assert.strictEqual(JSON.stringify(reset.deletedPicksByMember), "{}", "last week's picks-cleared flags are dropped");
+  assert.strictEqual(reset.poolMembers[0]._picksCleared, undefined);
+  assert.strictEqual(reset.poolMembers[0].awaitingSheet, true);
 });
 
 function botStatusWrites(h) {
@@ -292,12 +297,35 @@ test("a sheet that parses fewer than 10 members is reported, not imported", () =
 });
 
 test("confirmation-email guard reads the player's own user doc", () => {
-  const picks = {}; for (let i = 1; i <= 23; i++) picks[i] = "X";
+  const games = slate(23);
+  const picks = {}; games.forEach((g) => { picks[g.id] = g.home; });
   const h = loadBot({ cloud: baseCloud(), docs: { "pickem_v14_users/michael": { picks } } });
-  assert.strictEqual(h.ctx.hasActiveInAppPicks_("michael", baseCloud()), true);
-  assert.strictEqual(h.ctx.hasActiveInAppPicks_("kinyion", baseCloud()), false, "no user doc -> no in-app picks");
+  assert.strictEqual(h.ctx.hasActiveInAppPicks_("michael", baseCloud(), games), true);
+  assert.strictEqual(h.ctx.hasActiveInAppPicks_("kinyion", baseCloud(), games), false, "no user doc -> no in-app picks");
   const cloud = baseCloud({ poolMembers: [{ name: "Adam L", picks }] });
-  assert.strictEqual(h.ctx.hasActiveInAppPicks_("pm:Adam L", cloud), true);
+  assert.strictEqual(h.ctx.hasActiveInAppPicks_("pm:Adam L", cloud, games), true);
+});
+
+test("confirmation-email guard ignores last week's leftover picks", () => {
+  const games = slate(23);
+  const old = {}; for (let i = 1; i <= 29; i++) old[i] = "Last Week Team " + i;
+  old[1] = games[0].away; old[2] = games[1].home; // a couple of teams play again
+  const h = loadBot({ cloud: baseCloud(), docs: { "pickem_v14_users/u_x": { picks: old } } });
+  assert.strictEqual(h.ctx.hasActiveInAppPicks_("u_x", baseCloud(), games), false);
+  const cloud = baseCloud({ poolMembers: [{ name: "Adam L", picks: old }] });
+  assert.strictEqual(h.ctx.hasActiveInAppPicks_("pm:Adam L", cloud, games), false);
+});
+
+test("a confirmation email clears a leftover picks-cleared flag", () => {
+  const games = slate(23);
+  const picks = {}; games.forEach((g) => { picks[g.id] = g.away; });
+  const cloud = baseCloud({ poolMembers: [{ name: "Adam L", picks: {}, _picksCleared: true }], deletedPicksByMember: { "adam l": true, "bob s": true } });
+  const h = loadBot({ cloud });
+  h.ctx.savePicksToTargetProfile("pm:Adam L", { picks, matchedCount: 23 }, cloud);
+  const w = sharedStateWrites(h).pop();
+  assert.strictEqual(JSON.stringify(w.deletedPicksByMember), JSON.stringify({ "bob s": true }));
+  assert.strictEqual(w.poolMembers[0]._picksCleared, undefined);
+  assert.strictEqual(Object.keys(w.poolMembers[0].picks).length, 23);
 });
 
 test("processed email IDs are saved as each message finishes", () => {

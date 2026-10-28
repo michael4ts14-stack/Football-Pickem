@@ -256,7 +256,9 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
       if (linkedProfMeta && state[linkedProfMeta.key]) {
         state[linkedProfMeta.key].picks = {};
       }
-    } else if (linkedProfMeta && state[linkedProfMeta.key] && state[linkedProfMeta.key].picks) {
+    } else if (linkedProfMeta && state[linkedProfMeta.key] && hasSubmittedPicksForCurrentSlate(state[linkedProfMeta.key].picks, GAMES)) {
+      // App picks win only when the profile holds this week's picks; an account that hasn't
+      // picked in the app keeps the picks from the official sheet.
       pm.picks = Object.assign({}, state[linkedProfMeta.key].picks);
       if (state[linkedProfMeta.key].tiebreaker) pm.tiebreaker = state[linkedProfMeta.key].tiebreaker;
     } else if (wlPicksByName[lowName] && !hasSubmittedPicksForCurrentSlate(pm.picks, GAMES)) {
@@ -329,7 +331,7 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
         cuProf.picks = {};
       }
       var cuMetrics = gradePickMap(cuProf.picks, false, false);
-      var hasSubmittedCu = (!isCuDeleted && cuMetrics.submittedPicksCount > 0);
+      var hasSubmittedCu = (!isCuDeleted && hasSubmittedPicksForCurrentSlate(cuProf.picks, GAMES));
       var existingPm = null;
       for (var pmI = 0; pmI < state.poolMembers.length; pmI++) {
         var pmNameLow = standardizeParticipantName(state.poolMembers[pmI].name).toLowerCase();
@@ -342,6 +344,13 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
       var cuPrior = (existingPm && parseFloat(existingPm.priorPts) > 0)
         ? parseFloat(existingPm.priorPts)
         : (priorLookup[targetLow] !== undefined ? priorLookup[targetLow] : (parseFloat(cu.priorPts) || 0));
+      if (existingPm && !hasSubmittedCu && !isCuDeleted) {
+        // No picks in the app this week: the row keeps (and was graded on) its sheet picks.
+        existingPm.priorPts = cuPrior;
+        cu.priorPts = cuPrior;
+        if (rankLookup[targetLow]) cu.rank = rankLookup[targetLow];
+        continue;
+      }
       var cuLive = (hasSubmittedCu && hasScoredGames) ? Math.max(cuMetrics.liveProjectedPts, cuMetrics.finalWonPts) : 0;
       var cuFin = (hasSubmittedCu && hasScoredGames) ? cuMetrics.finalWonPts : 0;
       if (!existingPm) {
@@ -394,7 +403,8 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
 
 function syncCurrentLoadedSheetToFirebase() {
   if (!state.poolMembers || !state.poolMembers.length) {
-    syncOfficialWeek7EmailSheetToFirebase();
+    // Never fall back to the built-in Week 7 sheet: that would overwrite this week's pool.
+    showAppToast("No pool sheet is loaded for this week yet.");
     return;
   }
   regradeAllPoolMembersLive();
