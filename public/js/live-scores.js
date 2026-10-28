@@ -2,7 +2,7 @@
 // UPDATED POLL LIVE SCORES, SCOREBOARD, STANDINGS, LIVE TAB & RESEARCH CARDS
 // ============================================================================
 async function pollLiveSaturdayScores(manual) {
-  var badge = document.getElementById("live-sync-badge");
+  var badge = document.getElementById("live-sync-badge") || document.createElement("span");
   if (manual) badge.textContent = "↻ Fetching CST Scores & Possession...";
   var gamesChanged = false;
   try {
@@ -301,7 +301,7 @@ function updateScoreboard(skipFullRegrade) {
     tabsWrap.style.gridTemplateColumns = "1fr 1fr";
     tabsWrap.innerHTML =
       '<button type="button" class="profile-tab ' + (isOfficialActive ? myMeta.tabClass : '') + '" onclick="switchProfile(\'' + myKey + '\')" title="Your bound official picks instance">' +
-        '🏈 ' + myMeta.name + ' (You)' + (myPriv.hidden ? ' 🔒' : '') + '<br><span style="font-size:0.66rem;font-weight:500;">' + mySubLabel + '</span>' +
+        '🏈 ' + escapeHtml(myMeta.name) + ' (You)' + (myPriv.hidden ? ' 🔒' : '') + '<br><span style="font-size:0.66rem;font-weight:500;">' + mySubLabel + '</span>' +
       '</button>' +
       '<button type="button" class="profile-tab ' + (isSandboxActive ? 'active-test' : '') + '" onclick="switchProfile(\'test\')" title="Your personal device-local What-If Sandbox">' +
         '🧪 My Sandbox Sim<br><span style="font-size:0.66rem;font-weight:500;">' + testMetrics.ev.toFixed(1) + ' EV (' + testMetrics.ceiling + ' ceil)</span>' +
@@ -316,7 +316,7 @@ function updateScoreboard(skipFullRegrade) {
       var cmpHid = cmpDesc.isHiddenForGame(null);
       var cmpWkBest = (!cmpDesc.hasPicks || cmpHid) ? 0 : Math.max(cmpM.liveProjectedPts, cmpM.finalWonPts);
       cmpRowHtml = '<tr>' +
-        '<td><strong style="color:' + cmpDesc.color + ';">⚔️ ' + cmpDesc.name + ' (H2H)</strong>' + (cmpHid ? ' <span style="font-size:0.62rem;color:var(--loss);">🔒 Pre-Kickoff</span>' : '') + '</td>' +
+        '<td><strong style="color:' + cmpDesc.color + ';">⚔️ ' + escapeHtml(cmpDesc.name) + ' (H2H)</strong>' + (cmpHid ? ' <span style="font-size:0.62rem;color:var(--loss);">🔒 Pre-Kickoff</span>' : '') + '</td>' +
         '<td>' + (cmpHid ? '🔒' : (!cmpDesc.hasPicks ? '⏳' : (cmpM.ceiling + ' pts'))) + '</td>' +
         '<td>' + (cmpHid ? '🔒' : (!cmpDesc.hasPicks ? '⏳' : cmpM.ev.toFixed(1))) + '</td>' +
         '<td style="color:var(--green);font-weight:800;">' + (cmpHid ? '🔒' : ('+' + cmpWkBest)) + '</td>' +
@@ -327,7 +327,7 @@ function updateScoreboard(skipFullRegrade) {
     var testWkBest = Math.max(testMetrics.liveProjectedPts, testMetrics.finalWonPts);
     tbodyH2h.innerHTML =
       '<tr>' +
-        '<td><strong style="color:' + myMeta.color + ';">🏈 ' + myMeta.name + ' (You)</strong></td>' +
+        '<td><strong style="color:' + myMeta.color + ';">🏈 ' + escapeHtml(myMeta.name) + ' (You)</strong></td>' +
         '<td>' + myMetrics.ceiling + ' pts</td>' +
         '<td>' + myMetrics.ev.toFixed(1) + '</td>' +
         '<td style="color:var(--green);font-weight:800;">+' + myWkBest + '</td>' +
@@ -351,13 +351,13 @@ function updateScoreboard(skipFullRegrade) {
     var curPriv = state.profilePrivacy[myKeyPriv] || { hidden: false };
     var curMeta = getProfileMetaByKey(myKeyPriv);
     if (curPriv.hidden) {
-      privStatusEl.innerHTML = '🔒 <strong>' + curMeta.shortName + '</strong> Hidden From Others Until Kickoff';
+      privStatusEl.innerHTML = '🔒 <strong>' + escapeHtml(curMeta.shortName) + '</strong> Hidden From Others Until Kickoff';
       privStatusEl.style.color = "var(--win)";
       quickHideBtn.textContent = "👁️ Make Public";
       quickHideBtn.style.borderColor = "var(--border)";
       quickHideBtn.style.color = "var(--win)";
     } else {
-      privStatusEl.innerHTML = '👁️ <strong>' + curMeta.shortName + '</strong> Visible to Pool' + (BLIND_MODE ? ' (🙈 Blind ON)' : '');
+      privStatusEl.innerHTML = '👁️ <strong>' + escapeHtml(curMeta.shortName) + '</strong> Visible to Pool' + (BLIND_MODE ? ' (🙈 Blind ON)' : '');
       privStatusEl.style.color = "var(--text)";
       quickHideBtn.textContent = "🔒 Hide From Others";
       quickHideBtn.style.borderColor = "";
@@ -429,7 +429,7 @@ function updateScoreboard(skipFullRegrade) {
         ? ('<span style="color:var(--warn);font-weight:700;">Tot: ' + rNewTot + 'p (+' + rWkPts + ') • ' + diffCnt + ' diffs</span>')
         : ('<span style="color:var(--muted);font-weight:700;">Tot: ' + rNewTot + 'p • ⏳ No picks yet</span>');
       wlHtml += '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--panel-alt);padding:5px 8px;border-radius:6px;border:1px solid var(--border-muted);">' +
-        '<span><strong>' + rival.name + '</strong> <span style="color:var(--muted);">(' + rival.rank + ' • Prior ' + rival.priorPts + 'p)</span></span>' +
+        '<span><strong>' + escapeHtml(rival.name) + '</strong> <span style="color:var(--muted);">(' + rival.rank + ' • Prior ' + rival.priorPts + 'p)</span></span>' +
         rightText +
       '</div>';
     }
@@ -607,19 +607,19 @@ function renderStandingsAndGradingView() {
 
     cardsEl.innerHTML =
       '<div class="grading-card" style="border-color:' + actMeta.color + ';">' +
-        '<div style="font-size:0.74rem;font-weight:800;color:' + actMeta.color + ';text-transform:uppercase;">' + actMeta.icon + ' ' + actMeta.name + ' (Active) — Auto-Grade Report</div>' +
+        '<div style="font-size:0.74rem;font-weight:800;color:' + actMeta.color + ';text-transform:uppercase;">' + actMeta.icon + ' ' + escapeHtml(actMeta.name) + ' (Active) — Auto-Grade Report</div>' +
         '<div style="font-size:1.3rem;font-weight:900;color:var(--text);margin:4px 0;">New Live Total: <span style="color:' + actMeta.color + ';">' + mNewLiveTotal + ' pts</span> <span style="font-size:0.8rem;color:var(--green);">(+' + mWkPts + ' wk • Prior ' + mPriorPts + 'p)</span></div>' +
         '<div style="font-size:0.74rem;color:var(--muted);">Record: <strong>' + m.wonGames + 'W - ' + m.lostGames + 'L</strong> • Final Won: <strong>' + m.finalWonPts + 'p</strong> • Lost Pts: <strong style="color:var(--red);">' + m.finalLostPts + '</strong> • Max Left: <strong>' + (actHiddenGlobal ? '🔒' : ((mPriorPts + m.finalWonPts + m.pendingPts) + 'p')) + '</strong></div>' +
         '<div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;">' + mBadgesHtml + '</div>' +
       '</div>' +
       '<div class="grading-card" style="border-color:' + cmpColor + ';">' +
-        '<div style="font-size:0.74rem;font-weight:800;color:' + cmpColor + ';text-transform:uppercase;">' + cmpIcon + ' ' + cmpName + ' (H2H Rival) — Auto-Grade Report</div>' +
+        '<div style="font-size:0.74rem;font-weight:800;color:' + cmpColor + ';text-transform:uppercase;">' + cmpIcon + ' ' + escapeHtml(cmpName) + ' (H2H Rival) — Auto-Grade Report</div>' +
         '<div style="font-size:1.3rem;font-weight:900;color:var(--text);margin:4px 0;">New Live Total: <span style="color:' + cmpColor + ';">' + kNewLiveTotal + ' pts</span> <span style="font-size:0.8rem;color:var(--green);">(+' + kWkPts + ' wk • Prior ' + kPriorPts + 'p)</span></div>' +
         '<div style="font-size:0.74rem;color:var(--muted);">Record: <strong>' + k.wonGames + 'W - ' + k.lostGames + 'L</strong> • Final Won: <strong>' + k.finalWonPts + 'p</strong> • Lost Pts: <strong style="color:var(--red);">' + k.finalLostPts + '</strong> • Max Left: <strong>' + ((cmpHiddenGlobal || (cmpTarget && !cmpTarget.hasPicks)) ? '—' : ((kPriorPts + k.finalWonPts + k.pendingPts) + 'p')) + '</strong></div>' +
         '<div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap;">' + kBadgesHtml + '</div>' +
       '</div>' +
       '<div class="grading-card" style="border-color:var(--amber);">' +
-        '<div style="font-size:0.74rem;font-weight:800;color:var(--amber);text-transform:uppercase;">⚔️ ' + actMeta.shortName + ' vs. ' + cmpShort + ' — Weekly Swing Summary</div>' +
+        '<div style="font-size:0.74rem;font-weight:800;color:var(--amber);text-transform:uppercase;">⚔️ ' + escapeHtml(actMeta.shortName) + ' vs. ' + escapeHtml(cmpShort) + ' — Weekly Swing Summary</div>' +
         '<div style="font-size:1.22rem;font-weight:900;color:var(--text);margin:4px 0;">' + h2hLeadHeadline + '</div>' +
         '<div style="font-size:0.74rem;color:var(--muted);">Final Graded Margin: <strong>' + (mNetDiff >= 0 ? '+' + mNetDiff : mNetDiff) + ' pts</strong> • Swing Pts Won: <strong>' + actMeta.shortName + ' ' + swingCompletedWinsM + 'p vs ' + cmpShort + ' ' + swingCompletedWinsK + 'p</strong></div>' +
         '<div style="margin-top:6px;font-size:0.73rem;color:var(--warn);">⚡ <strong>' + ((actHiddenGlobal || cmpHiddenGlobal) ? '🔒' : swingRemainingCount) + '</strong> H2H disagreement game(s) still pending/in-progress.</div>' +
@@ -643,7 +643,7 @@ function renderStandingsAndGradingView() {
         : ('<span style="color:var(--amber);font-weight:700;">⏳ No Picks Submitted Yet (Prior ' + rv.priorPts + 'p)</span>');
       wHtml += '<div class="metric-card">' +
         '<div style="display:flex;justify-content:space-between;gap:6px;margin-bottom:5px;">' +
-          '<input type="text" class="search-input" style="min-width:0;padding:4px 7px;font-size:0.76rem;font-weight:800;" value="' + rv.name + '" onchange="updateWatchlistMeta(' + w + ', \'name\', this.value)" />' +
+          '<input type="text" class="search-input" style="min-width:0;padding:4px 7px;font-size:0.76rem;font-weight:800;" value="' + escapeHtml(rv.name) + '" onchange="updateWatchlistMeta(' + w + ', \'name\', this.value)" />' +
           '<input type="text" class="search-input" style="max-width:68px;min-width:0;padding:4px 6px;font-size:0.73rem;" value="' + rv.rank + '" onchange="updateWatchlistMeta(' + w + ', \'rank\', this.value)" placeholder="Rank" />' +
           '<input type="number" class="search-input" style="max-width:68px;min-width:0;padding:4px 6px;font-size:0.73rem;" value="' + rv.priorPts + '" onchange="updateWatchlistMeta(' + w + ', \'priorPts\', this.value)" placeholder="Pts" />' +
         '</div>' +
@@ -700,7 +700,7 @@ function renderStandingsAndGradingView() {
       ? '<td style="color:var(--legacy-accent);font-weight:900;font-size:0.86rem;">' + rw.newTotal + ' pts</td>'
       : '<td style="color:var(--legacy-accent);font-weight:900;font-size:0.86rem;">' + rw.newTotal + ' pts <span style="font-size:0.66rem;color:var(--green);">(' + rw.priorPts + '+' + Math.max(rw.liveTotalWk, rw.finalPts) + ')</span></td>';
 
-    var safeRwName = rw.name.replace(/'/g, "\\'");
+    var safeRwName = jsArgAttr(rw.name);
     var myKeyLb = getMyInstanceProfileKey();
     var isLinkedToActive = (linkedRowProf && linkedRowProf.key === myKeyLb);
     var linkBadgeHtml = "";
@@ -716,7 +716,7 @@ function renderStandingsAndGradingView() {
 
     lbHtml += '<tr class="' + rowClass + '">' +
       '<td><strong>' + rankStr + '</strong></td>' +
-      '<td><strong style="' + nameColor + '">' + rw.name + '</strong>' + linkBadgeHtml + cmpQuickBtn + '</td>' +
+      '<td><strong style="' + nameColor + '">' + escapeHtml(rw.name) + '</strong>' + linkBadgeHtml + cmpQuickBtn + '</td>' +
       '<td>' + rw.priorPts + ' pts</td>' +
       liveColHtml +
       finColHtml +
@@ -1004,3 +1004,13 @@ function copyPicksToClipboard() {
 }
 
 
+
+// One score poll at a time: a slow ESPN response never stacks overlapping polls (the auto-poll,
+// switching to Live and a manual refresh all share the poll that's already running).
+var LIVE_POLL_IN_FLIGHT = null;
+var _pollLiveSaturdayScoresCore = pollLiveSaturdayScores;
+pollLiveSaturdayScores = function(manual) {
+  if (LIVE_POLL_IN_FLIGHT) return LIVE_POLL_IN_FLIGHT;
+  LIVE_POLL_IN_FLIGHT = _pollLiveSaturdayScoresCore(manual).then(function(v) { LIVE_POLL_IN_FLIGHT = null; return v; }, function(e) { LIVE_POLL_IN_FLIGHT = null; throw e; });
+  return LIVE_POLL_IN_FLIGHT;
+};

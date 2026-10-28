@@ -30,7 +30,7 @@ function buildLeaderboardLinkSelectHtml(profKey, currentLinkedName) {
   for (var k = 0; k < allNames.length; k++) {
     var item = allNames[k];
     var sel = (item.name.toLowerCase() === curLow) ? " selected" : "";
-    html += '<option value="' + item.name.replace(/"/g, '&quot;') + '"' + sel + '>🔗 ' + item.name + ' (' + item.pts + ' pts' + (item.rank ? ' • ' + item.rank : '') + ')</option>';
+    html += '<option value="' + escapeHtml(item.name) + '"' + sel + '>🔗 ' + escapeHtml(item.name) + ' (' + item.pts + ' pts' + (item.rank ? ' • ' + item.rank : '') + ')</option>';
   }
   html += '</select>';
   return html;
@@ -148,7 +148,7 @@ function openUserAndPrivacyModal() {
   document.getElementById("modal-team-body").innerHTML =
     '<div style="background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:12px;">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:6px;">' +
-        '<strong style="font-size:0.88rem;color:var(--text);">👤 Your Bound Instance: <span style="color:var(--win);">' + myMeta.name + '</span></strong>' +
+        '<strong style="font-size:0.88rem;color:var(--text);">👤 Your Bound Instance: <span style="color:var(--win);">' + escapeHtml(myMeta.name) + '</span></strong>' +
         '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--text);font-weight:800;" onclick="closeOppModal(); openAuthModal();">🔐 Account & Google/Email Sign-In</button>' +
       '</div>' +
       '<div style="font-size:0.73rem;color:var(--text);line-height:1.4;">' +

@@ -454,7 +454,7 @@ function compareTargetOptionsHtml() {
     .sort(function(a, b) { return (parseFloat(b.newLiveTotal || b.priorPts) || 0) - (parseFloat(a.newLiveTotal || a.priorPts) || 0); })[0];
   if (leader) {
     var leaderKey = "pm:" + leader.name;
-    opts += '<option value="' + leaderKey + '"' + (curTarget === leaderKey ? ' selected' : '') + '>1st place: ' + leader.name + '</option>';
+    opts += '<option value="' + leaderKey + '"' + (curTarget === leaderKey ? ' selected' : '') + '>1st place: ' + escapeHtml(leader.name) + '</option>';
   }
   opts += '<optgroup label="App users">';
   for (var i = 0; i < allProfs.length; i++) {
@@ -476,7 +476,7 @@ function compareTargetOptionsHtml() {
       var pmKey = "pm:" + pm.name;
       var hasSheet = !pm.awaitingSheet && pm.picks && hasSubmittedPicksForCurrentSlate(pm.picks, GAMES);
       var selPm = (curTarget === pmKey) ? " selected" : "";
-      opts += '<option value="' + pmKey + '"' + selPm + '>' + pm.name + ' (' + (pm.priorPts || 0) + ' pts' + (hasSheet ? '' : ', no sheet yet') + ')</option>';
+      opts += '<option value="' + pmKey + '"' + selPm + '>' + escapeHtml(pm.name) + ' (' + (pm.priorPts || 0) + ' pts' + (hasSheet ? '' : ', no sheet yet') + ')</option>';
     }
     opts += '</optgroup>';
   }

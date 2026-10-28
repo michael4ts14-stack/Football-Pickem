@@ -235,7 +235,7 @@ function lookupEspnTeamId(teamName, gameObj, isAway) {
 }
 
 async function syncAllLiveTrackingData(saveToCloudAfter) {
-  var badge = document.getElementById("live-sync-badge");
+  var badge = document.getElementById("live-sync-badge") || document.createElement("span");
   badge.className = "sync-pill loading";
   badge.textContent = "↻ Syncing ESPN Schedules, Insights & Injuries...";
 
@@ -529,3 +529,12 @@ function countScoredGamesInLiveScores() {
 }
 
 
+
+// A full ESPN sync already running is shared rather than started twice.
+var LIVE_SYNC_IN_FLIGHT = null;
+var _syncAllLiveTrackingDataCore = syncAllLiveTrackingData;
+syncAllLiveTrackingData = function(saveToCloudAfter) {
+  if (LIVE_SYNC_IN_FLIGHT) return LIVE_SYNC_IN_FLIGHT;
+  LIVE_SYNC_IN_FLIGHT = _syncAllLiveTrackingDataCore(saveToCloudAfter).then(function(v) { LIVE_SYNC_IN_FLIGHT = null; return v; }, function(e) { LIVE_SYNC_IN_FLIGHT = null; throw e; });
+  return LIVE_SYNC_IN_FLIGHT;
+};

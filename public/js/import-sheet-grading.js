@@ -663,6 +663,7 @@ function parseAndStoreMasterPoolCsv() {
   var colMap = detectColumnMappingFromHeader(headers);
 
   var priorMap = {};
+  if (!Array.isArray(state.leaderboard)) state.leaderboard = [];
   for (var l = 0; l < state.leaderboard.length; l++) {
     var lb = state.leaderboard[l];
     priorMap[standardizeParticipantName(lb.name).toLowerCase()] = parseFloat(lb.priorPts) || 0;
