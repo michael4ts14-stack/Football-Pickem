@@ -56,6 +56,16 @@ triggerAppsScriptGmailScraper = function() {
   return _emailSvcPrevTriggerScraper.apply(this, arguments);
 };
 
+// The signed-in user's Firebase ID token; the email service checks it on every call.
+// Guests (no Firebase user) get nothing, so nothing is sent for them.
+function getEmailIdToken() {
+  var u = (typeof fbAuth !== "undefined" && fbAuth) ? fbAuth.currentUser : null;
+  return u ? u.getIdToken() : Promise.resolve(null);
+}
+function withEmailIdToken(fn) {
+  getEmailIdToken().then(function(t) { if (t) fn(t); }, function() {});
+}
+
 // ---------- Commissioner console: Email service panel ----------
 function emailServicePanelHtml() {
   var url = emailServiceUrl();
