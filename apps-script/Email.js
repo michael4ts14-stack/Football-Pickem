@@ -145,6 +145,15 @@ function receiptLines_(games, picks) {
   return lines;
 }
 
+// The current week and slate from Firestore; no fallbacks to an old week.
+function currentWeekOrThrow_(shared, needGames) {
+  var curWeek = parseInt(shared && shared.currentWeek, 10) || 0;
+  if (!curWeek) throw emailError_("NO_WEEK", "The current week isn't set in the pool data, so nothing was sent.");
+  var games = (shared.customGames && shared.customGames.length) ? shared.customGames : null;
+  if (needGames && !games) throw emailError_("NO_SLATE", "This week's games aren't loaded yet, so nothing was sent.");
+  return { week: curWeek, label: shared.weekLabel || ("Week " + curWeek), games: games || [] };
+}
+
 // ---------- Router ----------
 function handleEmailPost_(e) {
   var data = {};
@@ -180,9 +189,8 @@ function handleEmailPost_(e) {
 // ---------- Receipt ----------
 function sendPickReceipt_(who, shared, data) {
   requireVerifiedEmail_(who);
-  var curWeek = parseInt(shared.currentWeek, 10) || 8;
-  var wk = shared.weekLabel || ("Week " + curWeek);
-  var games = (shared.customGames && shared.customGames.length) ? shared.customGames : getDefaultWeek7GamesFallback();
+  var W = currentWeekOrThrow_(shared, true);
+  var wk = W.label, games = W.games;
   var mine = resolveCallerPicks_(who, shared);
   if (!Object.keys(mine.picks).length) throw emailError_("NO_PICKS", "No saved picks found for " + mine.name + " this week.");
 
@@ -256,8 +264,8 @@ function sendEach_(recipients, buildFn) {
 
 function sendWedThuNudge_(who, shared, data) {
   var cfg = shared.commissionerConfig || {};
-  var curWeek = parseInt(shared.currentWeek, 10) || 8;
-  var wk = shared.weekLabel || ("Week " + curWeek);
+  var W = currentWeekOrThrow_(shared, false);
+  var curWeek = W.week, wk = W.label;
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) throw emailError_("BUSY", "Another send is in progress. Try again in a minute.");
   try {
@@ -286,9 +294,8 @@ function buildNudgeEmail_(wk) {
 }
 
 function sendMasterSheet_(who, shared, data) {
-  var curWeek = parseInt(shared.currentWeek, 10) || 8;
-  var wk = shared.weekLabel || ("Week " + curWeek);
-  var games = (shared.customGames && shared.customGames.length) ? shared.customGames : getDefaultWeek7GamesFallback();
+  var W = currentWeekOrThrow_(shared, true);
+  var wk = W.label, games = W.games;
   var csv = (shared.poolMembers && shared.poolMembers.length) ? generateMasterCsvFromCloud(shared.poolMembers, games) : "";
   if (!csv) throw emailError_("NO_SHEET", "There are no pool picks to send yet.");
   var recipients = chooseRecipients_(data, poolEmailRecipients_(shared));
