@@ -540,19 +540,26 @@ function isGameLockedByCommissioner(gameId) {
   return false;
 }
 
+// Saves the whole commissionerConfig. update() replaces the field (a merge set kept keys that
+// were deleted here: an unblocked account, a removed force-unlock or per-game lock override all
+// came back after a refresh). Only commissioners can write it (firestore.rules); the returned
+// promise rejects when the save fails, and a failure is always shown.
 function saveCommissionerConfigToCloud() {
   ensureCommissionerConfig();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  if (fsDb && !isApplyingRemoteUpdate) {
-    try {
-      fsDb.collection("pickem_v14").doc("shared_state").set({
-        commissionerConfig: state.commissionerConfig,
-        updatedAt: new Date().toISOString()
-      }, { merge: true });
-    } catch (e) {}
+  var job = Promise.resolve();
+  if (fsDb && !isApplyingRemoteUpdate && typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
+    var ref = fsDb.collection("pickem_v14").doc("shared_state");
+    var patch = { commissionerConfig: state.commissionerConfig, updatedAt: new Date().toISOString() };
+    job = ref.update(patch).catch(function(e) {
+      if (e && e.code === "not-found") return ref.set(patch, { merge: true });
+      throw e;
+    });
+    job.catch(function(e) { reportCloudSaveFailure("commissioner settings", e); });
   }
   renderCommishAnnouncementBanner();
   renderSimpleGuestAccountBar();
+  return job;
 }
 
 function renderCommishAnnouncementBanner() {
@@ -669,6 +676,7 @@ function commishSwapIndividualGame(gameId, candidateIdxStr) {
   rebuildDynamicGameInsights(g);
   sanitizeStateForActiveSlate();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  pushCustomGamesToFirebase(); // other devices (and this one after a refresh) load the slate from the cloud
   renderAll();
   renderCommissionerModalBody();
   showAppToast("🔄 Swapped Game #" + gameId + " to " + g.away + " at " + g.home + " (" + g.poolLine + ")!");
@@ -1068,6 +1076,7 @@ function commishUpdateGameSpread(gameId, newPoolLine) {
   rebuildDynamicGameInsights(g);
   regradeAllPoolMembersLive();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  pushCustomGamesToFirebase(); // other devices (and this one after a refresh) load the slate from the cloud
   renderAll();
   renderCommissionerModalBody();
 }
@@ -1077,6 +1086,7 @@ function commishUpdateGameKick(gameId, newKick) {
   if (!g) return;
   g.kick = String(newKick || "").trim();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  pushCustomGamesToFirebase(); // other devices (and this one after a refresh) load the slate from the cloud
   renderAll();
 }
 

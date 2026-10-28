@@ -284,7 +284,9 @@ function applyRemoteCloudData(data, sourceLabel) {
     }
   }
   if (data.customUsers && Array.isArray(data.customUsers)) {
-    // Merge customUsers list without dropping any locally created profile
+    // The cloud list is the registry. A profile only this device has is kept only if it's one of
+    // this device's own (just created, not saved yet); any other local-only entry is a player
+    // removed or merged elsewhere, and keeping it let a stale phone or laptop push it back.
     var mergedCu = data.customUsers.slice();
     var seenCuKeys = {};
     for (var mcI = 0; mcI < mergedCu.length; mcI++) {
@@ -293,7 +295,7 @@ function applyRemoteCloudData(data, sourceLabel) {
     if (state.customUsers && Array.isArray(state.customUsers)) {
       for (var lcI = 0; lcI < state.customUsers.length; lcI++) {
         var lcu = state.customUsers[lcI];
-        if (lcu && lcu.key && !seenCuKeys[lcu.key]) {
+        if (lcu && lcu.key && !seenCuKeys[lcu.key] && isDeviceOwnProfileKey(lcu.key)) {
           mergedCu.push(lcu);
           seenCuKeys[lcu.key] = true;
         }
@@ -449,11 +451,33 @@ function pushProfileToFirebase(profKey) {
     var t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     el.textContent = ok ? "✓ Saved " + profKey.toUpperCase() + " to Cloud Firestore (" + t + ")" : "Couldn't save " + profKey.toUpperCase() + " to the cloud (" + t + ")";
   };
+  // mergeFields replaces each listed field whole. A plain merge set deep-merges maps, so a
+  // pick removed on one device (or a stale key dropped for the new slate) stayed in the cloud
+  // and came back on every other device.
   try {
-    fsDb.collection("pickem_v14_users").doc(profKey).set(userDoc, { merge: true })
-      .then(function() { return fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }); })
-      .then(function() { setStatus(true); }, function() { setStatus(false); });
+    fsDb.collection("pickem_v14_users").doc(profKey).set(userDoc, { mergeFields: Object.keys(userDoc) })
+      .then(function() { return fsDb.collection("pickem_v14").doc("shared_state").set(payload, { mergeFields: Object.keys(payload) }); })
+      .then(function() { setStatus(true); }, function(e) { setStatus(false); reportCloudSaveFailure(profKey.toUpperCase() + "'s picks", e); });
   } catch (e) {}
+}
+
+// A cloud save that failed is shown (once per 20s per label) instead of leaving the screen
+// looking saved while every other device, and this one after a refresh, keeps the old value.
+var CLOUD_SAVE_FAIL_SHOWN = {};
+function reportCloudSaveFailure(label, err) {
+  var now = Date.now();
+  if (CLOUD_SAVE_FAIL_SHOWN[label] && now - CLOUD_SAVE_FAIL_SHOWN[label] < 20000) return;
+  CLOUD_SAVE_FAIL_SHOWN[label] = now;
+  var why = err && err.code === "permission-denied" ? "not allowed for this account" : ((err && err.code) || "offline?");
+  if (typeof showAppToast === "function") showAppToast("Couldn't save " + label + " to the cloud (" + why + "). Other devices won't see it.");
+}
+
+// Profiles this device made or plays: the active profile, the bound one, and linked entries.
+function isDeviceOwnProfileKey(key) {
+  if (!key) return false;
+  if (key === activeProfile) return true;
+  if (AUTH_SESSION && AUTH_SESSION.boundProfileKey === key) return true;
+  return !!(AUTH_SESSION && (AUTH_SESSION.linkedEntries || []).some(function(e) { return e && e.profileKey === key; }));
 }
 
 // Your own entries: the profile your account is bound to, or one of your linked entries.
@@ -536,7 +560,7 @@ function pushWatchlistOrStandingsToFirebase() {
     updatedAt: new Date().toISOString()
   }, sharedWeekFields());
   if (fsDb) {
-    try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }); } catch (e) {}
+    try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }).catch(function(e) { reportCloudSaveFailure("standings", e); }); } catch (e) {}
   }
 }
 
@@ -554,7 +578,7 @@ function pushCustomGamesToFirebase() {
         poolMembers: state.poolMembers || [],
         weekArchives: state.weekArchives || {},
         updatedAt: new Date().toISOString()
-      }, sharedWeekFields()), { merge: true });
+      }, sharedWeekFields()), { merge: true }).catch(function(e) { reportCloudSaveFailure("the slate", e); });
     } catch (e) {}
   }
 }
