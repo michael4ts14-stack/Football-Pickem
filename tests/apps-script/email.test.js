@@ -228,3 +228,10 @@ test("running the Gmail bot or the emergency stop needs a commissioner", () => {
     assert.strictEqual(post(h, { action, idToken: token("uid-player") }).code, "NOT_COMMISSIONER", action);
   }
 });
+
+test("Kinyon Cooper's name is shown right in emails", () => {
+  const h = service();
+  for (const [inp, out] of [["Kinyion C", "Kinyon Cooper"], ["Kinyon C", "Kinyon Cooper"], ["Kinyon Cooper", "Kinyon Cooper"], ["Kinyion", "Kinyon"], ["Michael A", "Michael A"]]) {
+    assert.strictEqual(h.ctx.displayName_(inp), out, inp);
+  }
+});

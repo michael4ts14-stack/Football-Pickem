@@ -37,11 +37,27 @@ function officialFormSentInfo() {
   return (s && s.week === (parseInt(state.currentWeek, 10) || 0)) ? s : null;
 }
 
+// A full name: first and last, and the last name isn't just an initial ("Michael A").
+function isFullName(name) {
+  var parts = String(name || "").trim().split(/\s+/);
+  return parts.length >= 2 && parts[parts.length - 1].replace(/\./g, "").length >= 2;
+}
+
+// The name for the official form, full first and last name when we know it: what you typed
+// last time, else your Google account's name, else your pool name (Kinyion C -> Kinyon Cooper).
+// Blank (you type it) when all we have is an initial.
 function officialFormDefaultName() {
-  var saved = safeGetStorage(OFFICIAL_FORM_NAME_KEY);
-  if (saved) return saved;
-  var dn = AUTH_SESSION && AUTH_SESSION.displayName ? String(AUTH_SESSION.displayName) : "";
-  return /\s/.test(dn.trim()) ? dn.trim() : "";
+  var candidates = [
+    safeGetStorage(OFFICIAL_FORM_NAME_KEY),
+    (typeof fbAuth !== "undefined" && fbAuth && fbAuth.currentUser && fbAuth.currentUser.displayName) || "",
+    AUTH_SESSION && AUTH_SESSION.displayName,
+    AUTH_SESSION && AUTH_SESSION.linkedMemberName
+  ];
+  for (var i = 0; i < candidates.length; i++) {
+    var n = fixDisplaySpelling(String(candidates[i] || "").trim());
+    if (isFullName(n)) return n;
+  }
+  return "";
 }
 
 // What the form would get, and anything that blocks opening it.
@@ -54,7 +70,8 @@ function buildOfficialFormSubmission(name) {
   var params = ["usp=pp_url"];
   var add = function(entry, val) { params.push(encodeURIComponent(entry) + "=" + encodeURIComponent(val)); };
   if (f.nameQuestion) {
-    if (!name || !/\S+\s+\S+/.test(name)) problems.push("Enter your first and last name.");
+    if (!name || !/\S+\s+\S+/.test(name)) problems.push("Enter your full first and last name.");
+    else if (!isFullName(name)) problems.push("Enter your full last name, not just an initial.");
     else add(f.nameQuestion.entry, name.trim());
   }
   var filled = 0, missing = [], notOnForm = [];
@@ -172,7 +189,7 @@ function openOfficialFormSheet() {
   document.getElementById("panel-sheet-title").textContent = "Send to Separated at Turf";
   body.innerHTML =
     '<p class="sheet-meta">Opens the official form with your picks filled in. Check it, then tap Submit on Google\'s page.</p>' +
-    '<label class="form-name-field"><span>Name on the form (first and last)</span>' +
+    '<label class="form-name-field"><span>Full name on the form (first and last)</span>' +
       '<input type="text" id="official-form-name" class="search-input" autocomplete="name" value="' + escapeShellHtml(officialFormDefaultName()) + '" oninput="refreshOfficialFormSummary()" /></label>' +
     '<div id="official-form-summary"></div>';
   bd.hidden = false;

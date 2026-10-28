@@ -196,6 +196,7 @@ async function saveAndSendPickConfirmationReceipt() {
   }
   // If user is in Guest Mode and hasn't created an account yet, prompt them to enter an email or create an account while keeping their picks!
   var meta = getProfileMetaByKey(activeProfile);
+  var shownName = fixDisplaySpelling(meta.name); // Kinyion C -> Kinyon Cooper
   var userEmail = (AUTH_SESSION && AUTH_SESSION.email) || cfg.playerEmailsMap[standardizeParticipantName(meta.name).toLowerCase()] || "";
 
   saveCurrentState(activeProfile, false);
@@ -238,7 +239,7 @@ async function saveAndSendPickConfirmationReceipt() {
       '<div id="receipt-email-status" class="email-status" role="status" aria-live="polite"></div>' +
       (typeof officialFormReceiptButtonHtml === "function" ? officialFormReceiptButtonHtml() : '') +
       '<div style="font-size:0.74rem;color:var(--text);line-height:1.45;">' +
-        '• <strong>Player:</strong> ' + escapeShellHtml(meta.name) + (accountEmail ? (' (' + escapeShellHtml(accountEmail) + ')') : '') + '<br>' +
+        '• <strong>Player:</strong> ' + escapeShellHtml(shownName) + (accountEmail ? (' (' + escapeShellHtml(accountEmail) + ')') : '') + '<br>' +
         '• <strong>Tie-Breaker:</strong> ' + tb + '<br>' +
         '• <strong>🔒 Locked:</strong> tap <strong>Unlock picks</strong> to change anything before the official deadline, <strong>Friday at 9:00 PM CT</strong>. Then lock and send again.' +
       '</div>' +
@@ -256,7 +257,7 @@ async function saveAndSendPickConfirmationReceipt() {
     '</div>' +
     '<textarea readonly rows="8" class="search-input" style="width:100%;font-family:monospace;font-size:0.71rem;color:var(--text);">' +
       'SEPARATED AT TURF PICK\'EM — ' + (state.weekLabel || ('Week ' + state.currentWeek)).toUpperCase() + ' CONFIRMATION RECEIPT\n' +
-      'Player: ' + meta.name + ' | Saved: ' + nowTime + '\n' +
+      'Player: ' + shownName + ' | Saved: ' + nowTime + '\n' +
       'Status: SAVED (Editable until Friday 9:00 PM CST Official Lock)\n' +
       'Tie-Breaker: ' + tb + '\n' +
       '----------------------------------------\n' +

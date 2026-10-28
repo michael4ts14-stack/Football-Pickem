@@ -149,8 +149,14 @@ function resolveCallerPicks_(who, shared) {
     picks = userDoc.picks || {};
     if (!prof.tiebreaker) prof.tiebreaker = userDoc.tiebreaker;
   }
-  var name = (acct && (acct.linkedMemberName || acct.displayName)) || prof.linkedMemberName || profKey;
+  var name = displayName_((acct && (acct.linkedMemberName || acct.displayName)) || prof.linkedMemberName || profKey);
   return { profileKey: profKey, name: name, picks: picks, tiebreaker: String(prof.tiebreaker || "") };
+}
+
+// Names as people should see them: the pool sheets spell Kinyon Cooper "Kinyion C"
+// (same rule as fixDisplaySpelling in public/js/shell.js).
+function displayName_(name) {
+  return String(name || "").replace(/\bKinyi?on C\b\.?/g, "Kinyon Cooper").replace(/\bKinyion\b/g, "Kinyon");
 }
 
 // "Arizona at Texas Tech: Arizona (1x)" lines for the slate, from the stored picks.
