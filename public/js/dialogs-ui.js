@@ -114,7 +114,11 @@ function unclaimedRosterNames() {
     seen[low] = true;
     var pf = getProfileLinkedToMemberName(name);
     var cu = pf && !pf.isBuiltIn ? (state.customUsers || []).filter(function(c) { return c.key === pf.key; })[0] : null;
-    if (pf && (pf.isBuiltIn || (cu && cu.ownerUid))) return; // already someone's account
+    // With account bindings (account-security.js) a claimed player is one bound to an account;
+    // otherwise any built-in or owned profile counts as taken.
+    if (typeof ACCOUNT_SECURITY_LIVE !== "undefined" && ACCOUNT_SECURITY_LIVE) {
+      if (isMemberClaimedByOther(name, AUTH_SESSION && AUTH_SESSION.uid)) return;
+    } else if (pf && (pf.isBuiltIn || (cu && cu.ownerUid))) return; // already someone's account
     out.push(name);
   });
   return out.sort(function(a, b) { return a.localeCompare(b); });
@@ -137,7 +141,8 @@ function chooseRosterNameForNewAccount(accountName) {
         return '<button type="button" class="list-row" data-name="' + escapeShellHtml(n.toLowerCase()) + '" onclick="finishRosterChooser(this.textContent)"><span class="list-row-title">' + escapeShellHtml(n) + '</span></button>';
       }).join("") +
     '</div>' +
-    '<button type="button" class="btn-sm" style="margin-top:12px;width:100%;" onclick="finishRosterChooser(\'\')">I\'m new to the pool</button>';
+    '<button type="button" class="btn-sm" style="margin-top:12px;width:100%;" onclick="finishRosterChooser(\'\')">I\'m new to the pool' +
+      ((typeof ACCOUNT_SECURITY_LIVE !== "undefined" && ACCOUNT_SECURITY_LIVE && getSecurityConfig().registrationMode !== "invite_code_required") ? ' (the commissioner approves)' : '') + '</button>';
   bd.hidden = false;
   return _rosterChooserPromise;
 }

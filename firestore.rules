@@ -1,49 +1,193 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---------- Who is asking ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+    // Google confirmed the address (Google sign-in, or a verified email/password account).
+    function hasVerifiedEmail() {
+      return signedIn() && request.auth.token.email != null && request.auth.token.email_verified == true;
+    }
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+    // Account docs are keyed "email_" + the address with every non [a-z0-9] character as "_".
+    function myAccountId() {
+      return 'email_' + myEmail().replace('[^a-z0-9]', '_');
+    }
+    function rolesDoc() {
+      return get(/databases/$(database)/documents/pickem_v14_commissioners/roles).data;
+    }
+    // Same rule as isVerifiedCommissioner() in the app and isCommissionerEmail_() in Email.js.
+    // separatedatturt.com is a typo of the pool's domain that sits on the saved commissioner
+    // lists; whoever registered it could create that mailbox, so it never counts.
     function isVerifiedCommissioner() {
-      return request.auth != null && (
-        request.auth.token.email.lower() == 'michael4ts14@gmail.com' ||
-        request.auth.token.email.lower() == 'commissioner@separatedatturf.com' ||
-        request.auth.token.email.lower() == 'commissioner@separatedatturt.com' ||
+      return hasVerifiedEmail() && !myEmail().matches('.*@separatedatturt[.]com') && (
+        myEmail() == 'michael4ts14@gmail.com' ||
+        myEmail() == 'commissioner@separatedatturf.com' ||
         (exists(/databases/$(database)/documents/pickem_v14_commissioners/roles) && (
-          request.auth.token.email.lower() == get(/databases/$(database)/documents/pickem_v14_commissioners/roles).data.primaryCommissionerEmail.lower() ||
-          get(/databases/$(database)/documents/pickem_v14_commissioners/roles).data.authorizedEmails[request.auth.token.email.lower()] == true
+          myEmail() == rolesDoc().get('primaryCommissionerEmail', '').lower() ||
+          rolesDoc().get('authorizedEmails', {}).get(myEmail(), false) == true
         ))
       );
     }
 
+    // ---------- Pool security settings (in shared_state.commissionerConfig) ----------
+    function poolConfig() {
+      return get(/databases/$(database)/documents/pickem_v14/shared_state).data.get('commissionerConfig', {});
+    }
+    // "midseason_protected" (default): link to a roster player by matching email or with the
+    // commissioner's approval. "invite_code_required": a valid invite code first, then new
+    // players may also add themselves. "whitelist_strict": only pre-registered emails.
+    function registrationMode() {
+      return poolConfig().get('securityConfig', {}).get('registrationMode', 'midseason_protected');
+    }
+    function notBlocked() {
+      return signedIn() && !(request.auth.uid in poolConfig().get('blockedUsers', {}));
+    }
+    function hasInvitePass() {
+      return exists(/databases/$(database)/documents/pickem_v14_invite_passes/$(request.auth.uid));
+    }
+    // Profile key for a roster name (lower-cased, as the app's standardizeParticipantName gives
+    // it). Same as resolveOrCreateProfileForMember in auth.js.
+    function keyForMember(low) {
+      return low == 'michael a' ? 'michael' : (low == 'kinyion c' ? 'kinyion' : 'u_' + low.replace('[^a-z0-9]', ''));
+    }
+
+    // ---------- Who owns a player profile ----------
+    // pickem_v14_bindings/{profileKey} names the one account (uid) that plays that profile.
+    // Only that account (or a commissioner) can change the profile's picks.
+    function bindingPath(key) {
+      return /databases/$(database)/documents/pickem_v14_bindings/$(key);
+    }
+    function boundToMe(key) {
+      return exists(bindingPath(key)) && get(bindingPath(key)).data.uid == request.auth.uid;
+    }
+    // Older pick docs recorded their owner as ownerUid (or the email / account doc id); that
+    // owner can turn it into a binding once.
+    function isMine(ownerValue) {
+      return signedIn() && ownerValue in [request.auth.uid, myAccountId(), request.auth.token.email];
+    }
+    function legacyOwner(key) {
+      let path = /databases/$(database)/documents/pickem_v14_users/$(key);
+      return exists(path) && get(path).data.get('ownerUid', '') != '' && isMine(get(path).data.get('ownerUid', ''));
+    }
+
+    match /pickem_v14_bindings/{profileKey} {
+      allow read: if true;
+      allow create: if isVerifiedCommissioner() || (notBlocked() && selfBinding(profileKey));
+      allow update, delete: if isVerifiedCommissioner();
+    }
+    function selfBinding(key) {
+      let b = request.resource.data;
+      let low = b.get('memberLow', '');
+      return b.keys().hasOnly(['uid', 'email', 'displayName', 'memberName', 'memberLow', 'boundAt', 'verifiedBy']) &&
+        b.uid == request.auth.uid && b.get('email', '') == myEmail() && (
+          // The commissioner registered this (Google-verified) email for this roster player.
+          (b.verifiedBy == 'email_match' && hasVerifiedEmail() && low != '' && key == keyForMember(low) &&
+            poolConfig().get('playerEmailsMap', {}).get(low, '').lower() == myEmail()) ||
+          // The pick doc already named this account as its owner (before bindings existed).
+          (b.verifiedBy == 'legacy_owner' && legacyOwner(key)) ||
+          // Invite-code season: a brand-new player (no pick doc yet) adds themselves.
+          (b.verifiedBy == 'self_new' && registrationMode() == 'invite_code_required' && hasInvitePass() &&
+            low != '' && key == keyForMember(low) &&
+            !exists(/databases/$(database)/documents/pickem_v14_users/$(key)))
+        );
+    }
+
+    // ---------- Requests to link an account to a player (commissioner approves) ----------
+    // One per account (doc id = uid). The player can file, change or cancel it but never
+    // approve it; commissioners read all of them and approve by writing the binding.
+    match /pickem_v14_link_requests/{uid} {
+      allow read: if isVerifiedCommissioner() || (signedIn() && request.auth.uid == uid);
+      allow create, update: if isVerifiedCommissioner() || (notBlocked() && request.auth.uid == uid &&
+        request.resource.data.uid == uid && request.resource.data.status == 'pending' &&
+        request.resource.data.get('authEmail', '') == myEmail() &&
+        registrationMode() != 'whitelist_strict' &&
+        (registrationMode() != 'invite_code_required' || hasInvitePass()) &&
+        (resource == null || resource.data.status in ['pending', 'rejected']));
+      allow delete: if isVerifiedCommissioner() || (signedIn() && request.auth.uid == uid);
+    }
+
+    // ---------- League invite code ----------
+    // The code itself is commissioner-only. Entering the right code creates your invite pass
+    // (the check happens here, so the code never has to be shown to anyone).
+    match /pickem_v14_security/{docId} {
+      allow read, write: if isVerifiedCommissioner();
+    }
+    match /pickem_v14_invite_passes/{uid} {
+      allow read: if isVerifiedCommissioner() || (signedIn() && request.auth.uid == uid);
+      allow create: if notBlocked() && request.auth.uid == uid &&
+        exists(/databases/$(database)/documents/pickem_v14_security/invite) &&
+        get(/databases/$(database)/documents/pickem_v14_security/invite).data.get('code', '') != '' &&
+        request.resource.data.code == get(/databases/$(database)/documents/pickem_v14_security/invite).data.code;
+      allow update, delete: if isVerifiedCommissioner();
+    }
+
+    // ---------- Pool state ----------
+    // Everyone reads it. Commissioners (and the Apps Script bot, which uses the owner's Google
+    // login and so isn't subject to these rules) change anything. A signed-in player changes
+    // only the profile registry / privacy settings, plus the one profile named in
+    // lastProfileWriter, and only if that profile is bound to their account.
     match /pickem_v14/shared_state {
       allow read: if true;
-      allow write: if isVerifiedCommissioner() || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['customGames', 'commissionerConfig', 'weekArchives', 'officialSheetSyncedForWeek']);
+      allow write: if isVerifiedCommissioner() || playerSharedWrite();
+    }
+    function playerSharedWrite() {
+      let meta = ['customUsers', 'profilePrivacy', 'updatedAt', 'lastProfileWriter'];
+      let changed = request.resource.data.diff(resource.data).affectedKeys().difference(meta.toSet());
+      let writer = request.resource.data.get('lastProfileWriter', '');
+      return notBlocked() && resource != null &&
+        (changed.size() == 0 || (writer != '' && changed.hasOnly([writer]) && boundToMe(writer)));
     }
 
-    match /live_games/{docId} {
+    // ---------- A player's own pick document ----------
+    match /pickem_v14_users/{profileKey} {
       allow read: if true;
-      allow write: if true;
+      allow create, update: if isVerifiedCommissioner() ||
+        (notBlocked() && boundToMe(profileKey) && request.resource.data.get('ownerUid', '') == request.auth.uid);
+      allow delete: if isVerifiedCommissioner();
     }
 
+    // ---------- Account records (email, linked player, rivals) ----------
+    // Private: only the account's own signed-in owner and commissioners read or write it.
+    // Password hashes are never stored.
+    match /pickem_v14_accounts/{docId} {
+      allow read: if isVerifiedCommissioner() || (signedIn() && docId == myAccountId());
+      allow write: if isVerifiedCommissioner() ||
+        (signedIn() && docId == myAccountId() &&
+          request.resource.data.get('uid', request.auth.uid) == request.auth.uid &&
+          noNewPasswordHash());
+    }
+
+    // An old hash may stay or be removed, but none can be added or changed.
+    function noNewPasswordHash() {
+      return !('passwordHash' in request.resource.data) ||
+        (resource != null && request.resource.data.passwordHash == resource.data.get('passwordHash', null));
+    }
+
+    // ---------- Commissioner settings (email-service URL, roles) ----------
     match /pickem_v14_commissioners/{docId} {
       allow read: if true;
       allow write: if isVerifiedCommissioner();
     }
 
-    match /pickem_v14_users/{profileKey} {
-      allow read: if true;
-      allow write: if request.auth != null || isVerifiedCommissioner();
-    }
-
-    // Email send log: written only by the Apps Script email service (owner credentials,
-    // which bypass these rules); commissioners can read it in the Console.
+    // ---------- Email send log ----------
+    // Written only by the Apps Script email service (owner login); commissioners read it.
     match /pickem_v14_email_log/{docId} {
       allow read: if isVerifiedCommissioner();
       allow write: if false;
     }
 
-    match /pickem_v14_accounts/{docId} {
+    // ---------- Live scores, matchups, bot status, form map ----------
+    // Still open: the GitHub Actions jobs write here without signing in (no service-account
+    // secret yet). Once GOOGLE_SERVICE_ACCOUNT_JSON is set, change write to
+    // isVerifiedCommissioner(); the jobs then bypass rules like the Apps Script bot.
+    match /live_games/{docId} {
       allow read: if true;
-      allow write: if request.auth != null || isVerifiedCommissioner();
+      allow write: if true;
     }
   }
 }
-

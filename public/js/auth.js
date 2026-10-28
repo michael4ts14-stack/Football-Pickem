@@ -167,21 +167,24 @@ function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerU
   return { profileKey: detKey, linkedMemberName: cleanMember, displayName: cleanMember };
 }
 
-// Is this pool player linked to an account other than (uid, email)? Account docs are public,
-// so every browser can check before binding.
+// Is this pool player's entry owned by another account? Uses the owner recorded on the
+// player's public pick doc (pickem_v14_users/{key}.ownerUid); account records are private.
 async function memberLinkedToAnotherAccount(memberName, uid, email) {
   if (!fsDb || !memberName) return false;
-  var want = standardizeParticipantName(memberName).toLowerCase();
+  var low = standardizeParticipantName(memberName).toLowerCase();
+  var key = low === "michael a" ? "michael" : (low === "kinyion c" ? "kinyion" : null);
+  if (!key) {
+    var linked = typeof getProfileLinkedToMemberName === "function" ? getProfileLinkedToMemberName(memberName) : null;
+    key = linked && linked.key;
+  }
+  if (!key) return false;
   try {
-    var snap = await fsDb.collection("pickem_v14_accounts").get();
-    var found = false;
-    snap.forEach(function(doc) {
-      var a = doc.data() || {};
-      if (!a.linkedMemberName || standardizeParticipantName(a.linkedMemberName).toLowerCase() !== want) return;
-      var same = (a.uid && a.uid === uid) || (a.email && String(a.email).toLowerCase() === String(email || "").toLowerCase());
-      if (!same) found = true;
-    });
-    return found;
+    var snap = await fsDb.collection("pickem_v14_users").doc(key).get();
+    var owner = snap && snap.exists ? String((snap.data() || {}).ownerUid || "") : "";
+    if (!owner) return false;
+    var emailLow = String(email || "").toLowerCase();
+    var mine = [uid, emailLow, "email_" + emailLow.replace(/[^a-z0-9]/g, "_")];
+    return mine.indexOf(owner) === -1;
   } catch (e) {
     return false;
   }
@@ -214,7 +217,16 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
     } catch (e) {}
   }
 
-  var targetMember = chosenMemberName || (acctDoc && acctDoc.linkedMemberName) || "";
+  // On a re-check the account record wins over this device's memory (the commissioner may
+  // have merged or moved the account).
+  var targetMember = authUser.recheck
+    ? ((acctDoc && acctDoc.linkedMemberName) || chosenMemberName || "")
+    : (chosenMemberName || (acctDoc && acctDoc.linkedMemberName) || "");
+  // An email the commissioner registered for a roster player needs no name matching or chooser.
+  if (!targetMember && typeof memberForRegisteredEmail === "function") {
+    if (typeof loadBoundAccounts === "function") await loadBoundAccounts();
+    targetMember = memberForRegisteredEmail(email);
+  }
   if (!targetMember) {
     // Try auto-matching displayName or email prefix to the 89-player leaderboard
     var matchLb = findRosterMatchForAccountName(dispName);
@@ -231,9 +243,21 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
     }
   }
 
+  // Account linking security (account-security.js): claimed players stay with their account,
+  // pre-registered emails link at once, anything else waits for the commissioner.
+  var explicitChoice = !!chosenMemberName && !authUser.recheck; // a re-check isn't a new choice
+  var gate = (typeof gateAccountLink === "function")
+    ? await gateAccountLink({ uid: uid, email: email, emailVerified: authUser.emailVerified, displayName: dispName, provider: authUser.provider }, targetMember, explicitChoice)
+    : { ok: true, memberName: targetMember };
+  if (!gate.ok) {
+    enterUnlinkedAccountSession({ uid: uid, email: email, displayName: dispName, provider: authUser.provider || "email" }, gate);
+    return;
+  }
+  targetMember = gate.memberName;
+
   // A pool player already linked to a different account can't be taken over by linking to
   // that name (sign-up picker or "Link to Existing Leaderboard Player").
-  var ownerElsewhere = await memberLinkedToAnotherAccount(targetMember, uid, email);
+  var ownerElsewhere = gate.checked ? false : await memberLinkedToAnotherAccount(targetMember, uid, email);
   if (ownerElsewhere) {
     showAppToast(standardizeParticipantName(targetMember) + " is already linked to another account. Ask the commissioner if that's you.");
     if (acctDoc && acctDoc.linkedMemberName && !(await memberLinkedToAnotherAccount(acctDoc.linkedMemberName, uid, email))) {
@@ -245,6 +269,9 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
 
   var resolved = resolveOrCreateProfileForMember(targetMember, dispName, uid, email);
   var bKey = resolved.profileKey;
+  if (gate.needsBinding && typeof recordAccountBinding === "function") {
+    await recordAccountBinding(bKey, resolved.linkedMemberName, gate.needsBinding, { uid: uid, email: email, displayName: resolved.displayName });
+  }
 
   // Pull latest per-user picks from `pickem_v14_users/{bKey}` if present
   if (fsDb) {
@@ -314,7 +341,7 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
   }
 
   SESSION_UNLOCKED_PROFILES[bKey] = true;
-  activeProfile = bKey;
+  activeProfile = (authUser.keepSandbox && activeProfile === "test") ? "test" : bKey;
   if (state.compareTargetKey === bKey) { state.compareTargetKey = ""; safeSetStorage(COMPARE_TARGET_STORAGE_KEY, ""); }
 
   saveDeviceAuthSession();
@@ -336,6 +363,7 @@ function initFirebaseAuthObserver() {
           uid: res.user.uid,
           email: res.user.email,
           displayName: res.user.displayName,
+          emailVerified: res.user.emailVerified,
           provider: "google_oauth_redirect"
         }, pendingMember).then(function() {
           showAppToast("✅ Signed in with Google as " + (AUTH_SESSION ? AUTH_SESSION.displayName : "User") + "!");
@@ -364,12 +392,19 @@ function initFirebaseAuthObserver() {
         saveDeviceAuthSession();
         renderAll();
       }
-      if (user && (!AUTH_SESSION || AUTH_SESSION.uid !== user.uid)) {
+      // Re-check the account's link once per load too (not only on a new sign-in), so a link
+      // the commissioner approved, removed or fixed reaches this device.
+      if (user && (!AUTH_SESSION || AUTH_SESSION.uid !== user.uid || !window._accountLinkCheckedThisLoad)) {
+        window._accountLinkCheckedThisLoad = true;
+        var sameUser = !!(AUTH_SESSION && AUTH_SESSION.uid === user.uid);
         var savedMember = (AUTH_SESSION && AUTH_SESSION.linkedMemberName) || safeGetStorage("sat_pending_oauth_member_v16") || "";
         bindAuthenticatedAccountToProfile({
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
+          emailVerified: user.emailVerified,
+          keepSandbox: sameUser,
+          recheck: sameUser,
           provider: (user.providerData && user.providerData[0] && user.providerData[0].providerId) || "firebase_auth"
         }, savedMember);
       }
@@ -431,6 +466,7 @@ async function signInWithGoogleAccount(useRedirect) {
         uid: res.user.uid,
         email: res.user.email,
         displayName: customName || res.user.displayName,
+        emailVerified: res.user.emailVerified,
         provider: "google_oauth"
       }, preferredName);
       closeAuthModal();
@@ -511,6 +547,7 @@ async function submitEmailPasswordAuth(modeOverride) {
         uid: cred.user.uid,
         email: cred.user.email || email,
         displayName: cred.user.displayName || chosenMember || customName,
+        emailVerified: cred.user.emailVerified,
         provider: "firebase_email"
       }, chosenMember || customName);
       closeAuthModal();
@@ -687,11 +724,19 @@ function openAuthModal() {
       break;
     }
   }
-  var lbOpts = '<option value="__NEW_USER__"' + (!matchedOnBoard ? ' selected' : '') + '>✨ New Player / Not on Leaderboard Yet (Auto-Creates Profile)</option>';
+  // With account security on (account-security.js), a new player needs the commissioner's
+  // approval or the invite-code season, and players linked to another account can't be picked.
+  var secLive = typeof ACCOUNT_SECURITY_LIVE !== "undefined" && ACCOUNT_SECURITY_LIVE;
+  var secMode = secLive ? getSecurityConfig().registrationMode : "";
+  var newLabel = !secLive ? "✨ New Player / Not on Leaderboard Yet (Auto-Creates Profile)"
+    : (secMode === "invite_code_required" ? "✨ New player (needs the league invite code)" : "✨ New player (the commissioner approves)");
+  var lbOpts = secMode === "whitelist_strict" ? '' : '<option value="__NEW_USER__"' + (!matchedOnBoard ? ' selected' : '') + '>' + newLabel + '</option>';
+  var myUid = AUTH_SESSION ? AUTH_SESSION.uid : "";
   for (var i = 0; i < allLb.length; i++) {
     var item = allLb[i];
     var sel = (matchedOnBoard && standardizeParticipantName(curLinked).toLowerCase() === standardizeParticipantName(item.name).toLowerCase()) ? " selected" : "";
-    lbOpts += '<option value="' + item.name.replace(/"/g, '&quot;') + '"' + sel + '>🏆 ' + item.name + ' (' + item.priorPts + ' pts • Rank ' + item.rank + ')</option>';
+    var claimed = secLive && !sel && isMemberClaimedByOther(item.name, myUid);
+    lbOpts += '<option value="' + item.name.replace(/"/g, '&quot;') + '"' + sel + (claimed ? ' disabled' : '') + '>' + (claimed ? '🔒 ' : '🏆 ') + item.name + ' (' + item.priorPts + ' pts • Rank ' + item.rank + ')' + (claimed ? ' · Claimed' : '') + '</option>';
   }
 
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {

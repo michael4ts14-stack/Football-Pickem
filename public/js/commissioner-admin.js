@@ -64,7 +64,6 @@ ensureCommissionerConfig = function() {
   if (!cfg.authorizedCommissioners || typeof cfg.authorizedCommissioners !== "object") {
     cfg.authorizedCommissioners = {
       "commissioner@separatedatturf.com": { role: "primary", label: "Primary Commissioner", enabled: true },
-      "commissioner@separatedatturt.com": { role: "primary", label: "Primary Commissioner (Alias)", enabled: true },
       "michael a": { role: "commissioner", label: "Michael A (League Admin)", enabled: true }
     };
   }
@@ -83,8 +82,9 @@ function isVerifiedCommissioner() {
   var fbUser = (typeof fbAuth !== "undefined" && fbAuth) ? fbAuth.currentUser : null;
   if (!fbUser || !fbUser.emailVerified || String(fbUser.email || "").toLowerCase() !== String(AUTH_SESSION.email || "").trim().toLowerCase()) return false;
   var emailLow = String(AUTH_SESSION.email || "").trim().toLowerCase();
+  if (/@separatedatturt\.com$/.test(emailLow)) return false; // typo domain on old saved lists
   var primaryLow = String(cfg.primaryCommissionerEmail || "commissioner@separatedatturf.com").trim().toLowerCase();
-  if (emailLow && (emailLow === primaryLow || emailLow === "commissioner@separatedatturt.com" || emailLow === "commissioner@separatedatturf.com")) {
+  if (emailLow && (emailLow === primaryLow || emailLow === "michael4ts14@gmail.com" || emailLow === "commissioner@separatedatturf.com")) {
     var pRec = cfg.authorizedCommissioners[emailLow];
     if (!pRec || pRec.enabled !== false) return true;
   }
@@ -167,7 +167,7 @@ function commishUpdatePrimaryEmail() {
     enabled: true,
     assignedAt: new Date().toISOString()
   };
-  if (AUTH_SESSION && (AUTH_SESSION.email === "commissioner@separatedatturf.com" || AUTH_SESSION.email === "commissioner@separatedatturt.com")) {
+  if (AUTH_SESSION && (AUTH_SESSION.email === "commissioner@separatedatturf.com")) {
     AUTH_SESSION.email = newEmail;
     saveDeviceAuthSession();
   }
@@ -1373,7 +1373,7 @@ renderCommissionerModalBody = function() {
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:10px;margin-bottom:12px;">' +
         '<div class="side-box">' +
           '<div class="side-title"><span>📧 Primary Commissioner Account Email</span></div>' +
-          '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Update the primary administrative email address (default: <code>commissioner@separatedatturf.com</code> / <code>commissioner@separatedatturt.com</code>):</div>' +
+          '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:8px;">Update the primary administrative email address (default: <code>commissioner@separatedatturf.com</code>):</div>' +
           '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
             '<input type="email" id="commish-primary-email-input" class="search-input" style="flex:1;padding:6px 9px;font-size:0.76rem;" value="' + String(cfg.primaryCommissionerEmail || "commissioner@separatedatturf.com").replace(/"/g, '&quot;') + '" />' +
             '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="commishUpdatePrimaryEmail()">💾 Update Primary Email</button>' +

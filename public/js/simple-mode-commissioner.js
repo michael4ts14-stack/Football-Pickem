@@ -922,6 +922,7 @@ function renderCommissionerModalBody() {
             (isPaid ? '💰 PAID ($' + entryFee + ')' : '⏳ Unpaid') +
           '</button>' +
         '</td>' +
+        '<td>' + (typeof accountLinkCellHtml === "function" ? accountLinkCellHtml(pmR.name) : '') + '</td>' +
         '<td style="display:flex;gap:4px;flex-wrap:wrap;">' +
           '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;" onclick="manuallySetPlayerPicks(\'' + safeN + '\')">✏️ Edit Picks</button>' +
           '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;" onclick="startPlayerPreview(\'' + safeN + '\')">Preview as player</button>' +
@@ -949,7 +950,7 @@ function renderCommissionerModalBody() {
       '</div>' +
       '<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border-muted);border-radius:10px;">' +
         '<table class="condensed-table">' +
-          '<thead><tr><th>Player Name</th><th>Prior Season Pts (Editable)</th><th>New Live Total</th><th>League Dues Status</th><th>Picks</th></tr></thead>' +
+          '<thead><tr><th>Player Name</th><th>Prior Season Pts (Editable)</th><th>New Live Total</th><th>League Dues Status</th><th>Account</th><th>Picks</th></tr></thead>' +
           '<tbody>' + rosterRows + '</tbody>' +
         '</table>' +
       '</div>';

@@ -16,7 +16,9 @@ function standardizeParticipantName(rawName) {
   if (
     low === "kinyion" ||
     low === "kinyion c" ||
+    low === "kinyon" ||
     low === "kinyon c" ||
+    low === "kinyon cooper" ||
     low === "kinyion cooper" ||
     low === "kenyon" ||
     low === "kenyon cooper" ||
@@ -177,6 +179,7 @@ function gradePickMap(picksMap, allowFallbackToRec, computeDp) {
 function regradeAllPoolMembersLive(onlyUserProfiles) {
   ensureWatchlistDefaults();
   if (!state.poolMembers || !Array.isArray(state.poolMembers)) return;
+  dropDuplicateAppPoolRows();
 
   var priorLookup = {};
   var rankLookup = {};
@@ -325,6 +328,7 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
       if (!cuProf) continue;
       if (!cuProf.picks) cuProf.picks = {};
       var targetBoardName = standardizeParticipantName(cu.linkedMemberName || cu.name);
+      if (isDuplicateProfileKey(cu.key, targetBoardName)) continue; // the player's real profile grades this row
       var targetLow = targetBoardName.toLowerCase();
       var cuNameLow = standardizeParticipantName(cu.name).toLowerCase();
       var isCuDeleted = !!((state.deletedPicksByMember && (state.deletedPicksByMember[targetLow] || state.deletedPicksByMember[cuNameLow])) || cuProf._picksCleared);

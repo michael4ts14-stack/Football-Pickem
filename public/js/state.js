@@ -40,6 +40,36 @@ function getProfileLinkedToMemberName(memberName) {
   return null;
 }
 
+// A second profile for a player who already has one ("Kinyon" next to kinyion): it must
+// never be graded into, or clear, the player's real entry.
+function isDuplicateProfileKey(profKey, memberName) {
+  if (!profKey || !memberName) return false;
+  var pf = getProfileLinkedToMemberName(memberName);
+  return !!(pf && !pf.isSandbox && pf.key !== profKey);
+}
+
+// Pool rows the app added for an account (awaiting a sheet, no picks) that repeat another row's
+// name once both spellings mean the same player ("Kinyon" and "Kinyion C"). A cleared empty
+// duplicate would otherwise clear the real player's picks while grading. The real row is kept
+// wherever it sits in the list.
+function dropDuplicateAppPoolRows() {
+  if (!Array.isArray(state.poolMembers)) return false;
+  var lowOf = function(pm) { return pm && pm.name ? standardizeParticipantName(pm.name).toLowerCase() : ""; };
+  var isEmptyAppRow = function(pm) { return !!pm.awaitingSheet && !hasSubmittedPicksForCurrentSlate(pm.picks || {}, GAMES); };
+  var hasRealRow = {};
+  state.poolMembers.forEach(function(pm) { var low = lowOf(pm); if (low && !isEmptyAppRow(pm)) hasRealRow[low] = true; });
+  var kept = {}, out = [], dropped = false;
+  for (var i = 0; i < state.poolMembers.length; i++) {
+    var pm = state.poolMembers[i];
+    var low = lowOf(pm);
+    if (low && isEmptyAppRow(pm) && (hasRealRow[low] || kept[low])) { dropped = true; continue; }
+    if (low) kept[low] = true;
+    out.push(pm);
+  }
+  if (dropped) state.poolMembers = out;
+  return dropped;
+}
+
 function findPoolMemberByName(memberName) {
   if (!memberName || !state.poolMembers || !Array.isArray(state.poolMembers)) return null;
   var target = standardizeParticipantName(memberName).toLowerCase();
@@ -537,16 +567,18 @@ function pushMultiUserAndPrivacyToFirebase() {
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
   // Only push metadata (customUsers registry + profilePrivacy) and the current active profile's picks
   // so one device NEVER overwrites another user's picks!
+  // The active profile's picks go through pushProfileToFirebase below (it checks ownership);
+  // the Friday-night reveal switch is the commissioner's (Console), not saved from here.
   var payload = {
     customUsers: state.customUsers || [],
     profilePrivacy: state.profilePrivacy || {},
-    fridayNightRevealOverride: !!state.fridayNightRevealOverride,
     updatedAt: new Date().toISOString()
   };
-  if (activeProfile && activeProfile !== "test" && state[activeProfile]) {
-    payload[activeProfile] = state[activeProfile];
+  if (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
+    payload.fridayNightRevealOverride = !!state.fridayNightRevealOverride;
   }
-  if (fsDb) {
+  // Signed-out visitors and accounts not linked to a player save nothing (firestore.rules agree).
+  if (fsDb && AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
     try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }); } catch (e) {}
   }
   if (activeProfile && activeProfile !== "test") {
