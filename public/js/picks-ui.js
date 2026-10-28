@@ -252,8 +252,10 @@ function renderPickCardsHtml() {
       try { fieldHtml = '<div class="card-field">' + renderInteractiveFieldTrackerHtml(g, ls || null) + '</div>'; } catch (e2) {}
     }
 
+    var alert = liveAlertForGame(g);
     html +=
-      '<article class="pick-card' + (myPick ? '' : ' is-missing') + '" id="game-card-' + g.id + '" aria-label="' + escapeShellHtml(matchup) + '" onclick="onPickCardClick(event, ' + g.id + ')">' +
+      '<article class="pick-card' + (myPick ? '' : ' is-missing') + liveAlertClass(alert) + '" id="game-card-' + g.id + '" aria-label="' + escapeShellHtml(matchup) + '" onclick="onPickCardClick(event, ' + g.id + ')">' +
+        liveAlertBadgesHtml(alert) +
         '<button type="button" class="pick-card-meta" onclick="openGameDetail(' + g.id + ')" aria-label="Details for ' + escapeShellHtml(matchup) + '">' +
           gameStatusHtml(g) +
           pickStatusWordHtml(getGameSituation(ls, g, myPick ? picks : null)) +

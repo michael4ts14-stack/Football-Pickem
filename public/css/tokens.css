@@ -133,3 +133,40 @@ html[data-theme="high-contrast"] {
   --live: #ff6b6b;
   --overlay: #000000d9;
 }
+
+/* Live game day alerts (live/situation.js): red zone, 4Q / OT sweat, upset sweat.
+   --*-ring is the 1px inner rim; crimson uses white so a red glow never melts into its surfaces. */
+:root {
+  --redzone-glow: #ff2a2a;
+  --redzone-glow-secondary: #ff6b6b;
+  --redzone-ring: #ff2a2a;
+  --redzone-bg-tint: rgba(255, 42, 42, 0.08);
+  --sweat-glow: #ff9f1c;
+  --sweat-glow-secondary: #ffd166;
+  --sweat-ring: #ff9f1c;
+  --sweat-bg-tint: rgba(255, 159, 28, 0.08);
+  --upset-sweat-glow: #a855f7;
+}
+html[data-theme="crimson"] {
+  --redzone-glow: #ff4d4d;
+  --redzone-glow-secondary: #ffffff;
+  --redzone-ring: #ffffff;
+}
+html[data-theme="light"] {
+  --redzone-glow: #dc2626;
+  --redzone-ring: #dc2626;
+  --redzone-bg-tint: rgba(220, 38, 38, 0.07);
+  --sweat-glow: #d97706;
+  --sweat-ring: #d97706;
+  --sweat-bg-tint: rgba(217, 119, 6, 0.08);
+  --upset-sweat-glow: #7e22ce;
+}
+html[data-theme="gridiron-navy"] {
+  /* gold accent: push the sweat glow toward orange so it isn't read as a picked team */
+  --sweat-glow: #ff8a1c;
+  --sweat-ring: #ff8a1c;
+}
+html[data-theme="high-contrast"] {
+  --redzone-ring: #ffffff;
+  --sweat-ring: #ffffff;
+}

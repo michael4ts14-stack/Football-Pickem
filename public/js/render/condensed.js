@@ -191,7 +191,8 @@ function renderCondensedTable() {
       '</div>';
     }
 
-    html += '<tr class="' + (isDiff ? 'diff-row' : '') + '">' +
+    var condAlert = liveAlertClass(liveAlertForGame(g));
+    html += '<tr class="' + (isDiff ? 'diff-row' : '') + condAlert + '">' +
       '<td><strong>#' + g.id + '</strong></td>' +
       '<td><strong>' + g.away + '</strong> <span style="color:var(--muted);">(' + g.awayPts + 'x)</span> at <strong>' + g.home + '</strong> <span style="color:var(--muted);">(' + g.homePts + 'x)</span>' + liveStr + '</td>' +
       '<td style="color:var(--muted);"><div>' + g.poolLine + '</div>' + (poolSplitTxt ? '<div class="cond-pool">Pool ' + poolSplitTxt + '</div>' : '') + '</td>' +
@@ -206,7 +207,7 @@ function renderCondensedTable() {
     var hBadge = g.homePts > 1 ? (' <span class="cond-mult">' + g.homePts + 'x</span>') : '';
     var gridColsClass = (!condensedShowAllProfiles && displayProfs.length + (cmpTarget && cmpTarget.isPoolMember ? 1 : 0) <= 2) ? "cond-m-profiles-grid two-col-grid" : "cond-m-profiles-grid";
 
-    mobileHtml += '<div class="cond-m-card' + (isDiff ? ' diff-card' : '') + multCardCls + '">' +
+    mobileHtml += '<div class="cond-m-card' + (isDiff ? ' diff-card' : '') + multCardCls + condAlert + '">' +
       '<div class="cond-m-header">' +
         '<div class="cond-m-title">' +
           '<span class="cond-m-num">#' + g.id + '</span>' +

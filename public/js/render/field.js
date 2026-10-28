@@ -112,6 +112,7 @@ function updateFieldSvg(entry, g, tel) {
   setFieldTransform(drive, Math.min(startX, ballX), Math.max(2, Math.abs(ballX - startX)));
 
   var rzAway = svg.querySelector(".fld-rz-away"), rzHome = svg.querySelector(".fld-rz-home");
+  svg.classList.toggle("is-redzone", !!tel.isRedZone); // brighter zone + glowing ball (css)
   rzAway.style.display = (tel.isRedZone && !away) ? "" : "none";
   rzHome.style.display = (tel.isRedZone && away) ? "" : "none";
 
@@ -208,7 +209,7 @@ function fieldMiniBarHtml(g, ls) {
   var txt = fieldSituationText(tel);
   var team = away ? g.away : g.home;
   var aria = team + " ball" + (txt ? ", " + txt : "") + ", driving " + (away ? "right" : "left") + (tel.isRedZone ? ", red zone" : "");
-  return '<div class="field-mini" role="img" aria-label="' + fieldEsc(aria) + '">' +
+  return '<div class="field-mini' + (tel.isRedZone ? ' is-redzone' : '') + '" role="img" aria-label="' + fieldEsc(aria) + '">' +
     '<span class="field-mini-strip" aria-hidden="true">' +
       '<span class="fm-ez" style="left:0;background:' + fieldTeamColor(g, true) + '"></span>' +
       '<span class="fm-ez" style="right:0;background:' + fieldTeamColor(g, false) + '"></span>' +

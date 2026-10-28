@@ -16,6 +16,8 @@
       if (custom && custom.vars) for (var k in custom.vars) root.style.setProperty(k, custom.vars[k]);
       var preset = localStorage.getItem("pickem_screen_preset");
       if (preset) root.dataset.screenPreset = preset;
+      var glow = localStorage.getItem("pickem_glow_mode");
+      if (glow) root.dataset.glow = glow;
     } catch (e) {}
     root.setAttribute("data-theme", t);
   })();
@@ -38,12 +40,12 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-<link rel="stylesheet" href="/css/tokens.css?v=2026-10-28n" />
-<link rel="stylesheet" href="/css/base.css?v=2026-10-28n" />
-<link rel="stylesheet" href="/css/views.css?v=2026-10-28n" />
-<link rel="stylesheet" href="/css/components.css?v=2026-10-28n" />
-<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-28n" />
-<link rel="stylesheet" href="/css/app.css?v=2026-10-28n" />
+<link rel="stylesheet" href="/css/tokens.css?v=2026-10-28o" />
+<link rel="stylesheet" href="/css/base.css?v=2026-10-28o" />
+<link rel="stylesheet" href="/css/views.css?v=2026-10-28o" />
+<link rel="stylesheet" href="/css/components.css?v=2026-10-28o" />
+<link rel="stylesheet" href="/css/simple-mode-commissioner.css?v=2026-10-28o" />
+<link rel="stylesheet" href="/css/app.css?v=2026-10-28o" />
 </head>
 <body class="simple-ui-mode">
 <script>
@@ -104,6 +106,7 @@
           <p class="eyebrow week-eyebrow">Week</p>
           <h1 class="page-title">Live Scores</h1>
         </div>
+        <button type="button" class="btn-sm live-demo-btn" id="btn-simulate-alerts" aria-pressed="false" onclick="toggleLiveAlertDemo()" title="Show sample red zone and 4Q sweat games (on this device only)">Simulate live alerts</button>
         <button type="button" class="sync-status" id="live-sync-status" onclick="syncAllLiveTrackingData(true)" aria-live="polite">
           <span class="status-dot" id="live-sync-dot" aria-hidden="true"></span><span id="live-sync-age">Sync scores</span>
         </button>
@@ -125,13 +128,19 @@
         <span id="live-tab-clock" class="sr-only">Ready</span>
       </div>
 
-      <div class="picks-toolbar">
+      <div class="picks-toolbar live-filter-bar">
         <div class="chip-row" role="toolbar" aria-label="Filter live games">
-          <button class="btn-sm active" id="lflt-all" onclick="setLiveTabFilter('all')">All</button>
+          <button class="btn-sm active" id="lflt-all" onclick="setLiveTabFilter('all')">All games</button>
           <button class="btn-sm" id="lflt-active" onclick="setLiveTabFilter('active')">In progress</button>
-          <button class="btn-sm" id="lflt-sweat" onclick="setLiveTabFilter('sweat')">4Q / red zone</button>
+          <button class="btn-sm" id="lflt-redzone" onclick="setLiveTabFilter('redzone')">Red zone</button>
+          <button class="btn-sm" id="lflt-sweat" onclick="setLiveTabFilter('sweat')">4Q sweats</button>
+          <button class="btn-sm" id="lflt-upset" onclick="setLiveTabFilter('upset')">2x/3x upset watch</button>
           <button class="btn-sm adv-only" id="lflt-diff" onclick="setLiveTabFilter('diff')">H2H swings</button>
         </div>
+        <label class="check-field live-pin-field">
+          <input type="checkbox" id="chk-live-pin-alerts" onchange="setLivePinAlerts(this.checked)" />
+          Pin red zone &amp; 4Q sweats to top
+        </label>
         <label class="compare-field adv-block">
           <span class="sr-only">Compare with</span>
           <select id="live-compare-select" class="compare-select" onchange="setCompareTarget(this.value)" aria-label="Compare live games with"></select>
@@ -736,52 +745,52 @@
     <div id="review-checklist-body"></div>
   </div>
 </div>
-<script src="/js/00-boot-guard.js?v=2026-10-28n"></script>
-<script src="/js/config.js?v=2026-10-28n"></script>
-<script src="/js/data/teams.js?v=2026-10-28n"></script>
-<script src="/js/data/default-slate.js?v=2026-10-28n"></script>
-<script src="/js/state-globals.js?v=2026-10-28n"></script>
-<script src="/js/win-prob.js?v=2026-10-28n"></script>
-<script src="/js/data/week7-official.js?v=2026-10-28n"></script>
-<script src="/js/data/code-gs-source.js?v=2026-10-28n"></script>
-<script src="/js/state.js?v=2026-10-28n"></script>
-<script src="/js/team-match.js?v=2026-10-28n"></script>
-<script src="/js/firestore.js?v=2026-10-28n"></script>
-<script src="/js/picks.js?v=2026-10-28n"></script>
-<script src="/js/espn.js?v=2026-10-28n"></script>
-<script src="/js/profiles.js?v=2026-10-28n"></script>
-<script src="/js/auth.js?v=2026-10-28n"></script>
-<script src="/js/import-hub.js?v=2026-10-28n"></script>
-<script src="/js/render/condensed.js?v=2026-10-28n"></script>
-<script src="/js/import-sheet-grading.js?v=2026-10-28n"></script>
-<script src="/js/render/field-tracker.js?v=2026-10-28n"></script>
-<script src="/js/demo-sim.js?v=2026-10-28n"></script>
-<script src="/js/render/field.js?v=2026-10-28n"></script>
-<script src="/js/render/theater.js?v=2026-10-28n"></script>
-<script src="/js/live/live-feed.js?v=2026-10-28n"></script>
-<script src="/js/live-scores.js?v=2026-10-28n"></script>
-<script src="/js/leverage.js?v=2026-10-28n"></script>
-<script src="/js/simulator.js?v=2026-10-28n"></script>
-<script src="/js/archive.js?v=2026-10-28n"></script>
-<script src="/js/simple-mode-commissioner.js?v=2026-10-28n"></script>
-<script src="/js/commissioner-admin.js?v=2026-10-28n"></script>
-<script src="/js/shell.js?v=2026-10-28n"></script>
-<script src="/js/live/situation.js?v=2026-10-28n"></script>
-<script src="/js/picks-ui.js?v=2026-10-28n"></script>
-<script src="/js/matchups-ui.js?v=2026-10-28n"></script>
-<script src="/js/live-ui.js?v=2026-10-28n"></script>
-<script src="/js/standings-ui.js?v=2026-10-28n"></script>
-<script src="/js/dialogs-ui.js?v=2026-10-28n"></script>
-<script src="/js/player-sheet.js?v=2026-10-28n"></script>
-<script src="/js/official-form.js?v=2026-10-28n"></script>
-<script src="/js/email-service.js?v=2026-10-28n"></script>
-<script src="/js/commish-hub.js?v=2026-10-28n"></script>
-<script src="/js/layout.js?v=2026-10-28n"></script>
-<script src="/js/boot.js?v=2026-10-28n"></script>
+<script src="/js/00-boot-guard.js?v=2026-10-28o"></script>
+<script src="/js/config.js?v=2026-10-28o"></script>
+<script src="/js/data/teams.js?v=2026-10-28o"></script>
+<script src="/js/data/default-slate.js?v=2026-10-28o"></script>
+<script src="/js/state-globals.js?v=2026-10-28o"></script>
+<script src="/js/win-prob.js?v=2026-10-28o"></script>
+<script src="/js/data/week7-official.js?v=2026-10-28o"></script>
+<script src="/js/data/code-gs-source.js?v=2026-10-28o"></script>
+<script src="/js/state.js?v=2026-10-28o"></script>
+<script src="/js/team-match.js?v=2026-10-28o"></script>
+<script src="/js/firestore.js?v=2026-10-28o"></script>
+<script src="/js/picks.js?v=2026-10-28o"></script>
+<script src="/js/espn.js?v=2026-10-28o"></script>
+<script src="/js/profiles.js?v=2026-10-28o"></script>
+<script src="/js/auth.js?v=2026-10-28o"></script>
+<script src="/js/import-hub.js?v=2026-10-28o"></script>
+<script src="/js/render/condensed.js?v=2026-10-28o"></script>
+<script src="/js/import-sheet-grading.js?v=2026-10-28o"></script>
+<script src="/js/render/field-tracker.js?v=2026-10-28o"></script>
+<script src="/js/demo-sim.js?v=2026-10-28o"></script>
+<script src="/js/render/field.js?v=2026-10-28o"></script>
+<script src="/js/render/theater.js?v=2026-10-28o"></script>
+<script src="/js/live/live-feed.js?v=2026-10-28o"></script>
+<script src="/js/live-scores.js?v=2026-10-28o"></script>
+<script src="/js/leverage.js?v=2026-10-28o"></script>
+<script src="/js/simulator.js?v=2026-10-28o"></script>
+<script src="/js/archive.js?v=2026-10-28o"></script>
+<script src="/js/simple-mode-commissioner.js?v=2026-10-28o"></script>
+<script src="/js/commissioner-admin.js?v=2026-10-28o"></script>
+<script src="/js/shell.js?v=2026-10-28o"></script>
+<script src="/js/live/situation.js?v=2026-10-28o"></script>
+<script src="/js/picks-ui.js?v=2026-10-28o"></script>
+<script src="/js/matchups-ui.js?v=2026-10-28o"></script>
+<script src="/js/live-ui.js?v=2026-10-28o"></script>
+<script src="/js/standings-ui.js?v=2026-10-28o"></script>
+<script src="/js/dialogs-ui.js?v=2026-10-28o"></script>
+<script src="/js/player-sheet.js?v=2026-10-28o"></script>
+<script src="/js/official-form.js?v=2026-10-28o"></script>
+<script src="/js/email-service.js?v=2026-10-28o"></script>
+<script src="/js/commish-hub.js?v=2026-10-28o"></script>
+<script src="/js/layout.js?v=2026-10-28o"></script>
+<script src="/js/boot.js?v=2026-10-28o"></script>
 <div id="pwa-update-bar" class="pwa-update-bar" role="status" hidden>
   <span>Update available</span>
   <button type="button" id="pwa-update-reload" class="link-btn">Reload</button>
 </div>
-<script src="/js/pwa.js?v=2026-10-28n"></script>
+<script src="/js/pwa.js?v=2026-10-28o"></script>
 </body>
 </html>

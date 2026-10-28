@@ -877,7 +877,7 @@ function initState() {
       }
       if (parsed.liveScores && typeof parsed.liveScores === "object") {
         for (var lk in parsed.liveScores) {
-          if (parsed.liveScores[lk] && (parsed.liveScores[lk].completed || parsed.liveScores[lk].inProgress)) {
+          if (parsed.liveScores[lk] && !parsed.liveScores[lk]._demo && (parsed.liveScores[lk].completed || parsed.liveScores[lk].inProgress)) {
             LIVE_SCORES[lk] = parsed.liveScores[lk];
           }
         }

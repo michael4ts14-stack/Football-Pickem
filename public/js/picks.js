@@ -48,7 +48,7 @@ function toggleMobileSidebar(forceState) {
 
 function setLiveTabFilter(flt) {
   liveTabFilter = flt;
-  var list = ["all", "active", "sweat", "diff"];
+  var list = ["all", "active", "redzone", "sweat", "upset", "diff"];
   for (var i = 0; i < list.length; i++) {
     var k = list[i];
     var b = document.getElementById("lflt-" + k);
