@@ -53,6 +53,25 @@ deployed with until you publish a new version. Keep the same deployment so the U
 The app checks `apiVersion` in every reply. An old deployment shows "The email service is running
 an old version" in the app instead of failing silently.
 
+## Firestore rules (who can change what)
+
+`firestore.rules` is published by hand (`firebase deploy --only firestore:rules`); GitHub doesn't
+deploy it. The Apps Script bot and email service use the owner's Google login, and Firebase
+Hosting/Actions use service accounts, so none of them are limited by these rules.
+
+| Data | Read | Write |
+|---|---|---|
+| `pickem_v14/shared_state` (pool) | everyone | commissioner: anything. Signed-in player: the profile registry, privacy settings, and the one profile named in `lastProfileWriter`, only if they own its pick doc |
+| `pickem_v14_users/{profile}` (a player's picks) | everyone | its owner (`ownerUid`), or a commissioner; an unowned doc can be claimed once |
+| `pickem_v14_accounts/{email_…}` (email, linked player, rivals) | owner, commissioner | owner, commissioner; no password hashes |
+| `pickem_v14_commissioners/*` | everyone | commissioner |
+| `pickem_v14_email_log` | commissioner | nobody (Apps Script only) |
+| `live_games/*` | everyone | everyone, until the GitHub jobs get a service account (`GOOGLE_SERVICE_ACCOUNT_JSON`) |
+
+A commissioner is a signed-in account with a Google-verified email that is built in
+(`michael4ts14@gmail.com`, `commissioner@separatedatturf.com`) or listed in
+`pickem_v14_commissioners/roles`. Addresses at the typo domain `separatedatturt.com` never count.
+
 ## Tests
 
 ```sh
@@ -66,6 +85,5 @@ node scenarios.js                    # week-flicker / write-permission checks
 SMOKE_URL=https://football-pickem-46206.web.app/ node smoke.js live.json   # against production
 
 # Firestore rules — local emulator (needs Java 21)
-cd tests/rules && npm install && cd ../..
-firebase emulators:exec --config tests/rules/firebase.json --only firestore --project demo-pickem "node --test tests/rules/rules.test.js"
+cd tests/rules && npm install && npm test
 ```

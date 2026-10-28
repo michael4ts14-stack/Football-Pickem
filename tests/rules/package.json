@@ -1,0 +1,7 @@
+{
+  "name": "pickem-rules-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "firebase emulators:exec --config firebase.json --only firestore --project demo-pickem \"node --test rules.test.mjs\"" },
+  "devDependencies": { "@firebase/rules-unit-testing": "^4.0.1", "firebase": "^11.0.0", "firebase-tools": "^15.0.0" }
+}

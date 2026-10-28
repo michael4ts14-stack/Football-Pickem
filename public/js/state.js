@@ -537,14 +537,15 @@ function pushMultiUserAndPrivacyToFirebase() {
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
   // Only push metadata (customUsers registry + profilePrivacy) and the current active profile's picks
   // so one device NEVER overwrites another user's picks!
+  // The active profile's picks go through pushProfileToFirebase below (it checks ownership);
+  // the Friday-night reveal switch is the commissioner's (Console), not saved from here.
   var payload = {
     customUsers: state.customUsers || [],
     profilePrivacy: state.profilePrivacy || {},
-    fridayNightRevealOverride: !!state.fridayNightRevealOverride,
     updatedAt: new Date().toISOString()
   };
-  if (activeProfile && activeProfile !== "test" && state[activeProfile]) {
-    payload[activeProfile] = state[activeProfile];
+  if (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
+    payload.fridayNightRevealOverride = !!state.fridayNightRevealOverride;
   }
   if (fsDb) {
     try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }); } catch (e) {}
