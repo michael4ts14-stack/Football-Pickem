@@ -161,13 +161,49 @@ function reportPoolEmailResult(label, res) {
   if (typeof renderCommissionerModalBody === "function") renderCommissionerModalBody();
 }
 
+// ---------- Commissioner console: status, kill switch ----------
+var EMAIL_SVC_STATUS = null;   // last "status" reply: { ok, broadcastsEnabled, quota, ... }
+var EMAIL_SVC_STATUS_AT = 0;
+
+function refreshEmailServiceStatus(force) {
+  if (!force && Date.now() - EMAIL_SVC_STATUS_AT < 60000) return;
+  EMAIL_SVC_STATUS_AT = Date.now();
+  callEmailService("status").then(function(res) { EMAIL_SVC_STATUS = res; renderEmailServicePanel(); });
+}
+
+function setPoolEmailsEnabled(on) {
+  var go = function() {
+    callEmailService("setBroadcastsEnabled", { enabled: !!on }).then(function(res) {
+      EMAIL_SVC_STATUS = Object.assign({}, EMAIL_SVC_STATUS || {}, res);
+      if (!res.ok) showAppToast(res.error);
+      renderEmailServicePanel();
+    });
+  };
+  if (on) confirmDanger("Turn on pool emails? The Wed/Thu nudge and the Saturday master sheet will email the whole pool when sent.", "Turn on", go);
+  else go();
+}
+
+function emailServiceStatusHtml() {
+  var st = EMAIL_SVC_STATUS;
+  if (!emailServiceUrl()) return "";
+  if (!st) return '<p class="muted-note">Checking the email service…</p>';
+  if (!st.ok && st.code !== "BROADCASTS_OFF") return '<p class="email-svc-last is-error">' + escapeShellHtml(st.error || "The email service didn't answer.") + '</p>';
+  var on = !!st.broadcastsEnabled;
+  return '<div class="list-row static email-svc-switch">' +
+      '<span class="list-row-text"><span class="list-row-title">Pool emails</span>' +
+      '<span class="list-row-sub">Nudge, Saturday master sheet and email-to-all. Receipts to one player always work.</span></span>' +
+      '<button type="button" class="switch" role="switch" aria-checked="' + on + '" aria-label="Pool emails" onclick="setPoolEmailsEnabled(' + !on + ')"><span></span></button>' +
+    '</div>';
+}
+
 // ---------- Commissioner console: Email service panel ----------
 function emailServicePanelHtml() {
   var url = emailServiceUrl();
   return '<section class="email-svc" id="email-svc-panel">' +
     '<h3 class="console-h">Email service</h3>' +
-    '<p class="email-svc-status"><span class="status-dot' + (url ? '' : ' is-off') + '"></span>' +
-      (url ? 'Configured' + (EMAIL_SERVICE.fromFirestore ? '' : ' (default URL; save it once to share it)') : 'Not configured') + '</p>' +
+    '<p class="email-svc-status"><span class="status-dot' + (!url ? ' is-off' : (EMAIL_SVC_STATUS && !EMAIL_SVC_STATUS.ok && EMAIL_SVC_STATUS.code !== "BROADCASTS_OFF" ? ' is-stale-bad' : '')) + '"></span>' +
+      (!url ? 'Not configured' : ((EMAIL_SVC_STATUS && EMAIL_SVC_STATUS.ok) ? 'Connected' : 'Configured') + (EMAIL_SERVICE.fromFirestore ? '' : ' (default URL; save it once to share it)')) + '</p>' +
+    emailServiceStatusHtml() +
     '<div class="email-svc-url"><input type="url" id="email-svc-url" class="search-input" value="' + escapeShellHtml(url) + '" placeholder="https://script.google.com/macros/s/…/exec" aria-label="Apps Script Web App URL" />' +
       '<button type="button" class="tool-btn" onclick="saveEmailServiceUrlFromConsole()">Save for everyone</button></div>' +
     '<p class="muted-note" id="email-svc-msg"></p>' +
@@ -191,7 +227,10 @@ var _emailSvcPrevCommishBody = renderCommissionerModalBody;
 renderCommissionerModalBody = function() {
   var res = _emailSvcPrevCommishBody.apply(this, arguments);
   var body = document.getElementById("commish-modal-body");
-  if (body && ACTIVE_COMMISH_TAB === "comms" && isVerifiedCommissioner()) body.insertAdjacentHTML("afterbegin", emailServicePanelHtml());
+  if (body && ACTIVE_COMMISH_TAB === "comms" && isVerifiedCommissioner()) {
+    body.insertAdjacentHTML("afterbegin", emailServicePanelHtml());
+    refreshEmailServiceStatus();
+  }
   return res;
 };
 

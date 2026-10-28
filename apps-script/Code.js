@@ -17,11 +17,14 @@ var ESPN_SB_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/football/c
 var ESPN_SUMMARY_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=";
 
 // ============================================================================
-// EMERGENCY KILL SWITCH FOR OUTBOUND POOL BROADCAST EMAILS (MANDATORY FIX 1)
-// Set to false to immediately stop all automated mass emails to the pool!
-// Must be explicitly enabled by Commissioner to send mass emails.
+// KILL SWITCH FOR POOL BROADCAST EMAILS (nudge, Saturday master sheet, email-to-all).
+// Stored in Script Properties (BROADCASTS_ENABLED = "true" / "false"), not in code, so a
+// commissioner can flip it from the app's Console without a redeploy. Off unless set.
+// Single-user pick receipts are never blocked by it.
 // ============================================================================
-var ENABLE_OUTBOUND_POOL_BROADCAST_EMAILS = false;
+function broadcastsEnabled_() {
+  return PropertiesService.getScriptProperties().getProperty("BROADCASTS_ENABLED") === "true";
+}
 
 // Web App GET endpoint so index.html can trigger an instant Gmail scrape or live ESPN sync from any browser
 function doGet(e) {
@@ -158,9 +161,9 @@ function autoScrapeWeeklyPickemToFirebase() {
 // 2. Sat Morning Master Spreadsheet Email: checks if day is Sat >= 8:00 AM CST (or sheet synced) and emails master CSV
 function checkAndDispatchScheduledOutboundEmails() {
   // 1. EMERGENCY KILL-SWITCH CHECK (MANDATORY FIX 1)
-  if (!ENABLE_OUTBOUND_POOL_BROADCAST_EMAILS) {
-    Logger.log("🚫 Scheduled outbound email check suppressed: ENABLE_OUTBOUND_POOL_BROADCAST_EMAILS is false.");
-    return { ok: false, skipped: true, reason: "ENABLE_OUTBOUND_POOL_BROADCAST_EMAILS is false" };
+  if (!broadcastsEnabled_()) {
+    Logger.log("Scheduled outbound email check suppressed: pool emails are switched off (BROADCASTS_ENABLED).");
+    return { ok: false, skipped: true, reason: "Pool emails are switched off (BROADCASTS_ENABLED)" };
   }
   var now = new Date();
   var cstDayStr = Utilities.formatDate(now, "America/Chicago", "u"); // 1=Mon .. 7=Sun (ISO)

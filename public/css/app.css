@@ -1017,3 +1017,4 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
 .email-svc-last { margin: 8px 0 0; font-size: 14px; }
 .email-svc-last.is-error { color: var(--text); border-left: 3px solid var(--loss); padding-left: 8px; }
+.email-svc-switch { padding: 10px 0; border-top: 1px solid var(--border); margin-top: 10px; }

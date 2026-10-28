@@ -20,6 +20,7 @@ var BUILT_IN_COMMISSIONER_EMAILS = ["michael4ts14@gmail.com", "commissioner@sepa
 var EMAIL_FROM_NAME = "Separated at Turf Pick'em";
 var EMAIL_REPLY_TO = "separatedatturf@gmail.com";
 var APP_URL = "https://football-pickem-46206.web.app";
+var RECEIPTS_PER_HOUR = 5;
 
 function emailJson_(obj) {
   obj.apiVersion = EMAIL_API_VERSION;
@@ -156,8 +157,14 @@ function handleEmailPost_(e) {
     var shared = fetchFirebaseNode("") || {};
 
     if (action === "sendPickReceipt") return emailJson_(sendPickReceipt_(who, shared, data));
-    if (action === "sendWedThuNudge") { requireCommissioner_(who); return emailJson_(sendWedThuNudge_(who, shared, data)); }
-    if (action === "sendSaturdayMasterSheet" || action === "emailMasterCsvToAll") { requireCommissioner_(who); return emailJson_(sendMasterSheet_(who, shared, data)); }
+    if (action === "status") { requireCommissioner_(who); return emailJson_({ ok: true, broadcastsEnabled: broadcastsEnabled_() }); }
+    if (action === "setBroadcastsEnabled") {
+      requireCommissioner_(who);
+      PropertiesService.getScriptProperties().setProperty("BROADCASTS_ENABLED", data.enabled ? "true" : "false");
+      return emailJson_({ ok: true, broadcastsEnabled: broadcastsEnabled_() });
+    }
+    if (action === "sendWedThuNudge") { requireCommissioner_(who); requireBroadcastsAllowed_(data); return emailJson_(sendWedThuNudge_(who, shared, data)); }
+    if (action === "sendSaturdayMasterSheet" || action === "emailMasterCsvToAll") { requireCommissioner_(who); requireBroadcastsAllowed_(data); return emailJson_(sendMasterSheet_(who, shared, data)); }
     throw emailError_("UNKNOWN_ACTION", "Unknown action: " + action);
   } catch (err) {
     return emailJson_(Object.assign({ ok: false, code: err.emailCode || "SERVER_ERROR", error: err.emailCode ? err.message : String(err) }, err.extra || {}));
@@ -176,6 +183,11 @@ function sendPickReceipt_(who, shared, data) {
   var cache = CacheService.getScriptCache();
   var dupKey = "rcpt_" + Utilities.base64EncodeWebSafe(who.email + "_" + wk).substring(0, 50);
   if (cache.get(dupKey)) return { ok: true, suppressedDuplicate: true, sentTo: who.email };
+  // Per-user limit on top of the 45s duplicate guard.
+  var rlKey = "rl_" + Utilities.base64EncodeWebSafe(who.email).substring(0, 50);
+  var count = parseInt(cache.get(rlKey) || "0", 10);
+  if (count >= RECEIPTS_PER_HOUR) throw emailError_("RATE_LIMITED", "You've requested " + RECEIPTS_PER_HOUR + " receipts in the last hour. Try again later.");
+  cache.put(rlKey, String(count + 1), 3600);
   cache.put(dupKey, "sent", 45);
 
   var lines = receiptLines_(games, mine.picks);
@@ -193,6 +205,12 @@ function buildReceiptEmail_(name, wk, tb, lines) {
 }
 
 // ---------- Broadcasts ----------
+// One kill switch for every pool email. A commissioner's test send to explicit
+// testRecipients still works while it's off, so sends can be tested without the pool.
+function requireBroadcastsAllowed_(data) {
+  var isTest = Array.isArray(data.testRecipients) && data.testRecipients.length;
+  if (!broadcastsEnabled_() && !isTest) throw emailError_("BROADCASTS_OFF", "Pool emails are switched off. A commissioner can turn them on in Console › Banner & Recap.");
+}
 function poolEmailRecipients_(shared) {
   var cfg = shared.commissionerConfig || {};
   var recMap = {};
@@ -220,7 +238,6 @@ function sendEach_(recipients, buildFn) {
 }
 
 function sendWedThuNudge_(who, shared, data) {
-  if (!ENABLE_OUTBOUND_POOL_BROADCAST_EMAILS) throw emailError_("BROADCASTS_OFF", "Pool emails are switched off.");
   var cfg = shared.commissionerConfig || {};
   var curWeek = parseInt(shared.currentWeek, 10) || 8;
   var wk = shared.weekLabel || ("Week " + curWeek);
