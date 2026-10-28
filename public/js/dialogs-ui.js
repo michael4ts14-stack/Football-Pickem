@@ -147,9 +147,9 @@ function chooseRosterNameForNewAccount(accountName) {
   return _rosterChooserPromise;
 }
 
-function filterRosterChooser(q) {
+function filterRosterChooser(q, listId) {
   q = String(q || "").trim().toLowerCase();
-  var rows = document.querySelectorAll("#roster-chooser-list .list-row");
+  var rows = document.querySelectorAll("#" + (listId || "roster-chooser-list") + " .list-row");
   for (var i = 0; i < rows.length; i++) rows[i].hidden = !!q && rows[i].getAttribute("data-name").indexOf(q) === -1;
 }
 

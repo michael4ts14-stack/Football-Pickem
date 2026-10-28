@@ -1389,3 +1389,18 @@ body.page-scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overf
   .users-facts dt { font-size: 10px; }
   .users-facts dd { font-size: 13px; }
 }
+
+/* ---------- Invite links ---------- */
+.invite-status { margin: 4px 0 8px; color: var(--text-muted); }
+.invite-status.is-active { color: var(--win); }
+.invite-link-box { padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--raised); margin-bottom: 8px; overflow-wrap: anywhere; }
+.invite-actions { flex-wrap: wrap; }
+.invite-expiry { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-muted); }
+.invite-path { padding: 12px 0; border-top: 1px solid var(--border); }
+.invite-path-h { font-family: var(--font-head); font-size: 18px; margin: 0 0 4px; }
+.invite-search { width: 100%; margin: 6px 0 8px; }
+.invite-claim-list { max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }
+.invite-claim-row { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 48px; }
+.invite-claim-row[disabled] { opacity: 0.55; cursor: not-allowed; }
+.invite-wide { width: 100%; min-height: 48px; }
+.invite-primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }

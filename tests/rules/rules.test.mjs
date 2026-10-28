@@ -2,7 +2,7 @@
 import { test, before, after } from "node:test";
 import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, getDocs, collection, deleteField, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, getDocs, collection, deleteField, deleteDoc, Timestamp } from "firebase/firestore";
 
 let env;
 const J = { uid: "uid-justin", email: "justin@example.com" };      // owns u_justinc
@@ -176,6 +176,23 @@ test("invite code season: right code gets a pass, then new players add themselve
   await assertSucceeds(setDoc(BD(db(O), "u_newguy"), bind(O, "New Guy", "self_new")));
   await assertFails(setDoc(BD(db(O), "u_old"), bind(O, "Old", "self_new")));                // existing player isn't "new"
   await assertSucceeds(setDoc(doc(db(O), "pickem_v14_users/u_newguy"), { picks, ownerUid: O.uid }));
+});
+
+test("invite links: a revoked or expired link gives no pass; a live one with an expiry does", async () => {
+  await seed();
+  const P = (d, uid) => doc(d, "pickem_v14_invite_passes/" + uid);
+  const setInvite = (v) => env.withSecurityRulesDisabled((c) => setDoc(doc(c.firestore(), "pickem_v14_security/invite"), v));
+  await setInvite({ code: "TURF2026", revoked: true });
+  await assertFails(setDoc(P(db(O), O.uid), { code: "TURF2026" }));                        // turned off
+  await setInvite({ code: "TURF2026", revoked: false, expiresAtTs: Timestamp.fromMillis(Date.now() - 60000) });
+  await assertFails(setDoc(P(db(O), O.uid), { code: "TURF2026" }));                        // expired
+  await setInvite({ code: "", revoked: true });
+  await assertFails(setDoc(P(db(O), O.uid), { code: "" }));                                // no code
+  await setInvite({ code: "NEWCODE8", revoked: false, expiresAtTs: Timestamp.fromMillis(Date.now() + 3600000) });
+  await assertFails(setDoc(P(db(O), O.uid), { code: "TURF2026" }));                        // old code after regenerate
+  await assertSucceeds(setDoc(P(db(O), O.uid), { code: "NEWCODE8" }));
+  await setInvite({ code: "NEVEREXP", revoked: false, expiresAtTs: null });
+  await assertSucceeds(setDoc(P(db(J), J.uid), { code: "NEVEREXP" }));                     // no expiry
 });
 
 test("account records: private to their owner and commissioners; no password hashes", async () => {
