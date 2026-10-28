@@ -345,6 +345,7 @@ function commishDeletePlayerPicks(memberName) {
         fsDb.collection("pickem_v14_users").doc(pk).set({
           picks: {},
           _picksCleared: true,
+          currentWeek: state.currentWeek,
           deletedByCommissionerAt: nowIso,
           updatedAt: nowIso
         }, { merge: true }).catch(function() {});

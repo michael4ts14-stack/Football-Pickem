@@ -76,10 +76,13 @@ function serve() {
   });
   check("non-commissioner pushes write nothing to shared_state", !r1.isCommish && r1.shared.length === 0, r1);
 
-  // 2. A pick save writes the profile but never currentWeek/weekLabel.
+  // 2. A pick save writes the profile but never currentWeek/weekLabel. (Signed out, nothing is
+  // saved at all, so the test signs in a stand-in session for the save.)
   const r2 = await page.evaluate(() => {
     const before = window.__writes.length;
-    pushProfileToFirebase(activeProfile);
+    const prevSession = AUTH_SESSION;
+    AUTH_SESSION = { uid: "scenario", email: "scenario@example.com", boundProfileKey: "michael" };
+    try { pushProfileToFirebase("michael"); } finally { AUTH_SESSION = prevSession; }
     return window.__writes.slice(before).filter((w) => w.path === "pickem_v14/shared_state");
   });
   check("profile save does not write the week", r2.length === 1 && r2[0].keys.indexOf("currentWeek") === -1 && r2[0].keys.indexOf("weekLabel") === -1, r2);
@@ -109,9 +112,23 @@ function serve() {
   }, r3.liveWeek);
   check("returning restores the live week", r4.week === r3.liveWeek && r4.first === r3.liveFirst && r4.viewing === null && r4.pending === null && r4.selected === "week_" + r3.liveWeek, r4);
 
+  // 6. A player linked to an app account with no picks this week keeps the official sheet's picks.
+  const r6 = await page.evaluate(() => {
+    const before = window.__writes.length;
+    ensureMultiUserAndPrivacyState();
+    state.customUsers.push({ key: "u_scenariosheet", name: "Scenario Sheet", linkedMemberName: "Scenario Sheet", priorPts: 100 });
+    state.u_scenariosheet = { picks: {}, tiebreaker: "28-24", target: 20 };
+    const sheet = {}; GAMES.forEach((g) => { sheet[g.id] = g.home; });
+    state.poolMembers.push({ name: "Scenario Sheet", priorPts: 100, picks: sheet, awaitingSheet: false });
+    regradeAllPoolMembersLive();
+    const pm = findPoolMemberByName("Scenario Sheet");
+    return { count: pm.submittedPicksCount, games: GAMES.length, awaiting: pm.awaitingSheet, writes: window.__writes.length - before };
+  });
+  check("linked account without app picks keeps its sheet picks", r6.count === r6.games && !r6.awaiting && r6.writes === 0, r6);
+
   // 5. Commissioner bot-status pill reads live_games/bot_status.
   const pill = await page.evaluate(() => { const el = document.getElementById("bot-sync-pill"); return el ? { text: el.textContent, title: el.title } : null; });
-  check("bot status pill shows the last clean bot run", pill && /^🤖 [✓⚠] (\d+[mhd] ago|never)$/.test(pill.text) && /Gmail bot/.test(pill.title), pill);
+  check("bot status pill shows the last clean bot run", pill && /^Bot (ok|errors) · (\d+[mhd] ago|never)$/.test(pill.text) && /Gmail bot/.test(pill.title), pill);
 
   check("no page errors", pageErrors.length === 0, pageErrors);
 

@@ -941,9 +941,6 @@ async function importStrictSheetText() {
     if (wkMatch) {
       state.currentWeek = parseInt(wkMatch[1], 10);
       state.weekLabel = "Week " + state.currentWeek;
-    } else {
-      state.currentWeek = 9;
-      state.weekLabel = "Week 9";
     }
     resetPoolPicksForNewWeek(false);
     hardResetToDefaults();

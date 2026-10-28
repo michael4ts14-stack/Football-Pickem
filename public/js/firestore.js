@@ -108,12 +108,19 @@ function startFirebaseRealtimeListeners() {
             }
           }
 
-          var isClearedDoc = !!(uData._picksCleared || (uData.picks && Object.keys(uData.picks).length === 0));
+          // Cleared means a commissioner emptied this player's picks this week and they haven't
+          // picked again. An account with no picks yet, or one cleared in an earlier week, must
+          // not hide the player's sheet picks.
+          var liveGames = viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES;
+          var liveWeek = parseInt(viewingArchive ? LIVE_WEEK_SNAPSHOT.currentWeek : state.currentWeek, 10) || 0;
+          var hasLivePicks = hasSubmittedPicksForCurrentSlate(uData.picks, liveGames);
+          var isClearedDoc = !!(uData._picksCleared && !hasLivePicks && liveWeek && parseInt(uData.currentWeek, 10) === liveWeek);
           var linkedLow = standardizeParticipantName(uData.linkedMemberName || uData.displayName || "").toLowerCase();
           if (isClearedDoc) {
             if (!state.deletedPicksByMember) state.deletedPicksByMember = {};
             if (linkedLow) state.deletedPicksByMember[linkedLow] = true;
-          } else if (linkedLow && state.deletedPicksByMember && state.deletedPicksByMember[linkedLow]) {
+          } else if (linkedLow && state.deletedPicksByMember && state.deletedPicksByMember[linkedLow] && hasLivePicks) {
+            // Picked again after a clear.
             if ((Date.now() - lastLocalPickTs) < 4000) continue;
             delete state.deletedPicksByMember[linkedLow];
           }
@@ -447,14 +454,15 @@ function renderBotSyncPill() {
   var gmail = BOT_STATUS && BOT_STATUS.gmail;
   var espn = BOT_STATUS && BOT_STATUS.espn;
   if (!gmail) {
-    el.textContent = "🤖 Bot: no data";
+    el.textContent = "Bot: no data";
     el.style.color = "var(--text)";
     return;
   }
   var lastOk = gmail.lastSuccessAt;
   var staleMs = lastOk ? (Date.now() - new Date(lastOk).getTime()) : Infinity;
   var hasErrors = gmail.ok === false;
-  el.textContent = (hasErrors ? "🤖 ⚠ " : "🤖 ✓ ") + formatAgo(lastOk);
+  // Text labels: the redesign strips emoji from the page.
+  el.textContent = (hasErrors ? "Bot errors · " : "Bot ok · ") + formatAgo(lastOk);
   el.style.color = hasErrors ? "#f87171" : (staleMs > 15 * 60 * 1000 ? "#fbbf24" : "#34d399");
   var lines = [
     "Gmail bot — last clean run: " + (lastOk ? new Date(lastOk).toLocaleString() : "never"),
