@@ -409,8 +409,16 @@ function compareTargetOptionsHtml() {
   var cur = resolveCompareTargetDescriptor();
   var curTarget = cur ? state.compareTargetKey : "";
 
-  var opts = '<option value=""' + (curTarget ? '' : ' selected') + '>Choose someone to compare with</option>' +
-    '<optgroup label="App users">';
+  var opts = '<option value=""' + (curTarget ? '' : ' selected') + '>Choose someone to compare with</option>';
+  // Quick choice: whoever is in 1st place right now (not you).
+  var myLow = (typeof getMyLeaderboardNameLower === "function") ? getMyLeaderboardNameLower() : "";
+  var leader = (state.poolMembers || []).filter(function(p) { return p && p.name && standardizeParticipantName(p.name).toLowerCase() !== myLow; })
+    .sort(function(a, b) { return (parseFloat(b.newLiveTotal || b.priorPts) || 0) - (parseFloat(a.newLiveTotal || a.priorPts) || 0); })[0];
+  if (leader) {
+    var leaderKey = "pm:" + leader.name;
+    opts += '<option value="' + leaderKey + '"' + (curTarget === leaderKey ? ' selected' : '') + '>1st place: ' + leader.name + '</option>';
+  }
+  opts += '<optgroup label="App users">';
   for (var i = 0; i < allProfs.length; i++) {
     var pf = allProfs[i];
     if (pf.key === myKey || pf.isSandbox) continue;

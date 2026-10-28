@@ -593,3 +593,119 @@ applyPreset = function() {
   markGuestPicksTouched();
   return _guestPrevApplyPreset.apply(this, arguments);
 };
+
+// ---------- Pick progress status + "Next unpicked" ----------
+// "14 / 23 picked · Max 31 pts · Tiebreaker set", in the phone submit bar and the desktop
+// tie-breaker card, with a jump to the next game that still needs a pick.
+function myPickSummary() {
+  var picks = getMyPicksMap();
+  var out = { done: 0, total: GAMES.length, maxPts: 0, x1: 0, x2: 0, x3: 0, missing: [], lines: [] };
+  for (var i = 0; i < GAMES.length; i++) {
+    var g = GAMES[i];
+    var pick = getResolvedPickForGame(picks, g, false);
+    if (!pick) { out.missing.push(g); out.lines.push(g.id + ". " + g.away + " at " + g.home + ": no pick"); continue; }
+    var isAway = isSameTeamPick(pick, g.away, g);
+    var pts = (isAway ? (g.mondayAwayPts || g.awayPts) : (g.mondayHomePts || g.homePts)) || 1;
+    out.done++;
+    out.maxPts += pts;
+    if (pts >= 3) out.x3++; else if (pts === 2) out.x2++; else out.x1++;
+    out.lines.push(g.id + ". " + pick + " (" + pts + "x) over " + (isAway ? g.home : g.away));
+  }
+  var preview = typeof PLAYER_PREVIEW !== "undefined" && PLAYER_PREVIEW;
+  var tb = preview ? preview.tiebreaker : ((state[activeProfile] && state[activeProfile].tiebreaker) || "");
+  out.tiebreaker = /^\d{1,3}\s*-\s*\d{1,3}$/.test(String(tb).trim()) ? String(tb).trim() : "";
+  return out;
+}
+
+function renderPickStatusLines() {
+  var s = myPickSummary();
+  var html = '<span><strong>' + s.done + '</strong> / ' + s.total + ' picked</span>' +
+    '<span>Max ' + s.maxPts + ' pts</span>' +
+    '<span class="' + (s.tiebreaker ? '' : 'is-missing') + '">Tiebreaker ' + (s.tiebreaker ? 'set' : 'missing') + '</span>' +
+    (s.missing.length ? '<button type="button" class="link-btn" onclick="jumpToNextUnpicked()">Next unpicked</button>' : '');
+  var els = document.querySelectorAll(".pick-status-line");
+  for (var i = 0; i < els.length; i++) els[i].innerHTML = html;
+}
+
+function jumpToNextUnpicked() {
+  var s = myPickSummary();
+  if (!s.missing.length) return;
+  var g = s.missing[0];
+  var card = document.getElementById("game-card-" + g.id);
+  if (!card) {
+    // A filter or search is hiding it: show every game first.
+    var q = document.getElementById("team-search");
+    if (q) q.value = "";
+    setFilter("all");
+    card = document.getElementById("game-card-" + g.id);
+  }
+  if (!card) return;
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  card.classList.remove("is-flash");
+  void card.offsetWidth; // restart the highlight
+  card.classList.add("is-flash");
+  setTimeout(function() { card.classList.remove("is-flash"); }, 1600);
+  var btn = card.querySelector(".team-pick");
+  if (btn) btn.focus({ preventScroll: true });
+}
+
+var _pickStatusPrevHead = updatePicksHead;
+updatePicksHead = function() {
+  var res = _pickStatusPrevHead.apply(this, arguments);
+  renderPickStatusLines();
+  return res;
+};
+
+// ---------- Review before locking + copyable summary ----------
+function myPicksSummaryText() {
+  var s = myPickSummary();
+  var name = getProfileMetaByKey(activeProfile).name;
+  return "Separated at Turf " + (state.weekLabel || ("Week " + state.currentWeek)) + " picks: " + name + "\n" +
+    s.done + "/" + s.total + " picked · " + s.x1 + " favorites (1x) · " + s.x2 + " 2x dogs · " + s.x3 + " 3x dogs · max " + s.maxPts + " pts\n" +
+    "Tiebreaker: " + (s.tiebreaker || "not set") + "\n\n" + s.lines.join("\n");
+}
+
+function copyMyPicksSummary() {
+  var txt = myPicksSummaryText();
+  var done = function() { showAppToast("Copied your picks summary."); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(done).catch(function() { fallbackCopyText(txt); done(); });
+  } else { fallbackCopyText(txt); done(); }
+}
+
+function fallbackCopyText(txt) {
+  var ta = document.createElement("textarea");
+  ta.value = txt;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); } catch (e) {}
+  document.body.removeChild(ta);
+}
+
+function openPicksReviewSheet() {
+  var bd = document.getElementById("panel-sheet-backdrop");
+  var body = document.getElementById("panel-sheet-body");
+  if (!bd || !body) return;
+  closePanelSheet();
+  var s = myPickSummary();
+  document.getElementById("panel-sheet-title").textContent = "Review your picks";
+  body.innerHTML =
+    '<div class="review-stats">' +
+      '<div><span class="review-num">' + s.done + '/' + s.total + '</span><span>picked</span></div>' +
+      '<div><span class="review-num">' + s.x1 + '</span><span>favorites (1x)</span></div>' +
+      '<div><span class="review-num">' + (s.x2 + s.x3) + '</span><span>underdogs (' + s.x2 + ' at 2x, ' + s.x3 + ' at 3x)</span></div>' +
+      '<div><span class="review-num">' + s.maxPts + '</span><span>max points</span></div>' +
+    '</div>' +
+    '<p class="sheet-meta">Tiebreaker: <strong>' + escapeShellHtml(s.tiebreaker || "not set") + '</strong></p>' +
+    (s.missing.length
+      ? '<p class="review-warn">No pick yet: ' + s.missing.map(function(g) { return escapeShellHtml(g.awayCode + " at " + g.homeCode); }).join(", ") + '</p>'
+      : '') +
+    '<div class="review-actions">' +
+      '<button type="button" class="btn-submit is-ready" onclick="closePanelSheet(); lockAndSavePicks();">' + (s.missing.length ? 'Lock anyway' : 'Lock picks') + '</button>' +
+      '<button type="button" class="btn-sm" onclick="copyMyPicksSummary()">Copy my picks summary</button>' +
+      '<button type="button" class="btn-sm" onclick="closePanelSheet()">Keep editing</button>' +
+    '</div>';
+  bd.hidden = false;
+}
