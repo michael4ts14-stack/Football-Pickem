@@ -516,6 +516,12 @@ function hasGameKickedOff(gameId) {
   return !isNaN(ms) && Date.now() >= ms;
 }
 
+// A game ESPN never matched has no kickoff time, so it can't lock at kickoff on its own.
+function hasKickoffTime(gameId) {
+  var g = findGameById(gameId);
+  return !!(g && g.kickoffIso && !isNaN(new Date(g.kickoffIso).getTime()));
+}
+
 // Players the commissioner let past this week's deadline (Submissions > Force unlock), keyed by
 // standardized name with the week it applies to.
 function isProfileForceUnlocked(profKey) {
@@ -548,7 +554,8 @@ function isGameLockedByCommissioner(gameId) {
     return pastDeadline || hasGameKickedOff(gameId);
   }
   if (cfg.lockMode === "rolling_kickoff") {
-    return hasGameKickedOff(gameId);
+    // No kickoff time: lock at the pick deadline instead of never.
+    return hasGameKickedOff(gameId) || (!hasKickoffTime(gameId) && isPastPickDeadline());
   }
   return false;
 }
@@ -1234,6 +1241,14 @@ async function commishPublishSelectedEspnSlate() {
   if (!chks || chks.length === 0) {
     showAppToast("⚠️ Select at least 1 game to build a slate.");
     return;
+  }
+  // Every game needs a kickoff time so it locks at kickoff.
+  for (var ci = 0; ci < chks.length; ci++) {
+    var chk = ESPN_CANDIDATE_SLATE_GAMES[parseInt(chks[ci].value, 10)];
+    if (chk && !chk.dateIso) {
+      showAppToast("⚠️ " + chk.away + " at " + chk.home + " has no kickoff time from ESPN. Swap it out or reload the schedule.");
+      return;
+    }
   }
   saveCurrentWeekToArchive(false);
   var newGames = [];

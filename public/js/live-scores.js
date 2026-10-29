@@ -953,7 +953,10 @@ async function importStrictSheetText() {
     pushCustomGamesToFirebase();
     pushWatchlistOrStandingsToFirebase();
     renderAll();
-    showAppToast("✓ Imported " + parsedGames.length + " official games with correct lines!");
+    // Sheet games get their kickoff time from ESPN; any it couldn't match lock at the deadline.
+    var noKick = GAMES.filter(function(g) { return !hasKickoffTime(g.id); }).map(function(g) { return "#" + g.id; });
+    showAppToast("✓ Imported " + parsedGames.length + " official games with correct lines!" +
+      (noKick.length ? " ⚠️ No ESPN kickoff time for " + noKick.join(", ") + ": they lock at the pick deadline." : ""));
   }
 }
 
