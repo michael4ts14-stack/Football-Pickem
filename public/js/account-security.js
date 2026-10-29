@@ -1061,7 +1061,11 @@ function renderAccountSecurityBits() {
   });
   if (typeof renderSimpleGuestAccountBar === "function") renderSimpleGuestAccountBar();
   var bd = document.getElementById("auth-modal-backdrop");
-  if (isUnlinkedAccountSession() && bd && bd.style.display === "flex") openAuthModal();
+  if (isUnlinkedAccountSession() && bd && bd.style.display === "flex") {
+    // Rebuilding the modal wipes a half-typed invite code, so leave it alone while an input is in use.
+    var typing = Array.prototype.some.call(bd.querySelectorAll("input"), function(inp) { return inp === document.activeElement || !!inp.value; });
+    if (!typing) openAuthModal();
+  }
 }
 
 var _acctPrevRenderAll = renderAll;
