@@ -106,10 +106,11 @@ function loadBoundAccounts() {
       }, function(snap) {
         var next = {};
         snap.forEach(function(d) { next[d.id] = d.data() || {}; });
+        var prev = BOUND_ACCOUNTS;
         BOUND_ACCOUNTS = next;
         ACCOUNT_SECURITY_LIVE = true;
         if (first) { first = false; resolve(true); return; }
-        onBoundAccountsChanged();
+        onBoundAccountsChanged(prev);
       }, { quiet: true, onError: function() {
         // Older rules have no bindings collection: leave linking as it was.
         ACCOUNT_SECURITY_LIVE = false;
@@ -121,7 +122,15 @@ function loadBoundAccounts() {
 }
 
 // A binding appeared for this unlinked account (the commissioner approved it): link now.
-function onBoundAccountsChanged() {
+function onBoundAccountsChanged(prev) {
+  // The commissioner unlinked or reassigned this device's player: drop to the unlinked state
+  // instead of leaving a session whose saves are denied.
+  var bk = AUTH_SESSION && AUTH_SESSION.boundProfileKey;
+  if (bk && prev && prev[bk] && prev[bk].uid === AUTH_SESSION.uid && (!BOUND_ACCOUNTS[bk] || BOUND_ACCOUNTS[bk].uid !== AUTH_SESSION.uid)) {
+    enterUnlinkedAccountSession({ uid: AUTH_SESSION.uid, email: AUTH_SESSION.email, displayName: AUTH_SESSION.displayName, provider: AUTH_SESSION.provider }, { status: "choose", memberName: "" });
+    showAppToast("The commissioner changed your player link. Pick your player again or ask them.");
+    return;
+  }
   if (AUTH_SESSION && !AUTH_SESSION.boundProfileKey && AUTH_SESSION.uid && ownedProfileKeys(AUTH_SESSION.uid).length) {
     var key = ownedProfileKeys(AUTH_SESSION.uid)[0];
     var b = BOUND_ACCOUNTS[key];
