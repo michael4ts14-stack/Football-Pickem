@@ -249,7 +249,7 @@ function updateLiveSyncAge() {
 
 function markLiveSynced(promise) {
   return Promise.resolve(promise).then(function(v) {
-    LAST_LIVE_SYNC_AT = Date.now();
+    if (!LIVE_POLL_FAILED) LAST_LIVE_SYNC_AT = Date.now();
     updateLiveSyncAge();
     return v;
   });

@@ -60,6 +60,8 @@ async function fetchScoreboardEvents() {
     }
   }
   extra = await Promise.all(extraPromises);
+  // fetchJsonSafe turns every network/HTTP error into null: all of them null means ESPN was unreachable.
+  if (!current.concat(extra).some(Boolean)) throw new Error("ESPN scoreboard unreachable");
   var seen = {}, events = [];
   // Process explicit week queries (extra) FIRST so every event gets its exact single-week number before multi-day date-range queries
   var all = extra.concat(current);

@@ -1,7 +1,9 @@
 // ============================================================================
 // UPDATED POLL LIVE SCORES, SCOREBOARD, STANDINGS, LIVE TAB & RESEARCH CARDS
 // ============================================================================
+var LIVE_POLL_FAILED = false; // last poll could not reach ESPN: live-ui.js must not stamp "Synced"
 async function pollLiveSaturdayScores(manual) {
+  LIVE_POLL_FAILED = false;
   var badge = document.getElementById("live-sync-badge") || document.createElement("span");
   if (manual) badge.textContent = "↻ Fetching CST Scores & Possession...";
   var gamesChanged = false;
@@ -200,6 +202,7 @@ async function pollLiveSaturdayScores(manual) {
     var clkEl = document.getElementById("live-tab-clock");
     if (clkEl) clkEl.textContent = cstNow + " CST";
   } catch (e) {
+    LIVE_POLL_FAILED = true;
     badge.textContent = "● CST Ready";
   }
   renderAll();
