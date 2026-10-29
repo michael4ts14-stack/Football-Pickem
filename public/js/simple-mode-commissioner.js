@@ -133,27 +133,45 @@ bindAuthenticatedAccountToProfile = async function(authUser, chosenMemberName) {
 };
 
 async function _bindCarryingGuestPicks(authUser, chosenMemberName) {
-  // Only picks made as a guest in this session (or an explicit "Create account") carry over, so older
-  // sandbox experiments on a shared device never overwrite an account's real picks.
-  var carryAsked = window._carryOverGuestPicksOnAuth || safeGetStorage("sat_carry_guest_picks_v1") === "1";
-  var touched = typeof guestPicksTouchedThisWeek === "function" ? guestPicksTouchedThisWeek() : !!window._guestPicksTouched;
-  var hadGuestDraft = (touched || carryAsked) && state.test && state.test.picks && Object.keys(state.test.picks).length > 0;
-  var guestPicksCopy = hadGuestDraft ? JSON.parse(JSON.stringify(state.test.picks)) : null;
-  var guestTbCopy = (hadGuestDraft && state.test.tiebreaker) ? state.test.tiebreaker : null;
+  // Only games the guest actually tapped this week carry over (not the prefilled
+  // recommendations or an older sandbox), and only into games the account hasn't picked.
+  var touchedIds = typeof guestTouchedGameIds === "function" ? guestTouchedGameIds() : [];
+  var guestPicks = (state.test && state.test.picks) || {};
+  var guestPicksCopy = {};
+  for (var t = 0; t < touchedIds.length; t++) {
+    if (guestPicks[touchedIds[t]]) guestPicksCopy[touchedIds[t]] = guestPicks[touchedIds[t]];
+  }
+  var guestTbCopy = (touchedIds.length && state.test && state.test.tiebreaker) ? state.test.tiebreaker : null;
 
   await _origBindAuthenticatedAccountToProfile(authUser, chosenMemberName);
 
   GUEST_BROWSING_MODE = false;
-  window._carryOverGuestPicksOnAuth = false;
-  window._guestPicksTouched = false;
   safeSetStorage("sat_carry_guest_picks_v1", "");
   safeSetStorage("sat_guest_picks_touched_week_v1", "");
 
-  if (guestPicksCopy && AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
-    var bKey = AUTH_SESSION.boundProfileKey;
-    if (!state[bKey]) state[bKey] = { picks: {}, tiebreaker: "28-24", target: 20 };
-    state[bKey].picks = Object.assign({}, state[bKey].picks || {}, guestPicksCopy);
-    if (guestTbCopy) state[bKey].tiebreaker = guestTbCopy;
+  if (!AUTH_SESSION || !AUTH_SESSION.boundProfileKey) return;
+  var bKey = AUTH_SESSION.boundProfileKey;
+  var existing = (state[bKey] && state[bKey].picks) || {};
+  var toCarry = {};
+  var count = 0;
+  for (var id in guestPicksCopy) {
+    if (existing[id]) continue;
+    if (typeof isGameLockedByCommissioner === "function" && isGameLockedByCommissioner(id)) continue;
+    toCarry[id] = guestPicksCopy[id];
+    count++;
+  }
+  var carryTb = guestTbCopy && !(state[bKey] && state[bKey].tiebreaker);
+  if (!count && !carryTb) return;
+
+  confirmDanger("Add the " + count + " pick" + (count === 1 ? "" : "s") + " you made as a guest to " + (AUTH_SESSION.displayName || "your account") +
+    "? Only games your account hasn't picked yet are filled; your existing picks stay as they are.", "Add picks", function() {
+    if (!AUTH_SESSION || AUTH_SESSION.boundProfileKey !== bKey) return;
+    if (!state[bKey]) state[bKey] = { picks: {}, tiebreaker: "", target: 20 };
+    if (!state[bKey].picks) state[bKey].picks = {};
+    for (var cid in toCarry) {
+      if (!state[bKey].picks[cid]) state[bKey].picks[cid] = toCarry[cid];
+    }
+    if (carryTb && !state[bKey].tiebreaker) state[bKey].tiebreaker = guestTbCopy;
     state[bKey]._manualEditsThisWeek = true;
     if (AUTH_SESSION.email) {
       ensureCommissionerConfig().playerEmailsMap[standardizeParticipantName(AUTH_SESSION.displayName || "").toLowerCase()] = AUTH_SESSION.email;
@@ -161,8 +179,8 @@ async function _bindCarryingGuestPicks(authUser, chosenMemberName) {
     saveCurrentState(bKey, false);
     regradeAllPoolMembersLive();
     renderAll();
-    showAppToast("✅ Carried over your picks from this device into your account (" + AUTH_SESSION.displayName + ")!");
-  }
+    showAppToast("✅ Added your guest picks to " + AUTH_SESSION.displayName + ".");
+  });
 }
 
 function startGuestPickingMode() {
@@ -179,10 +197,6 @@ function startGuestPickingMode() {
 }
 
 function openAuthModalCarryingGuestPicks(defaultMode) {
-  if (GUEST_BROWSING_MODE || activeProfile === "test" || !AUTH_SESSION) {
-    window._carryOverGuestPicksOnAuth = true;
-    safeSetStorage("sat_carry_guest_picks_v1", "1"); // survives the trip to Google on phones
-  }
   AUTH_MODAL_MODE = defaultMode || "signup";
   openAuthModal();
 }
