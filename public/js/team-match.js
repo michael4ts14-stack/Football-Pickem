@@ -941,10 +941,15 @@ function ensureWatchlistDefaults() {
       { id: "w3", name: "Rival #3", rank: "T-25th", priorPts: 101, picks: {} }
     ];
   }
-  if (!state.poolMembers || !Array.isArray(state.poolMembers) || state.poolMembers.length < 10) {
+  // The built-in roster is only a placeholder until the pool's own arrives: once the cloud has
+  // loaded, a small (or empty) league is the real one.
+  var seedRoster = typeof CLOUD_HYDRATED === "undefined" || !CLOUD_HYDRATED;
+  if (!Array.isArray(state.poolMembers)) state.poolMembers = [];
+  if (!Array.isArray(state.leaderboard)) state.leaderboard = [];
+  if (seedRoster && state.poolMembers.length === 0) {
     state.poolMembers = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_POOL_MEMBERS));
   }
-  if (!state.leaderboard || !Array.isArray(state.leaderboard) || state.leaderboard.length < 10) {
+  if (seedRoster && state.leaderboard.length === 0) {
     state.leaderboard = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_LEADERBOARD));
   }
   if (state.watchlist && state.watchlist[0] && state.watchlist[0].name === "Pool Leader") {
