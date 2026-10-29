@@ -100,18 +100,21 @@ function loadBoundAccounts() {
     if (typeof fsDb === "undefined" || !fsDb) { resolve(false); return; }
     var first = true;
     try {
-      fsDb.collection("pickem_v14_bindings").onSnapshot(function(snap) {
+      // quiet: older rules have no bindings collection, so this failure is expected there.
+      listenWithRetry("account links", function(ok, err) {
+        fsDb.collection("pickem_v14_bindings").onSnapshot(ok, err);
+      }, function(snap) {
         var next = {};
         snap.forEach(function(d) { next[d.id] = d.data() || {}; });
         BOUND_ACCOUNTS = next;
         ACCOUNT_SECURITY_LIVE = true;
         if (first) { first = false; resolve(true); return; }
         onBoundAccountsChanged();
-      }, function() {
+      }, { quiet: true, onError: function() {
         // Older rules have no bindings collection: leave linking as it was.
         ACCOUNT_SECURITY_LIVE = false;
         if (first) { first = false; resolve(false); }
-      });
+      } });
     } catch (e) { resolve(false); }
   });
   return BOUND_ACCOUNTS_READY;

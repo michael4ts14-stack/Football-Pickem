@@ -30,13 +30,53 @@ var pendingSharedStateTimer = null;
 var pendingUsersRenderTimer = null;
 var USER_DOC_META = {}; // pick doc id -> { updatedAt, archived } (Commissioner › Users: last active)
 
+// A Firestore listener that fails (permission or network error) is dead for good, so each one
+// is re-subscribed with backoff (2 s doubling to 60 s, reset by the next snapshot). While any
+// is down the sync status line says so; the first failure of an outage also shows a toast.
+// subscribe(next, err) makes the onSnapshot call. opts.quiet: no UI, just retry (expected failures).
+var LISTENER_DOWN = {}; // label -> true while failing
+function listenWithRetry(label, subscribe, onNext, opts) {
+  opts = opts || {};
+  var delay = 2000;
+  var start = function() {
+    try {
+      subscribe(function(snap) {
+        delay = 2000;
+        if (LISTENER_DOWN[label]) {
+          delete LISTENER_DOWN[label];
+          if (!opts.quiet) showListenerState();
+        }
+        onNext(snap);
+      }, function(err) {
+        if (!LISTENER_DOWN[label] && !opts.quiet && typeof showAppToast === "function") {
+          showAppToast("Live sync lost for " + label + " (" + ((err && err.code) || "offline?") + "). Retrying…");
+        }
+        LISTENER_DOWN[label] = true;
+        if (!opts.quiet) showListenerState();
+        if (opts.onError) opts.onError(err);
+        setTimeout(start, delay);
+        delay = Math.min(delay * 2, 60000);
+      });
+    } catch (e) { setTimeout(start, delay); delay = Math.min(delay * 2, 60000); }
+  };
+  start();
+}
+function showListenerState() {
+  var el = document.getElementById("cloud-status-text");
+  if (!el) return;
+  var down = Object.keys(LISTENER_DOWN);
+  el.textContent = down.length ? "⚠️ Live sync interrupted (" + down.join(", ") + "). Retrying…" : "🔥 Live sync restored.";
+}
+
 function startFirebaseRealtimeListeners() {
   if (fsDb) {
     try {
       // includeMetadataChanges: a snapshot skipped below is followed by one more when the
       // server confirms the write. Without it, a remote change that arrived together with our
       // pending write was never delivered again.
-      fsDb.collection("pickem_v14").doc("shared_state").onSnapshot({ includeMetadataChanges: true }, function(doc) {
+      listenWithRetry("shared state", function(next, err) {
+        fsDb.collection("pickem_v14").doc("shared_state").onSnapshot({ includeMetadataChanges: true }, next, err);
+      }, function(doc) {
         if (!doc || !doc.exists) return;
         // Our own just-saved data echoing back before the server confirms it: already on screen.
         if (doc.metadata && doc.metadata.hasPendingWrites) return;
@@ -48,21 +88,25 @@ function startFirebaseRealtimeListeners() {
           pendingSharedStateData = null;
           if (data) applyRemoteCloudData(data, "Cloud Firestore");
         }, REMOTE_APPLY_DEBOUNCE_MS);
-      }, function(err) {});
+      });
     } catch (e) {}
 
     // Apps Script bot heartbeat (written by Code.js every run): drives the 🤖 status pill.
     try {
-      fsDb.collection("live_games").doc("bot_status").onSnapshot(function(doc) {
+      listenWithRetry("bot status", function(next, err) {
+        fsDb.collection("live_games").doc("bot_status").onSnapshot(next, err);
+      }, function(doc) {
         BOT_STATUS = (doc && doc.exists) ? doc.data() : null;
         renderBotSyncPill();
-      }, function(errBot) {});
+      }, { quiet: true });
       setInterval(renderBotSyncPill, 60000);
     } catch (eBot) {}
 
     // Season history: one doc per archived week (`pickem_v14_archives/week_N`).
     try {
-      fsDb.collection("pickem_v14_archives").onSnapshot(function(snapshot) {
+      listenWithRetry("season history", function(next, err) {
+        fsDb.collection("pickem_v14_archives").onSnapshot(next, err);
+      }, function(snapshot) {
         if (!snapshot || !snapshot.docChanges) return;
         ensureWeekArchivesState();
         snapshot.docChanges().forEach(function(ch) {
@@ -71,14 +115,16 @@ function startFirebaseRealtimeListeners() {
         });
         populateWeekArchiveDropdown();
         if (currentMainView === "standings") renderSeasonArchiveHub();
-      }, function(errArch) {});
+      });
     } catch (eArch) {}
 
     // Dedicated Per-User Instance Collection (`pickem_v14_users/{profileKey}`)
     // Every user writes their own picks to their own document so 80+ users can pick simultaneously
     // with zero document contention and real-time updates across all connected browsers!
     try {
-      fsDb.collection("pickem_v14_users").onSnapshot(function(snapshot) {
+      listenWithRetry("picks", function(next, err) {
+        fsDb.collection("pickem_v14_users").onSnapshot(next, err);
+      }, function(snapshot) {
         if (!snapshot || !snapshot.docChanges) return;
         var changes = snapshot.docChanges();
         if (!changes.length) return;
@@ -95,7 +141,7 @@ function startFirebaseRealtimeListeners() {
           if (applyRemotePickDoc(docId, uData)) anyRemoteApplied = true;
         }
         if (anyRemoteApplied) scheduleRemotePicksRender();
-      }, function(err2) {});
+      });
     } catch (e2) {}
   }
 }
