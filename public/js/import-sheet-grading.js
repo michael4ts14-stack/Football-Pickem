@@ -506,7 +506,7 @@ async function triggerAppsScriptGmailScraper() {
   var url = urlInput ? urlInput.value.trim() : (state.gasWebAppUrl || "");
   if (url) {
     state.gasWebAppUrl = url;
-    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    saveLocalState();
   }
 
   if (typeof google !== "undefined" && google.script && google.script.run && google.script.run.forceRescanLatestSpreadsheetEmail) {

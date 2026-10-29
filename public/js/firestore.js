@@ -269,7 +269,7 @@ function scheduleRemotePicksRender() {
     isApplyingRemoteUpdate = true;
     try {
       regradeAllPoolMembersLive();
-      safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+      saveLocalState();
       renderAll();
     } finally {
       isApplyingRemoteUpdate = false;
@@ -580,7 +580,7 @@ function applyRemoteCloudData(data, sourceLabel) {
     var neededClean = sanitizeStateForActiveSlate();
     ensureWatchlistDefaults();
     regradeAllPoolMembersLive();
-    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    saveLocalState();
     setInputValueUnlessEditing(document.getElementById("tiebreaker-input"), state[activeProfile].tiebreaker || "28-24");
     setInputValueUnlessEditing(document.getElementById("target-slider"), state[activeProfile].target || 20);
 
@@ -893,7 +893,7 @@ function moveSharedStateArchives(oldArchives) {
     });
   })).then(function() {
     if (movedAny) {
-      safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+      saveLocalState();
       populateWeekArchiveDropdown();
       if (currentMainView === "standings") renderSeasonArchiveHub();
     }
@@ -928,7 +928,7 @@ function retryUnsyncedLocalArchives(poolLoaded) {
   var archives = state.weekArchives || {};
   var keys = Object.keys(archives).filter(function(k) { return isValidArchive(archives[k]) && archives[k]._unsyncedLocal; });
   if (!keys.length || RETRYING_UNSYNCED_ARCHIVES) return;
-  var save = function() { safeSetStorage("sat_week7_official_v14", JSON.stringify(state)); };
+  var save = function() { saveLocalState(); };
   if (!canWriteSharedPoolState()) {
     keys.forEach(function(k) { delete archives[k]._unsyncedLocal; });
     save();
@@ -978,7 +978,7 @@ function sharedWeekFields() {
 function pushWatchlistOrStandingsToFirebase() {
   if (isApplyingRemoteUpdate) return;
   state.liveScores = LIVE_SCORES;
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   if (!canWriteSharedPoolState()) return;
   var payload = Object.assign({
     watchlist: state.watchlist,

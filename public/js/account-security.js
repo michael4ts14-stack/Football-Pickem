@@ -748,7 +748,7 @@ async function archiveProfile(profKey, reason) {
   delete BOUND_ACCOUNTS[profKey];
   if (activeProfile === profKey) activeProfile = getMyInstanceProfileKey();
   if (state.compareTargetKey === profKey) state.compareTargetKey = "";
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
 }
 
 async function restoreArchivedProfile(profKey) {
@@ -775,7 +775,7 @@ async function restoreArchivedProfile(profKey) {
     var d = snap && snap.exists ? snap.data() : null;
     if (d && d.picks) state[profKey] = Object.assign({}, state[profKey] || {}, { picks: d.picks, tiebreaker: d.tiebreaker || "28-24", target: d.target || 20, linkedMemberName: d.linkedMemberName || record.linkedMemberName });
   } catch (e) {}
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
 }
 
 function removeAppOnlyPlayer(profKey) {

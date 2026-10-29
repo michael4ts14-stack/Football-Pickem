@@ -227,7 +227,7 @@ function applyDuesChanges(changes, auditText) {
   var before = {};
   Object.keys(changes).forEach(function(low) { before[low] = isDuesPaid(low); map[duesStorageKey(low)] = !!changes[low]; paintDuesRow(low); });
   refreshDuesChrome();
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   return saveDuesFlags(changes, auditText).catch(function(e) {
     Object.keys(before).forEach(function(low) { map[duesStorageKey(low)] = before[low]; paintDuesRow(low); });
     refreshDuesChrome();

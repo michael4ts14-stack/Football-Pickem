@@ -468,7 +468,7 @@ function resolveCompareTargetDescriptor() {
 function setCompareTarget(targetKey) {
   state.compareTargetKey = targetKey || "";
   safeSetStorage(COMPARE_TARGET_STORAGE_KEY, state.compareTargetKey);
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   renderAll();
 }
 
@@ -604,7 +604,7 @@ function cycleNextActiveProfile() {
 function pushMultiUserAndPrivacyToFirebase() {
   if (isApplyingRemoteUpdate) return;
   ensureMultiUserAndPrivacyState();
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   // Only push metadata (customUsers registry + profilePrivacy) and the current active profile's picks
   // so one device NEVER overwrites another user's picks!
   // The active profile's picks go through pushProfileToFirebase below (it checks ownership);
@@ -690,14 +690,37 @@ function safeGetStorage(key) {
     return MEMORY_STORE[key] || null;
   }
 }
+// Returns false when the browser refused the write (storage full or blocked).
 function safeSetStorage(key, val) {
   // Don't persist an archived week as this device's saved state.
-  if (key === "sat_week7_official_v14" && typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return;
+  if (key === "sat_week7_official_v14" && typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return false;
   MEMORY_STORE[key] = val;
   try {
     var ls = window["local" + "Storage"];
     if (ls) ls.setItem(key, val);
-  } catch (e) {}
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Saves the live week to this device. The slate (customGames) is saved with the week and the
+// picks every time: a reload boots from this copy before the cloud answers, and picks are
+// checked against that slate, so a slate older than the picks would hide or drop them.
+// If the browser's storage is full, it saves again without the season archives (they reload
+// from the cloud), keeping only archives whose cloud save isn't confirmed yet.
+var LOCAL_WEEK_LABEL_KEY = "sat_live_week_label_v1"; // read before first paint (index.html)
+function saveLocalState() {
+  if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return;
+  state.customGames = GAMES;
+  if (state.weekLabel) safeSetStorage(LOCAL_WEEK_LABEL_KEY, state.weekLabel);
+  if (safeSetStorage("sat_week7_official_v14", JSON.stringify(state))) return;
+  var archives = state.weekArchives || {}, unsynced = {};
+  Object.keys(archives).forEach(function(k) { if (archives[k] && archives[k]._unsyncedLocal) unsynced[k] = archives[k]; });
+  var slim = Object.assign({}, state, { weekArchives: unsynced });
+  if (!safeSetStorage("sat_week7_official_v14", JSON.stringify(slim))) {
+    console.warn("This device's storage is full; the pool was not saved here (it still loads from the cloud).");
+  }
 }
 
 try {

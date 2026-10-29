@@ -68,7 +68,7 @@ function saveCurrentWeekToArchive(notifyToast) {
   var willSave = fsDb && !isApplyingRemoteUpdate && canWriteSharedPoolState();
   // Until the cloud confirms it, an older copy arriving from shared_state must not replace it.
   if (willSave) entry._unsyncedLocal = true;
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   if (willSave) {
     try {
       var cloudEntry = weekArchiveForCloud(entry);
@@ -86,7 +86,7 @@ function saveCurrentWeekToArchive(notifyToast) {
         });
       job.then(function() {
         delete entry._unsyncedLocal;
-        safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+        saveLocalState();
       }, function(e) { reportCloudSaveFailure("the week archive", e); });
     } catch (e) {}
   }
