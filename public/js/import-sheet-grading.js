@@ -8,8 +8,7 @@ function standardizeParticipantName(rawName) {
   if (
     low === "michael" ||
     low === "michael a" ||
-    low === "michael adams" ||
-    low.indexOf("michael adams") === 0
+    low === "michael adams"
   ) {
     return "Michael A";
   }
@@ -21,9 +20,7 @@ function standardizeParticipantName(rawName) {
     low === "kinyon cooper" ||
     low === "kinyion cooper" ||
     low === "kenyon" ||
-    low === "kenyon cooper" ||
-    low.indexOf("kinyion") === 0 ||
-    low.indexOf("kenyon") === 0
+    low === "kenyon cooper"
   ) {
     // Matching key, not display text: pool sheets and stored keys use this spelling. The screen
     // shows "Kinyon C" (see fixDisplaySpelling in shell.js). Don't change it without migrating data.
