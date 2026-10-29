@@ -1004,24 +1004,13 @@ function copyPicksToClipboard() {
   }
   lines.push("Tie-Breaker: " + state[activeProfile].tiebreaker);
   var outText = lines.join("\n");
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(outText).catch(function() {});
-    } else {
-      throw new Error("clipboard_fallback");
-    }
-  } catch (e) {
-    var tmpTa = document.createElement("textarea");
-    tmpTa.value = outText;
-    tmpTa.style.position = "fixed";
-    tmpTa.style.opacity = "0";
-    document.body.appendChild(tmpTa);
-    tmpTa.select();
-    try { document.execCommand("copy"); } catch (e2) {}
-    document.body.removeChild(tmpTa);
-  }
-  document.getElementById("copy-status").textContent = "✓ Copied all 23 official form picks + Tie-Breaker!";
-  setTimeout(function() { document.getElementById("copy-status").textContent = ""; }, 3000);
+  return copyTextWithToast(outText, "").then(function(ok) {
+    var st = document.getElementById("copy-status");
+    if (!st) return ok;
+    st.textContent = ok ? "✓ Copied all " + GAMES.length + " official form picks + Tie-Breaker!" : "⚠️ Couldn't copy. Select the picks and copy them yourself.";
+    setTimeout(function() { st.textContent = ""; }, 3000);
+    return ok;
+  });
 }
 
 

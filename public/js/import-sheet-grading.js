@@ -215,6 +215,7 @@ function gradePickMap(picksMap, allowFallbackToRec, computeDp) {
 function regradeAllPoolMembersLive(onlyUserProfiles) {
   ensureWatchlistDefaults();
   if (!state.poolMembers || !Array.isArray(state.poolMembers)) return;
+  invalidateDuesRosterCache();
   dropDuplicateAppPoolRows();
 
   var priorLookup = {};
@@ -379,6 +380,7 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
         if (pmNameLow === targetLow || pmNameLow === cuNameLow) {
           existingPm = state.poolMembers[pmI];
           existingPm.name = targetBoardName;
+          invalidateDuesRosterCache();
           break;
         }
       }
@@ -483,12 +485,27 @@ function syncOfficialWeek7EmailSheetToFirebase() {
   document.getElementById("cloud-status-text").textContent = "🔥 Synced all 89 Week 7 Pool Entries from Gmail .xlsx Attachment to Firebase!";
 }
 
+// When the browser refuses the copy, the code is selected in #gas-code-preview to copy by hand.
 function copyUpgradedCodeGs() {
-  copyTextWithToast(UPGRADED_CODE_GS_SOURCE, "");
-  var stEl = document.getElementById("gas-bot-status");
-  if (stEl) {
-    stEl.textContent = "✓ Copied upgraded Code.gs (with automatic .xlsx attachment scraper) to clipboard! Paste into your 'Football Weekly' Google Apps Script project.";
-  }
+  var previewEl = document.getElementById("gas-code-preview");
+  return copyTextWithToast(UPGRADED_CODE_GS_SOURCE, "📋 Copied upgraded Code.gs to clipboard!").then(function(copied) {
+    var stEl = document.getElementById("gas-bot-status");
+    if (copied) {
+      if (stEl) stEl.textContent = "✓ Copied upgraded Code.gs to clipboard. Paste it into your 'Football Weekly' Google Apps Script project.";
+      return true;
+    }
+    if (previewEl) {
+      if (!previewEl.value) previewEl.value = UPGRADED_CODE_GS_SOURCE;
+      previewEl.style.display = "";
+      try {
+        previewEl.focus();
+        previewEl.select();
+        previewEl.setSelectionRange(0, previewEl.value.length);
+      } catch (e) {}
+    }
+    if (stEl) stEl.textContent = "⚠️ Auto-copy blocked by browser — code is selected below, press Ctrl+C / Cmd+C to copy.";
+    return false;
+  });
 }
 
 async function triggerAppsScriptGmailScraper() {

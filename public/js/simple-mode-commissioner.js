@@ -1008,6 +1008,7 @@ function renderCommissionerModalBody() {
               '<div><strong style="color:var(--warn);">🔓 Force Open / Unlocked</strong><div style="font-size:0.69rem;color:var(--muted);">Overrides the clock so players can edit picks at any time.</div></div>' +
             '</label>' +
           '</div>' +
+          '<div id="kickoff-locks-status" role="status" style="font-size:0.69rem;color:var(--muted);margin-top:8px;">' + escapeShellHtml(typeof kickoffLocksStatusText === "function" ? kickoffLocksStatusText() : "") + '</div>' +
         '</div>' +
 
         '<div class="side-box">' +

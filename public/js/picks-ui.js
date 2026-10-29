@@ -680,24 +680,39 @@ function myPicksSummaryText() {
 }
 
 function copyMyPicksSummary() {
-  var txt = myPicksSummaryText();
-  var done = function() { showAppToast("Copied your picks summary."); };
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(txt).then(done).catch(function() { fallbackCopyText(txt); done(); });
-  } else { fallbackCopyText(txt); done(); }
+  return copyTextWithToast(myPicksSummaryText(), "Copied your picks summary.");
 }
 
+// Copies through a hidden textarea; true when the browser reports success. The focused field
+// and its selection are put back afterwards, so copying never moves the user's cursor.
 function fallbackCopyText(txt) {
+  if (!document.body) return false;
+  var prevActive = document.activeElement;
+  var prevStart = null, prevEnd = null;
+  try { if (prevActive && typeof prevActive.selectionStart === "number") { prevStart = prevActive.selectionStart; prevEnd = prevActive.selectionEnd; } } catch (e) {}
+  var sel = window.getSelection ? window.getSelection() : null;
+  var prevRanges = [];
+  if (sel) for (var i = 0; i < sel.rangeCount; i++) prevRanges.push(sel.getRangeAt(i));
   var ta = document.createElement("textarea");
   ta.value = txt;
+  ta.setAttribute("readonly", "");
   ta.style.position = "fixed";
+  ta.style.top = "0";
+  ta.style.left = "0";
   ta.style.opacity = "0";
   document.body.appendChild(ta);
+  ta.focus();
   ta.select();
+  ta.setSelectionRange(0, ta.value.length);
   var ok = false;
   try { ok = document.execCommand("copy"); } catch (e) {}
   document.body.removeChild(ta);
-  return ok;
+  try {
+    if (prevActive && prevActive !== document.body && typeof prevActive.focus === "function") prevActive.focus();
+    if (prevStart !== null && prevActive.setSelectionRange) prevActive.setSelectionRange(prevStart, prevEnd);
+    else if (sel && prevRanges.length) { sel.removeAllRanges(); prevRanges.forEach(function(r) { sel.addRange(r); }); }
+  } catch (e) {}
+  return !!ok;
 }
 
 function openPicksReviewSheet() {

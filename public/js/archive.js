@@ -64,22 +64,30 @@ function saveCurrentWeekToArchive(notifyToast) {
     poolMembers: JSON.parse(JSON.stringify(state.poolMembers || [])),
     liveScores: JSON.parse(JSON.stringify(LIVE_SCORES || {}))
   };
+  var entry = state.weekArchives[key];
+  var willSave = fsDb && !isApplyingRemoteUpdate && canWriteSharedPoolState();
+  // Until the cloud confirms it, an older copy arriving from shared_state must not replace it.
+  if (willSave) entry._unsyncedLocal = true;
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  if (fsDb && !isApplyingRemoteUpdate && canWriteSharedPoolState()) {
+  if (willSave) {
     try {
+      var cloudEntry = weekArchiveForCloud(entry);
       // One doc per week (B08): archives inside shared_state would push it past 1 MiB.
       // Rules published before that collection existed refuse it, so the archive then goes
       // where it lived before (shared_state.weekArchives) rather than not being saved at all.
       var saveToSharedState = function() {
         return fsDb.collection("pickem_v14").doc("shared_state")
-          .update(new firebase.firestore.FieldPath("weekArchives", key), state.weekArchives[key]);
+          .update(new firebase.firestore.FieldPath("weekArchives", key), cloudEntry);
       };
       var job = ARCHIVE_COLLECTION_OK === false ? saveToSharedState()
-        : fsDb.collection("pickem_v14_archives").doc(key).set(state.weekArchives[key]).catch(function(e) {
+        : fsDb.collection("pickem_v14_archives").doc(key).set(cloudEntry).catch(function(e) {
           if (e && e.code === "permission-denied") return saveToSharedState();
           throw e;
         });
-      job.catch(function(e) { reportCloudSaveFailure("the week archive", e); });
+      job.then(function() {
+        delete entry._unsyncedLocal;
+        safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+      }, function(e) { reportCloudSaveFailure("the week archive", e); });
     } catch (e) {}
   }
   populateWeekArchiveDropdown();

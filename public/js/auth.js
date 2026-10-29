@@ -83,10 +83,12 @@ function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerU
 
   if (lowMember === "michael a" || lowMember === "michael") {
     state.michael.linkedMemberName = "Michael A";
+    invalidateDuesRosterCache();
     return { profileKey: "michael", linkedMemberName: "Michael A", displayName: "Michael A" };
   }
   if (lowMember === "kinyion c" || lowMember === "kinyion") {
     state.kinyion.linkedMemberName = "Kinyon C";
+    invalidateDuesRosterCache();
     return { profileKey: "kinyion", linkedMemberName: "Kinyon C", displayName: "Kinyon C" };
   }
 
@@ -123,6 +125,7 @@ function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerU
     if (state.customUsers[c].key === detKey) {
       alreadyInCu = true;
       state.customUsers[c].linkedMemberName = cleanMember;
+      invalidateDuesRosterCache();
       if (ownerUid) state.customUsers[c].ownerUid = ownerUid;
       if (emailStr) state.customUsers[c].email = emailStr;
       break;
@@ -713,6 +716,7 @@ function saveCustomInstanceDisplayName() {
   }
   // Rename in place: the profile key, picks and account link stay put. Starting points are the commissioner's to set.
   cu.name = newName;
+  invalidateDuesRosterCache();
   if (ptsInp && isVerifiedCommissioner() && !findLeaderboardEntryByName(cu.linkedMemberName || cu.name)) {
     var customPts = parseFloat(ptsInp.value) || 0;
     cu.priorPts = customPts;

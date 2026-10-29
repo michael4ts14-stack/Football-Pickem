@@ -34,21 +34,19 @@ function duesLegacyKey(key) {
 }
 
 // The roster is rebuilt from poolMembers + customUsers with a profile lookup per player. Every
-// row's isDuesPaid needs it, so it is built once and reused until the current task ends (or the
-// lists change); rebuilding it per row made the Roster tab take seconds to open.
+// row's isDuesPaid needs it, so it is built once and reused until the current task ends. Each
+// read is O(1): the cache is dropped when either list is replaced or changes length, or when a
+// name or profile link changes in place (those call invalidateDuesRosterCache, state.js).
 var DUES_ROSTER_CACHE = null;
-function duesRosterSignature() {
-  var pm = state.poolMembers || [], cu = state.customUsers || [];
-  return pm.length + "|" + cu.length + "|" + cu.map(function(c) { return c ? c.key + ":" + (c.linkedMemberName || c.name) : ""; }).join(",");
-}
-
 function cachedDuesRoster() {
-  var sig = duesRosterSignature();
-  if (DUES_ROSTER_CACHE && DUES_ROSTER_CACHE.sig === sig && DUES_ROSTER_CACHE.pm === state.poolMembers) return DUES_ROSTER_CACHE;
+  var pm = state.poolMembers, cu = state.customUsers;
+  var c = DUES_ROSTER_CACHE;
+  if (c && c.seq === DUES_ROSTER_SEQ && c.pm === pm && c.cu === cu &&
+      c.pmLen === (pm ? pm.length : 0) && c.cuLen === (cu ? cu.length : 0)) return c;
   var list = buildDuesRoster(), index = {};
   list.forEach(function(r) { index[r.low] = r; });
-  DUES_ROSTER_CACHE = { sig: sig, pm: state.poolMembers, list: list, index: index };
-  setTimeout(function() { DUES_ROSTER_CACHE = null; }, 0);
+  DUES_ROSTER_CACHE = { seq: DUES_ROSTER_SEQ, pm: pm, cu: cu, pmLen: pm ? pm.length : 0, cuLen: cu ? cu.length : 0, list: list, index: index };
+  if (!c) setTimeout(function() { DUES_ROSTER_CACHE = null; }, 0);
   return DUES_ROSTER_CACHE;
 }
 

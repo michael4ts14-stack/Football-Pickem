@@ -134,17 +134,33 @@ function showAppToast(msg, durationMs) {
   }, durationMs || 2600);
 }
 
-// Copies text and says whether it worked. navigator.clipboard refuses when the page isn't
-// focused or allowed (an uncaught error before), so it falls back to a hidden textarea.
-function copyTextWithToast(txt, okMsg) {
-  var ok = function() { if (okMsg) showAppToast(okMsg); };
+// Copies text and says whether it worked; resolves true when the text reached the clipboard.
+// The hidden-textarea copy (execCommand) runs first, synchronously, while the click's user
+// activation is still live; browsers refuse it once a promise callback runs. Only when that
+// fails is navigator.clipboard tried. opts.fallbackInputEl: a field to focus and select when
+// both fail, so the user can copy it by hand.
+function copyTextWithToast(txt, okMsg, opts) {
+  opts = opts || {};
+  var ok = function() { if (okMsg) showAppToast(okMsg); return true; };
   var fail = function() {
-    if (typeof fallbackCopyText === "function" && fallbackCopyText(txt)) ok();
-    else showAppToast("Couldn't copy to the clipboard. Select the text and copy it yourself.");
+    var el = opts.fallbackInputEl;
+    if (el) {
+      try { el.focus(); el.select(); if (el.setSelectionRange) el.setSelectionRange(0, String(el.value || "").length); } catch (e) {}
+    }
+    showAppToast("Couldn't copy to the clipboard. Select the text and copy it yourself.");
+    return false;
   };
+  if (typeof fallbackCopyText === "function" && fallbackCopyText(txt)) {
+    // Also hand it to the async clipboard where allowed; the copy above already worked.
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { navigator.clipboard.writeText(txt).catch(function() {}); } catch (e) {}
+    }
+    return Promise.resolve(ok());
+  }
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    try { navigator.clipboard.writeText(txt).then(ok, fail); } catch (e) { fail(); }
-  } else fail();
+    try { return navigator.clipboard.writeText(txt).then(ok, fail); } catch (e) {}
+  }
+  return Promise.resolve(fail());
 }
 
 function isUserModalOpen() {
@@ -222,11 +238,16 @@ function syncLinkedProfilesWithLeaderboard() {
   }
 }
 
+// Bumped whenever player names or profile links change in place, so the commissioner's dues
+// roster (commish-dues.js) rebuilds instead of showing an old name or paid flag.
+var DUES_ROSTER_SEQ = 0;
+function invalidateDuesRosterCache() { DUES_ROSTER_SEQ++; }
+
 function ensureMultiUserAndPrivacyState() {
   if (!state.customUsers || !Array.isArray(state.customUsers)) state.customUsers = [];
   if (!state.profilePrivacy || typeof state.profilePrivacy !== "object") state.profilePrivacy = {};
-  if (state.michael && state.michael.linkedMemberName === undefined) state.michael.linkedMemberName = "Michael A";
-  if (state.kinyion && state.kinyion.linkedMemberName === undefined) state.kinyion.linkedMemberName = "Kinyon C";
+  if (state.michael && state.michael.linkedMemberName === undefined) { state.michael.linkedMemberName = "Michael A"; invalidateDuesRosterCache(); }
+  if (state.kinyion && state.kinyion.linkedMemberName === undefined) { state.kinyion.linkedMemberName = "Kinyon C"; invalidateDuesRosterCache(); }
   var allProfs = getAllUserProfiles();
   for (var i = 0; i < allProfs.length; i++) {
     var pk = allProfs[i].key;

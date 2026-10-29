@@ -278,6 +278,7 @@ function parseStandingsEmailText() {
     for (var p = 0; p < state.poolMembers.length; p++) {
       var pName = standardizeParticipantName(state.poolMembers[p].name);
       state.poolMembers[p].name = pName;
+      invalidateDuesRosterCache();
       var pk = pName.toLowerCase();
       seenPm[pk] = true;
       if (ptsMap[pk] !== undefined) state.poolMembers[p].priorPts = ptsMap[pk];

@@ -38,6 +38,7 @@ function buildLeaderboardLinkSelectHtml(profKey, currentLinkedName) {
 
 function linkUserProfileToLeaderboard(profKey, memberName, pullPicksNow) {
   ensureMultiUserAndPrivacyState();
+  invalidateDuesRosterCache();
   var cleanName = String(memberName || "").trim();
   if (profKey === "michael" && state.michael) {
     state.michael.linkedMemberName = cleanName;

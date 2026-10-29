@@ -279,15 +279,13 @@ function resendUserInvite(key) {
   var body = "Hi " + r.name.split(" ")[0] + ",\n\nHere's your link to the Separated at Turf pick'em:\n" + url + "\n\n" +
     (r.binding ? "Sign in with " + r.email + " and you'll land on your picks." : "Open it, sign in, and choose \"I'm already in the league\" to claim " + r.name + ".") + "\n";
   var email = r.email || r.preApproved;
-  var copy = function() {
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(body).catch(function() {});
-  };
-  copy();
+  // Copied before the mailto navigation, inside the click. A failed copy shows its own toast.
+  var copied = copyTextWithToast(body, "");
   if (email) {
     window.location.href = "mailto:" + encodeURIComponent(email) + "?subject=" + encodeURIComponent("Your pick'em link") + "&body=" + encodeURIComponent(body);
-    showAppToast("Opening an email to " + email + " (the message is also copied).");
+    copied.then(function(ok) { if (ok) showAppToast("Opening an email to " + email + " (the message is also copied)."); });
   } else {
-    showAppToast("No email on file for " + r.name + ". The invite message is copied; send it however you reach them.");
+    copied.then(function(ok) { if (ok) showAppToast("No email on file for " + r.name + ". The invite message is copied; send it however you reach them."); });
   }
   if (!link) showAppToast("No league invite link is active, so the plain app link was used. Create one under Roster › League access.");
   logCommishAction("Sent invite link to " + r.name + (email ? " (" + email + ")" : " (copied)"), r.name, "");
