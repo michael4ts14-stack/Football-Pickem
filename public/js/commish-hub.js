@@ -278,7 +278,7 @@ function setPotSetting(field, value) {
 function potSummary() {
   var cfg = ensureCommissionerConfig();
   var fee = isNaN(parseFloat(cfg.entryFeeDollars)) ? 25 : parseFloat(cfg.entryFeeDollars);
-  var paid = (state.poolMembers || []).filter(function(pm) { return cfg.duesPaidMap[standardizeParticipantName(pm.name).toLowerCase()]; }).length;
+  var paid = duesRoster().filter(function(r) { return isDuesPaid(r.low); }).length;
   var weekly = parseFloat(cfg.weeklyPayoutDollars) || 0;
   var weeks = cfg.seasonWeeks === undefined ? 14 : (parseFloat(cfg.seasonWeeks) || 0);
   var season = parseFloat(cfg.seasonPrizeDollars) || 0;
@@ -339,7 +339,7 @@ function renderDuesBanner() {
   var cfg = ensureCommissionerConfig();
   var links = duesPayLinks();
   var dismissedKey = "pickem_dues_banner_hidden_wk";
-  var show = !!name && links.length && !cfg.duesPaidMap[name] && !PLAYER_PREVIEW &&
+  var show = !!name && links.length && !isDuesPaid(duesKeyForName(name)) && !PLAYER_PREVIEW &&
     String(safeGetStorage(dismissedKey) || "") !== String(state.currentWeek);
   if (!show) { if (el) el.hidden = true; return; }
   if (!el) {
