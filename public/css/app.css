@@ -956,13 +956,19 @@ body { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-
      the buttons drop to a second row instead of squeezing the text into a sliver. */
   .tb-card {
     position: sticky; bottom: 0; z-index: 30;
-    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 14px;
     border-radius: 10px 10px 0 0; box-shadow: 0 -8px 20px #00000059;
   }
-  .tb-card-text { flex: 1 1 240px; min-width: 0; }
-  .tb-card .tb-input { flex: 0 0 140px; width: 140px; }
+  /* Slim bar: title and matchup share one line, status line under them. */
+  .tb-card-text { flex: 1 1 200px; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+  .tb-card-title { font-size: 16px; }
+  .tb-card-sub { flex: 1 1 0; font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tb-card .pick-status-line.in-tb { flex-basis: 100%; flex-wrap: nowrap; gap: 0 10px; margin-top: 2px; font-size: 12px; white-space: nowrap; }
+  .tb-card .pick-status-line.in-tb > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .tb-card .pick-status-line.in-tb .link-btn { flex: 0 0 auto; font-size: 12px; }
+  .tb-card .tb-input { flex: 0 0 96px; width: 96px; min-height: 36px; padding-top: 0; padding-bottom: 0; font-size: 17px !important; }
   .tb-card-actions { flex: 0 0 auto; margin-left: auto; flex-wrap: nowrap; }
-  .tb-card-actions .tool-btn { flex: 0 0 auto; }
+  .tb-card-actions .tool-btn { flex: 0 0 auto; min-height: 36px; }
 }
 
 /* ---------- Desktop sidebar: always laid out at full width (--sidebar-w) and clipped to the

@@ -10,33 +10,22 @@ function formatYyyyMmDd(d) {
   return "" + y + m + day;
 }
 
-function getRollingScoreboardDateRange() {
+function getRollingScoreboardDayStrings() {
   // Covers 10 days ago through 2 days ahead so Sunday/Monday after Saturday games ALWAYS includes the completed slate!
-  var now = new Date();
-  var start = new Date(now.getTime() - 10 * 86400000);
-  var end = new Date(now.getTime() + 2 * 86400000);
-  return formatYyyyMmDd(start) + "-" + formatYyyyMmDd(end);
-}
-
-function getRecentWeekendDayStrings() {
-  // Returns single-day YYYYMMDD strings for the last 5 days (covers Sat, Fri, Thu, Sun)
+  // One YYYYMMDD per day: ESPN now rejects "dates=YYYYMMDD-YYYYMMDD" ranges with a 400.
   var out = [];
   var now = new Date();
-  for (var d = 0; d <= 5; d++) {
-    var dt = new Date(now.getTime() - d * 86400000);
-    out.push(formatYyyyMmDd(dt));
+  for (var d = -2; d <= 10; d++) {
+    out.push(formatYyyyMmDd(new Date(now.getTime() - d * 86400000)));
   }
   return out;
 }
 
 async function fetchScoreboardEvents() {
-  var dateRange = getRollingScoreboardDateRange();
-  var recentDays = getRecentWeekendDayStrings();
+  var recentDays = getRollingScoreboardDayStrings();
   var initUrls = [
     fetchJsonSafe(SB_BASE + "?groups=80&limit=300"),
-    fetchJsonSafe(SB_BASE + "?limit=300"),
-    fetchJsonSafe(SB_BASE + "?groups=80&limit=300&dates=" + dateRange),
-    fetchJsonSafe(SB_BASE + "?limit=300&dates=" + dateRange)
+    fetchJsonSafe(SB_BASE + "?limit=300")
   ];
   for (var rd = 0; rd < recentDays.length; rd++) {
     initUrls.push(fetchJsonSafe(SB_BASE + "?groups=80&limit=300&dates=" + recentDays[rd]));
