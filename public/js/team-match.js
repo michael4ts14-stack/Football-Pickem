@@ -768,7 +768,7 @@ function sanitizeStateForActiveSlate() {
     for (var pmIdx = 0; pmIdx < state.poolMembers.length; pmIdx++) {
       var pmObj = state.poolMembers[pmIdx];
       var pmKey = standardizeParticipantName(pmObj.name).toLowerCase();
-      if (latestPtsLookup[pmKey] !== undefined && (parseFloat(pmObj.priorPts) || 0) < latestPtsLookup[pmKey]) {
+      if (latestPtsLookup[pmKey] !== undefined && (parseFloat(pmObj.priorPts) || 0) !== latestPtsLookup[pmKey]) {
         pmObj.priorPts = latestPtsLookup[pmKey];
         if (latestRankLookup[pmKey]) pmObj.priorRank = latestRankLookup[pmKey];
         cleanedAny = true;
@@ -787,7 +787,7 @@ function sanitizeStateForActiveSlate() {
       for (var wUp = 0; wUp < state.watchlist.length; wUp++) {
         var wlItem = state.watchlist[wUp];
         var wlKey = standardizeParticipantName(wlItem.name).toLowerCase();
-        if (latestPtsLookup[wlKey] !== undefined && (parseFloat(wlItem.priorPts) || 0) < latestPtsLookup[wlKey]) {
+        if (latestPtsLookup[wlKey] !== undefined && (parseFloat(wlItem.priorPts) || 0) !== latestPtsLookup[wlKey]) {
           wlItem.priorPts = latestPtsLookup[wlKey];
           if (latestRankLookup[wlKey]) wlItem.rank = latestRankLookup[wlKey];
           cleanedAny = true;
