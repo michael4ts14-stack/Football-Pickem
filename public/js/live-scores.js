@@ -938,10 +938,25 @@ async function importStrictSheetText() {
         break;
       }
     }
+    // No Florida–Georgia game on the sheet: the commissioner picks the tiebreaker game, before
+    // anything is replaced (Cancel stops the import).
+    while (!detectedTbId) {
+      var tbAnswer = window.prompt("No Florida–Georgia game on this sheet. Which game # is the tiebreaker?\n\n" +
+        parsedGames.map(function(pg) { return "#" + pg.id + " " + pg.away + " at " + pg.home; }).join("\n"), "");
+      if (tbAnswer === null) {
+        showAppToast("Import cancelled: choose a tiebreaker game to import this sheet.");
+        return;
+      }
+      var tbPick = parsedGames[(parseInt(tbAnswer.replace("#", ""), 10) || 0) - 1];
+      if (tbPick) {
+        tbPick.isTiebreaker = true;
+        tbPick.tier = tbPick.tier + " (Tiebreaker Game)";
+        detectedTbId = tbPick.id;
+      }
+    }
     // Archive the outgoing week while GAMES, LIVE_SCORES and currentWeek still hold it.
     saveCurrentWeekToArchive(false);
-    state.tiebreakerGameId = detectedTbId || 9;
-    state.tiebreakerOverUnder = 56.5;
+    state.tiebreakerGameId = detectedTbId;
     GAMES = parsedGames;
     LIVE_SCORES = {};
     var wkMatch = raw.match(/week\s*(\d{1,2})/i);
