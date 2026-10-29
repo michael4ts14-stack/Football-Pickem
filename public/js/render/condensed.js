@@ -75,7 +75,7 @@ function renderCondensedTable() {
       thHtml += '<th>' + pf.shortName + (isLockedHdr ? ' (hidden)' : '') + '</th>';
     }
     if (cmpTarget && cmpTarget.isPoolMember) {
-      thHtml += '<th>' + cmpTarget.shortName + ' (compare)</th>';
+      thHtml += '<th>' + escapeHtml(cmpTarget.shortName) + ' (compare)</th>';
     }
     thHtml += '<th>Rivals (tap to set)</th><th>Status</th>';
     theadRow.innerHTML = thHtml;
@@ -97,8 +97,8 @@ function renderCondensedTable() {
     var isDiff = (anyPairHidden || !kPick) ? false : !isSameTeamPick(mPick, kPick, g);
     if (diffOnly && !isDiff) continue;
 
-    var mPts = isSameTeamPick(mPick, g.away, g) ? g.awayPts : g.homePts;
-    var kPts = isSameTeamPick(kPick, g.away, g) ? g.awayPts : g.homePts;
+    var mPts = getGamePickPts(g, isSameTeamPick(mPick, g.away, g));
+    var kPts = getGamePickPts(g, isSameTeamPick(kPick, g.away, g));
     var swingPts = isDiff ? (mPts + kPts) : 0;
 
     // Pool split only once the game is locked (Friday 9 PM CT by default).
@@ -113,7 +113,7 @@ function renderCondensedTable() {
       : "";
 
     var wlBtns = "";
-    for (var w = 0; w < state.watchlist.length; w++) {
+    for (var w = 0; w < (state.watchlist || []).length; w++) {
       var rv = state.watchlist[w];
       var rPick = getResolvedPickForGame(rv.picks, g, false);
       var rCode = rPick ? (isSameTeamPick(rPick, g.away, g) ? g.awayCode : g.homeCode) : "—";
@@ -148,20 +148,20 @@ function renderCondensedTable() {
       var isEditableMine = isMyOwnInstanceProfile(uMeta.key);
       var uHidden = isProfileHiddenFromViewer(uMeta.key, g.id);
       var uPick = (state[uMeta.key] && state[uMeta.key].picks) ? getResolvedPickForGame(state[uMeta.key].picks, g, false) : null;
-      var uPts = uPick ? (isSameTeamPick(uPick, g.away, g) ? g.awayPts : g.homePts) : 0;
+      var uPts = uPick ? getGamePickPts(g, isSameTeamPick(uPick, g.away, g)) : 0;
       var uCode = uPick ? (isSameTeamPick(uPick, g.away, g) ? g.awayCode : g.homeCode) : "—";
 
       if (uHidden) {
         profTdsHtml += '<td><span class="cond-locked-pill" style="cursor:default;opacity:0.85;" title="Hidden on ' + uMeta.name + '\'s account until kickoff">Hidden until kickoff</span></td>';
         profMobileBoxesHtml += '<div class="cond-m-prof-box">' +
-          '<div class="cond-m-prof-label"><span>' + uMeta.shortName + '</span></div>' +
+          '<div class="cond-m-prof-label"><span>' + escapeHtml(uMeta.shortName) + '</span></div>' +
           '<div class="cond-m-value is-muted">Hidden until kickoff</div>' +
         '</div>';
       } else if (!isEditableMine) {
         // Read-only display for compared user profile — you cannot click to edit another user's picks!
         profTdsHtml += '<td><span class="badge ' + (uPts === 3 ? 'badge-3x' : (uPts === 2 ? 'badge-2x' : 'badge-1x')) + '" style="font-size:0.72rem;padding:4px 8px;">' + uCode + ' · ' + uPts + 'x</span></td>';
         profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:var(--border);">' +
-          '<div class="cond-m-prof-label"><span>' + uMeta.shortName + '</span><span>' + uPts + 'x</span></div>' +
+          '<div class="cond-m-prof-label"><span>' + escapeHtml(uMeta.shortName) + '</span><span>' + uPts + 'x</span></div>' +
           '<div class="cond-m-value">' + uCode + '</div>' +
         '</div>';
       } else {
@@ -172,7 +172,7 @@ function renderCondensedTable() {
           '</div>' +
         '</td>';
         profMobileBoxesHtml += '<div class="cond-m-prof-box">' +
-          '<div class="cond-m-prof-label"><span>' + uMeta.shortName + ' (you)</span><span>' + uPts + 'x</span></div>' +
+          '<div class="cond-m-prof-label"><span>' + escapeHtml(uMeta.shortName) + ' (you)</span><span>' + uPts + 'x</span></div>' +
           '<div class="cond-m-btn-pair">' +
             '<button type="button" class="cond-btn ' + (isSameTeamPick(uPick, g.away, g) ? uMeta.btnClass : '') + '" onclick="pickSideForProfile(\'' + uMeta.key + '\', ' + g.id + ', 1)">' + g.awayCode + '</button>' +
             '<button type="button" class="cond-btn ' + (isSameTeamPick(uPick, g.home, g) ? uMeta.btnClass : '') + '" onclick="pickSideForProfile(\'' + uMeta.key + '\', ' + g.id + ', 2)">' + g.homeCode + '</button>' +
@@ -183,10 +183,10 @@ function renderCondensedTable() {
     if (cmpTarget && cmpTarget.isPoolMember) {
       var pmPick = cmpTarget.hasPicks ? getResolvedPickForGame(cmpTarget.picks, g, false) : null;
       var pmCode = pmPick ? (isSameTeamPick(pmPick, g.away, g) ? g.awayCode : g.homeCode) : "No sheet yet";
-      var pmPts = pmPick ? (isSameTeamPick(pmPick, g.away, g) ? g.awayPts : g.homePts) : 1;
+      var pmPts = pmPick ? getGamePickPts(g, isSameTeamPick(pmPick, g.away, g)) : 1;
       profTdsHtml += '<td><span class="badge badge-1x" style="font-size:0.72rem;">' + pmCode + (pmPick ? ' · ' + pmPts + 'x' : '') + '</span></td>';
       profMobileBoxesHtml += '<div class="cond-m-prof-box" style="border-color:var(--border);">' +
-        '<div class="cond-m-prof-label"><span>' + cmpTarget.shortName + '</span><span>' + (pmPick ? pmPts + 'x' : '') + '</span></div>' +
+        '<div class="cond-m-prof-label"><span>' + escapeHtml(cmpTarget.shortName) + '</span><span>' + (pmPick ? pmPts + 'x' : '') + '</span></div>' +
         '<div class="cond-m-value">' + pmCode + '</div>' +
       '</div>';
     }
@@ -260,7 +260,7 @@ function printCheckmarkSheet() {
   var printEl = document.getElementById("print-sheet-area");
   printEl.innerHTML =
     '<h2>Separated at Turf — ' + (state.weekLabel || 'Week 8') + ' Official 2-Column Checkmark Sheet</h2>' +
-    '<p><strong>Player:</strong> ' + profName + ' &nbsp;|&nbsp; <strong>Tie-Breaker (Highest Score First):</strong> ' + state[activeProfile].tiebreaker + '</p>' +
+    '<p><strong>Player:</strong> ' + escapeHtml(profName) + ' &nbsp;|&nbsp; <strong>Tie-Breaker (Highest Score First):</strong> ' + escapeHtml(state[activeProfile].tiebreaker) + '</p>' +
     '<table class="print-table">' +
       '<thead><tr><th>Row #</th><th>LEFT COLUMN (Away Team)</th><th>RIGHT COLUMN (Home Team)</th><th>Locked Sheet Line</th></tr></thead>' +
       '<tbody>' + rowsHtml + '</tbody>' +

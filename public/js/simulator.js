@@ -243,7 +243,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
     var gObj = GAMES[gmK];
     var pickedAway = actParticipant.choices[gmK] === 1;
     var pickedTeam = pickedAway ? gObj.away : gObj.home;
-    var pickedPts = pickedAway ? gObj.awayPts : gObj.homePts;
+    var pickedPts = getGamePickPts(gObj, pickedAway);
     var ownInfo = getGamePoolOwnership(gObj);
     var fieldOwnPct = pickedAway ? ownInfo.awayPct : ownInfo.homePct;
     swingGames.push({
@@ -350,12 +350,12 @@ function renderMonteCarloSimulatorBox() {
     '</div>' +
     '<div class="mc-kpi-grid">' +
       '<div class="mc-kpi-card" style="border-color:var(--border);">' +
-        '<div class="metric-label">🥇 ' + actMeta.shortName + ' 1st Place Odds</div>' +
+        '<div class="metric-label">🥇 ' + escapeHtml(actMeta.shortName) + ' 1st Place Odds</div>' +
         '<div class="metric-val" style="color:var(--gold);">' + (actHidden ? '🔒' : (sim.active.win1stPct + '%')) + '</div>' +
         '<div class="metric-sub">' + modeLabel + ' #1 Finish</div>' +
       '</div>' +
       '<div class="mc-kpi-card" style="border-color:var(--border);">' +
-        '<div class="metric-label">🔥 ' + actMeta.shortName + ' Top-5 / Top-10</div>' +
+        '<div class="metric-label">🔥 ' + escapeHtml(actMeta.shortName) + ' Top-5 / Top-10</div>' +
         '<div class="metric-val" style="color:var(--green);">' + (actHidden ? '🔒' : (sim.active.top5Pct + '%')) + ' <span style="font-size:0.8rem;color:var(--legacy-accent);">(' + (actHidden ? '🔒' : (sim.active.top10Pct + '% T10')) + ')</span></div>' +
         '<div class="metric-sub">Sim Avg: ' + (actHidden ? '🔒' : (sim.active.avgScore + ' pts')) + '</div>' +
       '</div>' +

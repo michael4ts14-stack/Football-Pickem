@@ -10,33 +10,22 @@ function formatYyyyMmDd(d) {
   return "" + y + m + day;
 }
 
-function getRollingScoreboardDateRange() {
+function getRollingScoreboardDayStrings() {
   // Covers 10 days ago through 2 days ahead so Sunday/Monday after Saturday games ALWAYS includes the completed slate!
-  var now = new Date();
-  var start = new Date(now.getTime() - 10 * 86400000);
-  var end = new Date(now.getTime() + 2 * 86400000);
-  return formatYyyyMmDd(start) + "-" + formatYyyyMmDd(end);
-}
-
-function getRecentWeekendDayStrings() {
-  // Returns single-day YYYYMMDD strings for the last 5 days (covers Sat, Fri, Thu, Sun)
+  // One YYYYMMDD per day: ESPN now rejects "dates=YYYYMMDD-YYYYMMDD" ranges with a 400.
   var out = [];
   var now = new Date();
-  for (var d = 0; d <= 5; d++) {
-    var dt = new Date(now.getTime() - d * 86400000);
-    out.push(formatYyyyMmDd(dt));
+  for (var d = -2; d <= 10; d++) {
+    out.push(formatYyyyMmDd(new Date(now.getTime() - d * 86400000)));
   }
   return out;
 }
 
 async function fetchScoreboardEvents() {
-  var dateRange = getRollingScoreboardDateRange();
-  var recentDays = getRecentWeekendDayStrings();
+  var recentDays = getRollingScoreboardDayStrings();
   var initUrls = [
     fetchJsonSafe(SB_BASE + "?groups=80&limit=300"),
-    fetchJsonSafe(SB_BASE + "?limit=300"),
-    fetchJsonSafe(SB_BASE + "?groups=80&limit=300&dates=" + dateRange),
-    fetchJsonSafe(SB_BASE + "?limit=300&dates=" + dateRange)
+    fetchJsonSafe(SB_BASE + "?limit=300")
   ];
   for (var rd = 0; rd < recentDays.length; rd++) {
     initUrls.push(fetchJsonSafe(SB_BASE + "?groups=80&limit=300&dates=" + recentDays[rd]));
@@ -235,7 +224,7 @@ function lookupEspnTeamId(teamName, gameObj, isAway) {
 }
 
 async function syncAllLiveTrackingData(saveToCloudAfter) {
-  var badge = document.getElementById("live-sync-badge");
+  var badge = document.getElementById("live-sync-badge") || document.createElement("span");
   badge.className = "sync-pill loading";
   badge.textContent = "↻ Syncing ESPN Schedules, Insights & Injuries...";
 
@@ -374,6 +363,7 @@ async function fetchAndStoreSingleTeamSchedule(teamName, teamId) {
       if (!sComp || !sComp.competitors || sComp.competitors.length < 2) continue;
       var sStType = (sComp.status && sComp.status.type) ? sComp.status.type : {};
       if (!sStType.completed && sStType.state !== "in") continue;
+      if (/CANCEL|POSTPON|SUSPEND|FORFEIT/i.test(String(sStType.name || ""))) continue;
       var sAway = null, sHome = null;
       for (var sc = 0; sc < sComp.competitors.length; sc++) {
         if (sComp.competitors[sc].homeAway === "away") sAway = sComp.competitors[sc];
@@ -528,3 +518,12 @@ function countScoredGamesInLiveScores() {
 }
 
 
+
+// A full ESPN sync already running is shared rather than started twice.
+var LIVE_SYNC_IN_FLIGHT = null;
+var _syncAllLiveTrackingDataCore = syncAllLiveTrackingData;
+syncAllLiveTrackingData = function(saveToCloudAfter) {
+  if (LIVE_SYNC_IN_FLIGHT) return LIVE_SYNC_IN_FLIGHT;
+  LIVE_SYNC_IN_FLIGHT = _syncAllLiveTrackingDataCore(saveToCloudAfter).then(function(v) { LIVE_SYNC_IN_FLIGHT = null; return v; }, function(e) { LIVE_SYNC_IN_FLIGHT = null; throw e; });
+  return LIVE_SYNC_IN_FLIGHT;
+};

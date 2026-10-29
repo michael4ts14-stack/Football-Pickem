@@ -48,7 +48,7 @@ function liveResultFor(pick, g, ls) {
   var pickedAway = isSameTeamPick(pick, g.away, g);
   var mine = pickedAway ? ls.awayScore : ls.homeScore;
   var theirs = pickedAway ? ls.homeScore : ls.awayScore;
-  var pts = pickedAway ? g.awayPts : g.homePts;
+  var pts = getGamePickPts(g, pickedAway);
   if (ls.completed) {
     if (mine > theirs) return { word: "Win +" + pts, cls: "is-win" };
     if (mine < theirs) return { word: "Loss", cls: "is-loss" };
@@ -75,7 +75,7 @@ function liveTeamRowHtml(g, isAway, ls, myPick, myHidden, flash) {
   var losing = started && score < other;
   var isMine = !myHidden && myPick && isSameTeamPick(myPick, name, g);
   var hasBall = ls.inProgress && ls.possessionSide === (isAway ? "away" : "home");
-  var pts = isAway ? g.awayPts : g.homePts;
+  var pts = getGamePickPts(g, isAway);
   return '<div class="live-team' + (losing ? ' is-behind' : '') + (flash ? ' score-changed' : '') + '">' +
     teamLogoHtml(g, isAway) +
     '<span class="live-team-name">' + escapeShellHtml(name) +
@@ -117,8 +117,8 @@ renderLiveScoreboardTab = function() {
     if (ls.completed) finalCnt++;
     if (ls.inProgress || ls.completed) {
       var leader = ls.awayScore > ls.homeScore ? g.away : (ls.homeScore > ls.awayScore ? g.home : null);
-      if (leader && myPick && !myHidden && isSameTeamPick(leader, myPick, g)) { mLivePts += isSameTeamPick(myPick, g.away, g) ? g.awayPts : g.homePts; mWinCnt++; }
-      if (leader && h2h && h2h.pick && isSameTeamPick(leader, h2h.pick, g)) { kLivePts += isSameTeamPick(h2h.pick, g.away, g) ? g.awayPts : g.homePts; kWinCnt++; }
+      if (leader && myPick && !myHidden && isSameTeamPick(leader, myPick, g)) { mLivePts += getGamePickPts(g, isSameTeamPick(myPick, g.away, g)); mWinCnt++; }
+      if (leader && h2h && h2h.pick && isSameTeamPick(leader, h2h.pick, g)) { kLivePts += getGamePickPts(g, isSameTeamPick(h2h.pick, g.away, g)); kWinCnt++; }
     }
     var sit = getGameSituation(ls, g, myHidden ? null : myPicks);
     var alertLs = liveStateForAlerts(g); // the demo sim's drive when this game is running it

@@ -36,11 +36,6 @@ function getSecurityConfig() {
   return cfg.securityConfig;
 }
 
-// A value for a '...' string argument inside an onclick attribute.
-function jsArgAttr(v) {
-  return escapeShellHtml(String(v == null ? "" : v).replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
-}
-
 function memberLowOf(name) {
   return standardizeParticipantName(name || "").toLowerCase();
 }

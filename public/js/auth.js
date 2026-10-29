@@ -762,7 +762,7 @@ function openAuthModal() {
     var item = allLb[i];
     var sel = (matchedOnBoard && standardizeParticipantName(curLinked).toLowerCase() === standardizeParticipantName(item.name).toLowerCase()) ? " selected" : "";
     var claimed = secLive && !sel && isMemberClaimedByOther(item.name, myUid);
-    lbOpts += '<option value="' + item.name.replace(/"/g, '&quot;') + '"' + sel + (claimed ? ' disabled' : '') + '>' + (claimed ? '🔒 ' : '🏆 ') + item.name + ' (' + item.priorPts + ' pts • Rank ' + item.rank + ')' + (claimed ? ' · Claimed' : '') + '</option>';
+    lbOpts += '<option value="' + escapeHtml(item.name) + '"' + sel + (claimed ? ' disabled' : '') + '>' + (claimed ? '🔒 ' : '🏆 ') + escapeHtml(item.name) + ' (' + item.priorPts + ' pts • Rank ' + item.rank + ')' + (claimed ? ' · Claimed' : '') + '</option>';
   }
 
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
@@ -775,10 +775,10 @@ function openAuthModal() {
           '<span class="badge badge-ev">' + (AUTH_SESSION.provider.indexOf("google") !== -1 ? "🌐 Google Auth" : "📧 Email + Password") + '</span>' +
         '</div>' +
         '<div style="font-size:0.78rem;color:var(--text);margin-bottom:4px;"><strong>Account:</strong> ' + (AUTH_SESSION.email || AUTH_SESSION.displayName) + '</div>' +
-        '<div style="font-size:0.78rem;color:var(--text);margin-bottom:8px;"><strong>Bound Instance Profile:</strong> <span style="color:var(--text);font-weight:800;">' + boundMeta.name + '</span> (Prior: ' + (boundMeta.priorPts || 0) + ' pts • ' + (boundMeta.defaultRank || 'Pool') + ')</div>' +
+        '<div style="font-size:0.78rem;color:var(--text);margin-bottom:8px;"><strong>Bound Instance Profile:</strong> <span style="color:var(--text);font-weight:800;">' + escapeHtml(boundMeta.name) + '</span> (Prior: ' + (boundMeta.priorPts || 0) + ' pts • ' + (boundMeta.defaultRank || 'Pool') + ')</div>' +
         '<div style="font-size:0.72rem;color:var(--text);background:var(--bg);padding:8px;border-radius:8px;border:1px solid var(--border-muted);">' +
           '🛡️ <strong>How Your Isolated Instance Works:</strong><br>' +
-          '• Your device is locked to <strong>' + boundMeta.name + '</strong> (plus your personal <strong>🧪 Test Sim</strong> sandbox).<br>' +
+          '• Your device is locked to <strong>' + escapeHtml(boundMeta.name) + '</strong> (plus your personal <strong>🧪 Test Sim</strong> sandbox).<br>' +
           '• Other users logging in on their phones/computers <strong>cannot switch your active profile</strong> or edit your picks.<br>' +
           '• Everyone else\'s picks still stream into your app live in real time for Head-to-Head comparison and Live CST grading!' +
         '</div>' +
@@ -877,7 +877,7 @@ function updateAuthUI() {
     if (banner) {
       banner.style.display = "flex";
       banner.innerHTML =
-        '<span>🔐 Instance: <strong style="color:var(--win);">' + bMeta.name + '</strong> ' +
+        '<span>🔐 Instance: <strong style="color:var(--win);">' + escapeHtml(bMeta.name) + '</strong> ' +
         (isLocked ? '<span style="color:var(--text);">(Isolated • Others Read-Only)</span>' : '<span style="color:var(--warn);">(👑 Admin Override)</span>') +
         '</span>' +
         '<div style="display:flex;gap:4px;">' +

@@ -876,9 +876,11 @@ function isSafeBotTeamSubstrMatch(hayNorm, needleNorm) {
   var prefix = hayNorm.slice(0, idx);
   var suffix = hayNorm.slice(idx + needleNorm.length);
   var blockedPrefixes = /(west|south|north|east|central|middle|coastal|western|eastern|northern|southern)$/;
-  var blockedSuffixes = /^(state|st|tech|am|oh|ohio|fl|christian|southern|northern|eastern|western|international|atlantic|college)/;
+  var blockedSuffixes = /^(state|st|tech|am|at|oh|ohio|fl|christian|southern|northern|eastern|western|central|international|atlantic|college|elpaso|sanantonio)/;
   if (prefix && blockedPrefixes.test(prefix)) return false;
   if (suffix && blockedSuffixes.test(suffix)) return false;
+  // Whole team names that end in another team's name: Arkansas/Kansas, Sam Houston/Houston.
+  if (prefix === "ar" || prefix === "sam") return false;
   return true;
 }
 
@@ -2025,8 +2027,10 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
     var yl100 = parseBotSpotTextToYl100(possText, g, awayAbbr, homeAbbr, possSide, ylRaw);
     if (yl100 === null) yl100 = ylRaw;
 
-    var isInProg = (stType.state === "in");
-    var isComp = (stType.completed === true);
+    // Cancelled / postponed / suspended games are voided: never final, so never graded as a loss.
+    var isVoid = /CANCEL|POSTPON|SUSPEND|FORFEIT/i.test(String(stType.name || ""));
+    var isInProg = (stType.state === "in") && !isVoid;
+    var isComp = (stType.completed === true) && !isVoid;
     if (isInProg) inProgressCount++;
     if (isComp) completedCount++;
     if (!isInProg && !isComp && matched.ev.date) {
@@ -2065,6 +2069,8 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
       lastPlayText: lastPlayStr,
       inProgress: isInProg,
       completed: isComp,
+      voided: isVoid,
+      statusName: stType.name || "",
       eventId: matched.ev.id,
       finalDrive: null,
       lastScoringDrive: null

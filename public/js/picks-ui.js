@@ -607,7 +607,7 @@ function myPickSummary() {
     var pick = getResolvedPickForGame(picks, g, false);
     if (!pick) { out.missing.push(g); out.lines.push(g.id + ". " + g.away + " at " + g.home + ": no pick"); continue; }
     var isAway = isSameTeamPick(pick, g.away, g);
-    var pts = (isAway ? (g.mondayAwayPts || g.awayPts) : (g.mondayHomePts || g.homePts)) || 1;
+    var pts = getGamePickPts(g, isAway);
     out.done++;
     out.maxPts += pts;
     if (pts >= 3) out.x3++; else if (pts === 2) out.x2++; else out.x1++;

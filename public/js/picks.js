@@ -66,7 +66,7 @@ function buildTeamPickPillsHtml(g, teamName) {
   if (!isProfileHiddenFromViewer(activeProfile, g.id) && state[activeProfile] && state[activeProfile].picks) {
     var actPick = getResolvedPickForGame(state[activeProfile].picks, g, true);
     if (isSameTeamPick(actPick, teamName, g)) {
-      html += '<span class="p-tag ' + actMeta.tagClass + '">✓ ' + actMeta.shortName + '</span>';
+      html += '<span class="p-tag ' + actMeta.tagClass + '">✓ ' + escapeHtml(actMeta.shortName) + '</span>';
     }
   }
 
@@ -74,12 +74,12 @@ function buildTeamPickPillsHtml(g, teamName) {
   if (cmp && cmp.key !== activeProfile && !cmp.isHiddenForGame(g.id) && cmp.hasPicks) {
     var cmpPick = getResolvedPickForGame(cmp.picks, g, !cmp.isPoolMember);
     if (cmpPick && isSameTeamPick(cmpPick, teamName, g)) {
-      html += '<span class="p-tag ' + cmp.tagClass + '">⚔️ ' + cmp.shortName + '</span>';
+      html += '<span class="p-tag ' + cmp.tagClass + '">⚔️ ' + escapeHtml(cmp.shortName) + '</span>';
     }
   }
 
   if (!BLIND_MODE) {
-    for (var w = 0; w < state.watchlist.length; w++) {
+    for (var w = 0; w < (state.watchlist || []).length; w++) {
       var rv = state.watchlist[w];
       // Avoid duplicating if the compare target is already this watchlist rival
       if (cmp && cmp.isPoolMember && standardizeParticipantName(cmp.name).toLowerCase() === standardizeParticipantName(rv.name).toLowerCase()) continue;
@@ -280,8 +280,14 @@ function toggleAutoPoll(enabled) {
   if (enabled) {
     pollLiveSaturdayScores(true);
     livePollTimer = setInterval(function() {
+      // A hidden tab doesn't poll; coming back refreshes at once (below).
+      if (document.visibilityState === "hidden") return;
       pollLiveSaturdayScores(false);
     }, 60000);
   }
 }
+
+document.addEventListener("visibilitychange", function() {
+  if (document.visibilityState === "visible" && livePollTimer) pollLiveSaturdayScores(false);
+});
 

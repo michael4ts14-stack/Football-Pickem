@@ -350,7 +350,7 @@ function commishDeletePlayerPicks(memberName) {
           currentWeek: state.currentWeek,
           deletedByCommissionerAt: nowIso,
           updatedAt: nowIso
-        }, { merge: true }).catch(function() {});
+        }, { merge: true }).catch(function(e) { reportCloudSaveFailure("the deleted picks", e); });
       } catch (e) {}
     }
   }
@@ -359,7 +359,7 @@ function commishDeletePlayerPicks(memberName) {
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
   if (fsDb) {
     try {
-      fsDb.collection("pickem_v14").doc("shared_state").set(sharedClearPatch, { merge: true }).catch(function() {});
+      fsDb.collection("pickem_v14").doc("shared_state").set(sharedClearPatch, { merge: true }).catch(function(e) { reportCloudSaveFailure("the deleted picks", e); });
     } catch (e2) {}
   }
 
@@ -455,7 +455,7 @@ function renderCommishActiveEditBar() {
     opts += '<option value="' + n.replace(/"/g, '&quot;') + '"' + sel + '>👤 ' + n + '</option>';
   }
 
-  var safeName = curMeta.name.replace(/'/g, "\\'");
+  var safeName = jsArgAttr(curMeta.name);
   bar.innerHTML =
     '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
       '<span class="badge badge-2x" style="font-size:0.73rem;padding:4px 9px;">👑 COMMISH PICK EDITOR</span>' +
@@ -595,7 +595,7 @@ function addLinkedBuyInEntryFromInput(inputId) {
         boundProfileKey: resolved.profileKey,
         linkedMemberName: resolved.displayName,
         updatedAt: new Date().toISOString()
-      }, { merge: true }).catch(function() {});
+      }, { merge: true }).catch(function(e) { reportCloudSaveFailure("your linked entries", e); });
     } catch (e) {}
   }
 
@@ -935,7 +935,7 @@ function renderReviewChecklistModalBody() {
     if (p) {
       selectedTotal++;
       var isAway = isSameTeamPick(p, g.away, g);
-      pts = isAway ? (g.mondayAwayPts || g.awayPts) : (g.mondayHomePts || g.homePts);
+      pts = getGamePickPts(g, isAway);
       if (pts === 3) count3x++;
       else if (pts === 2) count2x++;
       else count1x++;
@@ -961,9 +961,9 @@ function renderReviewChecklistModalBody() {
 
   body.innerHTML =
     '<div class="commish-kpi-strip" style="margin-bottom:10px;">' +
-      '<div class="commish-kpi"><div class="metric-label">Entry / Profile</div><div class="metric-val" style="color:var(--legacy-accent);font-size:0.95rem;">' + meta.name + '</div><div class="metric-sub">' + GAMES.length + ' / ' + GAMES.length + ' Games Selected</div></div>' +
+      '<div class="commish-kpi"><div class="metric-label">Entry / Profile</div><div class="metric-val" style="color:var(--legacy-accent);font-size:0.95rem;">' + escapeHtml(meta.name) + '</div><div class="metric-sub">' + GAMES.length + ' / ' + GAMES.length + ' Games Selected</div></div>' +
       '<div class="commish-kpi"><div class="metric-label">Multiplier Breakdown</div><div class="metric-val" style="font-size:0.95rem;">' + count1x + '×1pt • ' + count2x + '×2pt • ' + count3x + '×3pt</div><div class="metric-sub">Max Ceiling: ' + totalCeiling + ' pts</div></div>' +
-      '<div class="commish-kpi"><div class="metric-label">Official Tie-Breaker</div><div class="metric-val" style="color:var(--gold);font-size:0.95rem;">' + tb + '</div><div class="metric-sub">Highest Score First</div></div>' +
+      '<div class="commish-kpi"><div class="metric-label">Official Tie-Breaker</div><div class="metric-val" style="color:var(--gold);font-size:0.95rem;">' + escapeHtml(tb) + '</div><div class="metric-sub">Highest Score First</div></div>' +
       '<div class="commish-kpi"><div class="metric-label">Submission Lock</div><div class="metric-val" style="color:' + (isLocked ? 'var(--green)' : 'var(--amber)') + ';font-size:0.95rem;">' + (isLocked ? '🔒 LOCKED' : '🔓 UNLOCKED') + '</div><div class="metric-sub">' + (isLocked ? 'Protected from accidental edits' : 'Click Lock Picks below to confirm') + '</div></div>' +
     '</div>' +
     '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding:8px 10px;background:var(--panel-alt);border-radius:9px;border:1px solid var(--border-muted);">' +
@@ -1056,7 +1056,7 @@ function renderSettingsDrawerBody() {
   body.innerHTML =
     '<div class="drawer-section">' +
       '<div class="drawer-section-title"><span>👤 Account & Multi-Buy-In Entries</span><span class="badge ' + (AUTH_SESSION ? 'badge-ev' : 'badge-2x') + '">' + (AUTH_SESSION ? 'Signed In' : 'Guest / Local') + '</span></div>' +
-      '<div style="font-size:0.76rem;color:var(--text);">Active Entry: <strong style="color:var(--text);">' + getProfileMetaByKey(activeProfile).name + '</strong> ' + (AUTH_SESSION && AUTH_SESSION.email ? ('<span style="color:var(--muted);">(' + AUTH_SESSION.email + ')</span>') : '') + '</div>' +
+      '<div style="font-size:0.76rem;color:var(--text);">Active Entry: <strong style="color:var(--text);">' + escapeHtml(getProfileMetaByKey(activeProfile).name) + '</strong> ' + (AUTH_SESSION && AUTH_SESSION.email ? ('<span style="color:var(--muted);">(' + AUTH_SESSION.email + ')</span>') : '') + '</div>' +
       (AUTH_SESSION ? (
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin:4px 0;">' + entriesHtml +
           '<button type="button" class="entry-pill-btn' + (activeProfile === "test" ? ' active' : '') + '" onclick="switchProfile(\'test\'); renderSettingsDrawerBody();">🧪 Sandbox Sim</button>' +
@@ -1222,12 +1222,12 @@ renderCommissionerModalBody = function() {
         ? '<span class="badge badge-ev">✅ ' + cStats.matched + '/' + GAMES.length + ' Saved</span>'
         : (hasAny ? '<span class="badge badge-2x">⚠️ Partial (' + cStats.matched + '/' + GAMES.length + ')</span>' : '<span class="badge badge-3x">⏳ Missing (0/' + GAMES.length + ')</span>');
 
-      var safeName = pm.name.replace(/'/g, "\\'");
+      var safeName = jsArgAttr(pm.name);
       rowsHtml += '<tr>' +
-        '<td><strong>' + pm.name + '</strong>' + (linkedPf ? ' <span class="linked-lb-pill">App Account</span>' : '') + '</td>' +
+        '<td><strong>' + escapeHtml(pm.name) + '</strong>' + (linkedPf ? ' <span class="linked-lb-pill">App Account</span>' : '') + '</td>' +
         '<td>' + (pm.priorPts || 0) + ' pts</td>' +
         '<td>' + statusBadge + '</td>' +
-        '<td><strong>' + tbVal + '</strong></td>' +
+        '<td><strong>' + escapeHtml(tbVal) + '</strong></td>' +
         '<td style="display:flex;gap:4px;flex-wrap:wrap;">' +
           '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:var(--warn);" onclick="manuallySetPlayerPicks(\'' + safeName + '\')">✏️ Edit Picks / Override</button>' +
           '<button type="button" class="btn-sm" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:var(--text);" onclick="overrideTiebreaker(\'' + safeName + '\')">Tiebreaker</button>' +
@@ -1287,16 +1287,16 @@ renderCommissionerModalBody = function() {
       var tbStr = (linkedPf2 && state[linkedPf2.key] && state[linkedPf2.key].tiebreaker) ? state[linkedPf2.key].tiebreaker : (p.tiebreaker || "—");
       var wkPts = p.awaitingSheet ? 0 : Math.max(p.livePts || 0, p.finalPts || 0);
       var totPts = p.newLiveTotal || p.priorPts || 0;
-      var safePName = p.name.replace(/'/g, "\\'");
+      var safePName = jsArgAttr(p.name);
 
       var cells = '<td>' +
         '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">' +
-          '<span>' + (r + 1) + '. ' + p.name + '</span>' +
-          '<button type="button" class="btn-sm" style="padding:1px 5px;font-size:0.6rem;" onclick="commishQuickImpersonate(\'' + safePName + '\')" title="Edit ' + p.name + '\'s picks">✏️</button>' +
+          '<span>' + (r + 1) + '. ' + escapeHtml(p.name) + '</span>' +
+          '<button type="button" class="btn-sm" style="padding:1px 5px;font-size:0.6rem;" onclick="commishQuickImpersonate(\'' + safePName + '\')" title="Edit ' + escapeHtml(p.name) + '\'s picks">✏️</button>' +
         '</div>' +
       '</td>' +
       '<td>' + (p.priorPts || 0) + '</td>' +
-      '<td>' + tbStr + '</td>' +
+      '<td>' + escapeHtml(tbStr) + '</td>' +
       '<td style="color:var(--green);font-weight:800;">' + (p.awaitingSheet ? '—' : ('+' + wkPts)) + '</td>' +
       '<td style="color:var(--legacy-accent);font-weight:900;">' + totPts + '</td>';
 
@@ -1308,7 +1308,7 @@ renderCommissionerModalBody = function() {
         } else {
           var isAw = isSameTeamPick(pickTeam, gObj.away, gObj);
           var code = isAw ? gObj.awayCode : gObj.homeCode;
-          var pts = isAw ? (gObj.mondayAwayPts || gObj.awayPts) : (gObj.mondayHomePts || gObj.homePts);
+          var pts = getGamePickPts(gObj, isAw);
           var ls = LIVE_SCORES[gObj.id];
           var cellBg = "";
           var cellColor = pts === 3 ? "#fca5a5" : (pts === 2 ? "#fde68a" : "#e2e8f0");
@@ -1353,10 +1353,10 @@ renderCommissionerModalBody = function() {
       var rec = commishMap[keyStr];
       if (!rec) continue;
       var isEnabled = rec.enabled !== false;
-      var safeKey = keyStr.replace(/'/g, "\\'");
+      var safeKey = jsArgAttr(keyStr);
       roleRows += '<tr>' +
-        '<td><strong>' + keyStr + '</strong></td>' +
-        '<td>' + (rec.label || rec.role || "Commissioner") + '</td>' +
+        '<td><strong>' + escapeHtml(keyStr) + '</strong></td>' +
+        '<td>' + escapeHtml(rec.label || rec.role || "Commissioner") + '</td>' +
         '<td><span class="badge ' + (keyStr.indexOf("@") === -1 ? 'badge-3x' : (isEnabled ? 'badge-ev' : 'badge-3x')) + '">' + (keyStr.indexOf("@") === -1 ? 'Not used: names don\'t grant access, add their email' : (isEnabled ? 'Active' : 'Suspended')) + '</span></td>' +
         '<td style="display:flex;gap:5px;flex-wrap:wrap;">' +
           '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;" onclick="commishToggleRoleEnabled(\'' + safeKey + '\')">' + (isEnabled ? '⏸ Disable' : '▶ Enable') + '</button>' +
@@ -1368,7 +1368,7 @@ renderCommissionerModalBody = function() {
     var memberOpts = '<option value="">— Or Select a Pool Member to Promote —</option>';
     var pmListAdmin = state.poolMembers || [];
     for (var m = 0; m < pmListAdmin.length; m++) {
-      memberOpts += '<option value="' + pmListAdmin[m].name.replace(/"/g, '&quot;') + '">' + pmListAdmin[m].name + '</option>';
+      memberOpts += '<option value="' + pmListAdmin[m].name.replace(/"/g, '&quot;') + '">' + escapeHtml(pmListAdmin[m].name) + '</option>';
     }
 
     body.innerHTML =

@@ -62,7 +62,7 @@ function saveCurrentWeekToArchive(notifyToast) {
       fsDb.collection("pickem_v14").doc("shared_state").set({
         weekArchives: state.weekArchives,
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      }, { merge: true }).catch(function(e) { reportCloudSaveFailure("the week archive", e); });
     } catch (e) {}
   }
   populateWeekArchiveDropdown();

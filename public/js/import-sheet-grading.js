@@ -91,6 +91,31 @@ function isSameTeamPick(teamA, teamB, g) {
   return false;
 }
 
+// Points for picking one side: the Monday-locked multiplier the pick cards show, so every view
+// (Picks, Live, Standings, Condensed, Commissioner) grades with the same number.
+function getGamePickPts(g, isAway) {
+  if (!g) return 1;
+  return (isAway ? (g.mondayAwayPts || g.awayPts) : (g.mondayHomePts || g.homePts)) || 1;
+}
+
+// Cancelled, postponed, suspended or forfeited games never grade as a win or a loss.
+function isVoidedGame(ls) {
+  if (!ls) return false;
+  if (ls.voided) return true;
+  return /cancel|postpon|suspend|forfeit|no contest/i.test(String(ls.detail || "") + " " + String(ls.statusName || ""));
+}
+
+// "win" | "loss" | "push" (final tie or voided) | "live" | "pending"
+function gradeOfPick(pick, g) {
+  var ls = g && LIVE_SCORES[g.id];
+  if (!ls || !pick) return "pending";
+  if (isVoidedGame(ls)) return "push";
+  if (!ls.completed) return ls.inProgress ? "live" : "pending";
+  var a = Number(ls.awayScore) || 0, h = Number(ls.homeScore) || 0;
+  if (a === h) return "push";
+  return isSameTeamPick(a > h ? g.away : g.home, pick, g) ? "win" : "loss";
+}
+
 function gradePickMap(picksMap, allowFallbackToRec, computeDp) {
   var useFallback = (allowFallbackToRec === true);
   var ceiling = 0, ev = 0, dogs = 0, chalkCount = 0, count2x = 0, count3x = 0;
@@ -113,8 +138,9 @@ function gradePickMap(picksMap, allowFallbackToRec, computeDp) {
     }
     submittedPicksCount++;
     var isAway = isSameTeamPick(pick, g.away, g);
-    var pts = isAway ? g.awayPts : g.homePts;
+    var pts = getGamePickPts(g, isAway);
     var prob = isAway ? getTeamWinProb(g, "away") : getTeamWinProb(g, "home");
+    if (isVoidedGame(LIVE_SCORES[g.id])) continue; // no points either way, not a loss
     ceiling += pts;
     ev += pts * prob;
     if (pts === 1) chalkCount++;
@@ -637,6 +663,7 @@ function parseAndStoreMasterPoolCsv() {
   var colMap = detectColumnMappingFromHeader(headers);
 
   var priorMap = {};
+  if (!Array.isArray(state.leaderboard)) state.leaderboard = [];
   for (var l = 0; l < state.leaderboard.length; l++) {
     var lb = state.leaderboard[l];
     priorMap[standardizeParticipantName(lb.name).toLowerCase()] = parseFloat(lb.priorPts) || 0;

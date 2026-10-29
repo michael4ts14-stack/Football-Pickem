@@ -10,6 +10,18 @@ var showAllInj = false;
 var livePollTimer = null;
 var LIVE_SCORES = window.LIVE_SCORES || {};
 
+// A value for a '...' string argument inside an onclick="..." attribute.
+function jsArgAttr(v) {
+  return escapeHtml(String(v == null ? "" : v).replace(/\\/g, "\\\\").replace(/'/g, "\\'"));
+}
+
+// HTML-escapes any value before it goes into innerHTML (names, tiebreakers, banners, emails).
+function escapeHtml(str) {
+  return String(str == null ? "" : str).replace(/[&<>"']/g, function(c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
 // Replace your existing `var state = { ... };` block with:
 var EXPANDED_FIELD_TRACKERS = {};
 var SUMMARY_PBP_CACHE = {};

@@ -258,7 +258,7 @@ async function saveAndSendPickConfirmationReceipt() {
       summaryLines.push("#" + g.id + " [NO PICK SELECTED]");
       continue;
     }
-    var pts = isSameTeamPick(p, g.away, g) ? g.awayPts : g.homePts;
+    var pts = getGamePickPts(g, isSameTeamPick(p, g.away, g));
     summaryLines.push("#" + g.id + " " + p + " (" + pts + "x)");
   }
 
@@ -286,7 +286,7 @@ async function saveAndSendPickConfirmationReceipt() {
       (typeof officialFormReceiptButtonHtml === "function" ? officialFormReceiptButtonHtml() : '') +
       '<div style="font-size:0.74rem;color:var(--text);line-height:1.45;">' +
         '• <strong>Player:</strong> ' + escapeShellHtml(shownName) + (accountEmail ? (' (' + escapeShellHtml(accountEmail) + ')') : '') + '<br>' +
-        '• <strong>Tie-Breaker:</strong> ' + tb + '<br>' +
+        '• <strong>Tie-Breaker:</strong> ' + escapeHtml(tb) + '<br>' +
         '• <strong>🔒 Locked:</strong> tap <strong>Unlock picks</strong> to change anything before the official deadline, <strong>' + pickDeadlineLabel() + '</strong>. Then lock and send again.' +
       '</div>' +
     '</div>' +
@@ -349,12 +349,26 @@ function sendReceiptToCustomEmail() {
   });
 }
 
+// "31-24", "31 - 24", "31 to 24" -> { high, low, total }; "55" -> { total: 55 }; else null.
+function parseTiebreakerScore(tbStr) {
+  var s = String(tbStr == null ? "" : tbStr).trim();
+  var m = s.match(/(\d{1,3})\s*(?:-|–|—|to|:)\s*(\d{1,3})/i);
+  if (m) {
+    var a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+    if (Number.isFinite(a) && Number.isFinite(b)) return { high: Math.max(a, b), low: Math.min(a, b), total: a + b };
+  }
+  var t = s.match(/^(\d{1,3})$/);
+  if (t && Number.isFinite(parseInt(t[1], 10))) return { high: null, low: null, total: parseInt(t[1], 10) };
+  return null;
+}
+
+// Distance from the actual tiebreaker score; a blank or unreadable tiebreaker sorts last (999).
 function parseTiebreakerDiff(tbStr, actualHigh, actualLow) {
-  var m = String(tbStr || "").match(/(\d{1,3})\s*-\s*(\d{1,3})/);
-  if (!m) return 999;
-  var pHigh = Math.max(parseInt(m[1], 10), parseInt(m[2], 10));
-  var pLow = Math.min(parseInt(m[1], 10), parseInt(m[2], 10));
-  return Math.abs(pHigh - actualHigh) + Math.abs(pLow - actualLow);
+  var tb = parseTiebreakerScore(tbStr);
+  var hi = Number(actualHigh), lo = Number(actualLow);
+  if (!tb || !Number.isFinite(hi) || !Number.isFinite(lo)) return 999;
+  if (tb.high === null) return Math.abs(tb.total - (hi + lo));
+  return Math.abs(tb.high - hi) + Math.abs(tb.low - lo);
 }
 
 function getTop5WeeklyWinnersList() {
@@ -364,8 +378,8 @@ function getTop5WeeklyWinnersList() {
   var tbLs = tbGame ? LIVE_SCORES[tbGame.id] : null;
   var actualHigh = 28, actualLow = 24;
   if (tbLs && (tbLs.completed || tbLs.inProgress)) {
-    actualHigh = Math.max(tbLs.awayScore || 0, tbLs.homeScore || 0);
-    actualLow = Math.min(tbLs.awayScore || 0, tbLs.homeScore || 0);
+    actualHigh = Math.max(Number(tbLs.awayScore) || 0, Number(tbLs.homeScore) || 0);
+    actualLow = Math.min(Number(tbLs.awayScore) || 0, Number(tbLs.homeScore) || 0);
   }
 
   var scoredList = [];
@@ -421,8 +435,8 @@ function renderTop5WeeklyWinnersPodium() {
           '<span style="font-size:0.68rem;font-weight:900;color:' + (i === 0 ? 'var(--gold)' : '#6ee7b7') + ';">' + medals[i] + '</span>' +
           '<span class="badge badge-ev" style="font-size:0.7rem;">+' + w.wkPts + ' pts</span>' +
         '</div>' +
-        '<div style="font-size:0.92rem;font-weight:900;color:var(--text);margin-top:2px;">' + w.name + '</div>' +
-        '<div style="font-size:0.69rem;color:var(--muted);">🎯 TB: <strong style="color:var(--text);">' + w.tiebreaker + '</strong> • ' + dogStr + '</div>' +
+        '<div style="font-size:0.92rem;font-weight:900;color:var(--text);margin-top:2px;">' + escapeHtml(w.name) + '</div>' +
+        '<div style="font-size:0.69rem;color:var(--muted);">🎯 TB: <strong style="color:var(--text);">' + escapeHtml(w.tiebreaker) + '</strong> • ' + dogStr + '</div>' +
         '<div style="font-size:0.68rem;color:var(--text);">Overall Total: <strong>' + w.newTotal + ' pts</strong></div>' +
       '</div>';
   }
@@ -589,7 +603,7 @@ function renderCommishAnnouncementBanner() {
   if (!bar || !txt) return;
   var msg = String(cfg.announcementBanner || "").trim();
   if (msg && !window._dismissedCommishBannerSession) {
-    txt.innerHTML = "📣 <strong>Commissioner Bulletin:</strong> " + msg;
+    txt.innerHTML = "📣 <strong>Commissioner Bulletin:</strong> " + escapeHtml(msg);
     bar.style.display = "flex";
   } else {
     bar.style.display = "none";
@@ -766,12 +780,12 @@ function renderCommissionerModalBody() {
         ? '<span class="badge badge-ev">✅ ' + cStats.matched + '/' + GAMES.length + ' Saved (Editable til ' + pickDeadlineLabel() + ')</span>'
         : (hasAny ? '<span class="badge badge-2x">⚠️ Partial (' + cStats.matched + '/' + GAMES.length + ')</span>' : '<span class="badge badge-3x">⏳ Missing (0/' + GAMES.length + ')</span>');
 
-      var safeName = pm.name.replace(/'/g, "\\'");
+      var safeName = jsArgAttr(pm.name);
       rowsHtml += '<tr>' +
-        '<td><strong>' + pm.name + '</strong>' + (linkedPf ? ' <span class="linked-lb-pill">App Account</span>' : '') + '</td>' +
+        '<td><strong>' + escapeHtml(pm.name) + '</strong>' + (linkedPf ? ' <span class="linked-lb-pill">App Account</span>' : '') + '</td>' +
         '<td>' + (pm.priorPts || 0) + ' pts</td>' +
         '<td>' + statusBadge + '</td>' +
-        '<td><strong>' + tbVal + '</strong></td>' +
+        '<td><strong>' + escapeHtml(tbVal) + '</strong></td>' +
         '<td>' +
           '<button type="button" class="btn-sm" style="padding:3px 8px;font-size:0.67rem;border-color:var(--border);color:var(--warn);" onclick="commishQuickImpersonate(\'' + safeName + '\')">✏️ Enter/Edit Picks</button>' +
         '</td>' +
@@ -934,10 +948,10 @@ function renderCommissionerModalBody() {
 
     for (var r = 0; r < pmListR.length; r++) {
       var pmR = pmListR[r];
-      var safeN = pmR.name.replace(/'/g, "\\'");
+      var safeN = jsArgAttr(pmR.name);
 
       rosterRows += '<tr>' +
-        '<td><strong>' + pmR.name + '</strong></td>' +
+        '<td><strong>' + escapeHtml(pmR.name) + '</strong></td>' +
         '<td><input type="number" class="search-input" style="width:76px;min-width:0;padding:4px 6px;font-size:0.73rem;font-weight:800;" value="' + (pmR.priorPts || 0) + '" onchange="commishAdjustPlayerPriorPts(\'' + safeN + '\', this.value)" /></td>' +
         '<td><strong>' + (pmR.newLiveTotal || pmR.priorPts || 0) + ' pts</strong></td>' +
         '<td>' + (typeof accountLinkCellHtml === "function" ? accountLinkCellHtml(pmR.name) : '') + '</td>' +
@@ -975,7 +989,7 @@ function renderCommissionerModalBody() {
         '<div class="side-title"><span>📌 Pin League-Wide Commissioner Announcement Banner</span></div>' +
         '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Appears at the very top of the app for all connected users (leave blank to clear):</div>' +
         '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-          '<input type="text" id="commish-banner-input" class="search-input" style="flex:1;padding:7px 10px;font-size:0.78rem;" placeholder="e.g. Week 8 Picks Lock Friday at 9:00 PM CST! Everyone\'s picks reveal Saturday morning." value="' + String(cfg.announcementBanner || "").replace(/"/g, '&quot;') + '" />' +
+          '<input type="text" id="commish-banner-input" class="search-input" style="flex:1;padding:7px 10px;font-size:0.78rem;" placeholder="e.g. Week 8 Picks Lock Friday at 9:00 PM CST! Everyone\'s picks reveal Saturday morning." value="' + escapeHtml(cfg.announcementBanner || "") + '" />' +
           '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="commishSaveBanner()">📌 Publish Banner</button>' +
           '<button type="button" class="btn-sm" onclick="document.getElementById(\'commish-banner-input\').value=\'\'; commishSaveBanner();">Clear</button>' +
         '</div>' +
@@ -986,7 +1000,7 @@ function renderCommissionerModalBody() {
           '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="copyCommishRecapPost()">📋 Copy Recap & Standings Post</button>' +
         '</div>' +
         '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Automatically lists the <strong>Top 5 Weekly Winners</strong> (who gained the most points that week) plus the full 89-player Overall Standings table:</div>' +
-        '<textarea id="commish-recap-textarea" rows="12" class="search-input" style="width:100%;font-family:monospace;font-size:0.72rem;color:var(--text);">' + recapText + '</textarea>' +
+        '<textarea id="commish-recap-textarea" rows="12" class="search-input" style="width:100%;font-family:monospace;font-size:0.72rem;color:var(--text);">' + escapeHtml(recapText) + '</textarea>' +
       '</div>';
   }
 }
@@ -1015,6 +1029,12 @@ function copyMissingPlayersList() {
   showAppToast("📧 Copied " + missing.length + " missing player names to clipboard!");
 }
 
+// One CSV field: always quoted, quotes doubled, line breaks flattened (the app's own importer and
+// the bot both read the file back line by line), so commas or quotes in a name never shift columns.
+function csvCell(v) {
+  return '"' + String(v == null ? "" : v).replace(/\r?\n|\r/g, " ").replace(/"/g, '""') + '"';
+}
+
 function exportOfficialMasterCsv() {
   regradeAllPoolMembersLive();
   var headers = ["Contestants"];
@@ -1022,9 +1042,9 @@ function exportOfficialMasterCsv() {
     headers.push("G" + GAMES[g].id + " (" + GAMES[g].awayCode + "/" + GAMES[g].homeCode + ")");
   }
   headers.push("Prior Pts", "Tiebreaker", "Weekly Pts", "New Total");
-  var csvRows = [headers.join(",")];
+  var csvRows = [headers.map(csvCell).join(",")];
 
-  var pmList = (state.poolMembers || []).slice().sort(function(a, b) {
+  var pmList = (state.poolMembers || []).filter(function(pm) { return pm && pm.name; }).sort(function(a, b) {
     return a.name.localeCompare(b.name);
   });
 
@@ -1033,19 +1053,17 @@ function exportOfficialMasterCsv() {
     var linkedPf = getProfileLinkedToMemberName(pm.name);
     var pMap = (linkedPf && state[linkedPf.key] && state[linkedPf.key].picks) ? state[linkedPf.key].picks : (pm.picks || {});
     var tb = (linkedPf && state[linkedPf.key] && state[linkedPf.key].tiebreaker) ? state[linkedPf.key].tiebreaker : (pm.tiebreaker || "");
-    var row = ['"' + pm.name.replace(/"/g, '""') + '"'];
+    var row = [pm.name];
     for (var j = 0; j < GAMES.length; j++) {
-      var gm = GAMES[j];
-      var pick = getResolvedPickForGame(pMap, gm, false) || "";
-      row.push('"' + String(pick).replace(/"/g, '""') + '"');
+      row.push(getResolvedPickForGame(pMap, GAMES[j], false) || "");
     }
-    var wkPts = Math.max(pm.livePts || 0, pm.finalPts || 0);
+    var wkPts = pm.awaitingSheet ? 0 : Math.max(pm.livePts || 0, pm.finalPts || 0);
     var totPts = (parseFloat(pm.priorPts) || 0) + wkPts;
-    row.push(pm.priorPts || 0, '"' + String(tb).replace(/"/g, '""') + '"', wkPts, totPts);
-    csvRows.push(row.join(","));
+    row.push(parseFloat(pm.priorPts) || 0, tb, wkPts, totPts);
+    csvRows.push(row.map(csvCell).join(","));
   }
 
-  var blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+  var blob = new Blob([csvRows.join("\r\n")], { type: "text/csv;charset=utf-8;" });
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
   a.href = url;
@@ -1053,6 +1071,7 @@ function exportOfficialMasterCsv() {
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
   showAppToast("📊 Downloaded Official Master .CSV Spreadsheet (" + pmList.length + " players)!");
 }
 
@@ -1271,6 +1290,8 @@ function commishAddPoolMember() {
     return;
   }
   var prior = ptsInp ? (parseFloat(ptsInp.value) || 0) : 0;
+  if (!Array.isArray(state.poolMembers)) state.poolMembers = [];
+  if (!Array.isArray(state.leaderboard)) state.leaderboard = [];
   state.poolMembers.push({
     name: stdName,
     priorPts: prior,

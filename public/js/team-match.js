@@ -54,6 +54,7 @@ function normalizeTeamKey(str) {
   try { s = s.normalize("NFD").replace(/[\u0300-\u036f]/g, ""); } catch (e) {}
   s = s.toLowerCase()
     .replace(/#\d+\s*/g, "")
+    .replace(/^\s*(\(\d+\)|no\.?\s*\d+)\s+/, "") // "(4) Texas", "No. 4 Texas"
     .replace(/&/g, "")
     .replace(/\buniv(ersity)?( of)?\b/g, "")
     .replace(/\bst\.?(?=\s|\)|$)/g, "state")
@@ -92,6 +93,8 @@ function teamMatchesCompetitor(sheetTeamName, espnComp) {
   return teamMatchScore(sheetTeamName, espnComp) > 0;
 }
 
+var LOOSE_MATCH_BLOCKED_TAILS = /^(state|st|tech|am|at|oh|ohio|fl|southern|northern|eastern|western|central|christian|atlantic|international|elpaso|sanantonio|methodist|carolina)/;
+
 function teamLooseMatch(sheetTeamName, espnComp) {
   var target = normalizeTeamKey(sheetTeamName);
   if (target.length < 4) return false;
@@ -103,7 +106,8 @@ function teamLooseMatch(sheetTeamName, espnComp) {
       var longer = k.length > target.length ? k : target;
       var shorter = k.length > target.length ? target : k;
       var tail = longer.slice(shorter.length);
-      if (tail === "state" || tail === "tech" || tail === "oh") continue;
+      // "Texas" must never match Texas A&M / Tech / State / Southern, "Georgia" never Georgia Southern, etc.
+      if (LOOSE_MATCH_BLOCKED_TAILS.test(tail)) continue;
       return true;
     }
   }
@@ -414,7 +418,9 @@ function countMatchingPicksForSlate(picksMap, gamesArr) {
       raw = picksMap[g.id - 1];
     }
     if (!raw) continue;
-    if (raw === g.away || raw === g.home || resolveSheetTeamFromCell(raw, g)) {
+    // Only a pick that resolves to a team in THIS game counts (resolveSheetTeamFromCell returns
+    // an object for a team found in some other game, e.g. last week's stale picks).
+    if (raw === g.away || raw === g.home || typeof resolveSheetTeamFromCell(raw, g) === "string") {
       matched++;
     }
   }

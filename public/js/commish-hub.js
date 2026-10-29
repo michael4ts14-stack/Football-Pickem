@@ -120,7 +120,7 @@ function forceUnlockPicks(memberName) {
 
 function forceUnlockButtonHtml(memberName) {
   var on = isMemberForceUnlocked(memberName);
-  var safe = String(memberName).replace(/'/g, "\\'");
+  var safe = jsArgAttr(memberName);
   return '<button type="button" class="btn-sm" aria-pressed="' + on + '" style="padding:3px 7px;font-size:0.66rem;border-color:var(--border);color:' + (on ? 'var(--accent-text)' : 'var(--text)') + ';" ' +
     'title="Let this player change games that haven\'t kicked off after the deadline (this week only)" onclick="forceUnlockPicks(\'' + safe + '\')">' + (on ? 'Unlocked ✓' : 'Force unlock') + '</button>';
 }

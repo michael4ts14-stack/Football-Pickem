@@ -78,7 +78,7 @@ function openUnifiedImportModal(defaultTab) {
         '<label style="font-size:0.74rem;font-weight:700;color:var(--text);">Target Profile for Pick Import:</label>' +
         '<select id="email-import-target" class="search-input" style="max-width:240px;padding:5px 8px;">' +
           getAllUserProfiles().map(function(pf) {
-            return '<option value="' + pf.key + '"' + (pf.key === activeProfile ? ' selected' : '') + '>' + pf.icon + ' ' + pf.name + '</option>';
+            return '<option value="' + pf.key + '"' + (pf.key === activeProfile ? ' selected' : '') + '>' + pf.icon + ' ' + escapeHtml(pf.name) + '</option>';
           }).join('') +
           '<option value="w0">👀 Watchlist #1 (' + state.watchlist[0].name + ')</option>' +
           '<option value="w1">👀 Watchlist #2 (' + state.watchlist[1].name + ')</option>' +
@@ -136,8 +136,10 @@ function isSafeClientSubstrMatch(hayNorm, needleNorm) {
   var prefix = hayNorm.slice(0, idx);
   var suffix = hayNorm.slice(idx + needleNorm.length);
   var blockedPrefixes = /(west|south|north|east|central|middle|coastal|western|eastern|northern|southern)$/;
-  var blockedSuffixes = /^(state|st|tech|am|oh|ohio|fl|christian|southern|northern|eastern|western|international|atlantic|college)/;
+  var blockedSuffixes = /^(state|st|tech|am|at|oh|ohio|fl|christian|southern|northern|eastern|western|central|international|atlantic|college|elpaso|sanantonio)/;
   if (prefix && blockedPrefixes.test(prefix)) return false;
+  // Whole team names that end in another team's name: Arkansas/Kansas, Sam Houston/Houston.
+  if (prefix === "ar" || prefix === "sam") return false;
   if (suffix && blockedSuffixes.test(suffix)) return false;
   return true;
 }
