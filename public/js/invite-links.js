@@ -189,7 +189,7 @@ function reassignPlayerAccount(profKey) {
     var low = memberLowOf(getLinkedMemberNameForProfile(profKey) || name);
     var memberName = rosterDisplayName(getLinkedMemberNameForProfile(profKey) || name);
     var jobs = [
-      fsDb.collection("pickem_v14_bindings").doc(profKey).set({ uid: uid, email: email, displayName: (acct && acct.displayName) || (req && req.authDisplayName) || memberName, memberName: memberName, memberLow: low, boundAt: now, verifiedBy: "commish_approved" }),
+      setBindingGuarded(profKey, { uid: uid, email: email, displayName: (acct && acct.displayName) || (req && req.authDisplayName) || memberName, memberName: memberName, memberLow: low, boundAt: now, verifiedBy: "commish_approved" }, b ? b.uid : ""),
       fsDb.collection("pickem_v14_users").doc(profKey).set({ ownerUid: uid }, { merge: true }),
       fsDb.collection("pickem_v14_accounts").doc("email_" + email.replace(/[^a-z0-9]/g, "_")).set({ uid: uid, email: email, boundProfileKey: profKey, linkedMemberName: memberName, linkedEntries: [{ profileKey: profKey, memberName: memberName, label: "Entry #1: " + memberName }], updatedAt: now }, { merge: true })
     ];

@@ -145,6 +145,23 @@ function onBoundAccountsChanged(prev) {
   renderAccountSecurityBits();
 }
 
+// Writes a binding only if the doc is absent, already this uid's, or still held by the owner the
+// caller saw (expectedUid), so two writers can't silently overwrite each other's owner.
+function setBindingGuarded(profKey, data, expectedUid) {
+  var ref = fsDb.collection("pickem_v14_bindings").doc(profKey);
+  return fsDb.runTransaction(function(tx) {
+    return tx.get(ref).then(function(snap) {
+      var cur = snap.exists ? String((snap.data() || {}).uid || "") : "";
+      if (cur && cur !== data.uid && cur !== (expectedUid || "")) {
+        var err = new Error("binding-changed");
+        err.code = "binding-changed";
+        throw err;
+      }
+      tx.set(ref, data);
+    });
+  });
+}
+
 async function recordAccountBinding(profKey, memberName, verifiedBy, who) {
   if (!ACCOUNT_SECURITY_LIVE || !fsDb || !profKey || bindingOwnerUid(profKey)) return true;
   var b = {
@@ -152,7 +169,7 @@ async function recordAccountBinding(profKey, memberName, verifiedBy, who) {
     memberName: memberName, memberLow: memberLowOf(memberName), boundAt: new Date().toISOString(), verifiedBy: verifiedBy
   };
   try {
-    await fsDb.collection("pickem_v14_bindings").doc(profKey).set(b);
+    await setBindingGuarded(profKey, b, "");
     BOUND_ACCOUNTS[profKey] = b;
     return true;
   } catch (e) {
@@ -566,10 +583,10 @@ async function approveLinkRequest(uid) {
     return;
   }
   try {
-    await fsDb.collection("pickem_v14_bindings").doc(key).set({
+    await setBindingGuarded(key, {
       uid: r.uid, email: r.authEmail, displayName: r.authDisplayName || r.requestedMember, memberName: r.requestedMember,
       memberLow: r.requestedMemberLow || memberLowOf(r.requestedMember), boundAt: new Date().toISOString(), verifiedBy: "commish_approved"
-    });
+    }, "");
     await fsDb.collection("pickem_v14_link_requests").doc(uid).delete();
   } catch (e) {
     showAppToast("Couldn't approve (" + ((e && e.code) || "error") + "). Are the latest Firestore rules published?");
@@ -864,10 +881,10 @@ async function mergeProfileInto(dupKey, targetName) {
         jobs.push(fsDb.collection("pickem_v14").doc("shared_state").set(sharedPicks, { merge: true }));
       }
       if (uid && ACCOUNT_SECURITY_LIVE) {
-        jobs.push(fsDb.collection("pickem_v14_bindings").doc(targetKey).set({
+        jobs.push(setBindingGuarded(targetKey, {
           uid: uid, email: email, displayName: (dupBinding && dupBinding.displayName) || cu.name, memberName: rosterDisplayName(targetName),
           memberLow: targetLow, boundAt: now, verifiedBy: "commish_approved"
-        }));
+        }, bindingOwnerUid(targetKey)));
       }
       if (email) {
         // The account record decides where the account lands on its next load (auth.js re-check).
