@@ -33,7 +33,10 @@ var USER_DOC_META = {}; // pick doc id -> { updatedAt, archived } (Commissioner 
 function startFirebaseRealtimeListeners() {
   if (fsDb) {
     try {
-      fsDb.collection("pickem_v14").doc("shared_state").onSnapshot(function(doc) {
+      // includeMetadataChanges: a snapshot skipped below is followed by one more when the
+      // server confirms the write. Without it, a remote change that arrived together with our
+      // pending write was never delivered again.
+      fsDb.collection("pickem_v14").doc("shared_state").onSnapshot({ includeMetadataChanges: true }, function(doc) {
         if (!doc || !doc.exists) return;
         // Our own just-saved data echoing back before the server confirms it: already on screen.
         if (doc.metadata && doc.metadata.hasPendingWrites) return;
