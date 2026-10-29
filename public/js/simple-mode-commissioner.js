@@ -181,7 +181,7 @@ function startGuestPickingMode() {
   activeProfile = "test";
   syncActiveProfileControlsUI();
   renderAll();
-  showAppToast("👋 Guest Mode Active: Make all 23 picks below, then click 'Save Picks to an Account' to create your account!");
+  showAppToast("👋 Guest Mode Active: Make all " + GAMES.length + " picks below, then click 'Save Picks to an Account' to create your account!");
 }
 
 function openAuthModalCarryingGuestPicks(defaultMode) {
@@ -294,7 +294,7 @@ async function saveAndSendPickConfirmationReceipt() {
     '</div>' +
     ((!AUTH_SESSION || GUEST_BROWSING_MODE) ? (
       '<div style="background:var(--raised);border:1px solid var(--border);border-radius:9px;padding:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
-        '<span style="font-size:0.74rem;color:var(--text);">👋 <strong>Playing as a Guest?</strong> Create an account now and all 23 picks above will automatically attach to your account!</span>' +
+        '<span style="font-size:0.74rem;color:var(--text);">👋 <strong>Playing as a Guest?</strong> Create an account now and all ' + GAMES.length + ' picks above will automatically attach to your account!</span>' +
         '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:900;" onclick="closeOppModal(); openAuthModalCarryingGuestPicks(\'signup\');">✨ Make an Account & Keep My Picks</button>' +
       '</div>'
     ) : '') +

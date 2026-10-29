@@ -818,7 +818,7 @@ function openAuthModal() {
         '<button type="button" class="btn-sm ' + (isSignup ? 'active' : '') + '" style="text-align:center;font-weight:800;padding:7px;" onclick="setAuthModalMode(\'signup\')">✨ Create Account (80+ Ready)</button>' +
       '</div>' +
       '<div style="margin-bottom:10px;background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:10px;">' +
-        '<label style="font-size:0.72rem;font-weight:800;color:var(--win);display:block;margin-bottom:4px;">1️⃣ Are you on the current 89-player Leaderboard, or a Brand-New Player?</label>' +
+        '<label style="font-size:0.72rem;font-weight:800;color:var(--win);display:block;margin-bottom:4px;">1️⃣ Are you on the current ' + ((state.poolMembers || []).length || "") + '-player Leaderboard, or a Brand-New Player?</label>' +
         '<select id="auth-link-member-select" class="search-input" style="width:100%;padding:8px 10px;font-size:0.76rem;color:var(--win);border-color:var(--border);margin-bottom:6px;" onchange="handleAuthMemberSelectChange(this.value)">' + lbOpts + '</select>' +
         '<div id="auth-custom-name-wrap" style="display:' + (!matchedOnBoard ? 'block' : 'none') + ';">' +
           '<input type="text" id="auth-name-input" class="search-input" style="width:100%;padding:7px 10px;font-size:0.78rem;border-color:var(--border);" placeholder="Enter Your Display Name (or leave blank to use your Google Account name)" />' +
