@@ -184,14 +184,15 @@ function matchupSheetSectionsHtml(g) {
     if (!isNum(as[k]) || !isNum(hs[k])) continue;
     var av = as[k], hv = hs[k];
     var aBetter = higher ? av > hv : av < hv, hBetter = higher ? hv > av : hv < av;
+    var barClass = function(better, worse) { return better ? ' is-better' : (worse ? ' is-worse' : ' is-tied'); };
     var lo = Math.min(av, hv, 0), span = Math.max(Math.abs(av - lo), Math.abs(hv - lo)) || 1;
     var aw = Math.max(4, Math.round(Math.abs(av - lo) / span * 100)), hw = Math.max(4, Math.round(Math.abs(hv - lo) / span * 100));
     var sign = function(v) { return (k === "toMargin" && v > 0 ? "+" : "") + fmtNum(v, dig); };
     cmp += '<div class="cmp-row">' +
       '<span class="cmp-label">' + label + '</span>' +
       '<span class="cmp-val' + (aBetter ? ' is-better' : '') + '">' + sign(av) + (isNum(ar[k]) ? ' <span class="cmp-rank">#' + ar[k] + '</span>' : '') + '</span>' +
-      '<span class="cmp-bar away' + (aBetter ? ' is-better' : '') + '"><span style="width:' + aw + '%"></span></span>' +
-      '<span class="cmp-bar home' + (hBetter ? ' is-better' : '') + '"><span style="width:' + hw + '%"></span></span>' +
+      '<span class="cmp-bar away' + barClass(aBetter, hBetter) + '"><span style="width:' + aw + '%"></span></span>' +
+      '<span class="cmp-bar home' + barClass(hBetter, aBetter) + '"><span style="width:' + hw + '%"></span></span>' +
       '<span class="cmp-val' + (hBetter ? ' is-better' : '') + '">' + (isNum(hr[k]) ? '<span class="cmp-rank">#' + hr[k] + '</span> ' : '') + sign(hv) + '</span>' +
     '</div>';
   }

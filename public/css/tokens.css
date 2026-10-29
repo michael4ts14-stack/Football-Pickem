@@ -170,3 +170,14 @@ html[data-theme="high-contrast"] {
   --redzone-ring: #ffffff;
   --sweat-ring: #ffffff;
 }
+
+/* Team comparison bars (matchups-ui.js): the side that leads a stat vs the side that trails,
+   on a recessed track. Follow each palette's --win / --loss (crimson's loss is amber). */
+:root {
+  --comp-win-bar: var(--win);
+  --comp-loss-bar: var(--loss);
+  --comp-track: rgba(255, 255, 255, 0.10);
+}
+html[data-theme="light"] {
+  --comp-track: rgba(0, 0, 0, 0.10);
+}

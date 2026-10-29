@@ -662,13 +662,14 @@ function setTiebreakerGame(gameId, skipCloudSync) {
   }
   updateWeekBrandingUI();
   syncTiebreakerCalculatorToGame(target);
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   if (!skipCloudSync) {
     pushCustomGamesToFirebase();
   }
   renderGames();
 }
 
+var BOOTED_FROM_SAVED_STATE = false; // set by initState (auth.js) when this device had a saved week
 function updateWeekBrandingUI() {
   var isWk7 = isHardcodedWeek7Slate(GAMES);
   var hasWk8Standings = getMaxPriorPts(state.leaderboard) >= 120 || getMaxPriorPts(state.poolMembers) >= 120;
@@ -677,7 +678,9 @@ function updateWeekBrandingUI() {
   state.currentWeek = curWkNum;
   state.weekLabel = "Week " + curWkNum;
   var brandEl = document.getElementById("sheet-title-brand");
-  if (brandEl) {
+  // A first visit has no saved week, so the built-in default would flash before the cloud's.
+  var weekKnown = BOOTED_FROM_SAVED_STATE || (typeof CLOUD_HYDRATED !== "undefined" && CLOUD_HYDRATED);
+  if (brandEl && weekKnown) {
     brandEl.textContent = state.weekLabel;
   }
   var tbGame = resolveTiebreakerGame();
@@ -840,6 +843,9 @@ function sanitizeStateForActiveSlate() {
   }
 
   // 5. Validate existing picks for Michael A, Kinyion C, Test Sim & all customUsers WITHOUT auto-filling empty/deleted profiles!
+  // Until the cloud answers, the slate may be this device's older copy, so picks that don't
+  // fit it are kept (not deleted): they may be for the slate the cloud is about to deliver.
+  var slateConfirmed = typeof CLOUD_HYDRATED !== "undefined" && CLOUD_HYDRATED;
   ensureMultiUserAndPrivacyState();
   var profiles = getAllUserProfiles().map(function(p) { return p.key; });
   for (var pr = 0; pr < profiles.length; pr++) {
@@ -856,6 +862,7 @@ function sanitizeStateForActiveSlate() {
       if (!curPick) continue;
       var resolved = resolveSheetTeamFromCell(curPick, gm);
       if (!resolved) {
+        if (!slateConfirmed) continue;
         delete state[pk].picks[gm.id];
         delete state[pk].picks[String(gm.id)];
         cleanedAny = true;
@@ -924,7 +931,7 @@ function resetPoolPicksForNewWeek(syncToCloud) {
   }
   updateWeekBrandingUI();
   regradeAllPoolMembersLive();
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   if (syncToCloud) {
     pushWatchlistOrStandingsToFirebase();
     var st = document.getElementById("cloud-status-text");

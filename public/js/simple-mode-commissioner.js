@@ -655,7 +655,7 @@ function writeCommissionerConfigChanges(base, next) {
 // is shown unless the device simply isn't the commissioner's.
 function saveCommissionerConfigToCloud() {
   ensureCommissionerConfig();
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   var job;
   if (!(typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) job = Promise.reject({ code: "not-commissioner" });
   else if (!fsDb) job = Promise.reject({ code: "offline" });
@@ -682,7 +682,7 @@ function commitCommissionerConfig(mutate) {
   }
   return writeCommissionerConfigChanges(before, next).then(function() {
     state.commissionerConfig = next;
-    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    saveLocalState();
     return next;
   });
 }
@@ -800,7 +800,7 @@ function commishSwapIndividualGame(gameId, candidateIdxStr) {
   g._mondayLockKey = normalizeTeamKey(g.away) + "@" + normalizeTeamKey(g.home);
   rebuildDynamicGameInsights(g);
   sanitizeStateForActiveSlate();
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   pushCustomGamesToFirebase(); // other devices (and this one after a refresh) load the slate from the cloud
   renderAll();
   renderCommissionerModalBody();
@@ -1008,6 +1008,7 @@ function renderCommissionerModalBody() {
               '<div><strong style="color:var(--warn);">🔓 Force Open / Unlocked</strong><div style="font-size:0.69rem;color:var(--muted);">Overrides the clock so players can edit picks at any time.</div></div>' +
             '</label>' +
           '</div>' +
+          '<div id="kickoff-locks-status" role="status" style="font-size:0.69rem;color:var(--muted);margin-top:8px;">' + escapeShellHtml(typeof kickoffLocksStatusText === "function" ? kickoffLocksStatusText() : "") + '</div>' +
         '</div>' +
 
         '<div class="side-box">' +
@@ -1187,7 +1188,7 @@ function commishUpdateGameSpread(gameId, newPoolLine) {
   g._mondayLockKey = normalizeTeamKey(g.away) + "@" + normalizeTeamKey(g.home);
   rebuildDynamicGameInsights(g);
   regradeAllPoolMembersLive();
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   pushCustomGamesToFirebase(); // other devices (and this one after a refresh) load the slate from the cloud
   renderAll();
   renderCommissionerModalBody();
@@ -1197,7 +1198,7 @@ function commishUpdateGameKick(gameId, newKick) {
   var g = findGameById(gameId);
   if (!g) return;
   g.kick = String(newKick || "").trim();
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   pushCustomGamesToFirebase(); // other devices (and this one after a refresh) load the slate from the cloud
   renderAll();
 }

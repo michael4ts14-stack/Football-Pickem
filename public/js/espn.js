@@ -326,7 +326,7 @@ async function syncAllLiveTrackingData(saveToCloudAfter) {
     // Ensure Michael/Kinyion default picks on a newly scraped slate use the enriched EV recommendations
     sanitizeStateForActiveSlate();
     regradeAllPoolMembersLive();
-    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    saveLocalState();
 
     if (state.poolMembers && state.poolMembers.length > 0 && countScoredGamesInLiveScores() > 0) {
       pushWatchlistOrStandingsToFirebase();

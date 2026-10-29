@@ -133,9 +133,11 @@ function revokeInviteLink() {
 copyInviteLink = function() {
   var link = leagueInviteLink();
   if (!link) { showAppToast("There's no active invite link. Make one first."); return; }
-  var done = function() { showAppToast("Invite link copied: " + link); };
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(link).then(done, function() { window.prompt("Copy the invite link:", link); });
-  else window.prompt("Copy the invite link:", link);
+  // A refused copy shows the link in a prompt to copy by hand.
+  return copyTextWithToast(link, "Invite link copied: " + link).then(function(ok) {
+    if (!ok) window.prompt("Copy the invite link:", link);
+    return ok;
+  });
 };
 
 function inviteLinkManagerHtml() {

@@ -83,10 +83,12 @@ function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerU
 
   if (lowMember === "michael a" || lowMember === "michael") {
     state.michael.linkedMemberName = "Michael A";
+    invalidateDuesRosterCache();
     return { profileKey: "michael", linkedMemberName: "Michael A", displayName: "Michael A" };
   }
   if (lowMember === "kinyion c" || lowMember === "kinyion") {
     state.kinyion.linkedMemberName = "Kinyon C";
+    invalidateDuesRosterCache();
     return { profileKey: "kinyion", linkedMemberName: "Kinyon C", displayName: "Kinyon C" };
   }
 
@@ -123,6 +125,7 @@ function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerU
     if (state.customUsers[c].key === detKey) {
       alreadyInCu = true;
       state.customUsers[c].linkedMemberName = cleanMember;
+      invalidateDuesRosterCache();
       if (ownerUid) state.customUsers[c].ownerUid = ownerUid;
       if (emailStr) state.customUsers[c].email = emailStr;
       break;
@@ -713,6 +716,7 @@ function saveCustomInstanceDisplayName() {
   }
   // Rename in place: the profile key, picks and account link stay put. Starting points are the commissioner's to set.
   cu.name = newName;
+  invalidateDuesRosterCache();
   if (ptsInp && isVerifiedCommissioner() && !findLeaderboardEntryByName(cu.linkedMemberName || cu.name)) {
     var customPts = parseFloat(ptsInp.value) || 0;
     cu.priorPts = customPts;
@@ -910,6 +914,7 @@ function initState() {
           if (GAMES[cg].homeL5 && GAMES[cg].homeL5.length) TEAM_LOGS[GAMES[cg].home] = Object.assign(TEAM_LOGS[GAMES[cg].home] || {}, { rec: GAMES[cg].homeRec || "2026", l5: GAMES[cg].homeL5 });
         }
       }
+      BOOTED_FROM_SAVED_STATE = true;
       var savedWkNum = Math.max(parseInt(parsed.currentWeek, 10) || 0, parseWeekNumFromLabel(parsed.weekLabel), 8);
       state.currentWeek = savedWkNum;
       state.weekLabel = "Week " + savedWkNum;
@@ -1007,13 +1012,13 @@ function saveCurrentState(profOverride, debounceWrite) {
   if (debounceWrite) {
     // Picks save to this device at once and to Firestore once taps pause (every write is
     // re-read by every open phone, so one write per burst instead of one per tap).
-    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    saveLocalState();
     PENDING_SAVE_PROFILES[targetProf] = true;
     if (saveStateDebounceTimer) clearTimeout(saveStateDebounceTimer);
     saveStateDebounceTimer = setTimeout(flushPendingProfileSaves, AUTOSAVE_DELAY_MS);
   } else {
     delete PENDING_SAVE_PROFILES[targetProf];
-    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    saveLocalState();
     pushProfileToFirebase(targetProf);
   }
 }

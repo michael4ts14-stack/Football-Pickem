@@ -412,6 +412,7 @@ body.simple-ui-mode #flt-sway, body.simple-ui-mode #flt-diffs { display: none; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 8px 4px 16px; }
 .sheet-title { font-size: 24px; line-height: 1.1; }
 .sheet-body { overflow-y: auto; padding: 0 16px calc(24px + env(safe-area-inset-bottom)); }
+#detail-sheet-body { padding-top: 16px; } /* the team logos clear the title bar */
 .sheet-meta { color: var(--text-muted); font-size: 14px; margin-bottom: 12px; }
 .sheet-teams { margin-bottom: 8px; }
 .sheet-section { border-top: 1px solid var(--border); padding: 14px 0; }
@@ -787,14 +788,17 @@ button.st-row.is-me { background: var(--raised); font-weight: 600; }
 .cmp-label { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); text-align: center; }
 .cmp-val { font-variant-numeric: tabular-nums; color: var(--text-muted); white-space: nowrap; }
 .cmp-row .cmp-val:last-child { text-align: right; }
-.cmp-val.is-better { color: var(--text); font-weight: 600; }
+.cmp-val.is-better { color: var(--win); font-weight: 700; }
 .cmp-rank { font-size: 11px; color: var(--text-muted); font-weight: 400; }
-.cmp-bar { height: 6px; border-radius: 3px; background: var(--border); display: flex; overflow: hidden; }
+/* Leading side green, trailing side red, a tie in the palette accent (rows from matchups-ui.js). */
+.cmp-bar { height: 6px; border-radius: 3px; background: var(--comp-track); display: flex; overflow: hidden; }
 .cmp-bar.away { flex-direction: row-reverse; }
-.cmp-bar span { display: block; height: 100%; background: var(--text-muted); }
-.cmp-bar.is-better span { background: var(--text); }
+.cmp-bar span { display: block; height: 100%; border-radius: 3px; background: var(--text-muted); }
+.cmp-bar.is-better span { background: var(--comp-win-bar); box-shadow: 0 0 8px color-mix(in srgb, var(--comp-win-bar) 35%, transparent); }
+.cmp-bar.is-worse span { background: var(--comp-loss-bar); opacity: 0.85; }
+.cmp-bar.is-tied span { background: var(--accent); }
 .edge-list { list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
-.edge-list li { padding-left: 12px; border-left: 2px solid var(--border); }
+.edge-list li { padding: 6px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); border-radius: 0 6px 6px 0; }
 .sub-col-title .muted { font-size: 12px; }
 
 /* ---------- Field (render/field.js) ---------- */

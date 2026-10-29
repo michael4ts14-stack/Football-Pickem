@@ -34,17 +34,67 @@ var USER_DOC_META = {}; // pick doc id -> { updatedAt, archived } (Commissioner 
 // is re-subscribed with backoff (2 s doubling to 60 s, reset by the next snapshot). While any
 // is down the sync status line says so; the first failure of an outage also shows a toast.
 // subscribe(next, err) makes the onSnapshot call. opts.quiet: no UI, just retry (expected failures).
-// permission-denied is not a dropped connection: it means the published firestore.rules don't
-// allow the read (yet). Retrying can't fix it and a toast on every page load only alarms
-// players, so it is logged to the console instead (opts.onError still runs).
-var LISTENER_DOWN = {}; // label -> true while failing
+// permission-denied means the published firestore.rules refuse the read (rules not published
+// yet, or the sign-in token not ready). opts.allowPermissionFallback: the app has a fallback
+// for this data (season history -> shared_state.weekArchives), so its "down" state clears and
+// it re-subscribes only when the sign-in changes. Every other listener says sync is blocked
+// (quiet ones say nothing) and retries after 5 s, 15 s, 30 s and 60 s, and again whenever the
+// sign-in changes; a toast shows if the first retry is also refused.
+var LISTENER_DOWN = {}; // label -> true while failing, "permission-denied" while refused
+var LISTENER_RETRY_TIMERS = {}; // label -> pending retry timer
+var LISTENER_AUTH_RETRY = {}; // label -> { restart, failedWithUid, registeredAt }: refused until the sign-in changes
+var PERMISSION_RETRY_DELAYS = [5000, 15000, 30000, 60000];
+var LISTENER_AUTH_HOOKED = false;
+function currentAuthUid() {
+  try { var u = firebase.auth().currentUser; return (u && u.uid) || null; } catch (e) { return null; }
+}
+// Restarts a refused listener when the sign-in differs from the one it was refused under (the
+// persisted sign-in restored after the boot read), or when a token arrives later than the
+// refusal (a refreshed token for the same user). The callback Firebase makes right away when
+// the hook is added reports the sign-in the refused read already used, so it's skipped.
+function hookListenerAuthRetry() {
+  if (LISTENER_AUTH_HOOKED) return;
+  try {
+    if (typeof firebase === "undefined" || !firebase.auth) return;
+    firebase.auth().onIdTokenChanged(function(user) {
+      var uid = (user && user.uid) || null;
+      Object.keys(LISTENER_AUTH_RETRY).forEach(function(l) {
+        var entry = LISTENER_AUTH_RETRY[l];
+        if (uid === entry.failedWithUid && Date.now() <= entry.registeredAt + 250) return;
+        delete LISTENER_AUTH_RETRY[l];
+        entry.restart();
+      });
+    });
+    LISTENER_AUTH_HOOKED = true;
+  } catch (e) {}
+}
 function listenWithRetry(label, subscribe, onNext, opts) {
   opts = opts || {};
   var delay = 2000;
+  var deniedCount = 0;
+  var clearRetry = function() {
+    if (LISTENER_RETRY_TIMERS[label]) { clearTimeout(LISTENER_RETRY_TIMERS[label]); delete LISTENER_RETRY_TIMERS[label]; }
+  };
+  var retryIn = function(ms) {
+    clearRetry();
+    LISTENER_RETRY_TIMERS[label] = setTimeout(function() { delete LISTENER_RETRY_TIMERS[label]; start(); }, ms);
+  };
+  // Any sign-in change may fix a refusal, so the listener re-subscribes then.
+  var retryOnAuthChange = function() {
+    LISTENER_AUTH_RETRY[label] = {
+      restart: function() { clearRetry(); start(); },
+      failedWithUid: currentAuthUid(),
+      registeredAt: Date.now()
+    };
+    hookListenerAuthRetry();
+  };
   var start = function() {
+    delete LISTENER_AUTH_RETRY[label];
     try {
       subscribe(function(snap) {
         delay = 2000;
+        deniedCount = 0;
+        clearRetry();
         if (LISTENER_DOWN[label]) {
           delete LISTENER_DOWN[label];
           if (!opts.quiet) showListenerState();
@@ -53,7 +103,32 @@ function listenWithRetry(label, subscribe, onNext, opts) {
       }, function(err) {
         if (opts.onError) opts.onError(err);
         if (err && err.code === "permission-denied") {
-          console.warn("Firestore rules don't allow reading " + label + "; not syncing it.", err);
+          if (opts.allowPermissionFallback) {
+            // The fallback covers it for now; a later sign-in may still allow the read.
+            console.warn("Firestore rules don't allow reading " + label + "; using the fallback.", err);
+            clearRetry();
+            if (LISTENER_DOWN[label]) {
+              delete LISTENER_DOWN[label];
+              showListenerState();
+            }
+            retryOnAuthChange();
+            return;
+          }
+          console.warn("Firestore rules refused reading " + label + "; retrying.", err);
+          deniedCount++;
+          if (opts.quiet) {
+            // Expected for quiet listeners (e.g. older rules): never shown in the status line.
+            if (LISTENER_DOWN[label]) { delete LISTENER_DOWN[label]; showListenerState(); }
+          } else {
+            LISTENER_DOWN[label] = "permission-denied";
+            showListenerState();
+            if (deniedCount === 2 && typeof showAppToast === "function") {
+              showAppToast("Live sync blocked for " + label + " (permission denied). Try signing in again.");
+            }
+          }
+          retryOnAuthChange();
+          if (deniedCount <= PERMISSION_RETRY_DELAYS.length) retryIn(PERMISSION_RETRY_DELAYS[deniedCount - 1]);
+          else clearRetry();
           return;
         }
         if (!LISTENER_DOWN[label] && !opts.quiet && typeof showAppToast === "function") {
@@ -61,10 +136,10 @@ function listenWithRetry(label, subscribe, onNext, opts) {
         }
         LISTENER_DOWN[label] = true;
         if (!opts.quiet) showListenerState();
-        setTimeout(start, delay);
+        retryIn(delay);
         delay = Math.min(delay * 2, 60000);
       });
-    } catch (e) { setTimeout(start, delay); delay = Math.min(delay * 2, 60000); }
+    } catch (e) { retryIn(delay); delay = Math.min(delay * 2, 60000); }
   };
   start();
 }
@@ -72,7 +147,13 @@ function showListenerState() {
   var el = document.getElementById("cloud-status-text");
   if (!el) return;
   var down = Object.keys(LISTENER_DOWN);
-  el.textContent = down.length ? "⚠️ Live sync interrupted (" + down.join(", ") + "). Retrying…" : "🔥 Live sync restored.";
+  if (!down.length) { el.textContent = "🔥 Live sync restored."; return; }
+  var blocked = down.filter(function(l) { return LISTENER_DOWN[l] === "permission-denied"; });
+  var lost = down.filter(function(l) { return LISTENER_DOWN[l] !== "permission-denied"; });
+  var parts = [];
+  if (blocked.length) parts.push("Live sync blocked (" + blocked.join(", ") + ") — retrying…");
+  if (lost.length) parts.push("Live sync interrupted (" + lost.join(", ") + "). Retrying…");
+  el.textContent = "⚠️ " + parts.join(" ");
 }
 
 function startFirebaseRealtimeListeners() {
@@ -119,12 +200,15 @@ function startFirebaseRealtimeListeners() {
         setArchiveCollectionState(true);
         ensureWeekArchivesState();
         snapshot.docChanges().forEach(function(ch) {
-          if (ch.type === "removed") delete state.weekArchives[ch.doc.id];
-          else state.weekArchives[ch.doc.id] = ch.doc.data();
+          if (ch.type === "removed") { delete state.weekArchives[ch.doc.id]; return; }
+          // A re-archive this device hasn't seen confirmed yet stays until a copy as new arrives.
+          var mine = state.weekArchives[ch.doc.id], incoming = ch.doc.data();
+          if (mine && mine._unsyncedLocal && weekArchiveTime(mine) > weekArchiveTime(incoming)) return;
+          state.weekArchives[ch.doc.id] = incoming;
         });
         populateWeekArchiveDropdown();
         if (currentMainView === "standings") renderSeasonArchiveHub();
-      }, { onError: function(err) { if (err && err.code === "permission-denied") setArchiveCollectionState(false); } });
+      }, { allowPermissionFallback: true, onError: function(err) { if (err && err.code === "permission-denied") setArchiveCollectionState(false); } });
     } catch (eArch) {}
 
     // Dedicated Per-User Instance Collection (`pickem_v14_users/{profileKey}`)
@@ -185,7 +269,7 @@ function scheduleRemotePicksRender() {
     isApplyingRemoteUpdate = true;
     try {
       regradeAllPoolMembersLive();
-      safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+      saveLocalState();
       renderAll();
     } finally {
       isApplyingRemoteUpdate = false;
@@ -219,6 +303,7 @@ function applyRemotePickDoc(docId, uData) {
         existsCu = true;
         if (uData.linkedMemberName) state.customUsers[c].linkedMemberName = uData.linkedMemberName;
         if (uData.displayName) state.customUsers[c].name = uData.displayName;
+        invalidateDuesRosterCache();
         break;
       }
     }
@@ -478,16 +563,24 @@ function applyRemoteCloudData(data, sourceLabel) {
     }
     if (data.tiebreakerGameId) state.tiebreakerGameId = parseInt(data.tiebreakerGameId, 10) || null;
     if (data.weekArchives && typeof data.weekArchives === "object") {
-      // Archives from before they moved to pickem_v14_archives. A newer copy there wins.
-      state.weekArchives = Object.assign({}, data.weekArchives, state.weekArchives || {});
+      // Archives kept in shared_state (from before pickem_v14_archives, or saved there while the
+      // rules refuse that collection). Merged per week, newest archivedAt winning, so a week
+      // another commissioner re-archived replaces this device's older copy.
+      var prevArchives = state.weekArchives || {};
+      var mergedArchives = mergeWeekArchives(prevArchives, data.weekArchives, ARCHIVE_COLLECTION_OK);
+      state.weekArchives = mergedArchives.archives;
+      if (mergedArchives.changed && currentMainView === "standings" && typeof renderSeasonArchiveHub === "function") {
+        setTimeout(renderSeasonArchiveHub, 0);
+      }
       moveSharedStateArchives(data.weekArchives);
     }
     ensureWeekArchivesState();
+    retryUnsyncedLocalArchives(true);
 
     var neededClean = sanitizeStateForActiveSlate();
     ensureWatchlistDefaults();
     regradeAllPoolMembersLive();
-    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    saveLocalState();
     setInputValueUnlessEditing(document.getElementById("tiebreaker-input"), state[activeProfile].tiebreaker || "28-24");
     setInputValueUnlessEditing(document.getElementById("target-slider"), state[activeProfile].target || 20);
 
@@ -672,8 +765,97 @@ function setArchiveCollectionState(ok) {
   var pending = PENDING_ARCHIVE_MOVE;
   PENDING_ARCHIVE_MOVE = null;
   if (ok && pending) moveSharedStateArchives(pending);
+  retryUnsyncedLocalArchives();
 }
 
+// When an archive was saved (ms since epoch); 0 when it has no usable time. archivedAt is an
+// ISO string in saved archives; a number is accepted too.
+function weekArchiveTime(a) {
+  if (!a) return 0;
+  var t = a.archivedAt || a.updatedAt;
+  if (typeof t === "number") return t;
+  var ms = Date.parse(t || "");
+  return isNaN(ms) ? 0 : ms;
+}
+
+function isValidArchive(v) {
+  return Boolean(v && typeof v === "object" && !Array.isArray(v));
+}
+
+// Picks the newer of two archives of one week (both valid). The newer archivedAt wins. On a
+// tie, a local archive whose cloud save hasn't been confirmed (_unsyncedLocal) wins; with no
+// times on either side, the remote copy wins while archives live in shared_state
+// (archiveCollectionOk false or unknown) and the local one, which came from
+// pickem_v14_archives, wins otherwise; any other tie goes to the remote copy.
+function newerWeekArchive(l, r, archiveCollectionOk) {
+  var lt = weekArchiveTime(l), rt = weekArchiveTime(r);
+  if (rt > lt) return r;
+  if (lt > rt) return l;
+  if (l._unsyncedLocal) return l;
+  if (!lt && !rt) return archiveCollectionOk !== true ? r : l;
+  return r;
+}
+
+// Cheap content fingerprint, cached per archive object (a WeakMap, so nothing is added to
+// the archive itself and saved). Only needed when neither copy has a time to compare.
+var ARCHIVE_FINGERPRINTS = typeof WeakMap === "function" ? new WeakMap() : null;
+function archiveFingerprint(a) {
+  var fp = ARCHIVE_FINGERPRINTS && ARCHIVE_FINGERPRINTS.get(a);
+  if (fp !== undefined) return fp;
+  var h = fnv1aMix(2166136261, a.weekNum);
+  h = fnv1aMix(h, a.weekLabel);
+  h = fnv1aMix(h, Array.isArray(a.games) ? a.games.length : -1);
+  (Array.isArray(a.leaderboard) ? a.leaderboard : []).forEach(function(e) {
+    h = fnv1aMix(h, e && e.name);
+    h = fnv1aMix(h, e && e.pts);
+  });
+  h = fnv1aMix(h, Array.isArray(a.poolMembers) ? a.poolMembers.length : -1);
+  if (ARCHIVE_FINGERPRINTS) ARCHIVE_FINGERPRINTS.set(a, h);
+  return h;
+}
+
+// True when archive a would show differently from b. A matching archivedAt means the same save.
+function weekArchiveDiffers(a, b) {
+  if (a === b) return false;
+  if (!b) return true;
+  if (weekArchiveTime(a) !== weekArchiveTime(b) || a.weekNum !== b.weekNum) return true;
+  if (weekArchiveTime(a)) return false;
+  return archiveFingerprint(a) !== archiveFingerprint(b);
+}
+
+// Merges shared_state.weekArchives (remote) into this device's archives (local), week by week,
+// keeping the newer copy (newerWeekArchive). Entries that aren't objects (a field nulled in
+// the cloud) are skipped. Returns { archives, changed }; changed is true when any week would
+// show differently from local.
+function mergeWeekArchives(localArchives, remoteArchives, archiveCollectionOk) {
+  localArchives = localArchives || {};
+  remoteArchives = remoteArchives || {};
+  var out = {}, changed = false, seen = {};
+  Object.keys(localArchives).concat(Object.keys(remoteArchives)).forEach(function(k) {
+    if (seen[k]) return;
+    seen[k] = true;
+    var l = localArchives[k], r = remoteArchives[k];
+    var lOk = isValidArchive(l), rOk = isValidArchive(r);
+    if (!lOk && !rOk) return;
+    if (!rOk) { out[k] = l; return; }
+    if (!lOk) { out[k] = r; changed = true; return; }
+    out[k] = newerWeekArchive(l, r, archiveCollectionOk);
+    if (weekArchiveDiffers(out[k], l)) changed = true;
+  });
+  return { archives: out, changed: changed };
+}
+
+// Copy of an archive for a cloud write, without this device's bookkeeping flag.
+function weekArchiveForCloud(a) {
+  if (!a || !a._unsyncedLocal) return a;
+  var copy = Object.assign({}, a);
+  delete copy._unsyncedLocal;
+  return copy;
+}
+
+// Copies shared_state archives into pickem_v14_archives. For each week the newer of this
+// device's copy and the shared_state copy is written, unless the doc there is newer or the
+// same save. The field is deleted only after every write landed.
 function moveSharedStateArchives(oldArchives) {
   if (ARCHIVE_COLLECTION_OK !== true) {
     if (ARCHIVE_COLLECTION_OK === null) PENDING_ARCHIVE_MOVE = oldArchives;
@@ -682,16 +864,103 @@ function moveSharedStateArchives(oldArchives) {
   if (!fsDb || MOVING_SHARED_ARCHIVES || !canWriteSharedPoolState()) return;
   MOVING_SHARED_ARCHIVES = true;
   var col = fsDb.collection("pickem_v14_archives");
+  var movedAny = false;
   Promise.all(Object.keys(oldArchives).map(function(k) {
     var ref = col.doc(k);
-    return ref.get().then(function(d) { if (!d.exists) return ref.set(oldArchives[k]); });
+    var shared = oldArchives[k];
+    if (!isValidArchive(shared)) return null;
+    return ref.get().then(function(d) {
+      var local = state.weekArchives && state.weekArchives[k];
+      var best = isValidArchive(local) ? newerWeekArchive(local, shared, false) : shared;
+      if (d.exists) {
+        var existing = d.data() || {};
+        var bt = weekArchiveTime(best), et = weekArchiveTime(existing);
+        if (bt < et || (bt === et && !best._unsyncedLocal && !weekArchiveDiffers(best, existing))) {
+          if (bt < et && local !== existing) {
+            ensureWeekArchivesState();
+            state.weekArchives[k] = existing;
+            movedAny = true;
+          }
+          return null;
+        }
+      }
+      return ref.set(weekArchiveForCloud(best)).then(function() {
+        ensureWeekArchivesState();
+        delete best._unsyncedLocal;
+        state.weekArchives[k] = best;
+        movedAny = true;
+      });
+    });
   })).then(function() {
+    if (movedAny) {
+      saveLocalState();
+      populateWeekArchiveDropdown();
+      if (currentMainView === "standings") renderSeasonArchiveHub();
+    }
     return fsDb.collection("pickem_v14").doc("shared_state").update({ weekArchives: firebase.firestore.FieldValue.delete() });
   }).catch(function(e) {
     MOVING_SHARED_ARCHIVES = false;
     reportCloudSaveFailure("the week archive move", e);
   });
 }
+
+// Archives this device saved whose cloud write never confirmed (failed, offline, tab closed)
+// keep _unsyncedLocal across reloads. A commissioner's device uploads them again (unless the
+// cloud already holds one as new); any other device just drops the flag, since only a
+// commissioner can save them. Waits until both the sign-in and the pool (which holds the
+// commissioner list) have loaded, then runs on each pool load and whenever the browser goes online.
+var RETRYING_UNSYNCED_ARCHIVES = false;
+var UNSYNCED_RETRY_AUTH_SETTLED = false;
+var UNSYNCED_RETRY_POOL_LOADED = false;
+var UNSYNCED_RETRY_HOOKED = false;
+function retryUnsyncedLocalArchives(poolLoaded) {
+  if (poolLoaded) UNSYNCED_RETRY_POOL_LOADED = true;
+  if (!UNSYNCED_RETRY_HOOKED) {
+    UNSYNCED_RETRY_HOOKED = true;
+    try {
+      firebase.auth().onAuthStateChanged(function() {
+        UNSYNCED_RETRY_AUTH_SETTLED = true;
+        retryUnsyncedLocalArchives();
+      });
+    } catch (e) { UNSYNCED_RETRY_AUTH_SETTLED = true; }
+  }
+  if (!UNSYNCED_RETRY_AUTH_SETTLED || !UNSYNCED_RETRY_POOL_LOADED) return;
+  var archives = state.weekArchives || {};
+  var keys = Object.keys(archives).filter(function(k) { return isValidArchive(archives[k]) && archives[k]._unsyncedLocal; });
+  if (!keys.length || RETRYING_UNSYNCED_ARCHIVES) return;
+  var save = function() { saveLocalState(); };
+  if (!canWriteSharedPoolState()) {
+    keys.forEach(function(k) { delete archives[k]._unsyncedLocal; });
+    save();
+    return;
+  }
+  if (!fsDb || ARCHIVE_COLLECTION_OK === null) return; // the archive listener answers first
+  RETRYING_UNSYNCED_ARCHIVES = true;
+  Promise.all(keys.map(function(k) {
+    var entry = archives[k];
+    var done = function() { delete entry._unsyncedLocal; };
+    if (ARCHIVE_COLLECTION_OK === false) {
+      return fsDb.collection("pickem_v14").doc("shared_state")
+        .update(new firebase.firestore.FieldPath("weekArchives", k), weekArchiveForCloud(entry)).then(done);
+    }
+    var ref = fsDb.collection("pickem_v14_archives").doc(k);
+    return ref.get().then(function(d) {
+      if (d.exists && weekArchiveTime(d.data()) > weekArchiveTime(entry)) {
+        state.weekArchives[k] = d.data();
+        return;
+      }
+      return ref.set(weekArchiveForCloud(entry)).then(done);
+    });
+  })).then(function() {
+    RETRYING_UNSYNCED_ARCHIVES = false;
+    save();
+  }, function(e) {
+    RETRYING_UNSYNCED_ARCHIVES = false;
+    save();
+    reportCloudSaveFailure("the week archive", e);
+  });
+}
+try { window.addEventListener("online", function() { retryUnsyncedLocalArchives(); }); } catch (e) {}
 
 function canWriteSharedPoolState() {
   if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return false;
@@ -709,7 +978,7 @@ function sharedWeekFields() {
 function pushWatchlistOrStandingsToFirebase() {
   if (isApplyingRemoteUpdate) return;
   state.liveScores = LIVE_SCORES;
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   if (!canWriteSharedPoolState()) return;
   var payload = Object.assign({
     watchlist: state.watchlist,
@@ -764,12 +1033,36 @@ function pushKickoffLocksToFirebase() {
     return { at: firebase.firestore.Timestamp.fromMillis(ms), ids: byTime[ms] };
   });
   fsDb.collection("pickem_v14").doc("kickoff_locks").set({ week: week, windows: windows, updatedAt: new Date().toISOString() })
-    .catch(function(e) {
-      // Rules published before kickoff_locks existed refuse it; the app still locks games at
-      // kickoff, so this is only worth a console note, not a toast on every slate save.
-      if (e && e.code === "permission-denied") console.warn("Kickoff locks not saved: firestore.rules don't allow pickem_v14/kickoff_locks yet.", e);
-      else reportCloudSaveFailure("the kickoff locks", e);
+    .then(function() { setKickoffLocksStatus(true); }, function(e) {
+      setKickoffLocksStatus(false, e);
+      if (!(e && e.code === "permission-denied")) { reportCloudSaveFailure("the kickoff locks", e); return; }
+      // A refusal can be old rules (no kickoff_locks yet) or a commissioner whose verification
+      // lapsed. Either way the server isn't enforcing kickoff locks, which the commissioner
+      // (the only one who saves this) needs to know, at most once a minute.
+      console.warn("Kickoff locks not saved: firestore.rules refused pickem_v14/kickoff_locks.", e);
+      var now = Date.now();
+      if (typeof showAppToast === "function" && now - KICKOFF_LOCKS_WARNED_AT > 60000) {
+        KICKOFF_LOCKS_WARNED_AT = now;
+        showAppToast("⚠️ Server kickoff locks could not be saved (permission denied). Verify your commissioner email/account link or Firestore rules.", 6000);
+      }
     });
+}
+
+// Last kickoff-locks write: { ok, code, at }. Shown in the commissioner's lock status line.
+var KICKOFF_LOCKS_STATUS = null;
+var KICKOFF_LOCKS_WARNED_AT = 0;
+function setKickoffLocksStatus(ok, err) {
+  KICKOFF_LOCKS_STATUS = { ok: ok, code: ok ? "" : ((err && err.code) || "error"), at: Date.now() };
+  var el = document.getElementById("kickoff-locks-status");
+  if (el) el.textContent = kickoffLocksStatusText();
+}
+function kickoffLocksStatusText() {
+  var s = KICKOFF_LOCKS_STATUS;
+  if (!s) return "";
+  if (s.ok) return "🔒 Server kickoff locks saved.";
+  return s.code === "permission-denied"
+    ? "⚠️ Server kickoff locks not saved (permission denied). Picks still lock in the app at kickoff."
+    : "⚠️ Server kickoff locks not saved (" + s.code + ").";
 }
 
 function pullFromFirebaseCloud() {

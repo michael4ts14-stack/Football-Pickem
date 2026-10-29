@@ -352,7 +352,7 @@ function commishDeletePlayerPicks(memberName) {
   }
 
   regradeAllPoolMembersLive();
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+  saveLocalState();
   if (fsDb) {
     try {
       fsDb.collection("pickem_v14").doc("shared_state").set(sharedClearPatch, { merge: true }).catch(function(e) { reportCloudSaveFailure("the deleted picks", e); });
