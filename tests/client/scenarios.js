@@ -194,12 +194,12 @@ function serve() {
     window.prompt = (m) => /Tiebreaker for/.test(m) ? "31-24" : "";
     const out = {};
     try {
-      const logBefore = ensureCommissionerConfig().overrideAuditLog.length;
+      const logBefore = COMMISH_LOG.length;
       overrideTiebreaker("Adam L");
       forceUnlockPicks("Adam L");
       out.tb = findPoolMemberByName("Adam L").tiebreaker;
       out.unlocked = isMemberForceUnlocked("Adam L");
-      out.logged = ensureCommissionerConfig().overrideAuditLog.length - logBefore;
+      out.logged = COMMISH_LOG.length - logBefore;
       setGameLockOverride(GAMES[1].id, "locked");
       out.gameLocked = isGameLockedByCommissioner(GAMES[1].id);
       setGameLockOverride(GAMES[1].id, "auto");
