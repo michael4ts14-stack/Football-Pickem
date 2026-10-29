@@ -890,9 +890,11 @@ async function importStrictSheetText() {
       var poolLine = (favIsAway ? away : home) + " -" + spread;
 
       var cstWin = "11:00 AM CST Window";
-      if (kickLine.indexOf("2:30") !== -1 || kickLine.indexOf("3:00") !== -1) cstWin = "2:30 PM CST Window";
-      else if (kickLine.indexOf("6:00") !== -1 || kickLine.indexOf("6:30") !== -1 || kickLine.indexOf("7:00") !== -1) cstWin = "6:00 PM / 6:30 PM CST Primetime";
-      else if (kickLine.indexOf("9:") !== -1 || kickLine.indexOf("10:") !== -1) cstWin = "9:15 PM+ CST Late Night Window";
+      var kickTime = /\b(\d{1,2}):(\d{2})\s*([ap])\.?m/i.exec(kickLine);
+      if (kickTime) {
+        var kh = parseInt(kickTime[1], 10) % 12 + (kickTime[3].toLowerCase() === "p" ? 12 : 0);
+        cstWin = cstWindowFromMinutes(kh * 60 + parseInt(kickTime[2], 10));
+      }
 
       var isTb = (away.toLowerCase().indexOf("florida") !== -1 && home.toLowerCase().indexOf("georgia") !== -1) ||
                  (home.toLowerCase().indexOf("florida") !== -1 && away.toLowerCase().indexOf("georgia") !== -1);
