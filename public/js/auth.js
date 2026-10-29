@@ -232,10 +232,6 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
     var matchLb = findRosterMatchForAccountName(dispName);
     if (matchLb) {
       targetMember = matchLb;
-    } else if (email.indexOf("michael") !== -1) {
-      targetMember = "Michael A";
-    } else if (email.indexOf("kinyion") !== -1 || email.indexOf("kenyon") !== -1) {
-      targetMember = "Kinyon C";
     } else {
       // Ask before creating a new player, so "Steve Miller" can pick his "Steve M" row.
       var chosen = (typeof chooseRosterNameForNewAccount === "function") ? await chooseRosterNameForNewAccount(dispName) : "";
