@@ -169,10 +169,6 @@ function commishUpdatePrimaryEmail() {
     enabled: true,
     assignedAt: new Date().toISOString()
   };
-  if (AUTH_SESSION && (AUTH_SESSION.email === "commissioner@separatedatturf.com")) {
-    AUTH_SESSION.email = newEmail;
-    saveDeviceAuthSession();
-  }
   syncCommissionerRolesToFirestore();
   syncCommissionerVisibilityDOM();
   renderCommissionerModalBody();
