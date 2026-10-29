@@ -1,0 +1,14 @@
+{
+  "env": {
+    "PONYTAIL_DEFAULT_MODE": "full",
+    "ECC_HOOK_PROFILE": "minimal"
+  },
+  "extraKnownMarketplaces": {
+    "ponytail": { "source": { "source": "git", "url": "https://github.com/DietrichGebert/ponytail.git" } },
+    "ecc": { "source": { "source": "git", "url": "https://github.com/affaan-m/everything-claude-code.git" } }
+  },
+  "enabledPlugins": {
+    "ponytail@ponytail": true,
+    "ecc@ecc": true
+  }
+}
