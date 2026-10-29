@@ -577,21 +577,65 @@ function pushMultiUserAndPrivacyToFirebase() {
   // so one device NEVER overwrites another user's picks!
   // The active profile's picks go through pushProfileToFirebase below (it checks ownership);
   // the Friday-night reveal switch is the commissioner's (Console), not saved from here.
-  var payload = {
-    customUsers: state.customUsers || [],
-    profilePrivacy: state.profilePrivacy || {},
-    updatedAt: new Date().toISOString()
-  };
-  if (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
-    payload.fridayNightRevealOverride = !!state.fridayNightRevealOverride;
-  }
   // Signed-out visitors and accounts not linked to a player save nothing (firestore.rules agree).
   if (fsDb && AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
-    try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }).catch(function(e) { reportCloudSaveFailure("player settings", e); }); } catch (e) {}
+    try { saveRegistryChangesToCloud().catch(function(e) { reportCloudSaveFailure("player settings", e); }); } catch (e) {}
   }
   if (activeProfile && activeProfile !== "test") {
     pushProfileToFirebase(activeProfile);
   }
+}
+// Saves only the registry entries and privacy settings this device changed since the last cloud
+// read, merged into the current cloud list in a transaction. A profile the cloud copy never had
+// is added only if it's this device's own, and one removed elsewhere stays removed.
+function saveRegistryChangesToCloud() {
+  var same = function(a, b) { return JSON.stringify(a) === JSON.stringify(b); };
+  var baseCu = {};
+  (CLOUD_REGISTRY.customUsers || []).forEach(function(cu) { if (cu && cu.key) baseCu[cu.key] = cu; });
+  var basePriv = CLOUD_REGISTRY.profilePrivacy || {};
+  var changedCu = (state.customUsers || []).filter(function(cu) {
+    if (!cu || !cu.key) return false;
+    return baseCu[cu.key] ? !same(baseCu[cu.key], cu) : isDeviceOwnProfileKey(cu.key);
+  }).map(function(cu) { return JSON.parse(JSON.stringify(cu)); });
+  // Privacy is only ever set for this device's own profiles (the defaults filled in for everyone
+  // else would otherwise look like changes).
+  var changedPriv = Object.keys(state.profilePrivacy || {}).filter(function(k) {
+    return isDeviceOwnProfileKey(k) && !same(basePriv[k], state.profilePrivacy[k]);
+  });
+  var isCommish = typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner();
+  if (!changedCu.length && !changedPriv.length && !isCommish) return Promise.resolve();
+
+  var ref = fsDb.collection("pickem_v14").doc("shared_state");
+  var privVals = {};
+  changedPriv.forEach(function(k) { privVals[k] = JSON.parse(JSON.stringify(state.profilePrivacy[k])); });
+  return fsDb.runTransaction(function(tx) {
+    return tx.get(ref).then(function(snap) {
+      var cloud = snap.exists ? snap.data() : {};
+      var list = Array.isArray(cloud.customUsers) ? cloud.customUsers.slice() : [];
+      var cfg = (cloud.commissionerConfig && typeof cloud.commissionerConfig === "object") ? cloud.commissionerConfig : null;
+      changedCu.forEach(function(cu) {
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && list[i].key === cu.key) { list[i] = cu; return; }
+        }
+        if (!baseCu[cu.key] && !isProfileArchived(cu.key, cfg)) list.push(cu);
+      });
+      var now = new Date().toISOString();
+      if (!snap.exists) {
+        var doc = { customUsers: list, profilePrivacy: privVals, updatedAt: now };
+        if (isCommish) doc.fridayNightRevealOverride = !!state.fridayNightRevealOverride;
+        tx.set(ref, doc, { merge: true });
+        return list;
+      }
+      var args = [ref, "customUsers", list, "updatedAt", now];
+      changedPriv.forEach(function(k) { args.push(new firebase.firestore.FieldPath("profilePrivacy", k), privVals[k]); });
+      if (isCommish) args.push("fridayNightRevealOverride", !!state.fridayNightRevealOverride);
+      tx.update.apply(tx, args);
+      return list;
+    });
+  }).then(function(list) {
+    CLOUD_REGISTRY.customUsers = JSON.parse(JSON.stringify(list));
+    CLOUD_REGISTRY.profilePrivacy = Object.assign({}, CLOUD_REGISTRY.profilePrivacy || {}, privVals);
+  });
 }
 var MEMORY_STORE = {};
 // Sets an input's value unless the person is typing in it (a background update must never

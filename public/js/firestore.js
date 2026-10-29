@@ -165,6 +165,9 @@ var CLOUD_HYDRATED = false;
 // commissionerConfig as last read from (or confirmed by) the cloud. Saves write only the fields
 // that differ from it, so a stale tab can't wipe settings saved elsewhere.
 var CLOUD_COMMISSIONER_CONFIG = null;
+// customUsers and profilePrivacy as last read from (or saved to) the cloud. A player device saves
+// only the entries it changed, so a stale phone can't drop new players or revive removed ones.
+var CLOUD_REGISTRY = { customUsers: null, profilePrivacy: null };
 
 function isAwaitingFirstSlate() {
   return !CLOUD_HYDRATED && isHardcodedWeek7Slate(GAMES);
@@ -291,6 +294,7 @@ function applyRemoteCloudData(data, sourceLabel) {
       }
     }
     if (data.customUsers && Array.isArray(data.customUsers)) {
+      CLOUD_REGISTRY.customUsers = JSON.parse(JSON.stringify(data.customUsers));
       // The cloud list is the registry. A profile only this device has is kept only if it's one of
       // this device's own (just created, not saved yet); any other local-only entry is a player
       // removed or merged elsewhere, and keeping it let a stale phone or laptop push it back.
@@ -321,6 +325,7 @@ function applyRemoteCloudData(data, sourceLabel) {
       }
     }
     if (data.profilePrivacy && typeof data.profilePrivacy === "object") {
+      CLOUD_REGISTRY.profilePrivacy = JSON.parse(JSON.stringify(data.profilePrivacy));
       for (var ppk in data.profilePrivacy) {
         var wasHidden = state.profilePrivacy && state.profilePrivacy[ppk] && state.profilePrivacy[ppk].hidden;
         state.profilePrivacy[ppk] = data.profilePrivacy[ppk];
