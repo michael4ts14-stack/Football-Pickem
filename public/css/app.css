@@ -421,7 +421,7 @@ body.simple-ui-mode #flt-sway, body.simple-ui-mode #flt-diffs { display: none; }
 .sheet-note { font-size: 14px; color: var(--text-muted); margin-top: 8px; }
 .kv { display: flex; justify-content: space-between; gap: 12px; font-size: 15px; padding: 4px 0; }
 .kv span { color: var(--text-muted); }
-body.modal-open { overflow: hidden; }
+body.modal-open { overflow: hidden; position: fixed; left: 0; right: 0; width: 100%; }
 
 /* ---------- Older views inside the new page heads ---------- */
 .live-tab-wrap, .standings-wrap, .condensed-wrap { background: transparent; border: 0; padding: 0; border-radius: 0; }
