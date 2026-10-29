@@ -32,6 +32,15 @@ function ensureWeekArchivesState() {
   populateWeekArchiveDropdown();
 }
 
+// Picks of app-only (custom) profiles, keyed by profile key (B30).
+function customUserStates() {
+  var out = {};
+  (state.customUsers || []).forEach(function(u) {
+    if (u && u.key && state[u.key]) out[u.key] = state[u.key];
+  });
+  return out;
+}
+
 function saveCurrentWeekToArchive(notifyToast) {
   ensureWeekArchivesState();
   var wkNum = parseInt(state.currentWeek, 10) || 8;
@@ -48,6 +57,7 @@ function saveCurrentWeekToArchive(notifyToast) {
     michael: JSON.parse(JSON.stringify(state.michael || {})),
     kinyion: JSON.parse(JSON.stringify(state.kinyion || {})),
     test: JSON.parse(JSON.stringify(state.test || {})),
+    customPicks: JSON.parse(JSON.stringify(customUserStates())),
     customUsers: JSON.parse(JSON.stringify(state.customUsers || [])),
     watchlist: JSON.parse(JSON.stringify(state.watchlist || [])),
     leaderboard: JSON.parse(JSON.stringify(state.leaderboard || [])),
@@ -92,6 +102,7 @@ function captureLiveWeekSnapshot() {
     tiebreakerGameId: state.tiebreakerGameId,
     michael: copy(state.michael),
     kinyion: copy(state.kinyion),
+    customPicks: copy(customUserStates()),
     watchlist: copy(state.watchlist),
     poolMembers: copy(state.poolMembers),
     leaderboard: copy(state.leaderboard)
@@ -112,6 +123,7 @@ function returnToLiveWeek() {
   ["michael", "kinyion", "watchlist", "poolMembers", "leaderboard"].forEach(function(k) {
     if (snap[k] !== undefined) state[k] = snap[k];
   });
+  Object.keys(snap.customPicks || {}).forEach(function(k) { state[k] = snap.customPicks[k]; });
   MONTE_CARLO_CACHE = null;
   VIEWING_ARCHIVE_KEY = null;
   LIVE_WEEK_SNAPSHOT = null;
@@ -170,6 +182,7 @@ function switchWeekArchive(weekKey) {
 
     if (targetSnap.michael) state.michael = JSON.parse(JSON.stringify(targetSnap.michael));
     if (targetSnap.kinyion) state.kinyion = JSON.parse(JSON.stringify(targetSnap.kinyion));
+    Object.keys(targetSnap.customPicks || {}).forEach(function(k) { state[k] = JSON.parse(JSON.stringify(targetSnap.customPicks[k])); });
     if (targetSnap.watchlist) state.watchlist = JSON.parse(JSON.stringify(targetSnap.watchlist));
     if (targetSnap.poolMembers) state.poolMembers = JSON.parse(JSON.stringify(targetSnap.poolMembers));
     if (targetSnap.leaderboard) state.leaderboard = JSON.parse(JSON.stringify(targetSnap.leaderboard));
