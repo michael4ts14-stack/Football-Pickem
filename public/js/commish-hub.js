@@ -277,7 +277,7 @@ function setPotSetting(field, value) {
 
 function potSummary() {
   var cfg = ensureCommissionerConfig();
-  var fee = parseFloat(cfg.entryFeeDollars) || 25;
+  var fee = isNaN(parseFloat(cfg.entryFeeDollars)) ? 25 : parseFloat(cfg.entryFeeDollars);
   var paid = (state.poolMembers || []).filter(function(pm) { return cfg.duesPaidMap[standardizeParticipantName(pm.name).toLowerCase()]; }).length;
   var weekly = parseFloat(cfg.weeklyPayoutDollars) || 0;
   var weeks = cfg.seasonWeeks === undefined ? 14 : (parseFloat(cfg.seasonWeeks) || 0);
@@ -320,7 +320,7 @@ function paymentSettingsHtml() {
 function duesPayLinks() {
   var cfg = ensureCommissionerConfig();
   var pl = cfg.paymentLinks || {};
-  var fee = parseFloat(cfg.entryFeeDollars) || 25;
+  var fee = isNaN(parseFloat(cfg.entryFeeDollars)) ? 25 : parseFloat(cfg.entryFeeDollars);
   var links = [];
   var venmo = String(pl.venmoHandle || "").replace(/^@/, "");
   if (venmo) links.push({ label: "Venmo", href: "https://venmo.com/u/" + encodeURIComponent(venmo) });
@@ -351,7 +351,7 @@ function renderDuesBanner() {
     host.insertBefore(el, head ? head.nextSibling : host.firstChild);
   }
   el.hidden = false;
-  el.innerHTML = '<span>Dues unpaid ($' + (parseFloat(cfg.entryFeeDollars) || 25) + '). Pay via</span>' +
+  el.innerHTML = '<span>Dues unpaid ($' + (isNaN(parseFloat(cfg.entryFeeDollars)) ? 25 : parseFloat(cfg.entryFeeDollars)) + '). Pay via</span>' +
     links.map(function(l) { return '<a href="' + escapeShellHtml(l.href) + '" target="_blank" rel="noopener">' + escapeShellHtml(l.label) + '</a>'; }).join("") +
     '<button type="button" class="link-btn" onclick="safeSetStorage(\'' + dismissedKey + '\', String(state.currentWeek)); renderDuesBanner();">Hide this week</button>';
 }

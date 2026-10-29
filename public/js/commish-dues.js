@@ -28,7 +28,8 @@ function duesDisplayName(low) {
 }
 
 function duesFee() {
-  return parseFloat(ensureCommissionerConfig().entryFeeDollars) || 25;
+  var fee = parseFloat(ensureCommissionerConfig().entryFeeDollars);
+  return isNaN(fee) ? 25 : fee;
 }
 
 function isDuesPaid(low) {
