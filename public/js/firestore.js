@@ -646,7 +646,9 @@ function pushWatchlistOrStandingsToFirebase() {
     updatedAt: new Date().toISOString()
   }, sharedWeekFields());
   if (fsDb) {
-    try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }).catch(function(e) { reportCloudSaveFailure("standings", e); }); } catch (e) {}
+    // mergeFields replaces each field whole. A deep merge kept liveScores keys deleted here
+    // (last week's games) in the cloud, and they came back on every device.
+    try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { mergeFields: Object.keys(payload) }).catch(function(e) { reportCloudSaveFailure("standings", e); }); } catch (e) {}
   }
 }
 

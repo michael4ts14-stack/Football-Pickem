@@ -1,6 +1,7 @@
 // firestore.rules against the Firestore emulator. Run: cd tests/rules && npm install && npm test
 import { test, before, after } from "node:test";
 import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
 import { doc, getDoc, setDoc, updateDoc, getDocs, collection, deleteField, deleteDoc, Timestamp, FieldPath } from "firebase/firestore";
 
@@ -350,4 +351,16 @@ test("kickoff lock: 30 games in 20 windows, 90 players, every pick changed stays
   await assertSucceeds(sharedPicks(db(J), open));
   await assertFails(pickDoc(db(J), Object.assign({}, open, { 30: "B" })));
   await assertFails(sharedPicks(db(J), Object.assign({}, open, { 30: "B" })));
+});
+
+test("standings save: liveScores is replaced whole, so removed games don't come back", async () => {
+  await seed();
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(SS(c.firestore()), { liveScores: { 1: { completed: true }, 2: { inProgress: true } } }, { merge: true });
+  });
+  const payload = { watchlist: [], leaderboard: [], poolMembers: [], liveScores: { 3: { inProgress: true } }, updatedAt: "t" };
+  await assertSucceeds(setDoc(SS(db(M)), payload, { mergeFields: Object.keys(payload) }));
+  const data = (await getDoc(SS(guest()))).data();
+  assert.deepEqual(data.liveScores, { 3: { inProgress: true } });
+  assert.equal(data.currentWeek, 9); // fields not listed are left alone
 });
