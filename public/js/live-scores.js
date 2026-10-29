@@ -948,7 +948,6 @@ async function importStrictSheetText() {
       state.weekLabel = "Week " + state.currentWeek;
     }
     resetPoolPicksForNewWeek(false);
-    hardResetToDefaults();
     await syncAllLiveTrackingData(true);
     pushCustomGamesToFirebase();
     pushWatchlistOrStandingsToFirebase();

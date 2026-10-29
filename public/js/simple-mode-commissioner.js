@@ -1326,7 +1326,6 @@ async function commishPublishSelectedEspnSlate() {
   state.currentWeek = targetWk;
   state.weekLabel = "Week " + targetWk;
   resetPoolPicksForNewWeek(false);
-  hardResetToDefaults();
   await syncAllLiveTrackingData(true);
   renderCommissionerModalBody();
   showAppToast("🚀 Published Week " + targetWk + " (" + GAMES.length + " games) to Cloud Firestore!");
