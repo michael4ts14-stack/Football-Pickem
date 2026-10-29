@@ -173,9 +173,11 @@ function startFirebaseRealtimeListeners() {
   }
 }
 
-// False until the pool's shared state first arrives (or boot gives up waiting). Until then a
-// device with no saved slate only has the built-in Week 7 games, which must not be shown or picked.
+// False until the pool's shared state first arrives. Until then a
+// device with no saved slate only has the built-in games, which must not be shown or picked.
 var CLOUD_HYDRATED = false;
+// True once boot has waited 8 seconds without the shared state (offline or Firestore unreachable).
+var CLOUD_LOAD_TIMED_OUT = false;
 // commissionerConfig as last read from (or confirmed by) the cloud. Saves write only the fields
 // that differ from it, so a stale tab can't wipe settings saved elsewhere.
 var CLOUD_COMMISSIONER_CONFIG = null;
@@ -184,7 +186,8 @@ var CLOUD_COMMISSIONER_CONFIG = null;
 var CLOUD_REGISTRY = { customUsers: null, profilePrivacy: null };
 
 function isAwaitingFirstSlate() {
-  return !CLOUD_HYDRATED && isHardcodedWeek7Slate(GAMES);
+  // Compared with the built-in slate itself: data/default-slate.js is no longer the Week 7 one.
+  return !CLOUD_HYDRATED && (isHardcodedWeek7Slate(GAMES) || getSlateSignature(GAMES) === getSlateSignature(DEFAULT_WEEK7_GAMES));
 }
 
 function applyRemoteCloudData(data, sourceLabel) {

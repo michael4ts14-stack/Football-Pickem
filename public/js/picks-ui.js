@@ -193,7 +193,11 @@ function gamePassesPicksFilter(g, myPick, q, ownInfo, h2h) {
 }
 
 function renderPickCardsHtml() {
-  if (isAwaitingFirstSlate()) return '<p class="empty-note">Loading this week\'s games…</p>';
+  if (isAwaitingFirstSlate()) {
+    return CLOUD_LOAD_TIMED_OUT
+      ? '<p class="empty-note">Can\'t reach the pool right now. Picks open once this week\'s games load.</p>'
+      : '<p class="empty-note">Loading this week\'s games…</p>';
+  }
   ensureMondayLockedOddsOnGames();
   var qEl = document.getElementById("team-search");
   var q = (qEl ? qEl.value : "").trim().toLowerCase();
