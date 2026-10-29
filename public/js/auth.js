@@ -997,8 +997,11 @@ function saveCurrentState(profOverride, debounceWrite) {
   var targetProf = profOverride || activeProfile;
   var tbEl = document.getElementById("tiebreaker-input");
   var slEl = document.getElementById("target-slider");
-  if (tbEl && !(typeof isTiebreakerLocked === "function" && isTiebreakerLocked())) state[activeProfile].tiebreaker = tbEl.value;
-  if (slEl) state[activeProfile].target = parseInt(slEl.value, 10);
+  // The inputs show the active profile's values, so they only apply when saving that profile (B17).
+  if (targetProf === activeProfile) {
+    if (tbEl && !(typeof isTiebreakerLocked === "function" && isTiebreakerLocked())) state[activeProfile].tiebreaker = tbEl.value;
+    if (slEl) state[activeProfile].target = parseInt(slEl.value, 10);
+  }
   state.customGames = GAMES;
 
   if (debounceWrite) {
