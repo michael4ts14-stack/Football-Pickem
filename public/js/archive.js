@@ -68,8 +68,18 @@ function saveCurrentWeekToArchive(notifyToast) {
   if (fsDb && !isApplyingRemoteUpdate && canWriteSharedPoolState()) {
     try {
       // One doc per week (B08): archives inside shared_state would push it past 1 MiB.
-      fsDb.collection("pickem_v14_archives").doc(key).set(state.weekArchives[key])
-        .catch(function(e) { reportCloudSaveFailure("the week archive", e); });
+      // Rules published before that collection existed refuse it, so the archive then goes
+      // where it lived before (shared_state.weekArchives) rather than not being saved at all.
+      var saveToSharedState = function() {
+        return fsDb.collection("pickem_v14").doc("shared_state")
+          .update(new firebase.firestore.FieldPath("weekArchives", key), state.weekArchives[key]);
+      };
+      var job = ARCHIVE_COLLECTION_OK === false ? saveToSharedState()
+        : fsDb.collection("pickem_v14_archives").doc(key).set(state.weekArchives[key]).catch(function(e) {
+          if (e && e.code === "permission-denied") return saveToSharedState();
+          throw e;
+        });
+      job.catch(function(e) { reportCloudSaveFailure("the week archive", e); });
     } catch (e) {}
   }
   populateWeekArchiveDropdown();

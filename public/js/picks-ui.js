@@ -694,8 +694,10 @@ function fallbackCopyText(txt) {
   ta.style.opacity = "0";
   document.body.appendChild(ta);
   ta.select();
-  try { document.execCommand("copy"); } catch (e) {}
+  var ok = false;
+  try { ok = document.execCommand("copy"); } catch (e) {}
   document.body.removeChild(ta);
+  return ok;
 }
 
 function openPicksReviewSheet() {

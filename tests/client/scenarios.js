@@ -54,6 +54,15 @@ function serve() {
           return orig.apply(this, arguments);
         };
       });
+      // Profile saves go through one batch (both docs or neither), so count batched writes too.
+      const batchProto = firebase.firestore.WriteBatch && firebase.firestore.WriteBatch.prototype;
+      if (batchProto) ["set", "update"].forEach((m) => {
+        const orig = batchProto[m];
+        batchProto[m] = function(ref, data) {
+          window.__writes.push({ path: ref && ref.path, keys: Object.keys(data || {}) });
+          return orig.apply(this, arguments);
+        };
+      });
     };
     hook();
   });
@@ -77,11 +86,12 @@ function serve() {
   check("non-commissioner pushes write nothing to shared_state", !r1.isCommish && r1.shared.length === 0, r1);
 
   // 2. A pick save writes the profile but never currentWeek/weekLabel. (Signed out, nothing is
-  // saved at all, so the test signs in a stand-in session for the save.)
+  // saved at all, so the test signs in a stand-in session for the save, as the account michael
+  // is bound to, since only that account may save it.)
   const r2 = await page.evaluate(() => {
     const before = window.__writes.length;
     const prevSession = AUTH_SESSION;
-    AUTH_SESSION = { uid: "scenario", email: "scenario@example.com", boundProfileKey: "michael" };
+    AUTH_SESSION = { uid: bindingOwnerUid("michael") || "scenario", email: "scenario@example.com", boundProfileKey: "michael" };
     try { pushProfileToFirebase("michael"); } finally { AUTH_SESSION = prevSession; }
     return window.__writes.slice(before).filter((w) => w.path === "pickem_v14/shared_state");
   });
@@ -154,7 +164,7 @@ function serve() {
   // 9. A burst of pick taps is one Firestore save, made after the taps pause.
   const r9 = await page.evaluate(async () => {
     const prev = AUTH_SESSION;
-    AUTH_SESSION = { uid: "scenario", email: "s@example.com", boundProfileKey: "michael" };
+    AUTH_SESSION = { uid: bindingOwnerUid("michael") || "scenario", email: "s@example.com", boundProfileKey: "michael" };
     const before = window.__writes.length;
     GAMES.slice(0, 5).forEach(() => { saveCurrentState("michael", true); });
     const during = window.__writes.length - before;
@@ -194,12 +204,12 @@ function serve() {
     window.prompt = (m) => /Tiebreaker for/.test(m) ? "31-24" : "";
     const out = {};
     try {
-      const logBefore = ensureCommissionerConfig().overrideAuditLog.length;
+      const logBefore = COMMISH_LOG.length;
       overrideTiebreaker("Adam L");
       forceUnlockPicks("Adam L");
       out.tb = findPoolMemberByName("Adam L").tiebreaker;
       out.unlocked = isMemberForceUnlocked("Adam L");
-      out.logged = ensureCommissionerConfig().overrideAuditLog.length - logBefore;
+      out.logged = COMMISH_LOG.length - logBefore;
       setGameLockOverride(GAMES[1].id, "locked");
       out.gameLocked = isGameLockedByCommissioner(GAMES[1].id);
       setGameLockOverride(GAMES[1].id, "auto");

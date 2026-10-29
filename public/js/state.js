@@ -134,6 +134,19 @@ function showAppToast(msg, durationMs) {
   }, durationMs || 2600);
 }
 
+// Copies text and says whether it worked. navigator.clipboard refuses when the page isn't
+// focused or allowed (an uncaught error before), so it falls back to a hidden textarea.
+function copyTextWithToast(txt, okMsg) {
+  var ok = function() { if (okMsg) showAppToast(okMsg); };
+  var fail = function() {
+    if (typeof fallbackCopyText === "function" && fallbackCopyText(txt)) ok();
+    else showAppToast("Couldn't copy to the clipboard. Select the text and copy it yourself.");
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try { navigator.clipboard.writeText(txt).then(ok, fail); } catch (e) { fail(); }
+  } else fail();
+}
+
 function isUserModalOpen() {
   var bd = document.getElementById("opp-modal-backdrop");
   var titleEl = document.getElementById("modal-team-title");

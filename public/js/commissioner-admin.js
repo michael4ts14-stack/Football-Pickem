@@ -1402,7 +1402,7 @@ renderCommissionerModalBody = function() {
       '<div class="side-box">' +
         '<div class="side-title">' +
           '<span>🔥 Backend Firebase Firestore Security Rules (<code>firestore.rules</code>)</span>' +
-          '<button type="button" class="btn-sm" onclick="navigator.clipboard.writeText(PRODUCTION_FIRESTORE_SECURITY_RULES); showAppToast(\'📋 Copied firestore.rules to clipboard!\');">📋 Copy Rules</button>' +
+          '<button type="button" class="btn-sm" onclick="copyTextWithToast(PRODUCTION_FIRESTORE_SECURITY_RULES, \'📋 Copied firestore.rules to clipboard!\');">📋 Copy Rules</button>' +
         '</div>' +
         '<div style="font-size:0.71rem;color:var(--muted);margin-bottom:6px;">Enforces verified commissioner role checks on <code>pickem_v14/shared_state</code> and <code>pickem_v14_commissioners/roles</code> in Cloud Firestore:</div>' +
         '<textarea readonly rows="7" class="search-input" style="width:100%;font-family:monospace;font-size:0.68rem;color:var(--text);">' + PRODUCTION_FIRESTORE_SECURITY_RULES + '</textarea>' +

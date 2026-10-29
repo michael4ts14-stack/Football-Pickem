@@ -1116,8 +1116,7 @@ function copyMissingPlayersList() {
     if (c.matched === 0 || pm.awaitingSheet) missing.push(pm.name);
   }
   var txt = "⏰ Separated at Turf — " + (state.weekLabel || "Week 8") + " Wed/Thu Picks Nudge (Deadline: " + pickDeadlineLabel() + " • " + missing.length + " Missing):\n" + (missing.join(", ") || "All 89 players have submitted!");
-  try { navigator.clipboard.writeText(txt); } catch (e) {}
-  showAppToast("📧 Copied " + missing.length + " missing player names to clipboard!");
+  copyTextWithToast(txt, "📧 Copied " + missing.length + " missing player names to clipboard!");
 }
 
 // One CSV field: always quoted, quotes doubled, line breaks flattened (the app's own importer and
@@ -1472,7 +1471,6 @@ function generateCommissionerWeeklyRecapText() {
 function copyCommishRecapPost() {
   var ta = document.getElementById("commish-recap-textarea");
   var txt = ta ? ta.value : generateCommissionerWeeklyRecapText();
-  try { navigator.clipboard.writeText(txt); } catch (e) {}
-  showAppToast("📋 Copied Top 5 Weekly Winners & Overall Standings Post to clipboard!");
+  copyTextWithToast(txt, "📋 Copied Top 5 Weekly Winners & Overall Standings Post to clipboard!");
 }
 

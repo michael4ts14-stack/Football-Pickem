@@ -34,6 +34,9 @@ var USER_DOC_META = {}; // pick doc id -> { updatedAt, archived } (Commissioner 
 // is re-subscribed with backoff (2 s doubling to 60 s, reset by the next snapshot). While any
 // is down the sync status line says so; the first failure of an outage also shows a toast.
 // subscribe(next, err) makes the onSnapshot call. opts.quiet: no UI, just retry (expected failures).
+// permission-denied is not a dropped connection: it means the published firestore.rules don't
+// allow the read (yet). Retrying can't fix it and a toast on every page load only alarms
+// players, so it is logged to the console instead (opts.onError still runs).
 var LISTENER_DOWN = {}; // label -> true while failing
 function listenWithRetry(label, subscribe, onNext, opts) {
   opts = opts || {};
@@ -48,12 +51,16 @@ function listenWithRetry(label, subscribe, onNext, opts) {
         }
         onNext(snap);
       }, function(err) {
+        if (opts.onError) opts.onError(err);
+        if (err && err.code === "permission-denied") {
+          console.warn("Firestore rules don't allow reading " + label + "; not syncing it.", err);
+          return;
+        }
         if (!LISTENER_DOWN[label] && !opts.quiet && typeof showAppToast === "function") {
           showAppToast("Live sync lost for " + label + " (" + ((err && err.code) || "offline?") + "). Retrying…");
         }
         LISTENER_DOWN[label] = true;
         if (!opts.quiet) showListenerState();
-        if (opts.onError) opts.onError(err);
         setTimeout(start, delay);
         delay = Math.min(delay * 2, 60000);
       });
@@ -102,12 +109,14 @@ function startFirebaseRealtimeListeners() {
       setInterval(renderBotSyncPill, 60000);
     } catch (eBot) {}
 
-    // Season history: one doc per archived week (`pickem_v14_archives/week_N`).
+    // Season history: one doc per archived week (`pickem_v14_archives/week_N`). Until rules that
+    // allow this collection are published, archives stay in shared_state.weekArchives.
     try {
       listenWithRetry("season history", function(next, err) {
         fsDb.collection("pickem_v14_archives").onSnapshot(next, err);
       }, function(snapshot) {
         if (!snapshot || !snapshot.docChanges) return;
+        setArchiveCollectionState(true);
         ensureWeekArchivesState();
         snapshot.docChanges().forEach(function(ch) {
           if (ch.type === "removed") delete state.weekArchives[ch.doc.id];
@@ -115,7 +124,7 @@ function startFirebaseRealtimeListeners() {
         });
         populateWeekArchiveDropdown();
         if (currentMainView === "standings") renderSeasonArchiveHub();
-      });
+      }, { onError: function(err) { if (err && err.code === "permission-denied") setArchiveCollectionState(false); } });
     } catch (eArch) {}
 
     // Dedicated Per-User Instance Collection (`pickem_v14_users/{profileKey}`)
@@ -654,7 +663,22 @@ var LAST_CLOUD_WEEK = 0;
 // One-time move (B08): copy archives still stored in shared_state to their own docs (unless a
 // doc for that week already exists), then delete the field so shared_state shrinks.
 var MOVING_SHARED_ARCHIVES = false;
+// null until the archive listener answers; false when the published rules don't cover
+// pickem_v14_archives (archives then stay in, and are saved to, shared_state.weekArchives).
+var ARCHIVE_COLLECTION_OK = null;
+var PENDING_ARCHIVE_MOVE = null;
+function setArchiveCollectionState(ok) {
+  ARCHIVE_COLLECTION_OK = ok;
+  var pending = PENDING_ARCHIVE_MOVE;
+  PENDING_ARCHIVE_MOVE = null;
+  if (ok && pending) moveSharedStateArchives(pending);
+}
+
 function moveSharedStateArchives(oldArchives) {
+  if (ARCHIVE_COLLECTION_OK !== true) {
+    if (ARCHIVE_COLLECTION_OK === null) PENDING_ARCHIVE_MOVE = oldArchives;
+    return;
+  }
   if (!fsDb || MOVING_SHARED_ARCHIVES || !canWriteSharedPoolState()) return;
   MOVING_SHARED_ARCHIVES = true;
   var col = fsDb.collection("pickem_v14_archives");
@@ -740,7 +764,12 @@ function pushKickoffLocksToFirebase() {
     return { at: firebase.firestore.Timestamp.fromMillis(ms), ids: byTime[ms] };
   });
   fsDb.collection("pickem_v14").doc("kickoff_locks").set({ week: week, windows: windows, updatedAt: new Date().toISOString() })
-    .catch(function(e) { reportCloudSaveFailure("the kickoff locks", e); });
+    .catch(function(e) {
+      // Rules published before kickoff_locks existed refuse it; the app still locks games at
+      // kickoff, so this is only worth a console note, not a toast on every slate save.
+      if (e && e.code === "permission-denied") console.warn("Kickoff locks not saved: firestore.rules don't allow pickem_v14/kickoff_locks yet.", e);
+      else reportCloudSaveFailure("the kickoff locks", e);
+    });
 }
 
 function pullFromFirebaseCloud() {
