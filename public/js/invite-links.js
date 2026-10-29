@@ -233,6 +233,7 @@ function showInviteLanding() {
   INVITE_LANDING_PENDING = false;
   try { history.replaceState(null, "", window.location.pathname + window.location.hash); } catch (e) {}
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
+    closePanelSheet();
     showAppToast("You're already in the league as " + fixDisplaySpelling(AUTH_SESSION.linkedMemberName || "") + ".");
     return;
   }
