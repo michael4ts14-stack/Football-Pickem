@@ -1314,9 +1314,13 @@ async function commishPublishSelectedEspnSlate() {
   state.currentWeek = targetWk;
   state.weekLabel = "Week " + targetWk;
   resetPoolPicksForNewWeek(false);
-  await syncAllLiveTrackingData(true);
+  // Push the slate first: an ESPN failure while enriching must not leave it local-only.
+  var pushed = await pushCustomGamesToFirebase();
+  var enriched = await syncAllLiveTrackingData(true);
   renderCommissionerModalBody();
-  showAppToast("🚀 Published Week " + targetWk + " (" + GAMES.length + " games) to Cloud Firestore!");
+  if (!pushed) showAppToast("⚠️ Week " + targetWk + " is NOT published: the cloud save failed, so only this device has the slate.");
+  else if (!enriched) showAppToast("🚀 Published Week " + targetWk + " (" + GAMES.length + " games), but ESPN details didn't load. Tap Sync Live ESPN to retry.");
+  else showAppToast("🚀 Published Week " + targetWk + " (" + GAMES.length + " games) to Cloud Firestore!");
 }
 
 function setCommishLockMode(mode) {

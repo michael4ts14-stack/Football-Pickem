@@ -968,13 +968,14 @@ async function importStrictSheetText() {
       state.weekLabel = "Week " + state.currentWeek;
     }
     resetPoolPicksForNewWeek(false);
-    await syncAllLiveTrackingData(true);
-    pushCustomGamesToFirebase();
+    var pushed = await pushCustomGamesToFirebase();
+    var enriched = await syncAllLiveTrackingData(true);
     pushWatchlistOrStandingsToFirebase();
     renderAll();
     // Sheet games get their kickoff time from ESPN; any it couldn't match lock at the deadline.
     var noKick = GAMES.filter(function(g) { return !hasKickoffTime(g.id); }).map(function(g) { return "#" + g.id; });
-    showAppToast("✓ Imported " + parsedGames.length + " official games with correct lines!" +
+    showAppToast((pushed ? "✓ Imported " + parsedGames.length + " official games with correct lines!" : "⚠️ Imported " + parsedGames.length + " games on this device only: the cloud save failed.") +
+      (enriched ? "" : " ESPN details didn't load; tap Sync Live ESPN to retry.") +
       (noKick.length ? " ⚠️ No ESPN kickoff time for " + noKick.join(", ") + ": they lock at the pick deadline." : ""));
   }
 }

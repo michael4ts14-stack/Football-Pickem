@@ -655,11 +655,12 @@ function pushWatchlistOrStandingsToFirebase() {
   }
 }
 
+// Resolves true once the cloud confirmed the write, false when it was skipped or failed.
 function pushCustomGamesToFirebase() {
-  if (!canWriteSharedPoolState()) return;
+  if (!canWriteSharedPoolState()) return Promise.resolve(false);
   if (fsDb) {
     try {
-      fsDb.collection("pickem_v14").doc("shared_state").set(Object.assign({
+      var job = fsDb.collection("pickem_v14").doc("shared_state").set(Object.assign({
         customGames: GAMES,
         tiebreakerGameId: state.tiebreakerGameId || null,
         michael: state.michael,
@@ -668,10 +669,12 @@ function pushCustomGamesToFirebase() {
         leaderboard: state.leaderboard,
         poolMembers: state.poolMembers || [],
         updatedAt: new Date().toISOString()
-      }, sharedWeekFields()), { merge: true }).catch(function(e) { reportCloudSaveFailure("the slate", e); });
+      }, sharedWeekFields()), { merge: true }).then(function() { return true; }, function(e) { reportCloudSaveFailure("the slate", e); return false; });
       pushKickoffLocksToFirebase();
+      return job;
     } catch (e) {}
   }
+  return Promise.resolve(false);
 }
 
 // firestore.rules stop players changing a pick once its game kicks off. They read this small
