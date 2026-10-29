@@ -678,18 +678,6 @@ function loadInviteCode() {
   }, function() { INVITE_CODE_CACHE = { code: "", error: true }; });
 }
 
-function saveInviteCode() {
-  if (!assertCommissionerRole("setting the invite code")) return;
-  var inp = document.getElementById("commish-invite-code");
-  var code = inp ? String(inp.value || "").trim() : "";
-  if (code && code.length < 4) { showAppToast("Use at least 4 characters."); return; }
-  fsDb.collection("pickem_v14_security").doc("invite").set({ code: code, updatedAt: new Date().toISOString() }).then(function() {
-    INVITE_CODE_CACHE = { code: code };
-    showAppToast(code ? "Invite code saved." : "Invite code cleared.");
-    renderCommissionerModalBody();
-  }, function(e) { showAppToast("Couldn't save the code (" + ((e && e.code) || "error") + ")."); });
-}
-
 function copyInviteLink() {
   var code = INVITE_CODE_CACHE && INVITE_CODE_CACHE.code;
   if (!code) { showAppToast("Save an invite code first."); return; }
@@ -988,7 +976,6 @@ function leagueAccessHtml() {
     '<div class="acct-invite">' +
       '<label class="acct-link-label" for="commish-invite-code">League invite code' + (sc.registrationMode === "invite_code_required" ? '' : ' (used in Invite code mode)') + '</label>' +
       '<div class="acct-link-row"><input type="text" id="commish-invite-code" class="search-input" autocomplete="off" value="' + escapeShellHtml(code) + '" placeholder="e.g. TURF2026" />' +
-      '<button type="button" class="btn-sm" onclick="saveInviteCode()">Save code</button>' +
       '<button type="button" class="btn-sm" onclick="copyInviteLink()">Copy invite link</button></div>' +
       '<p class="muted-note">Only commissioners can see the code. The link (<code>?joinCode=…</code>) fills it in for whoever opens it.</p>' +
     '</div>' +
