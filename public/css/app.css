@@ -1315,6 +1315,8 @@ body.page-scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overf
 .dues-list { list-style: none; margin: 0; padding: 0; max-height: min(60vh, 520px); overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--border); border-radius: var(--radius); }
 .dues-row { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; min-height: 52px; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--border); }
 .dues-row:last-child { border-bottom: 0; }
+/* 90+ rows: the browser skips layout and paint for rows scrolled out of the list. */
+.dues-row { content-visibility: auto; contain-intrinsic-size: auto 52px; }
 .dues-check { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 44px; min-height: 44px; cursor: pointer; }
 .dues-check input { width: 20px; height: 20px; }
 .dues-bulk .dues-check { justify-content: flex-start; padding-right: 6px; font-size: 14px; }

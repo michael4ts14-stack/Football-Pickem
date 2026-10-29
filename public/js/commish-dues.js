@@ -29,11 +29,38 @@ function duesStorageKey(key) {
 }
 
 function duesLegacyKey(key) {
-  var hit = duesRoster().filter(function(r) { return r.low === key; })[0];
+  var hit = duesRosterIndex()[key];
   return hit ? standardizeParticipantName(hit.name).toLowerCase() : key;
 }
 
+// The roster is rebuilt from poolMembers + customUsers with a profile lookup per player. Every
+// row's isDuesPaid needs it, so it is built once and reused until the current task ends (or the
+// lists change); rebuilding it per row made the Roster tab take seconds to open.
+var DUES_ROSTER_CACHE = null;
+function duesRosterSignature() {
+  var pm = state.poolMembers || [], cu = state.customUsers || [];
+  return pm.length + "|" + cu.length + "|" + cu.map(function(c) { return c ? c.key + ":" + (c.linkedMemberName || c.name) : ""; }).join(",");
+}
+
+function cachedDuesRoster() {
+  var sig = duesRosterSignature();
+  if (DUES_ROSTER_CACHE && DUES_ROSTER_CACHE.sig === sig && DUES_ROSTER_CACHE.pm === state.poolMembers) return DUES_ROSTER_CACHE;
+  var list = buildDuesRoster(), index = {};
+  list.forEach(function(r) { index[r.low] = r; });
+  DUES_ROSTER_CACHE = { sig: sig, pm: state.poolMembers, list: list, index: index };
+  setTimeout(function() { DUES_ROSTER_CACHE = null; }, 0);
+  return DUES_ROSTER_CACHE;
+}
+
+function duesRosterIndex() {
+  return cachedDuesRoster().index;
+}
+
 function duesRoster() {
+  return cachedDuesRoster().list.slice();
+}
+
+function buildDuesRoster() {
   var seen = {}, out = [];
   var add = function(key, name) {
     if (!key || !name || seen[key]) return;
@@ -46,7 +73,7 @@ function duesRoster() {
 }
 
 function duesDisplayName(low) {
-  var hit = duesRoster().filter(function(r) { return r.low === low; })[0];
+  var hit = duesRosterIndex()[low];
   return fixDisplaySpelling(hit ? hit.name : low);
 }
 

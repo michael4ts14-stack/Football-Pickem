@@ -1,7 +1,20 @@
 // ============================================================================
 // FEATURE 1: PARTICIPANT NAME NORMALIZER, CSV/EXCEL IMPORTER & POOL AUTO-GRADER
 // ============================================================================
+// Pure, and called for every row of every roster lookup (thousands of times per Commissioner
+// render), so results are cached by the raw name.
+var STANDARD_NAME_CACHE = new Map();
 function standardizeParticipantName(rawName) {
+  var raw = String(rawName || "");
+  var hit = STANDARD_NAME_CACHE.get(raw);
+  if (hit !== undefined) return hit;
+  if (STANDARD_NAME_CACHE.size > 5000) STANDARD_NAME_CACHE.clear();
+  var out = standardizeParticipantNameUncached(raw);
+  STANDARD_NAME_CACHE.set(raw, out);
+  return out;
+}
+
+function standardizeParticipantNameUncached(rawName) {
   // "Chad C." / "Chad  C" / " chad c" all name the same player.
   var clean = String(rawName || "").replace(/\s+/g, " ").trim().replace(/\.$/, "");
   var low = clean.toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
@@ -471,12 +484,7 @@ function syncOfficialWeek7EmailSheetToFirebase() {
 }
 
 function copyUpgradedCodeGs() {
-  try {
-    navigator.clipboard.writeText(UPGRADED_CODE_GS_SOURCE);
-  } catch (e) {
-    var ta = document.getElementById("gas-code-preview");
-    if (ta) { ta.select(); document.execCommand("copy"); }
-  }
+  copyTextWithToast(UPGRADED_CODE_GS_SOURCE, "");
   var stEl = document.getElementById("gas-bot-status");
   if (stEl) {
     stEl.textContent = "✓ Copied upgraded Code.gs (with automatic .xlsx attachment scraper) to clipboard! Paste into your 'Football Weekly' Google Apps Script project.";
