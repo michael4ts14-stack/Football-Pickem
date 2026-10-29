@@ -650,15 +650,19 @@ function writeCommissionerConfigChanges(base, next) {
 
 // Saves this device's commissionerConfig: only what changed since the last cloud read (a key
 // deleted here, like an unblocked account or a removed lock override, is deleted there). The
-// returned promise rejects when the save fails, and a failure is always shown.
+// returned promise rejects when the save fails or is skipped (`code` says why), and a failure
+// is shown unless the device simply isn't the commissioner's.
 function saveCommissionerConfigToCloud() {
   ensureCommissionerConfig();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  var job = Promise.resolve();
-  if (fsDb && !isApplyingRemoteUpdate && typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
-    job = writeCommissionerConfigChanges(CLOUD_COMMISSIONER_CONFIG, state.commissionerConfig);
-    job.catch(function(e) { reportCloudSaveFailure("commissioner settings", e); });
-  }
+  var job;
+  if (!(typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) job = Promise.reject({ code: "not-commissioner" });
+  else if (!fsDb) job = Promise.reject({ code: "offline" });
+  else if (isApplyingRemoteUpdate) job = Promise.reject({ code: "remote-update-in-progress" });
+  else job = writeCommissionerConfigChanges(CLOUD_COMMISSIONER_CONFIG, state.commissionerConfig);
+  // Handled here so callers that ignore the promise cause no unhandled rejection. Players hit
+  // "not-commissioner" on every pick receipt, so that skip is silent.
+  job.catch(function(e) { if (!e || e.code !== "not-commissioner") reportCloudSaveFailure("commissioner settings", e); });
   renderCommishAnnouncementBanner();
   renderSimpleGuestAccountBar();
   return job;
