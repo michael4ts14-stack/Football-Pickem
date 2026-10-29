@@ -504,9 +504,8 @@ function pushProfileToFirebase(profKey) {
   };
   if (mine) userDoc.ownerUid = AUTH_SESSION.uid;
 
-  // 2. Then ONLY this profile's key in `pickem_v14/shared_state` (never other users' keys),
-  //    named in lastProfileWriter so the rules can check you own it. After step 1, so a new
-  //    profile's pick doc (its ownership record) exists first. The active week is never
+  // 2. And ONLY this profile's key in `pickem_v14/shared_state` (never other users' keys),
+  //    named in lastProfileWriter so the rules can check you own it. The active week is never
   //    written here: a pick save must never move everyone's week.
   var payload = {};
   payload[profKey] = profObj;
@@ -523,9 +522,13 @@ function pushProfileToFirebase(profKey) {
   // mergeFields replaces each listed field whole. A plain merge set deep-merges maps, so a
   // pick removed on one device (or a stale key dropped for the new slate) stayed in the cloud
   // and came back on every other device.
+  // One batch, so both copies change or neither does: when only the first write landed,
+  // devices showed different picks after a refresh.
   try {
-    fsDb.collection("pickem_v14_users").doc(profKey).set(userDoc, { mergeFields: Object.keys(userDoc) })
-      .then(function() { return fsDb.collection("pickem_v14").doc("shared_state").set(payload, { mergeFields: Object.keys(payload) }); })
+    var batch = fsDb.batch();
+    batch.set(fsDb.collection("pickem_v14_users").doc(profKey), userDoc, { mergeFields: Object.keys(userDoc) });
+    batch.set(fsDb.collection("pickem_v14").doc("shared_state"), payload, { mergeFields: Object.keys(payload) });
+    batch.commit()
       .then(function() { setStatus(true); }, function(e) { setStatus(false); reportCloudSaveFailure(profKey.toUpperCase() + "'s picks", e); });
   } catch (e) {}
 }

@@ -3,7 +3,7 @@ import { test, before, after } from "node:test";
 import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, updateDoc, getDocs, collection, deleteField, deleteDoc, Timestamp, FieldPath } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, getDocs, collection, deleteField, deleteDoc, Timestamp, FieldPath, writeBatch } from "firebase/firestore";
 
 let env;
 const J = { uid: "uid-justin", email: "justin@example.com" };      // owns u_justinc
@@ -351,6 +351,31 @@ test("kickoff lock: 30 games in 20 windows, 90 players, every pick changed stays
   await assertSucceeds(sharedPicks(db(J), open));
   await assertFails(pickDoc(db(J), Object.assign({}, open, { 30: "B" })));
   await assertFails(sharedPicks(db(J), Object.assign({}, open, { 30: "B" })));
+});
+
+// pushProfileToFirebase saves the pick doc and shared_state in one batch (same field lists).
+const pickSaveBatch = (d, who, key, p, extra = {}) => {
+  const b = writeBatch(d);
+  const userDoc = { profileKey: key, picks: p, ownerUid: who.uid, updatedAt: "t" };
+  const shared = Object.assign({ [key]: { picks: p }, lastProfileWriter: key, updatedAt: "t" }, extra);
+  b.set(doc(d, "pickem_v14_users/" + key), userDoc, { mergeFields: Object.keys(userDoc) });
+  b.set(SS(d), shared, { mergeFields: Object.keys(shared) });
+  return b.commit();
+};
+
+test("pick save batch: the owner's batch writes both copies; a denied half writes neither", async () => {
+  await seed();
+  await assertSucceeds(pickSaveBatch(db(J), J, "u_justinc", { 1: "Texas Tech" }));
+  await assertFails(pickSaveBatch(db(J), J, "u_justinc", { 1: "Arizona" }, { michael: { picks } })); // shared half denied
+  await assertFails(pickSaveBatch(db(O), O, "u_justinc", { 1: "Arizona" }));
+  // A new profile (binding but no pick doc yet) saves in the same batch.
+  await env.withSecurityRulesDisabled(async (c) => { await deleteDoc(doc(c.firestore(), "pickem_v14_users/u_justinc")); });
+  await assertSucceeds(pickSaveBatch(db(J), J, "u_justinc", { 1: "Texas Tech" }));
+  await env.withSecurityRulesDisabled(async (c) => {
+    const d = c.firestore();
+    assert.deepEqual((await getDoc(doc(d, "pickem_v14_users/u_justinc"))).data().picks, { 1: "Texas Tech" });
+    assert.deepEqual((await getDoc(SS(d))).data().u_justinc.picks, { 1: "Texas Tech" });
+  });
 });
 
 test("standings save: liveScores is replaced whole, so removed games don't come back", async () => {
