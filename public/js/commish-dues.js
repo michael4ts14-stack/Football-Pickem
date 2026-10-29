@@ -28,25 +28,51 @@ function duesStorageKey(key) {
   return duesSeason() + ":" + key;
 }
 
-function duesLegacyKey(key) {
-  var hit = duesRosterIndex()[key];
+function duesLegacyKey(key, roster) {
+  var hit = (roster || cachedDuesRoster()).index[key];
   return hit ? standardizeParticipantName(hit.name).toLowerCase() : key;
 }
 
 // The roster is rebuilt from poolMembers + customUsers with a profile lookup per player. Every
-// row's isDuesPaid needs it, so it is built once and reused until the current task ends. Each
-// read is O(1): the cache is dropped when either list is replaced or changes length, or when a
-// name or profile link changes in place (those call invalidateDuesRosterCache, state.js).
+// row's isDuesPaid needs it, so it is cached. Each lookup checks a 32-bit FNV-1a hash of what
+// the roster is built from (names, profile keys and links), so a name or link changed in place
+// anywhere rebuilds it without anyone having to say so. Renders resolve the roster once and
+// pass it down, so a list of n players hashes once, not n times.
 var DUES_ROSTER_CACHE = null;
-function cachedDuesRoster() {
+function computeFastDuesSignature() {
+  var h = fnv1aMix(2166136261, DUES_ROSTER_SEQ);
   var pm = state.poolMembers, cu = state.customUsers;
+  if (Array.isArray(pm)) {
+    h = fnv1aMix(h, pm.length);
+    for (var i = 0; i < pm.length; i++) {
+      var m = pm[i];
+      h = fnv1aMix(h, m ? m.name || "" : "");
+    }
+  }
+  if (Array.isArray(cu)) {
+    h = fnv1aMix(h, cu.length);
+    for (var j = 0; j < cu.length; j++) {
+      var u = cu[j];
+      if (!u) continue;
+      h = fnv1aMix(h, u.key || "");
+      h = fnv1aMix(h, u.name || "");
+      h = fnv1aMix(h, u.linkedMemberName === undefined ? "\u0000" : u.linkedMemberName);
+      h = fnv1aMix(h, u.isSandbox ? 1 : 0);
+    }
+  }
+  ["michael", "kinyion", "test"].forEach(function(k) {
+    var p = state[k];
+    h = fnv1aMix(h, p && p.linkedMemberName !== undefined ? p.linkedMemberName : "\u0000");
+  });
+  return h;
+}
+function cachedDuesRoster() {
+  var sig = computeFastDuesSignature();
   var c = DUES_ROSTER_CACHE;
-  if (c && c.seq === DUES_ROSTER_SEQ && c.pm === pm && c.cu === cu &&
-      c.pmLen === (pm ? pm.length : 0) && c.cuLen === (cu ? cu.length : 0)) return c;
+  if (c && c.sig === sig) return c;
   var list = buildDuesRoster(), index = {};
   list.forEach(function(r) { index[r.low] = r; });
-  DUES_ROSTER_CACHE = { seq: DUES_ROSTER_SEQ, pm: pm, cu: cu, pmLen: pm ? pm.length : 0, cuLen: cu ? cu.length : 0, list: list, index: index };
-  if (!c) setTimeout(function() { DUES_ROSTER_CACHE = null; }, 0);
+  DUES_ROSTER_CACHE = { sig: sig, list: list, index: index };
   return DUES_ROSTER_CACHE;
 }
 
@@ -80,21 +106,23 @@ function duesFee() {
   return isNaN(fee) ? 25 : fee;
 }
 
-function isDuesPaid(key) {
+// roster: the cachedDuesRoster() a caller looping over many rows already resolved.
+function isDuesPaid(key, roster) {
   var map = ensureCommissionerConfig().duesPaidMap;
   var sk = duesStorageKey(key);
   if (Object.prototype.hasOwnProperty.call(map, sk)) return !!map[sk];
-  return duesSeason() === DUES_LEGACY_SEASON && !!map[duesLegacyKey(key)];
+  return duesSeason() === DUES_LEGACY_SEASON && !!map[duesLegacyKey(key, roster)];
 }
 
 function duesTotals() {
-  var list = duesRoster(), fee = duesFee(), paid = 0;
-  list.forEach(function(r) { if (isDuesPaid(r.low)) paid++; });
+  var roster = cachedDuesRoster();
+  var list = roster.list, fee = duesFee(), paid = 0;
+  list.forEach(function(r) { if (isDuesPaid(r.low, roster)) paid++; });
   return { count: list.length, paid: paid, unpaid: list.length - paid, fee: fee, paidDollars: paid * fee, owedDollars: (list.length - paid) * fee };
 }
 
-function duesRowHtml(r) {
-  var paid = isDuesPaid(r.low);
+function duesRowHtml(r, roster) {
+  var paid = isDuesPaid(r.low, roster);
   var low = escapeShellHtml(r.low);
   var arg = jsArgAttr(r.low);
   return '<li class="dues-row' + (paid ? ' is-paid' : '') + '" data-dues-key="' + low + '">' +
@@ -106,12 +134,13 @@ function duesRowHtml(r) {
 }
 
 function duesListHtml() {
-  var rows = duesRoster().filter(function(r) {
-    if (DUES_FILTER === "paid") return isDuesPaid(r.low);
-    if (DUES_FILTER === "unpaid") return !isDuesPaid(r.low);
+  var roster = cachedDuesRoster();
+  var rows = roster.list.filter(function(r) {
+    if (DUES_FILTER === "paid") return isDuesPaid(r.low, roster);
+    if (DUES_FILTER === "unpaid") return !isDuesPaid(r.low, roster);
     return true;
   });
-  return rows.length ? rows.map(duesRowHtml).join("") : '<li class="dues-empty">No players match this filter.</li>';
+  return rows.length ? rows.map(function(r) { return duesRowHtml(r, roster); }).join("") : '<li class="dues-empty">No players match this filter.</li>';
 }
 
 function duesTotalsHtml() {
@@ -265,7 +294,8 @@ function bulkSetDues(paid) {
 
 function markAllDuesPaid() {
   if (!assertCommissionerRole("Dues")) return;
-  var keys = duesRoster().map(function(r) { return r.low; }).filter(function(k) { return !isDuesPaid(k); });
+  var roster = cachedDuesRoster();
+  var keys = roster.list.map(function(r) { return r.low; }).filter(function(k) { return !isDuesPaid(k, roster); });
   if (!keys.length) { showAppToast("Everyone is already paid."); return; }
   confirmDanger("Mark all " + keys.length + " unpaid players paid? Total collected becomes $" + (duesTotals().count * duesFee()) + ".", "Mark all paid", function() {
     var ch = {};

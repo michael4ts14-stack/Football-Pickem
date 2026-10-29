@@ -423,6 +423,9 @@ function openGameDetail(gameId) {
   DETAIL_SHEET_GAME_ID = g.id;
   _detailSheetReturnFocus = document.activeElement;
   renderGameDetailSheet();
+  // The body is reused for every game: start at the top, not where the last game was scrolled.
+  var body = document.getElementById("detail-sheet-body");
+  if (body) body.scrollTop = 0;
   bd.hidden = false;
   var closeBtn = document.getElementById("detail-sheet-close");
   if (closeBtn) closeBtn.focus();

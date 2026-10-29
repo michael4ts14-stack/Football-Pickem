@@ -61,6 +61,7 @@ function userRecords() {
   var cfg = ensureCommissionerConfig();
   var out = [], seenKeys = {}, seenLow = {};
   var acct = ACCOUNTS_CACHE || { byEmail: {}, byKey: {} };
+  var duesRosterNow = cachedDuesRoster();
   var add = function(r) {
     var b = BOUND_ACCOUNTS[r.key] || null;
     var a = acct.byKey[r.key] || null;
@@ -75,7 +76,7 @@ function userRecords() {
     r.joined = (b && b.boundAt) || (r.archived && r.archived.record && r.archived.record.joinedAt) || "";
     r.lastActive = laterIso(meta.updatedAt || "", (a && a.updatedAt) || "");
     r.role = usersRoleOf(b ? email : "");
-    r.duesPaid = r.low ? isDuesPaid(duesKeyForName(r.low)) : null;
+    r.duesPaid = r.low ? isDuesPaid(duesKeyForName(r.low), duesRosterNow) : null;
     out.push(r);
     seenKeys[r.key] = true;
     if (r.low) seenLow[r.low] = true;

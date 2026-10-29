@@ -139,13 +139,28 @@ function showAppToast(msg, durationMs) {
 // activation is still live; browsers refuse it once a promise callback runs. Only when that
 // fails is navigator.clipboard tried. opts.fallbackInputEl: a field to focus and select when
 // both fail, so the user can copy it by hand.
+// One FNV-1a step: folds String(v) into the 32-bit hash h (no allocations for strings).
+function fnv1aMix(h, v) {
+  var str = typeof v === "string" ? v : String(v);
+  for (var i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  h ^= 0x1f; // field separator, so "ab"+"c" and "a"+"bc" differ
+  return Math.imul(h, 16777619) >>> 0;
+}
+
 function copyTextWithToast(txt, okMsg, opts) {
   opts = opts || {};
   var ok = function() { if (okMsg) showAppToast(okMsg); return true; };
   var fail = function() {
     var el = opts.fallbackInputEl;
     if (el) {
-      try { el.focus(); el.select(); if (el.setSelectionRange) el.setSelectionRange(0, String(el.value || "").length); } catch (e) {}
+      try {
+        if (el.hidden) el.hidden = false;
+        if (el.style && el.style.display === "none") el.style.display = "";
+        el.focus(); el.select(); if (el.setSelectionRange) el.setSelectionRange(0, String(el.value || "").length);
+      } catch (e) {}
     }
     showAppToast("Couldn't copy to the clipboard. Select the text and copy it yourself.");
     return false;
@@ -238,8 +253,8 @@ function syncLinkedProfilesWithLeaderboard() {
   }
 }
 
-// Bumped whenever player names or profile links change in place, so the commissioner's dues
-// roster (commish-dues.js) rebuilds instead of showing an old name or paid flag.
+// Bumped when player names or profile links change in place. The dues roster
+// (commish-dues.js) checks those itself; this only forces a rebuild sooner.
 var DUES_ROSTER_SEQ = 0;
 function invalidateDuesRosterCache() { DUES_ROSTER_SEQ++; }
 
