@@ -83,7 +83,6 @@ function startFirebaseRealtimeListeners() {
         var changes = snapshot.docChanges();
         if (!changes.length) return;
         var anyRemoteApplied = false;
-        var withinMyLocalEdit = (Date.now() - lastLocalPickTs) < 1800;
 
         for (var i = 0; i < changes.length; i++) {
           var ch = changes[i];
@@ -92,88 +91,121 @@ function startFirebaseRealtimeListeners() {
           var uData = ch.doc.data();
           if (docId && uData) USER_DOC_META[docId] = { updatedAt: uData.updatedAt || "", archived: !!uData.archived };
           if (!docId || !uData || !uData.picks) continue;
-
-          // Never overwrite the local device's own Test Sim or actively-edited profile during a click
-          if (docId === "test") continue;
-          if (uData.archived || isProfileArchived(docId)) continue; // removed by a commissioner
-          if (docId === activeProfile && withinMyLocalEdit) continue;
-          if (hasPendingProfileSave(docId)) continue; // newer local picks are waiting to save
-
-          // While a past week is on screen, live picks belong to the parked live week.
-          var viewingArchive = typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY && LIVE_WEEK_SNAPSHOT;
-          var store = (viewingArchive && (docId === "michael" || docId === "kinyion")) ? LIVE_WEEK_SNAPSHOT : state;
-          if (picksLookLikeAnotherWeek(uData.picks, viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES)) continue;
-
-          // Register custom user metadata if this is one of the 80+ user accounts not yet in state.customUsers
-          if (docId !== "michael" && docId !== "kinyion" && docId !== "test") {
-            ensureMultiUserAndPrivacyState();
-            var existsCu = false;
-            for (var c = 0; c < state.customUsers.length; c++) {
-              if (state.customUsers[c].key === docId) {
-                existsCu = true;
-                if (uData.linkedMemberName) state.customUsers[c].linkedMemberName = uData.linkedMemberName;
-                if (uData.displayName) state.customUsers[c].name = uData.displayName;
-                break;
-              }
-            }
-            if (!existsCu && (uData.displayName || uData.linkedMemberName)) {
-              state.customUsers.push({
-                key: docId,
-                name: uData.displayName || uData.linkedMemberName,
-                linkedMemberName: uData.linkedMemberName || uData.displayName,
-                priorPts: parseFloat(uData.priorPts) || 0,
-                rank: uData.rank || "Linked",
-                color: uData.color || "#10b981",
-                ownerUid: uData.ownerUid || ""
-              });
-            }
-          }
-
-          // Cleared means a commissioner emptied this player's picks this week and they haven't
-          // picked again. An account with no picks yet, or one cleared in an earlier week, must
-          // not hide the player's sheet picks.
-          var liveGames = viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES;
-          var liveWeek = parseInt(viewingArchive ? LIVE_WEEK_SNAPSHOT.currentWeek : state.currentWeek, 10) || 0;
-          var hasLivePicks = hasSubmittedPicksForCurrentSlate(uData.picks, liveGames);
-          var isClearedDoc = !!(uData._picksCleared && !hasLivePicks && liveWeek && parseInt(uData.currentWeek, 10) === liveWeek);
-          var linkedLow = standardizeParticipantName(uData.linkedMemberName || uData.displayName || "").toLowerCase();
-          // A duplicate profile's state says nothing about the player's real picks.
-          if (isDuplicateProfileKey(docId, uData.linkedMemberName || uData.displayName || "")) linkedLow = "";
-          if (isClearedDoc) {
-            if (!state.deletedPicksByMember) state.deletedPicksByMember = {};
-            if (linkedLow) state.deletedPicksByMember[linkedLow] = true;
-          } else if (linkedLow && state.deletedPicksByMember && state.deletedPicksByMember[linkedLow] && hasLivePicks) {
-            // Picked again after a clear.
-            if ((Date.now() - lastLocalPickTs) < 4000) continue;
-            delete state.deletedPicksByMember[linkedLow];
-          }
-          store[docId] = Object.assign({}, store[docId] || {}, {
-            picks: isClearedDoc ? {} : uData.picks,
-            _picksCleared: isClearedDoc,
-            tiebreaker: uData.tiebreaker || (store[docId] && store[docId].tiebreaker) || "28-24",
-            target: uData.target || (store[docId] && store[docId].target) || 20,
-            linkedMemberName: uData.linkedMemberName !== undefined ? uData.linkedMemberName : (store[docId] ? store[docId].linkedMemberName : "")
-          });
-          anyRemoteApplied = true;
+          delete DEFERRED_PICK_DOCS[docId]; // this snapshot is the doc's latest state
+          if (applyRemotePickDoc(docId, uData)) anyRemoteApplied = true;
         }
-
-        if (anyRemoteApplied && !pendingUsersRenderTimer) {
-          // State is already updated above; batch the expensive regrade + full re-render.
-          pendingUsersRenderTimer = setTimeout(function() {
-            pendingUsersRenderTimer = null;
-            isApplyingRemoteUpdate = true;
-            try {
-              regradeAllPoolMembersLive();
-              safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-              renderAll();
-            } finally {
-              isApplyingRemoteUpdate = false;
-            }
-          }, REMOTE_APPLY_DEBOUNCE_MS);
-        }
+        if (anyRemoteApplied) scheduleRemotePicksRender();
       }, function(err2) {});
     } catch (e2) {}
   }
+}
+
+// Pick docs that arrived while this device was editing or saving the same picks. Skipping them
+// for good left another device's edits stale here, so each is applied once the window ends.
+var DEFERRED_PICK_DOCS = {}; // doc id -> latest doc data
+var deferredPickDocsTimer = null;
+function deferRemotePickDoc(docId, uData) {
+  DEFERRED_PICK_DOCS[docId] = uData;
+  if (deferredPickDocsTimer) return;
+  // Just past the longest window (4 s after the last local pick); a doc still blocked then
+  // (a save still pending) is deferred again.
+  var wait = Math.max(250, 4000 - (Date.now() - lastLocalPickTs) + 50);
+  deferredPickDocsTimer = setTimeout(function() {
+    deferredPickDocsTimer = null;
+    var docs = DEFERRED_PICK_DOCS;
+    DEFERRED_PICK_DOCS = {};
+    var anyApplied = false;
+    for (var id in docs) {
+      if (applyRemotePickDoc(id, docs[id])) anyApplied = true;
+    }
+    if (anyApplied) scheduleRemotePicksRender();
+  }, wait);
+}
+
+function scheduleRemotePicksRender() {
+  if (pendingUsersRenderTimer) return;
+  // State is already updated; batch the expensive regrade + full re-render.
+  pendingUsersRenderTimer = setTimeout(function() {
+    pendingUsersRenderTimer = null;
+    isApplyingRemoteUpdate = true;
+    try {
+      regradeAllPoolMembersLive();
+      safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+      renderAll();
+    } finally {
+      isApplyingRemoteUpdate = false;
+    }
+  }, REMOTE_APPLY_DEBOUNCE_MS);
+}
+
+// Applies one `pickem_v14_users` doc to state. True if it changed state.
+function applyRemotePickDoc(docId, uData) {
+  var withinMyLocalEdit = (Date.now() - lastLocalPickTs) < 1800;
+  // Never overwrite the local device's own Test Sim or actively-edited profile during a click
+  if (docId === "test") return false;
+  if (uData.archived || isProfileArchived(docId)) return false; // removed by a commissioner
+  if ((docId === activeProfile && withinMyLocalEdit) || hasPendingProfileSave(docId)) {
+    // Newer local picks are being edited or waiting to save: apply this doc once that's done.
+    deferRemotePickDoc(docId, uData);
+    return false;
+  }
+
+  // While a past week is on screen, live picks belong to the parked live week.
+  var viewingArchive = typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY && LIVE_WEEK_SNAPSHOT;
+  var store = (viewingArchive && (docId === "michael" || docId === "kinyion")) ? LIVE_WEEK_SNAPSHOT : state;
+  if (picksLookLikeAnotherWeek(uData.picks, viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES)) return false;
+
+  // Register custom user metadata if this is one of the 80+ user accounts not yet in state.customUsers
+  if (docId !== "michael" && docId !== "kinyion" && docId !== "test") {
+    ensureMultiUserAndPrivacyState();
+    var existsCu = false;
+    for (var c = 0; c < state.customUsers.length; c++) {
+      if (state.customUsers[c].key === docId) {
+        existsCu = true;
+        if (uData.linkedMemberName) state.customUsers[c].linkedMemberName = uData.linkedMemberName;
+        if (uData.displayName) state.customUsers[c].name = uData.displayName;
+        break;
+      }
+    }
+    if (!existsCu && (uData.displayName || uData.linkedMemberName)) {
+      state.customUsers.push({
+        key: docId,
+        name: uData.displayName || uData.linkedMemberName,
+        linkedMemberName: uData.linkedMemberName || uData.displayName,
+        priorPts: parseFloat(uData.priorPts) || 0,
+        rank: uData.rank || "Linked",
+        color: uData.color || "#10b981",
+        ownerUid: uData.ownerUid || ""
+      });
+    }
+  }
+
+  // Cleared means a commissioner emptied this player's picks this week and they haven't
+  // picked again. An account with no picks yet, or one cleared in an earlier week, must
+  // not hide the player's sheet picks.
+  var liveGames = viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES;
+  var liveWeek = parseInt(viewingArchive ? LIVE_WEEK_SNAPSHOT.currentWeek : state.currentWeek, 10) || 0;
+  var hasLivePicks = hasSubmittedPicksForCurrentSlate(uData.picks, liveGames);
+  var isClearedDoc = !!(uData._picksCleared && !hasLivePicks && liveWeek && parseInt(uData.currentWeek, 10) === liveWeek);
+  var linkedLow = standardizeParticipantName(uData.linkedMemberName || uData.displayName || "").toLowerCase();
+  // A duplicate profile's state says nothing about the player's real picks.
+  if (isDuplicateProfileKey(docId, uData.linkedMemberName || uData.displayName || "")) linkedLow = "";
+  if (isClearedDoc) {
+    if (!state.deletedPicksByMember) state.deletedPicksByMember = {};
+    if (linkedLow) state.deletedPicksByMember[linkedLow] = true;
+  } else if (linkedLow && state.deletedPicksByMember && state.deletedPicksByMember[linkedLow] && hasLivePicks) {
+    // Picked again after a clear.
+    if ((Date.now() - lastLocalPickTs) < 4000) { deferRemotePickDoc(docId, uData); return false; }
+    delete state.deletedPicksByMember[linkedLow];
+  }
+  store[docId] = Object.assign({}, store[docId] || {}, {
+    picks: isClearedDoc ? {} : uData.picks,
+    _picksCleared: isClearedDoc,
+    tiebreaker: uData.tiebreaker || (store[docId] && store[docId].tiebreaker) || "28-24",
+    target: uData.target || (store[docId] && store[docId].target) || 20,
+    linkedMemberName: uData.linkedMemberName !== undefined ? uData.linkedMemberName : (store[docId] ? store[docId].linkedMemberName : "")
+  });
+  return true;
 }
 
 // False until the pool's shared state first arrives. Until then a
