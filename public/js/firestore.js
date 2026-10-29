@@ -356,19 +356,14 @@ function applyRemoteCloudData(data, sourceLabel) {
 
     var localMaxPrior = Math.max(getMaxPriorPts(state.leaderboard), getMaxPriorPts(WEEK7_OFFICIAL_LEADERBOARD));
     var cloudLbStale = false;
+    // The cloud standings are the source of truth, even when their points are lower than this
+    // device's (a new season, or a commissioner's correction).
     if (data.leaderboard && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
-      var incomingLbMax = getMaxPriorPts(data.leaderboard);
-      if (incomingLbMax >= localMaxPrior) {
-        state.leaderboard = data.leaderboard;
-      } else {
-        cloudLbStale = true;
-      }
+      state.leaderboard = data.leaderboard;
     }
     if (data.poolMembers) {
       var incomingPm = Array.isArray(data.poolMembers) ? data.poolMembers : Object.values(data.poolMembers);
       if (incomingPm.length > 0) {
-        var incomingPmMax = getMaxPriorPts(incomingPm);
-        if (incomingPmMax < localMaxPrior) cloudLbStale = true;
         state.poolMembers = incomingPm;
       }
     }

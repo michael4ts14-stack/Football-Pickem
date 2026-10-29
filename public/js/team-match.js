@@ -754,13 +754,6 @@ function sanitizeStateForActiveSlate() {
   updateWeekBrandingUI();
   if (state.weekLabel !== prevWkLabel || state.currentWeek !== prevWkNum) cleanedAny = true;
 
-  // 2b. Ensure state.leaderboard & state.poolMembers never revert to pre-Week-7 points (max 107) when official Week 8 standings (max 124) are available!
-  var curMaxLbPts = getMaxPriorPts(state.leaderboard);
-  var officialWk8MaxPts = getMaxPriorPts(WEEK7_OFFICIAL_LEADERBOARD);
-  if (curMaxLbPts < officialWk8MaxPts) {
-    state.leaderboard = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_LEADERBOARD));
-    cleanedAny = true;
-  }
   var latestPtsLookup = {};
   var latestRankLookup = {};
   if (state.leaderboard && Array.isArray(state.leaderboard)) {
