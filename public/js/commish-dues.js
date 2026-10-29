@@ -9,17 +9,40 @@
 var DUES_FILTER = "all"; // "all" | "paid" | "unpaid"
 var DUES_SELECTED = {};  // low name -> true
 
+// Dues are keyed by profile key when the player has a profile (so a rename keeps the flag) and by
+// lowercase name otherwise, and scoped to a season (B42). Flags saved before this change are plain
+// name keys; they still count for DUES_LEGACY_SEASON, the season in progress when this shipped.
+var DUES_LEGACY_SEASON = "2026";
+
+function duesSeason() {
+  return String(ensureCommissionerConfig().duesSeason || new Date().getFullYear());
+}
+
+function duesKeyForName(name) {
+  var low = standardizeParticipantName(name).toLowerCase();
+  var prof = getProfileLinkedToMemberName(name);
+  return prof && !prof.isSandbox ? prof.key : low;
+}
+
+function duesStorageKey(key) {
+  return duesSeason() + ":" + key;
+}
+
+function duesLegacyKey(key) {
+  var hit = duesRoster().filter(function(r) { return r.low === key; })[0];
+  return hit ? standardizeParticipantName(hit.name).toLowerCase() : key;
+}
+
 function duesRoster() {
-  var seen = {};
-  return (state.poolMembers || []).filter(function(pm) {
-    var low = pm && pm.name ? standardizeParticipantName(pm.name).toLowerCase() : "";
-    if (!low || seen[low]) return false;
-    seen[low] = true;
-    return true;
-  }).map(function(pm) {
-    var name = standardizeParticipantName(pm.name);
-    return { low: name.toLowerCase(), name: name };
-  }).sort(function(a, b) { return fixDisplaySpelling(a.name).localeCompare(fixDisplaySpelling(b.name)); });
+  var seen = {}, out = [];
+  var add = function(key, name) {
+    if (!key || !name || seen[key]) return;
+    seen[key] = true;
+    out.push({ low: key, name: standardizeParticipantName(name) });
+  };
+  (state.poolMembers || []).forEach(function(pm) { if (pm && pm.name) add(duesKeyForName(pm.name), pm.name); });
+  (state.customUsers || []).forEach(function(cu) { if (cu && cu.key && cu.name) add(cu.key, cu.linkedMemberName || cu.name); });
+  return out.sort(function(a, b) { return fixDisplaySpelling(a.name).localeCompare(fixDisplaySpelling(b.name)); });
 }
 
 function duesDisplayName(low) {
@@ -28,11 +51,15 @@ function duesDisplayName(low) {
 }
 
 function duesFee() {
-  return parseFloat(ensureCommissionerConfig().entryFeeDollars) || 25;
+  var fee = parseFloat(ensureCommissionerConfig().entryFeeDollars);
+  return isNaN(fee) ? 25 : fee;
 }
 
-function isDuesPaid(low) {
-  return !!ensureCommissionerConfig().duesPaidMap[low];
+function isDuesPaid(key) {
+  var map = ensureCommissionerConfig().duesPaidMap;
+  var sk = duesStorageKey(key);
+  if (Object.prototype.hasOwnProperty.call(map, sk)) return !!map[sk];
+  return duesSeason() === DUES_LEGACY_SEASON && !!map[duesLegacyKey(key)];
 }
 
 function duesTotals() {
@@ -133,21 +160,22 @@ function saveDuesFlags(changes, auditText) {
   if (!fsDb || !isVerifiedCommissioner()) return Promise.reject({ code: "permission-denied" });
   var FP = firebase.firestore.FieldPath;
   var args = [];
-  Object.keys(changes).forEach(function(low) { args.push(new FP("commissionerConfig", "duesPaidMap", low), !!changes[low]); });
+  Object.keys(changes).forEach(function(low) { args.push(new FP("commissionerConfig", "duesPaidMap", duesStorageKey(low)), !!changes[low]); });
   args.push("updatedAt", new Date().toISOString());
-  if (typeof logCommishAction === "function") logCommishAction(auditText, "", "");
   var ref = fsDb.collection("pickem_v14").doc("shared_state");
-  return ref.update.apply(ref, args);
+  return ref.update.apply(ref, args).then(function() {
+    if (typeof logCommishAction === "function") logCommishAction(auditText, "", "");
+  });
 }
 
 function applyDuesChanges(changes, auditText) {
   var map = ensureCommissionerConfig().duesPaidMap;
   var before = {};
-  Object.keys(changes).forEach(function(low) { before[low] = !!map[low]; map[low] = !!changes[low]; paintDuesRow(low); });
+  Object.keys(changes).forEach(function(low) { before[low] = isDuesPaid(low); map[duesStorageKey(low)] = !!changes[low]; paintDuesRow(low); });
   refreshDuesChrome();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
   return saveDuesFlags(changes, auditText).catch(function(e) {
-    Object.keys(before).forEach(function(low) { map[low] = before[low]; paintDuesRow(low); });
+    Object.keys(before).forEach(function(low) { map[duesStorageKey(low)] = before[low]; paintDuesRow(low); });
     refreshDuesChrome();
     reportCloudSaveFailure("dues", e);
     throw e;
@@ -164,7 +192,7 @@ function toggleDuesPaidInPlace(low) {
 
 // The roster table's old toggle goes through the same in-place path.
 function commishToggleDuesPaid(memberName) {
-  toggleDuesPaidInPlace(standardizeParticipantName(memberName).toLowerCase());
+  toggleDuesPaidInPlace(duesKeyForName(memberName));
 }
 
 function toggleDuesSelected(low, on) {

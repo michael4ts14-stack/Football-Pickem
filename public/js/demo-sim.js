@@ -259,6 +259,7 @@ function toggleDemoAutoLoop(gameId, event) {
   }
   simulateNextDemoPlay(gameId, "next");
   DEMO_AUTO_TIMER = setInterval(function() {
+    if (document.hidden) return; // no point re-rendering a hidden tab
     var sim = DEMO_SIM_STATE[gameId];
     if (sim && (sim.yl100 <= 0 || sim.yl100 >= 100)) {
       simulateNextDemoPlay(gameId, "reset");
@@ -499,6 +500,7 @@ function toggleLiveAlertDemo() {
   if (LIVE_ALERT_DEMO) {
     var saved = LIVE_ALERT_DEMO.saved;
     for (var id in LIVE_ALERT_DEMO.entries) {
+      if (LIVE_SCORES[id] !== LIVE_ALERT_DEMO.entries[id]) continue; // a real poll replaced the sample; keep the newer score
       if (saved[id]) LIVE_SCORES[id] = saved[id];
       else delete LIVE_SCORES[id];
     }

@@ -87,31 +87,19 @@ function isPastFriday9PmCST() {
   return isPastPickDeadline();
 }
 
-function isSaturdayMorningOrLaterCST() {
-  try {
-    var now = new Date();
-    var parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/Chicago",
-      weekday: "short",
-      hour: "numeric",
-      hour12: false
-    }).formatToParts(now);
-    var wkday = "", hr = 0;
-    for (var i = 0; i < parts.length; i++) {
-      if (parts[i].type === "weekday") wkday = parts[i].value;
-      if (parts[i].type === "hour") hr = parseInt(parts[i].value, 10) % 24;
-    }
-    if (wkday === "Sun") return true;
-    if (wkday === "Sat" && hr >= 6) return true; // Saturday morning 6:00 AM+ CST
-  } catch (e) {}
-  return false;
+// Hidden picks open to everyone once that player's picks are closed for the week: a commissioner
+// lock, or the configured deadline in deadline-lock mode (unless they were let past it). In the
+// other modes picks stay editable until kickoff, so each game reveals at its own kickoff.
+function isPickSheetClosedFor(profKey) {
+  var cfg = ensureCommissionerConfig();
+  if (cfg.lockMode === "global_locked") return true;
+  return cfg.lockMode === "friday_9pm_cst" && isPastPickDeadline() && !isProfileForceUnlocked(profKey);
 }
 
-// Automatically reveal all picks on Saturday morning (or after Friday 9:00 PM CST lock if configured)
 var _origGetAutoUnhideReason = getAutoUnhideReason;
 getAutoUnhideReason = function(profKey, gameId) {
-  if (isSaturdayMorningOrLaterCST()) {
-    return "Saturday Morning Public Sheet Reveal";
+  if (isPickSheetClosedFor(profKey)) {
+    return "Pick Deadline Passed";
   }
   return _origGetAutoUnhideReason(profKey, gameId);
 };
@@ -133,27 +121,45 @@ bindAuthenticatedAccountToProfile = async function(authUser, chosenMemberName) {
 };
 
 async function _bindCarryingGuestPicks(authUser, chosenMemberName) {
-  // Only picks made as a guest in this session (or an explicit "Create account") carry over, so older
-  // sandbox experiments on a shared device never overwrite an account's real picks.
-  var carryAsked = window._carryOverGuestPicksOnAuth || safeGetStorage("sat_carry_guest_picks_v1") === "1";
-  var touched = typeof guestPicksTouchedThisWeek === "function" ? guestPicksTouchedThisWeek() : !!window._guestPicksTouched;
-  var hadGuestDraft = (touched || carryAsked) && state.test && state.test.picks && Object.keys(state.test.picks).length > 0;
-  var guestPicksCopy = hadGuestDraft ? JSON.parse(JSON.stringify(state.test.picks)) : null;
-  var guestTbCopy = (hadGuestDraft && state.test.tiebreaker) ? state.test.tiebreaker : null;
+  // Only games the guest actually tapped this week carry over (not the prefilled
+  // recommendations or an older sandbox), and only into games the account hasn't picked.
+  var touchedIds = typeof guestTouchedGameIds === "function" ? guestTouchedGameIds() : [];
+  var guestPicks = (state.test && state.test.picks) || {};
+  var guestPicksCopy = {};
+  for (var t = 0; t < touchedIds.length; t++) {
+    if (guestPicks[touchedIds[t]]) guestPicksCopy[touchedIds[t]] = guestPicks[touchedIds[t]];
+  }
+  var guestTbCopy = (touchedIds.length && state.test && state.test.tiebreaker) ? state.test.tiebreaker : null;
 
   await _origBindAuthenticatedAccountToProfile(authUser, chosenMemberName);
 
   GUEST_BROWSING_MODE = false;
-  window._carryOverGuestPicksOnAuth = false;
-  window._guestPicksTouched = false;
   safeSetStorage("sat_carry_guest_picks_v1", "");
   safeSetStorage("sat_guest_picks_touched_week_v1", "");
 
-  if (guestPicksCopy && AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
-    var bKey = AUTH_SESSION.boundProfileKey;
-    if (!state[bKey]) state[bKey] = { picks: {}, tiebreaker: "28-24", target: 20 };
-    state[bKey].picks = Object.assign({}, state[bKey].picks || {}, guestPicksCopy);
-    if (guestTbCopy) state[bKey].tiebreaker = guestTbCopy;
+  if (!AUTH_SESSION || !AUTH_SESSION.boundProfileKey) return;
+  var bKey = AUTH_SESSION.boundProfileKey;
+  var existing = (state[bKey] && state[bKey].picks) || {};
+  var toCarry = {};
+  var count = 0;
+  for (var id in guestPicksCopy) {
+    if (existing[id]) continue;
+    if (typeof isGameLockedByCommissioner === "function" && isGameLockedByCommissioner(id)) continue;
+    toCarry[id] = guestPicksCopy[id];
+    count++;
+  }
+  var carryTb = guestTbCopy && !(state[bKey] && state[bKey].tiebreaker);
+  if (!count && !carryTb) return;
+
+  confirmDanger("Add the " + count + " pick" + (count === 1 ? "" : "s") + " you made as a guest to " + (AUTH_SESSION.displayName || "your account") +
+    "? Only games your account hasn't picked yet are filled; your existing picks stay as they are.", "Add picks", function() {
+    if (!AUTH_SESSION || AUTH_SESSION.boundProfileKey !== bKey) return;
+    if (!state[bKey]) state[bKey] = { picks: {}, tiebreaker: "", target: 20 };
+    if (!state[bKey].picks) state[bKey].picks = {};
+    for (var cid in toCarry) {
+      if (!state[bKey].picks[cid]) state[bKey].picks[cid] = toCarry[cid];
+    }
+    if (carryTb && !state[bKey].tiebreaker) state[bKey].tiebreaker = guestTbCopy;
     state[bKey]._manualEditsThisWeek = true;
     if (AUTH_SESSION.email) {
       ensureCommissionerConfig().playerEmailsMap[standardizeParticipantName(AUTH_SESSION.displayName || "").toLowerCase()] = AUTH_SESSION.email;
@@ -161,8 +167,8 @@ async function _bindCarryingGuestPicks(authUser, chosenMemberName) {
     saveCurrentState(bKey, false);
     regradeAllPoolMembersLive();
     renderAll();
-    showAppToast("✅ Carried over your picks from this device into your account (" + AUTH_SESSION.displayName + ")!");
-  }
+    showAppToast("✅ Added your guest picks to " + AUTH_SESSION.displayName + ".");
+  });
 }
 
 function startGuestPickingMode() {
@@ -175,14 +181,10 @@ function startGuestPickingMode() {
   activeProfile = "test";
   syncActiveProfileControlsUI();
   renderAll();
-  showAppToast("👋 Guest Mode Active: Make all 23 picks below, then click 'Save Picks to an Account' to create your account!");
+  showAppToast("👋 Guest Mode Active: Make all " + GAMES.length + " picks below, then click 'Save Picks to an Account' to create your account!");
 }
 
 function openAuthModalCarryingGuestPicks(defaultMode) {
-  if (GUEST_BROWSING_MODE || activeProfile === "test" || !AUTH_SESSION) {
-    window._carryOverGuestPicksOnAuth = true;
-    safeSetStorage("sat_carry_guest_picks_v1", "1"); // survives the trip to Google on phones
-  }
   AUTH_MODAL_MODE = defaultMode || "signup";
   openAuthModal();
 }
@@ -241,7 +243,7 @@ async function saveAndSendPickConfirmationReceipt() {
     return;
   }
   // If user is in Guest Mode and hasn't created an account yet, prompt them to enter an email or create an account while keeping their picks!
-  var meta = getProfileMetaByKey(activeProfile);
+  var meta = getProfileDisplayMeta(activeProfile);
   var shownName = fixDisplaySpelling(meta.name); // Kinyion C -> Kinyon Cooper
   var userEmail = (AUTH_SESSION && AUTH_SESSION.email) || cfg.playerEmailsMap[standardizeParticipantName(meta.name).toLowerCase()] || "";
 
@@ -292,7 +294,7 @@ async function saveAndSendPickConfirmationReceipt() {
     '</div>' +
     ((!AUTH_SESSION || GUEST_BROWSING_MODE) ? (
       '<div style="background:var(--raised);border:1px solid var(--border);border-radius:9px;padding:10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">' +
-        '<span style="font-size:0.74rem;color:var(--text);">👋 <strong>Playing as a Guest?</strong> Create an account now and all 23 picks above will automatically attach to your account!</span>' +
+        '<span style="font-size:0.74rem;color:var(--text);">👋 <strong>Playing as a Guest?</strong> Create an account now and all ' + GAMES.length + ' picks above will automatically attach to your account!</span>' +
         '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:900;" onclick="closeOppModal(); openAuthModalCarryingGuestPicks(\'signup\');">✨ Make an Account & Keep My Picks</button>' +
       '</div>'
     ) : '') +
@@ -309,6 +311,7 @@ async function saveAndSendPickConfirmationReceipt() {
       '----------------------------------------\n' +
       summaryLines.join('\n') +
     '</textarea>';
+  if (typeof closeAllModalsExcept === "function") closeAllModalsExcept("opp-modal-backdrop");
   document.getElementById("opp-modal-backdrop").style.display = "flex";
   showReceiptSendStatus(receiptPromise);
 }
@@ -501,6 +504,7 @@ function applySimpleUiModeDOM() {
 }
 
 function syncSimpleTiebreakerInput(val) {
+  if (blockTiebreakerEditIfLocked()) return;
   var mainTb = document.getElementById("tiebreaker-input");
   if (mainTb) mainTb.value = val;
   lastLocalPickTs = Date.now(); // the cloud echo of an earlier save must not undo this edit
@@ -516,13 +520,19 @@ function hasGameKickedOff(gameId) {
   return !isNaN(ms) && Date.now() >= ms;
 }
 
+// A game ESPN never matched has no kickoff time, so it can't lock at kickoff on its own.
+function hasKickoffTime(gameId) {
+  var g = findGameById(gameId);
+  return !!(g && g.kickoffIso && !isNaN(new Date(g.kickoffIso).getTime()));
+}
+
 // Players the commissioner let past this week's deadline (Submissions > Force unlock), keyed by
 // standardized name with the week it applies to.
 function isProfileForceUnlocked(profKey) {
   var cfg = ensureCommissionerConfig();
   var name = getLinkedMemberNameForProfile(profKey);
   var wk = name ? cfg.forceUnlocked[standardizeParticipantName(name).toLowerCase()] : null;
-  return !!wk && parseInt(wk, 10) === parseInt(state.currentWeek, 10);
+  return forceUnlockFlagIsCurrent(wk);
 }
 
 // The whole week is closed for the active player (as opposed to single games locking at kickoff).
@@ -532,6 +542,27 @@ function isWeekLockedForActiveProfile() {
   if (cfg.lockMode === "global_locked") return true;
   if (cfg.lockMode === "friday_9pm_cst") return isPastPickDeadline() && !isProfileForceUnlocked(activeProfile);
   return false;
+}
+
+// The tiebreaker closes with the week, and at the tiebreaker game's kickoff whatever the lock
+// mode. The sandbox ignores locks, as in pickSide.
+function isTiebreakerLocked() {
+  if (activeProfile === "test" || (AUTH_SESSION && AUTH_SESSION.adminUnlock)) return false;
+  if (isWeekLockedForActiveProfile()) return true;
+  var tbGame = resolveTiebreakerGame();
+  return !!tbGame && (isGameLockedByCommissioner(tbGame.id) || hasGameKickedOff(tbGame.id));
+}
+
+// Puts the tiebreaker inputs back to the saved value when it is locked. True when it blocked.
+function blockTiebreakerEditIfLocked() {
+  if (!isTiebreakerLocked()) return false;
+  var saved = (state[activeProfile] && state[activeProfile].tiebreaker) || "28-24";
+  ["tiebreaker-input", "simple-tiebreaker-input"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = saved;
+  });
+  showAppToast("🔒 The tie-breaker is locked.");
+  return true;
 }
 
 function isGameLockedByCommissioner(gameId) {
@@ -548,48 +579,108 @@ function isGameLockedByCommissioner(gameId) {
     return pastDeadline || hasGameKickedOff(gameId);
   }
   if (cfg.lockMode === "rolling_kickoff") {
-    return hasGameKickedOff(gameId);
+    // No kickoff time: lock at the pick deadline instead of never.
+    return hasGameKickedOff(gameId) || (!hasKickoffTime(gameId) && isPastPickDeadline());
   }
   return false;
 }
 
-// Saves the whole commissionerConfig. update() replaces the field (a merge set kept keys that
-// were deleted here: an unblocked account, a removed force-unlock or per-game lock override all
-// came back after a refresh). Only commissioners can write it (firestore.rules); the returned
-// promise rejects when the save fails, and a failure is always shown.
+// The fields that differ between two commissionerConfigs: [{ path, value }], value undefined
+// meaning delete. Maps are compared key by key; anything else (arrays, values) is one field.
+function diffCommissionerConfig(base, next) {
+  var changes = [];
+  var isMap = function(v) { return !!v && typeof v === "object" && !Array.isArray(v); };
+  var walk = function(a, b, path) {
+    Object.keys(b).forEach(function(k) {
+      if (b[k] === undefined) return;
+      if (isMap(a[k]) && isMap(b[k])) walk(a[k], b[k], path.concat(k));
+      else if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) changes.push({ path: path.concat(k), value: JSON.parse(JSON.stringify(b[k])) });
+    });
+    Object.keys(a).forEach(function(k) {
+      if (a[k] !== undefined && b[k] === undefined) changes.push({ path: path.concat(k), value: undefined });
+    });
+  };
+  walk(base || {}, next || {}, []);
+  return changes;
+}
+
+function applyCommissionerConfigChanges(cfg, changes) {
+  changes.forEach(function(c) {
+    var o = cfg;
+    for (var i = 0; i < c.path.length - 1; i++) {
+      var k = c.path[i];
+      if (!o[k] || typeof o[k] !== "object" || Array.isArray(o[k])) o[k] = {};
+      o = o[k];
+    }
+    var last = c.path[c.path.length - 1];
+    if (c.value === undefined) delete o[last]; else o[last] = c.value;
+  });
+}
+
+// Writes `next` as per-field updates against `base` (a commissioner on another device, or the
+// dues list, may have changed other fields since this device read them). With no base (the
+// doc hasn't been read yet) the whole config is written. Only commissioners can write it
+// (firestore.rules). Resolves once saved; the cloud copy then includes these changes.
+function writeCommissionerConfigChanges(base, next) {
+  var ref = fsDb.collection("pickem_v14").doc("shared_state");
+  var now = new Date().toISOString();
+  var whole = function() { return ref.set({ commissionerConfig: next, updatedAt: now }, { merge: true }); };
+  var write;
+  var changes = base ? diffCommissionerConfig(base, next) : null;
+  if (!changes) {
+    write = ref.update({ commissionerConfig: next, updatedAt: now });
+  } else if (!changes.length) {
+    return Promise.resolve();
+  } else {
+    var FP = firebase.firestore.FieldPath;
+    var args = [];
+    changes.forEach(function(c) {
+      args.push(Reflect.construct(FP, ["commissionerConfig"].concat(c.path)), c.value === undefined ? firebase.firestore.FieldValue.delete() : c.value);
+    });
+    args.push("updatedAt", now);
+    write = ref.update.apply(ref, args);
+  }
+  return write.catch(function(e) {
+    if (e && e.code === "not-found") return whole();
+    throw e;
+  }).then(function() {
+    if (!changes) CLOUD_COMMISSIONER_CONFIG = JSON.parse(JSON.stringify(next));
+    else if (CLOUD_COMMISSIONER_CONFIG) applyCommissionerConfigChanges(CLOUD_COMMISSIONER_CONFIG, changes);
+  });
+}
+
+// Saves this device's commissionerConfig: only what changed since the last cloud read (a key
+// deleted here, like an unblocked account or a removed lock override, is deleted there). The
+// returned promise rejects when the save fails or is skipped (`code` says why), and a failure
+// is shown unless the device simply isn't the commissioner's.
 function saveCommissionerConfigToCloud() {
   ensureCommissionerConfig();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  var job = Promise.resolve();
-  if (fsDb && !isApplyingRemoteUpdate && typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
-    var ref = fsDb.collection("pickem_v14").doc("shared_state");
-    var patch = { commissionerConfig: state.commissionerConfig, updatedAt: new Date().toISOString() };
-    job = ref.update(patch).catch(function(e) {
-      if (e && e.code === "not-found") return ref.set(patch, { merge: true });
-      throw e;
-    });
-    job.catch(function(e) { reportCloudSaveFailure("commissioner settings", e); });
-  }
+  var job;
+  if (!(typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) job = Promise.reject({ code: "not-commissioner" });
+  else if (!fsDb) job = Promise.reject({ code: "offline" });
+  else if (isApplyingRemoteUpdate) job = Promise.reject({ code: "remote-update-in-progress" });
+  else job = writeCommissionerConfigChanges(CLOUD_COMMISSIONER_CONFIG, state.commissionerConfig);
+  // Handled here so callers that ignore the promise cause no unhandled rejection. Players hit
+  // "not-commissioner" on every pick receipt, so that skip is silent.
+  job.catch(function(e) { if (!e || e.code !== "not-commissioner") reportCloudSaveFailure("commissioner settings", e); });
   renderCommishAnnouncementBanner();
   renderSimpleGuestAccountBar();
   return job;
 }
 
-// Applies `mutate` to a copy of commissionerConfig, saves the copy, and only then makes it this
-// device's config, so the screen shows what the cloud confirmed. Resolves with the new config.
+// Applies `mutate` to a copy of commissionerConfig, saves only what it changed, and only then
+// makes it this device's config, so the screen shows what the cloud confirmed. Resolves with
+// the new config.
 function commitCommissionerConfig(mutate) {
   ensureCommissionerConfig();
+  var before = JSON.parse(JSON.stringify(state.commissionerConfig));
   var next = JSON.parse(JSON.stringify(state.commissionerConfig));
   mutate(next);
   if (!fsDb || !(typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) {
     return Promise.reject({ code: "permission-denied" });
   }
-  var ref = fsDb.collection("pickem_v14").doc("shared_state");
-  var patch = { commissionerConfig: next, updatedAt: new Date().toISOString() };
-  return ref.update(patch).catch(function(e) {
-    if (e && e.code === "not-found") return ref.set(patch, { merge: true });
-    throw e;
-  }).then(function() {
+  return writeCommissionerConfigChanges(before, next).then(function() {
     state.commissionerConfig = next;
     safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
     return next;
@@ -1180,6 +1271,14 @@ async function commishPublishSelectedEspnSlate() {
     showAppToast("⚠️ Select at least 1 game to build a slate.");
     return;
   }
+  // Every game needs a kickoff time so it locks at kickoff.
+  for (var ci = 0; ci < chks.length; ci++) {
+    var chk = ESPN_CANDIDATE_SLATE_GAMES[parseInt(chks[ci].value, 10)];
+    if (chk && !chk.dateIso) {
+      showAppToast("⚠️ " + chk.away + " at " + chk.home + " has no kickoff time from ESPN. Swap it out or reload the schedule.");
+      return;
+    }
+  }
   saveCurrentWeekToArchive(false);
   var newGames = [];
   var targetWk = state.currentWeek || 8;
@@ -1220,10 +1319,13 @@ async function commishPublishSelectedEspnSlate() {
   state.currentWeek = targetWk;
   state.weekLabel = "Week " + targetWk;
   resetPoolPicksForNewWeek(false);
-  hardResetToDefaults();
-  await syncAllLiveTrackingData(true);
+  // Push the slate first: an ESPN failure while enriching must not leave it local-only.
+  var pushed = await pushCustomGamesToFirebase();
+  var enriched = await syncAllLiveTrackingData(true);
   renderCommissionerModalBody();
-  showAppToast("🚀 Published Week " + targetWk + " (" + GAMES.length + " games) to Cloud Firestore!");
+  if (!pushed) showAppToast("⚠️ Week " + targetWk + " is NOT published: the cloud save failed, so only this device has the slate.");
+  else if (!enriched) showAppToast("🚀 Published Week " + targetWk + " (" + GAMES.length + " games), but ESPN details didn't load. Tap Sync Live ESPN to retry.");
+  else showAppToast("🚀 Published Week " + targetWk + " (" + GAMES.length + " games) to Cloud Firestore!");
 }
 
 function setCommishLockMode(mode) {

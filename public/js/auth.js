@@ -232,10 +232,6 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
     var matchLb = findRosterMatchForAccountName(dispName);
     if (matchLb) {
       targetMember = matchLb;
-    } else if (email.indexOf("michael") !== -1) {
-      targetMember = "Michael A";
-    } else if (email.indexOf("kinyion") !== -1 || email.indexOf("kenyon") !== -1) {
-      targetMember = "Kinyon C";
     } else {
       // Ask before creating a new player, so "Steve Miller" can pick his "Steve M" row.
       var chosen = (typeof chooseRosterNameForNewAccount === "function") ? await chooseRosterNameForNewAccount(dispName) : "";
@@ -708,28 +704,25 @@ function saveCustomInstanceDisplayName() {
     showAppToast("⚠️ Please enter a display name.");
     return;
   }
-  var customPts = ptsInp ? (parseFloat(ptsInp.value) || 0) : 0;
-  bindAuthenticatedAccountToProfile({
-    uid: AUTH_SESSION.uid,
-    email: AUTH_SESSION.email,
-    displayName: newName,
-    provider: AUTH_SESSION.provider
-  }, newName).then(function() {
-    var bKey = AUTH_SESSION.boundProfileKey;
-    if (state.customUsers && Array.isArray(state.customUsers)) {
-      for (var i = 0; i < state.customUsers.length; i++) {
-        if (state.customUsers[i].key === bKey && !findLeaderboardEntryByName(newName)) {
-          state.customUsers[i].priorPts = customPts;
-          state.customUsers[i].rank = customPts > 0 ? "Custom" : "New";
-        }
-      }
-    }
-    regradeAllPoolMembersLive();
-    pushMultiUserAndPrivacyToFirebase();
-    openAuthModal();
-    renderAll();
-    showAppToast("✅ Updated your instance profile to " + newName + "!");
-  });
+  var bKey = AUTH_SESSION.boundProfileKey;
+  var cu = null;
+  (state.customUsers || []).forEach(function(u) { if (u && u.key === bKey) cu = u; });
+  if (!cu) {
+    showAppToast("⚠️ Only custom player profiles can be renamed here.");
+    return;
+  }
+  // Rename in place: the profile key, picks and account link stay put. Starting points are the commissioner's to set.
+  cu.name = newName;
+  if (ptsInp && isVerifiedCommissioner() && !findLeaderboardEntryByName(cu.linkedMemberName || cu.name)) {
+    var customPts = parseFloat(ptsInp.value) || 0;
+    cu.priorPts = customPts;
+    cu.rank = customPts > 0 ? "Custom" : "New";
+  }
+  regradeAllPoolMembersLive();
+  pushMultiUserAndPrivacyToFirebase();
+  openAuthModal();
+  renderAll();
+  showAppToast("✅ Updated your display name to " + newName + "!");
 }
 
 function openAuthModal() {
@@ -766,7 +759,7 @@ function openAuthModal() {
   }
 
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
-    var boundMeta = getProfileMetaByKey(AUTH_SESSION.boundProfileKey);
+    var boundMeta = getProfileDisplayMeta(AUTH_SESSION.boundProfileKey);
     var isStrict = isAccountInstanceLocked();
     bodyEl.innerHTML =
       '<div style="background:var(--raised);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;">' +
@@ -791,7 +784,7 @@ function openAuthModal() {
         '<div style="font-size:0.71rem;font-weight:800;color:var(--text);margin-bottom:5px;">✨ Not on the Leaderboard Yet? Set Your Custom Display Name & Starting Points:</div>' +
         '<div style="display:grid;grid-template-columns:1fr 95px auto;gap:6px;align-items:center;">' +
           '<input type="text" id="auth-edit-display-name" class="search-input" style="min-width:0;padding:6px 8px;font-size:0.76rem;" value="' + boundMeta.name.replace(/"/g, '&quot;') + '" placeholder="Your Display Name" />' +
-          '<input type="number" id="auth-edit-prior-pts" class="search-input" style="min-width:0;padding:6px 8px;font-size:0.76rem;" value="' + (boundMeta.priorPts || 0) + '" placeholder="Prior Pts" title="Starting / Prior Season Points (0 for new players)" />' +
+          '<input type="number" id="auth-edit-prior-pts" class="search-input" style="min-width:0;padding:6px 8px;font-size:0.76rem;" value="' + (boundMeta.priorPts || 0) + '" placeholder="Prior Pts" title="Starting / Prior Season Points (set by the commissioner)"' + (isVerifiedCommissioner() ? '' : ' disabled') + ' />' +
           '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;padding:6px 10px;" onclick="saveCustomInstanceDisplayName()">Save</button>' +
         '</div>' +
       '</div>' +
@@ -825,7 +818,7 @@ function openAuthModal() {
         '<button type="button" class="btn-sm ' + (isSignup ? 'active' : '') + '" style="text-align:center;font-weight:800;padding:7px;" onclick="setAuthModalMode(\'signup\')">✨ Create Account (80+ Ready)</button>' +
       '</div>' +
       '<div style="margin-bottom:10px;background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:10px;">' +
-        '<label style="font-size:0.72rem;font-weight:800;color:var(--win);display:block;margin-bottom:4px;">1️⃣ Are you on the current 89-player Leaderboard, or a Brand-New Player?</label>' +
+        '<label style="font-size:0.72rem;font-weight:800;color:var(--win);display:block;margin-bottom:4px;">1️⃣ Are you on the current ' + ((state.poolMembers || []).length || "") + '-player Leaderboard, or a Brand-New Player?</label>' +
         '<select id="auth-link-member-select" class="search-input" style="width:100%;padding:8px 10px;font-size:0.76rem;color:var(--win);border-color:var(--border);margin-bottom:6px;" onchange="handleAuthMemberSelectChange(this.value)">' + lbOpts + '</select>' +
         '<div id="auth-custom-name-wrap" style="display:' + (!matchedOnBoard ? 'block' : 'none') + ';">' +
           '<input type="text" id="auth-name-input" class="search-input" style="width:100%;padding:7px 10px;font-size:0.78rem;border-color:var(--border);" placeholder="Enter Your Display Name (or leave blank to use your Google Account name)" />' +
@@ -866,7 +859,7 @@ function updateAuthUI() {
   var isLocked = isAccountInstanceLocked();
 
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
-    var bMeta = getProfileMetaByKey(AUTH_SESSION.boundProfileKey);
+    var bMeta = getProfileDisplayMeta(AUTH_SESSION.boundProfileKey);
     if (btn) {
       btn.textContent = "🔐 " + bMeta.shortName + (isLocked ? " (Locked Instance)" : " (Admin Mode)");
       btn.className = "btn-sm auth-pill-active";
@@ -956,14 +949,8 @@ function initState() {
       }
     } catch (e) {}
   }
-  var mCleared = !!((state.deletedPicksByMember && state.deletedPicksByMember["michael a"]) || (state.michael && state.michael._picksCleared));
-  var kCleared = !!((state.deletedPicksByMember && state.deletedPicksByMember["kinyion c"]) || (state.kinyion && state.kinyion._picksCleared));
-  var mEmptyUnedited = (!mCleared && Object.keys(state.michael.picks || {}).length === 0 && !state.michael._manualEditsThisWeek);
-  var kEmptyUnedited = (!kCleared && Object.keys(state.kinyion.picks || {}).length === 0 && !state.kinyion._manualEditsThisWeek);
   for (var i = 0; i < GAMES.length; i++) {
     var g = GAMES[i];
-    if (mEmptyUnedited) state.michael.picks[g.id] = g.rec;
-    if (kEmptyUnedited) state.kinyion.picks[g.id] = g.kinyionDefault;
     if (!g.keyInjHeader) {
       var compInjHdr = computeKeyInjHeaderFromLists(g);
       if (compInjHdr) g.keyInjHeader = compInjHdr;
@@ -1010,8 +997,11 @@ function saveCurrentState(profOverride, debounceWrite) {
   var targetProf = profOverride || activeProfile;
   var tbEl = document.getElementById("tiebreaker-input");
   var slEl = document.getElementById("target-slider");
-  if (tbEl) state[activeProfile].tiebreaker = tbEl.value;
-  if (slEl) state[activeProfile].target = parseInt(slEl.value, 10);
+  // The inputs show the active profile's values, so they only apply when saving that profile (B17).
+  if (targetProf === activeProfile) {
+    if (tbEl && !(typeof isTiebreakerLocked === "function" && isTiebreakerLocked())) state[activeProfile].tiebreaker = tbEl.value;
+    if (slEl) state[activeProfile].target = parseInt(slEl.value, 10);
+  }
   state.customGames = GAMES;
 
   if (debounceWrite) {
@@ -1035,7 +1025,7 @@ function switchProfile(prof) {
   var isAllowedOwn = (prof === myKey || prof === "test" || (typeof isMyLinkedBuyInProfile === "function" && isMyLinkedBuyInProfile(prof)));
   // Unless Commissioner Override is enabled, only allow switching between your own linked buy-in profiles and your personal `test` Sandbox Sim.
   if (!isCommish && !isAllowedOwn) {
-    var targetMeta = getProfileMetaByKey(prof);
+    var targetMeta = getProfileDisplayMeta(prof);
     setCompareTarget(prof);
     showAppToast("⚔️ Comparing against " + targetMeta.name + " (Read-Only). To switch accounts, use 🔐 Account Sign-In.");
     return;
@@ -1046,7 +1036,7 @@ function switchProfile(prof) {
   syncActiveProfileControlsUI();
   updateAuthUI();
   renderAll();
-  showAppToast(prof === "test" ? "🧪 Switched to your personal Sandbox Simulator" : ("🏈 Switched to your Official Picks (" + getProfileMetaByKey(prof).name + ")"));
+  showAppToast(prof === "test" ? "🧪 Switched to your personal Sandbox Simulator" : ("🏈 Switched to your Official Picks (" + getProfileDisplayMeta(prof).name + ")"));
 }
 
 function copyOtherProfile() {
@@ -1064,19 +1054,41 @@ function copyOtherProfile() {
     showAppToast("⚠️ No picks available on " + sourceName + " to copy.");
     return;
   }
+  if (isWeekLockedForActiveProfile() && activeProfile !== "test") {
+    showAppToast("🔒 Picks are locked for the week.");
+    return;
+  }
   var copy = {};
   for (var k in sourcePicks) copy[k] = sourcePicks[k];
+  keepLockedGamePicks(copy, state[activeProfile].picks || {});
   state[activeProfile].picks = copy;
   saveCurrentState(activeProfile);
   renderAll();
-  showAppToast("📥 Copied picks from " + sourceName + " into " + getProfileMetaByKey(activeProfile).name + "!");
+  showAppToast("📥 Copied picks from " + sourceName + " into " + getProfileDisplayMeta(activeProfile).name + "!");
+}
+
+// Games that are locked (kickoff, deadline or commissioner) keep the profile's current pick
+// when a bulk action (copy, preset) fills the rest. The sandbox ignores locks, as in pickSide.
+function keepLockedGamePicks(nextPicks, currentPicks) {
+  if (activeProfile === "test") return;
+  for (var i = 0; i < GAMES.length; i++) {
+    var id = GAMES[i].id;
+    if (!isGameLockedByCommissioner(id)) continue;
+    if (currentPicks[id] !== undefined) nextPicks[id] = currentPicks[id];
+    else delete nextPicks[id];
+  }
 }
 
 function applyPreset(type) {
+  if (isWeekLockedForActiveProfile() && activeProfile !== "test") {
+    showAppToast("🔒 Picks are locked for the week.");
+    return;
+  }
   lastLocalPickTs = Date.now();
   clearDeletedFlagForProfile(activeProfile);
   for (var i = 0; i < GAMES.length; i++) {
     var g = GAMES[i];
+    if (activeProfile !== "test" && isGameLockedByCommissioner(g.id)) continue;
     if (type === "optimal") {
       state[activeProfile].picks[g.id] = g.rec;
     } else if (type === "safe" || type === "chalk") {

@@ -1,7 +1,9 @@
 // ============================================================================
 // UPDATED POLL LIVE SCORES, SCOREBOARD, STANDINGS, LIVE TAB & RESEARCH CARDS
 // ============================================================================
+var LIVE_POLL_FAILED = false; // last poll could not reach ESPN: live-ui.js must not stamp "Synced"
 async function pollLiveSaturdayScores(manual) {
+  LIVE_POLL_FAILED = false;
   var badge = document.getElementById("live-sync-badge") || document.createElement("span");
   if (manual) badge.textContent = "↻ Fetching CST Scores & Possession...";
   var gamesChanged = false;
@@ -12,11 +14,7 @@ async function pollLiveSaturdayScores(manual) {
       await fetchLiveCollegeFootballInjuries(manual);
     } catch (eInj) {}
     var matches = matchGamesToEvents(events);
-    var minAllowedWk = Math.max(8, parseInt(state.currentWeek, 10) || 8);
-    if (matches._detectedWeek && !isHardcodedWeek7Slate(GAMES) && matches._detectedWeek >= minAllowedWk) {
-      state.currentWeek = matches._detectedWeek;
-      state.weekLabel = "Week " + matches._detectedWeek;
-    }
+    // The week changes only by a commissioner action (posting a slate), never from ESPN's detected week (B16).
     updateWeekBrandingUI();
     var unmatched = [];
 
@@ -200,6 +198,7 @@ async function pollLiveSaturdayScores(manual) {
     var clkEl = document.getElementById("live-tab-clock");
     if (clkEl) clkEl.textContent = cstNow + " CST";
   } catch (e) {
+    LIVE_POLL_FAILED = true;
     badge.textContent = "● CST Ready";
   }
   renderAll();
@@ -271,7 +270,7 @@ function updateScoreboard(skipFullRegrade) {
   }
   var diffLabelEl = document.getElementById("h2h-diffs-label");
   if (diffLabelEl) {
-    diffLabelEl.textContent = getProfileMetaByKey(activeProfile).shortName + " vs " + (cmpDesc ? cmpDesc.shortName : "nobody chosen") + " Diffs:";
+    diffLabelEl.textContent = getProfileDisplayMeta(activeProfile).shortName + " vs " + (cmpDesc ? cmpDesc.shortName : "nobody chosen") + " Diffs:";
   }
   var fltDiffBtn = document.getElementById("flt-diffs");
   if (fltDiffBtn) {
@@ -281,7 +280,7 @@ function updateScoreboard(skipFullRegrade) {
 
   // Render ONLY your own 2 personal instance modes (Official Picks + Sandbox Sim) — NO profile swapping!
   var myKey = getMyInstanceProfileKey();
-  var myMeta = getProfileMetaByKey(myKey);
+  var myMeta = getProfileDisplayMeta(myKey);
   var myMetrics = calcProfileMetrics(myKey) || m;
   var myWkBest = Math.max(myMetrics.liveProjectedPts, myMetrics.finalWonPts);
   var myTotPts = (parseFloat(myMeta.priorPts) || 0) + myWkBest;
@@ -349,7 +348,7 @@ function updateScoreboard(skipFullRegrade) {
   if (privStatusEl && quickHideBtn) {
     var myKeyPriv = getMyInstanceProfileKey();
     var curPriv = state.profilePrivacy[myKeyPriv] || { hidden: false };
-    var curMeta = getProfileMetaByKey(myKeyPriv);
+    var curMeta = getProfileDisplayMeta(myKeyPriv);
     if (curPriv.hidden) {
       privStatusEl.innerHTML = '🔒 <strong>' + escapeHtml(curMeta.shortName) + '</strong> Hidden From Others Until Kickoff';
       privStatusEl.style.color = "var(--win)";
@@ -521,7 +520,7 @@ function renderStandingsAndGradingView() {
   regradeAllPoolMembersLive();
   populateCompareTargetSelectors();
 
-  var actMeta = getProfileMetaByKey(activeProfile);
+  var actMeta = getProfileDisplayMeta(activeProfile);
   var cmpTarget = resolveCompareTargetDescriptor();
   var m = calcProfileMetrics(activeProfile) || calcProfileMetrics("michael");
   var k = cmpTarget
@@ -891,9 +890,11 @@ async function importStrictSheetText() {
       var poolLine = (favIsAway ? away : home) + " -" + spread;
 
       var cstWin = "11:00 AM CST Window";
-      if (kickLine.indexOf("2:30") !== -1 || kickLine.indexOf("3:00") !== -1) cstWin = "2:30 PM CST Window";
-      else if (kickLine.indexOf("6:00") !== -1 || kickLine.indexOf("6:30") !== -1 || kickLine.indexOf("7:00") !== -1) cstWin = "6:00 PM / 6:30 PM CST Primetime";
-      else if (kickLine.indexOf("9:") !== -1 || kickLine.indexOf("10:") !== -1) cstWin = "9:15 PM+ CST Late Night Window";
+      var kickTime = /\b(\d{1,2}):(\d{2})\s*([ap])\.?m/i.exec(kickLine);
+      if (kickTime) {
+        var kh = parseInt(kickTime[1], 10) % 12 + (kickTime[3].toLowerCase() === "p" ? 12 : 0);
+        cstWin = cstWindowFromMinutes(kh * 60 + parseInt(kickTime[2], 10));
+      }
 
       var isTb = (away.toLowerCase().indexOf("florida") !== -1 && home.toLowerCase().indexOf("georgia") !== -1) ||
                  (home.toLowerCase().indexOf("florida") !== -1 && away.toLowerCase().indexOf("georgia") !== -1);
@@ -938,8 +939,25 @@ async function importStrictSheetText() {
         break;
       }
     }
-    state.tiebreakerGameId = detectedTbId || 9;
-    state.tiebreakerOverUnder = 56.5;
+    // No Florida–Georgia game on the sheet: the commissioner picks the tiebreaker game, before
+    // anything is replaced (Cancel stops the import).
+    while (!detectedTbId) {
+      var tbAnswer = window.prompt("No Florida–Georgia game on this sheet. Which game # is the tiebreaker?\n\n" +
+        parsedGames.map(function(pg) { return "#" + pg.id + " " + pg.away + " at " + pg.home; }).join("\n"), "");
+      if (tbAnswer === null) {
+        showAppToast("Import cancelled: choose a tiebreaker game to import this sheet.");
+        return;
+      }
+      var tbPick = parsedGames[(parseInt(tbAnswer.replace("#", ""), 10) || 0) - 1];
+      if (tbPick) {
+        tbPick.isTiebreaker = true;
+        tbPick.tier = tbPick.tier + " (Tiebreaker Game)";
+        detectedTbId = tbPick.id;
+      }
+    }
+    // Archive the outgoing week while GAMES, LIVE_SCORES and currentWeek still hold it.
+    saveCurrentWeekToArchive(false);
+    state.tiebreakerGameId = detectedTbId;
     GAMES = parsedGames;
     LIVE_SCORES = {};
     var wkMatch = raw.match(/week\s*(\d{1,2})/i);
@@ -948,12 +966,15 @@ async function importStrictSheetText() {
       state.weekLabel = "Week " + state.currentWeek;
     }
     resetPoolPicksForNewWeek(false);
-    hardResetToDefaults();
-    await syncAllLiveTrackingData(true);
-    pushCustomGamesToFirebase();
+    var pushed = await pushCustomGamesToFirebase();
+    var enriched = await syncAllLiveTrackingData(true);
     pushWatchlistOrStandingsToFirebase();
     renderAll();
-    showAppToast("✓ Imported " + parsedGames.length + " official games with correct lines!");
+    // Sheet games get their kickoff time from ESPN; any it couldn't match lock at the deadline.
+    var noKick = GAMES.filter(function(g) { return !hasKickoffTime(g.id); }).map(function(g) { return "#" + g.id; });
+    showAppToast((pushed ? "✓ Imported " + parsedGames.length + " official games with correct lines!" : "⚠️ Imported " + parsedGames.length + " games on this device only: the cloud save failed.") +
+      (enriched ? "" : " ESPN details didn't load; tap Sync Live ESPN to retry.") +
+      (noKick.length ? " ⚠️ No ESPN kickoff time for " + noKick.join(", ") + ": they lock at the pick deadline." : ""));
   }
 }
 

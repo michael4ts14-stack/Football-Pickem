@@ -105,6 +105,7 @@ function openUnifiedImportModal(defaultTab) {
       '</div>' +
     '</div>';
 
+  if (typeof closeAllModalsExcept === "function") closeAllModalsExcept("opp-modal-backdrop");
   document.getElementById("opp-modal-backdrop").style.display = "flex";
   var ta = document.getElementById("gas-code-preview");
   if (ta) ta.value = UPGRADED_CODE_GS_SOURCE;

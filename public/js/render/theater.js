@@ -43,7 +43,7 @@ function renderFieldTheaterModalContent(gameId) {
   if (titleEl) titleEl.textContent = g.away + " " + (ls.awayScore || 0) + " – " + g.home + " " + (ls.homeScore || 0);
   if (subEl) {
     var parts = [ls.completed ? "Final" : (ls.inProgress ? (ls.detail || "Live") : g.kick)];
-    var me = getProfileMetaByKey(activeProfile);
+    var me = getProfileDisplayMeta(activeProfile);
     parts.push(me.shortName + ": " + theaterPickText(state[activeProfile].picks, g, isProfileHiddenFromViewer(activeProfile, g.id), true));
     var cmp = null;
     try { cmp = SIMPLE_UI_MODE ? null : resolveCompareTargetDescriptor(); } catch (e) {}

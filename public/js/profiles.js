@@ -140,7 +140,7 @@ function claimOrCompareFromLeaderboard(memberName, mode) {
 function openUserAndPrivacyModal() {
   ensureMultiUserAndPrivacyState();
   var myKey = getMyInstanceProfileKey();
-  var myMeta = getProfileMetaByKey(myKey);
+  var myMeta = getProfileDisplayMeta(myKey);
   var myPriv = state.profilePrivacy[myKey] || { hidden: false, revealAtKickoff: true, autoUnhideOnSheet: false, autoUnhideFridayNight: false };
   var cmpDesc = resolveCompareTargetDescriptor();
 
@@ -169,7 +169,6 @@ function openUserAndPrivacyModal() {
       '<div style="display:flex;flex-direction:column;gap:7px;font-size:0.74rem;color:var(--text);padding-top:8px;border-top:1px solid var(--border);">' +
         '<label style="cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" ' + (myPriv.revealAtKickoff !== false ? 'checked' : '') + ' onchange="toggleProfilePrivacyOption(\'' + myKey + '\', \'revealAtKickoff\', this.checked)" /> 🏈 Automatically reveal each individual game\'s pick to other users as soon as that game kicks off</label>' +
         '<label style="cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" ' + (myPriv.autoUnhideOnSheet === true ? 'checked' : '') + ' onchange="toggleProfilePrivacyOption(\'' + myKey + '\', \'autoUnhideOnSheet\', this.checked)" /> 📊 Automatically reveal all my picks once the official weekly pool spreadsheet is imported</label>' +
-        '<label style="cursor:pointer;display:flex;align-items:center;gap:6px;"><input type="checkbox" ' + (myPriv.autoUnhideFridayNight === true ? 'checked' : '') + ' onchange="toggleProfilePrivacyOption(\'' + myKey + '\', \'autoUnhideFridayNight\', this.checked)" /> 🌙 Automatically reveal my picks starting Friday at 5:00 PM CST</label>' +
       '</div>' +
     '</div>' +
 
@@ -182,6 +181,7 @@ function openUserAndPrivacyModal() {
       '</div>' +
     '</div>';
 
+  if (typeof closeAllModalsExcept === "function") closeAllModalsExcept("opp-modal-backdrop");
   document.getElementById("opp-modal-backdrop").style.display = "flex";
 }
 
@@ -202,7 +202,7 @@ function toggleProfilePrivacyOption(profKey, fieldName, checked) {
 }
 
 function syncActiveProfileControlsUI() {
-  var meta = getProfileMetaByKey(activeProfile);
+  var meta = getProfileDisplayMeta(activeProfile);
   var topProf = document.getElementById("top-profile-name");
   if (topProf) topProf.textContent = meta.name;
   if (!state[activeProfile]) state[activeProfile] = { picks: {}, tiebreaker: "28-24", target: 20 };

@@ -60,6 +60,8 @@ async function fetchScoreboardEvents() {
     }
   }
   extra = await Promise.all(extraPromises);
+  // fetchJsonSafe turns every network/HTTP error into null: all of them null means ESPN was unreachable.
+  if (!current.concat(extra).some(Boolean)) throw new Error("ESPN scoreboard unreachable");
   var seen = {}, events = [];
   // Process explicit week queries (extra) FIRST so every event gets its exact single-week number before multi-day date-range queries
   var all = extra.concat(current);
@@ -223,7 +225,9 @@ function lookupEspnTeamId(teamName, gameObj, isAway) {
   return ESPN_TEAM_MAP[norm] || ESPN_TEAM_MAP[cleanKey] || ESPN_TEAM_MAP[low] || null;
 }
 
+// Resolves true when the ESPN enrichment finished, false when it failed part-way.
 async function syncAllLiveTrackingData(saveToCloudAfter) {
+  var ok = true;
   var badge = document.getElementById("live-sync-badge") || document.createElement("span");
   badge.className = "sync-pill loading";
   badge.textContent = "↻ Syncing ESPN Schedules, Insights & Injuries...";
@@ -336,11 +340,13 @@ async function syncAllLiveTrackingData(saveToCloudAfter) {
     badge.className = "sync-pill";
     badge.textContent = "● Synced " + cstNow + " CST";
   } catch (e) {
+    ok = false;
     badge.className = "sync-pill";
     badge.textContent = "● CST Logs Active";
   }
   renderSwayFeed();
   renderAll();
+  return ok;
 }
 
 async function fetchAndStoreSingleTeamSchedule(teamName, teamId) {

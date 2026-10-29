@@ -100,9 +100,20 @@ function overrideTiebreaker(memberName) {
   showAppToast("Tiebreaker for " + stdName + " is now " + val + ".");
 }
 
+// Stored as "season:week" so a flag can't re-activate in the same week number next season (B49).
+// Older flags are bare week numbers; they count only for the season in progress when this shipped.
+function forceUnlockToken() {
+  return duesSeason() + ":" + (parseInt(state.currentWeek, 10) || 0);
+}
+
+function forceUnlockFlagIsCurrent(wk) {
+  if (!wk) return false;
+  if (typeof wk === "string" && wk.indexOf(":") !== -1) return wk === forceUnlockToken();
+  return duesSeason() === DUES_LEGACY_SEASON && parseInt(wk, 10) === parseInt(state.currentWeek, 10);
+}
+
 function isMemberForceUnlocked(memberName) {
-  var wk = ensureCommissionerConfig().forceUnlocked[standardizeParticipantName(memberName).toLowerCase()];
-  return !!wk && parseInt(wk, 10) === parseInt(state.currentWeek, 10);
+  return forceUnlockFlagIsCurrent(ensureCommissionerConfig().forceUnlocked[standardizeParticipantName(memberName).toLowerCase()]);
 }
 
 // Lets one player keep changing games that haven't kicked off after the weekly deadline (this week only).
@@ -111,7 +122,7 @@ function forceUnlockPicks(memberName) {
   var cfg = ensureCommissionerConfig();
   var low = standardizeParticipantName(memberName).toLowerCase();
   var on = !isMemberForceUnlocked(memberName);
-  if (on) cfg.forceUnlocked[low] = parseInt(state.currentWeek, 10) || 0;
+  if (on) cfg.forceUnlocked[low] = forceUnlockToken();
   else delete cfg.forceUnlocked[low];
   logCommissionerOverride(standardizeParticipantName(memberName), on ? "Force unlocked past the deadline" : "Removed force unlock", "");
   renderCommissionerModalBody();
@@ -277,8 +288,8 @@ function setPotSetting(field, value) {
 
 function potSummary() {
   var cfg = ensureCommissionerConfig();
-  var fee = parseFloat(cfg.entryFeeDollars) || 25;
-  var paid = (state.poolMembers || []).filter(function(pm) { return cfg.duesPaidMap[standardizeParticipantName(pm.name).toLowerCase()]; }).length;
+  var fee = isNaN(parseFloat(cfg.entryFeeDollars)) ? 25 : parseFloat(cfg.entryFeeDollars);
+  var paid = duesRoster().filter(function(r) { return isDuesPaid(r.low); }).length;
   var weekly = parseFloat(cfg.weeklyPayoutDollars) || 0;
   var weeks = cfg.seasonWeeks === undefined ? 14 : (parseFloat(cfg.seasonWeeks) || 0);
   var season = parseFloat(cfg.seasonPrizeDollars) || 0;
@@ -320,7 +331,7 @@ function paymentSettingsHtml() {
 function duesPayLinks() {
   var cfg = ensureCommissionerConfig();
   var pl = cfg.paymentLinks || {};
-  var fee = parseFloat(cfg.entryFeeDollars) || 25;
+  var fee = isNaN(parseFloat(cfg.entryFeeDollars)) ? 25 : parseFloat(cfg.entryFeeDollars);
   var links = [];
   var venmo = String(pl.venmoHandle || "").replace(/^@/, "");
   if (venmo) links.push({ label: "Venmo", href: "https://venmo.com/u/" + encodeURIComponent(venmo) });
@@ -339,7 +350,7 @@ function renderDuesBanner() {
   var cfg = ensureCommissionerConfig();
   var links = duesPayLinks();
   var dismissedKey = "pickem_dues_banner_hidden_wk";
-  var show = !!name && links.length && !cfg.duesPaidMap[name] && !PLAYER_PREVIEW &&
+  var show = !!name && links.length && !isDuesPaid(duesKeyForName(name)) && !PLAYER_PREVIEW &&
     String(safeGetStorage(dismissedKey) || "") !== String(state.currentWeek);
   if (!show) { if (el) el.hidden = true; return; }
   if (!el) {
@@ -351,7 +362,7 @@ function renderDuesBanner() {
     host.insertBefore(el, head ? head.nextSibling : host.firstChild);
   }
   el.hidden = false;
-  el.innerHTML = '<span>Dues unpaid ($' + (parseFloat(cfg.entryFeeDollars) || 25) + '). Pay via</span>' +
+  el.innerHTML = '<span>Dues unpaid ($' + (isNaN(parseFloat(cfg.entryFeeDollars)) ? 25 : parseFloat(cfg.entryFeeDollars)) + '). Pay via</span>' +
     links.map(function(l) { return '<a href="' + escapeShellHtml(l.href) + '" target="_blank" rel="noopener">' + escapeShellHtml(l.label) + '</a>'; }).join("") +
     '<button type="button" class="link-btn" onclick="safeSetStorage(\'' + dismissedKey + '\', String(state.currentWeek)); renderDuesBanner();">Hide this week</button>';
 }

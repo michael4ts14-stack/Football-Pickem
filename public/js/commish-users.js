@@ -75,7 +75,7 @@ function userRecords() {
     r.joined = (b && b.boundAt) || (r.archived && r.archived.record && r.archived.record.joinedAt) || "";
     r.lastActive = laterIso(meta.updatedAt || "", (a && a.updatedAt) || "");
     r.role = usersRoleOf(b ? email : "");
-    r.duesPaid = r.low ? !!cfg.duesPaidMap[r.low] : null;
+    r.duesPaid = r.low ? isDuesPaid(duesKeyForName(r.low)) : null;
     out.push(r);
     seenKeys[r.key] = true;
     if (r.low) seenLow[r.low] = true;

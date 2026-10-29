@@ -193,7 +193,11 @@ function gamePassesPicksFilter(g, myPick, q, ownInfo, h2h) {
 }
 
 function renderPickCardsHtml() {
-  if (isAwaitingFirstSlate()) return '<p class="empty-note">Loading this week\'s games…</p>';
+  if (isAwaitingFirstSlate()) {
+    return CLOUD_LOAD_TIMED_OUT
+      ? '<p class="empty-note">Can\'t reach the pool right now. Picks open once this week\'s games load.</p>'
+      : '<p class="empty-note">Loading this week\'s games…</p>';
+  }
   ensureMondayLockedOddsOnGames();
   var qEl = document.getElementById("team-search");
   var q = (qEl ? qEl.value : "").trim().toLowerCase();
@@ -573,26 +577,34 @@ signOutAccountInstance = function() {
   return r;
 };
 
-// Remember that this guest session made picks (used when carrying them into a new account).
-// Also kept on the device for this week, because phone sign-in leaves the page for Google
-// and comes back, which would forget a flag held only in memory.
+// Remember which games this guest session picked (only those carry into a new account).
+// Kept on the device for this week, because phone sign-in leaves the page for Google
+// and comes back, which would forget a list held only in memory.
 var GUEST_PICKS_TOUCHED_KEY = "sat_guest_picks_touched_week_v1";
-function markGuestPicksTouched() {
-  if (AUTH_SESSION || activeProfile !== "test") return;
-  window._guestPicksTouched = true;
-  safeSetStorage(GUEST_PICKS_TOUCHED_KEY, String(parseInt(state.currentWeek, 10) || 0));
+function guestTouchedGameIds() {
+  var week = parseInt(state.currentWeek, 10) || 0;
+  try {
+    var saved = JSON.parse(safeGetStorage(GUEST_PICKS_TOUCHED_KEY) || "null");
+    if (saved && saved.week === week && Array.isArray(saved.ids)) return saved.ids.map(String);
+  } catch (e) {}
+  return [];
 }
-function guestPicksTouchedThisWeek() {
-  return !!window._guestPicksTouched || safeGetStorage(GUEST_PICKS_TOUCHED_KEY) === String(parseInt(state.currentWeek, 10) || 0);
+function markGuestPicksTouched(gameIds) {
+  if (AUTH_SESSION || activeProfile !== "test") return;
+  var ids = guestTouchedGameIds();
+  for (var i = 0; i < gameIds.length; i++) {
+    if (ids.indexOf(String(gameIds[i])) === -1) ids.push(String(gameIds[i]));
+  }
+  safeSetStorage(GUEST_PICKS_TOUCHED_KEY, JSON.stringify({ week: parseInt(state.currentWeek, 10) || 0, ids: ids }));
 }
 var _guestPrevPickSide = pickSide;
-pickSide = function() {
-  markGuestPicksTouched();
+pickSide = function(gameId) {
+  markGuestPicksTouched([gameId]);
   return _guestPrevPickSide.apply(this, arguments);
 };
 var _guestPrevApplyPreset = applyPreset;
 applyPreset = function() {
-  markGuestPicksTouched();
+  markGuestPicksTouched(GAMES.map(function(g) { return g.id; }));
   return _guestPrevApplyPreset.apply(this, arguments);
 };
 
@@ -661,7 +673,7 @@ updatePicksHead = function() {
 // ---------- Review before locking + copyable summary ----------
 function myPicksSummaryText() {
   var s = myPickSummary();
-  var name = getProfileMetaByKey(activeProfile).name;
+  var name = getProfileDisplayMeta(activeProfile).name;
   return "Separated at Turf " + (state.weekLabel || ("Week " + state.currentWeek)) + " picks: " + name + "\n" +
     s.done + "/" + s.total + " picked · " + s.x1 + " favorites (1x) · " + s.x2 + " 2x dogs · " + s.x3 + " 3x dogs · max " + s.maxPts + " pts\n" +
     "Tiebreaker: " + (s.tiebreaker || "not set") + "\n\n" + s.lines.join("\n");

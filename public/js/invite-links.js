@@ -189,7 +189,7 @@ function reassignPlayerAccount(profKey) {
     var low = memberLowOf(getLinkedMemberNameForProfile(profKey) || name);
     var memberName = rosterDisplayName(getLinkedMemberNameForProfile(profKey) || name);
     var jobs = [
-      fsDb.collection("pickem_v14_bindings").doc(profKey).set({ uid: uid, email: email, displayName: (acct && acct.displayName) || (req && req.authDisplayName) || memberName, memberName: memberName, memberLow: low, boundAt: now, verifiedBy: "commish_approved" }),
+      setBindingGuarded(profKey, { uid: uid, email: email, displayName: (acct && acct.displayName) || (req && req.authDisplayName) || memberName, memberName: memberName, memberLow: low, boundAt: now, verifiedBy: "commish_approved" }, b ? b.uid : ""),
       fsDb.collection("pickem_v14_users").doc(profKey).set({ ownerUid: uid }, { merge: true }),
       fsDb.collection("pickem_v14_accounts").doc("email_" + email.replace(/[^a-z0-9]/g, "_")).set({ uid: uid, email: email, boundProfileKey: profKey, linkedMemberName: memberName, linkedEntries: [{ profileKey: profKey, memberName: memberName, label: "Entry #1: " + memberName }], updatedAt: now }, { merge: true })
     ];
@@ -233,6 +233,7 @@ function showInviteLanding() {
   INVITE_LANDING_PENDING = false;
   try { history.replaceState(null, "", window.location.pathname + window.location.hash); } catch (e) {}
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
+    closePanelSheet();
     showAppToast("You're already in the league as " + fixDisplaySpelling(AUTH_SESSION.linkedMemberName || "") + ".");
     return;
   }
@@ -287,15 +288,32 @@ chooseRosterNameForNewAccount = function() {
   return _invitePrevChooser.apply(this, arguments);
 };
 
-// The landing waits for the pool (roster, invite status) and the account links to load.
+// The landing waits for the pool (roster, invite status) and the account links to load. It shows a
+// loading state meanwhile and keeps waiting on slow connections, with a retry once it runs long.
+function showInviteLoadingSheet(slow) {
+  var bd = document.getElementById("panel-sheet-backdrop");
+  var body = document.getElementById("panel-sheet-body");
+  var title = document.getElementById("panel-sheet-title");
+  if (!bd || !body) return;
+  if (title) title.textContent = "You're invited";
+  body.innerHTML = slow
+    ? '<p class="sheet-meta">Still loading the league. Your connection looks slow; this will appear as soon as it arrives.</p>' +
+      '<button type="button" class="btn-sm invite-wide" onclick="window.location.reload()">Retry</button>'
+    : '<p class="sheet-meta">Loading your invite…</p>';
+  bd.hidden = false;
+}
+
 (function waitForInviteLanding() {
   if (!INVITE_LANDING_PENDING) return;
   var tries = 0;
   var tick = function() {
+    if (!INVITE_LANDING_PENDING) return;
     tries++;
     var ready = typeof CLOUD_HYDRATED !== "undefined" && CLOUD_HYDRATED && (state.leaderboard || []).length;
     if (ready) { (typeof loadBoundAccounts === "function" ? loadBoundAccounts() : Promise.resolve()).then(function() { setTimeout(showInviteLanding, 300); }); return; }
-    if (tries < 40) setTimeout(tick, 250);
+    if (tries === 1) showInviteLoadingSheet(false);
+    if (tries === 40) showInviteLoadingSheet(true);
+    setTimeout(tick, tries < 40 ? 250 : 1000);
   };
   setTimeout(tick, 250);
 })();

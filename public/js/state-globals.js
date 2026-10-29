@@ -4,6 +4,13 @@ var currentFilter = "all";
 var liveTabFilter = "all";
 var showShadowBadges = true;
 var isMobileInit = (typeof window !== "undefined" && window.innerWidth <= 640);
+// Rotation, foldables and window resizes change the layout class, so track it instead of reading it once.
+if (typeof window !== "undefined" && window.matchMedia) {
+  var mobileInitMq = window.matchMedia("(max-width: 640px)");
+  var syncMobileInit = function() { isMobileInit = mobileInitMq.matches; };
+  if (mobileInitMq.addEventListener) mobileInitMq.addEventListener("change", syncMobileInit);
+  else if (mobileInitMq.addListener) mobileInitMq.addListener(syncMobileInit);
+}
 var showAllIns = false;
 var showAllL5 = false;
 var showAllInj = false;

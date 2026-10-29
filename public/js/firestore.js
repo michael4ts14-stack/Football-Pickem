@@ -30,10 +30,53 @@ var pendingSharedStateTimer = null;
 var pendingUsersRenderTimer = null;
 var USER_DOC_META = {}; // pick doc id -> { updatedAt, archived } (Commissioner › Users: last active)
 
+// A Firestore listener that fails (permission or network error) is dead for good, so each one
+// is re-subscribed with backoff (2 s doubling to 60 s, reset by the next snapshot). While any
+// is down the sync status line says so; the first failure of an outage also shows a toast.
+// subscribe(next, err) makes the onSnapshot call. opts.quiet: no UI, just retry (expected failures).
+var LISTENER_DOWN = {}; // label -> true while failing
+function listenWithRetry(label, subscribe, onNext, opts) {
+  opts = opts || {};
+  var delay = 2000;
+  var start = function() {
+    try {
+      subscribe(function(snap) {
+        delay = 2000;
+        if (LISTENER_DOWN[label]) {
+          delete LISTENER_DOWN[label];
+          if (!opts.quiet) showListenerState();
+        }
+        onNext(snap);
+      }, function(err) {
+        if (!LISTENER_DOWN[label] && !opts.quiet && typeof showAppToast === "function") {
+          showAppToast("Live sync lost for " + label + " (" + ((err && err.code) || "offline?") + "). Retrying…");
+        }
+        LISTENER_DOWN[label] = true;
+        if (!opts.quiet) showListenerState();
+        if (opts.onError) opts.onError(err);
+        setTimeout(start, delay);
+        delay = Math.min(delay * 2, 60000);
+      });
+    } catch (e) { setTimeout(start, delay); delay = Math.min(delay * 2, 60000); }
+  };
+  start();
+}
+function showListenerState() {
+  var el = document.getElementById("cloud-status-text");
+  if (!el) return;
+  var down = Object.keys(LISTENER_DOWN);
+  el.textContent = down.length ? "⚠️ Live sync interrupted (" + down.join(", ") + "). Retrying…" : "🔥 Live sync restored.";
+}
+
 function startFirebaseRealtimeListeners() {
   if (fsDb) {
     try {
-      fsDb.collection("pickem_v14").doc("shared_state").onSnapshot(function(doc) {
+      // includeMetadataChanges: a snapshot skipped below is followed by one more when the
+      // server confirms the write. Without it, a remote change that arrived together with our
+      // pending write was never delivered again.
+      listenWithRetry("shared state", function(next, err) {
+        fsDb.collection("pickem_v14").doc("shared_state").onSnapshot({ includeMetadataChanges: true }, next, err);
+      }, function(doc) {
         if (!doc || !doc.exists) return;
         // Our own just-saved data echoing back before the server confirms it: already on screen.
         if (doc.metadata && doc.metadata.hasPendingWrites) return;
@@ -45,28 +88,47 @@ function startFirebaseRealtimeListeners() {
           pendingSharedStateData = null;
           if (data) applyRemoteCloudData(data, "Cloud Firestore");
         }, REMOTE_APPLY_DEBOUNCE_MS);
-      }, function(err) {});
+      });
     } catch (e) {}
 
     // Apps Script bot heartbeat (written by Code.js every run): drives the 🤖 status pill.
     try {
-      fsDb.collection("live_games").doc("bot_status").onSnapshot(function(doc) {
+      listenWithRetry("bot status", function(next, err) {
+        fsDb.collection("live_games").doc("bot_status").onSnapshot(next, err);
+      }, function(doc) {
         BOT_STATUS = (doc && doc.exists) ? doc.data() : null;
         renderBotSyncPill();
-      }, function(errBot) {});
+      }, { quiet: true });
       setInterval(renderBotSyncPill, 60000);
     } catch (eBot) {}
+
+    // Season history: one doc per archived week (`pickem_v14_archives/week_N`).
+    try {
+      listenWithRetry("season history", function(next, err) {
+        fsDb.collection("pickem_v14_archives").onSnapshot(next, err);
+      }, function(snapshot) {
+        if (!snapshot || !snapshot.docChanges) return;
+        ensureWeekArchivesState();
+        snapshot.docChanges().forEach(function(ch) {
+          if (ch.type === "removed") delete state.weekArchives[ch.doc.id];
+          else state.weekArchives[ch.doc.id] = ch.doc.data();
+        });
+        populateWeekArchiveDropdown();
+        if (currentMainView === "standings") renderSeasonArchiveHub();
+      });
+    } catch (eArch) {}
 
     // Dedicated Per-User Instance Collection (`pickem_v14_users/{profileKey}`)
     // Every user writes their own picks to their own document so 80+ users can pick simultaneously
     // with zero document contention and real-time updates across all connected browsers!
     try {
-      fsDb.collection("pickem_v14_users").onSnapshot(function(snapshot) {
+      listenWithRetry("picks", function(next, err) {
+        fsDb.collection("pickem_v14_users").onSnapshot(next, err);
+      }, function(snapshot) {
         if (!snapshot || !snapshot.docChanges) return;
         var changes = snapshot.docChanges();
         if (!changes.length) return;
         var anyRemoteApplied = false;
-        var withinMyLocalEdit = (Date.now() - lastLocalPickTs) < 1800;
 
         for (var i = 0; i < changes.length; i++) {
           var ch = changes[i];
@@ -75,96 +137,138 @@ function startFirebaseRealtimeListeners() {
           var uData = ch.doc.data();
           if (docId && uData) USER_DOC_META[docId] = { updatedAt: uData.updatedAt || "", archived: !!uData.archived };
           if (!docId || !uData || !uData.picks) continue;
-
-          // Never overwrite the local device's own Test Sim or actively-edited profile during a click
-          if (docId === "test") continue;
-          if (uData.archived || isProfileArchived(docId)) continue; // removed by a commissioner
-          if (docId === activeProfile && withinMyLocalEdit) continue;
-          if (hasPendingProfileSave(docId)) continue; // newer local picks are waiting to save
-
-          // While a past week is on screen, live picks belong to the parked live week.
-          var viewingArchive = typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY && LIVE_WEEK_SNAPSHOT;
-          var store = (viewingArchive && (docId === "michael" || docId === "kinyion")) ? LIVE_WEEK_SNAPSHOT : state;
-          if (picksLookLikeAnotherWeek(uData.picks, viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES)) continue;
-
-          // Register custom user metadata if this is one of the 80+ user accounts not yet in state.customUsers
-          if (docId !== "michael" && docId !== "kinyion" && docId !== "test") {
-            ensureMultiUserAndPrivacyState();
-            var existsCu = false;
-            for (var c = 0; c < state.customUsers.length; c++) {
-              if (state.customUsers[c].key === docId) {
-                existsCu = true;
-                if (uData.linkedMemberName) state.customUsers[c].linkedMemberName = uData.linkedMemberName;
-                if (uData.displayName) state.customUsers[c].name = uData.displayName;
-                break;
-              }
-            }
-            if (!existsCu && (uData.displayName || uData.linkedMemberName)) {
-              state.customUsers.push({
-                key: docId,
-                name: uData.displayName || uData.linkedMemberName,
-                linkedMemberName: uData.linkedMemberName || uData.displayName,
-                priorPts: parseFloat(uData.priorPts) || 0,
-                rank: uData.rank || "Linked",
-                color: uData.color || "#10b981",
-                ownerUid: uData.ownerUid || ""
-              });
-            }
-          }
-
-          // Cleared means a commissioner emptied this player's picks this week and they haven't
-          // picked again. An account with no picks yet, or one cleared in an earlier week, must
-          // not hide the player's sheet picks.
-          var liveGames = viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES;
-          var liveWeek = parseInt(viewingArchive ? LIVE_WEEK_SNAPSHOT.currentWeek : state.currentWeek, 10) || 0;
-          var hasLivePicks = hasSubmittedPicksForCurrentSlate(uData.picks, liveGames);
-          var isClearedDoc = !!(uData._picksCleared && !hasLivePicks && liveWeek && parseInt(uData.currentWeek, 10) === liveWeek);
-          var linkedLow = standardizeParticipantName(uData.linkedMemberName || uData.displayName || "").toLowerCase();
-          // A duplicate profile's state says nothing about the player's real picks.
-          if (isDuplicateProfileKey(docId, uData.linkedMemberName || uData.displayName || "")) linkedLow = "";
-          if (isClearedDoc) {
-            if (!state.deletedPicksByMember) state.deletedPicksByMember = {};
-            if (linkedLow) state.deletedPicksByMember[linkedLow] = true;
-          } else if (linkedLow && state.deletedPicksByMember && state.deletedPicksByMember[linkedLow] && hasLivePicks) {
-            // Picked again after a clear.
-            if ((Date.now() - lastLocalPickTs) < 4000) continue;
-            delete state.deletedPicksByMember[linkedLow];
-          }
-          store[docId] = Object.assign({}, store[docId] || {}, {
-            picks: isClearedDoc ? {} : uData.picks,
-            _picksCleared: isClearedDoc,
-            tiebreaker: uData.tiebreaker || (store[docId] && store[docId].tiebreaker) || "28-24",
-            target: uData.target || (store[docId] && store[docId].target) || 20,
-            linkedMemberName: uData.linkedMemberName !== undefined ? uData.linkedMemberName : (store[docId] ? store[docId].linkedMemberName : "")
-          });
-          anyRemoteApplied = true;
+          delete DEFERRED_PICK_DOCS[docId]; // this snapshot is the doc's latest state
+          if (applyRemotePickDoc(docId, uData)) anyRemoteApplied = true;
         }
-
-        if (anyRemoteApplied && !pendingUsersRenderTimer) {
-          // State is already updated above; batch the expensive regrade + full re-render.
-          pendingUsersRenderTimer = setTimeout(function() {
-            pendingUsersRenderTimer = null;
-            isApplyingRemoteUpdate = true;
-            try {
-              regradeAllPoolMembersLive();
-              safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-              renderAll();
-            } finally {
-              isApplyingRemoteUpdate = false;
-            }
-          }, REMOTE_APPLY_DEBOUNCE_MS);
-        }
-      }, function(err2) {});
+        if (anyRemoteApplied) scheduleRemotePicksRender();
+      });
     } catch (e2) {}
   }
 }
 
-// False until the pool's shared state first arrives (or boot gives up waiting). Until then a
-// device with no saved slate only has the built-in Week 7 games, which must not be shown or picked.
+// Pick docs that arrived while this device was editing or saving the same picks. Skipping them
+// for good left another device's edits stale here, so each is applied once the window ends.
+var DEFERRED_PICK_DOCS = {}; // doc id -> latest doc data
+var deferredPickDocsTimer = null;
+function deferRemotePickDoc(docId, uData) {
+  DEFERRED_PICK_DOCS[docId] = uData;
+  if (deferredPickDocsTimer) return;
+  // Just past the longest window (4 s after the last local pick); a doc still blocked then
+  // (a save still pending) is deferred again.
+  var wait = Math.max(250, 4000 - (Date.now() - lastLocalPickTs) + 50);
+  deferredPickDocsTimer = setTimeout(function() {
+    deferredPickDocsTimer = null;
+    var docs = DEFERRED_PICK_DOCS;
+    DEFERRED_PICK_DOCS = {};
+    var anyApplied = false;
+    for (var id in docs) {
+      if (applyRemotePickDoc(id, docs[id])) anyApplied = true;
+    }
+    if (anyApplied) scheduleRemotePicksRender();
+  }, wait);
+}
+
+function scheduleRemotePicksRender() {
+  if (pendingUsersRenderTimer) return;
+  // State is already updated; batch the expensive regrade + full re-render.
+  pendingUsersRenderTimer = setTimeout(function() {
+    pendingUsersRenderTimer = null;
+    isApplyingRemoteUpdate = true;
+    try {
+      regradeAllPoolMembersLive();
+      safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+      renderAll();
+    } finally {
+      isApplyingRemoteUpdate = false;
+    }
+  }, REMOTE_APPLY_DEBOUNCE_MS);
+}
+
+// Applies one `pickem_v14_users` doc to state. True if it changed state.
+function applyRemotePickDoc(docId, uData) {
+  var withinMyLocalEdit = (Date.now() - lastLocalPickTs) < 1800;
+  // Never overwrite the local device's own Test Sim or actively-edited profile during a click
+  if (docId === "test") return false;
+  if (uData.archived || isProfileArchived(docId)) return false; // removed by a commissioner
+  if ((docId === activeProfile && withinMyLocalEdit) || hasPendingProfileSave(docId)) {
+    // Newer local picks are being edited or waiting to save: apply this doc once that's done.
+    deferRemotePickDoc(docId, uData);
+    return false;
+  }
+
+  // While a past week is on screen, live picks belong to the parked live week.
+  var viewingArchive = typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY && LIVE_WEEK_SNAPSHOT;
+  var store = (viewingArchive && (docId === "michael" || docId === "kinyion")) ? LIVE_WEEK_SNAPSHOT : state;
+  if (picksLookLikeAnotherWeek(uData.picks, viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES)) return false;
+
+  // Register custom user metadata if this is one of the 80+ user accounts not yet in state.customUsers
+  if (docId !== "michael" && docId !== "kinyion" && docId !== "test") {
+    ensureMultiUserAndPrivacyState();
+    var existsCu = false;
+    for (var c = 0; c < state.customUsers.length; c++) {
+      if (state.customUsers[c].key === docId) {
+        existsCu = true;
+        if (uData.linkedMemberName) state.customUsers[c].linkedMemberName = uData.linkedMemberName;
+        if (uData.displayName) state.customUsers[c].name = uData.displayName;
+        break;
+      }
+    }
+    if (!existsCu && (uData.displayName || uData.linkedMemberName)) {
+      state.customUsers.push({
+        key: docId,
+        name: uData.displayName || uData.linkedMemberName,
+        linkedMemberName: uData.linkedMemberName || uData.displayName,
+        priorPts: parseFloat(uData.priorPts) || 0,
+        rank: uData.rank || "Linked",
+        color: uData.color || "#10b981",
+        ownerUid: uData.ownerUid || ""
+      });
+    }
+  }
+
+  // Cleared means a commissioner emptied this player's picks this week and they haven't
+  // picked again. An account with no picks yet, or one cleared in an earlier week, must
+  // not hide the player's sheet picks.
+  var liveGames = viewingArchive ? LIVE_WEEK_SNAPSHOT.games : GAMES;
+  var liveWeek = parseInt(viewingArchive ? LIVE_WEEK_SNAPSHOT.currentWeek : state.currentWeek, 10) || 0;
+  var hasLivePicks = hasSubmittedPicksForCurrentSlate(uData.picks, liveGames);
+  var isClearedDoc = !!(uData._picksCleared && !hasLivePicks && liveWeek && parseInt(uData.currentWeek, 10) === liveWeek);
+  var linkedLow = standardizeParticipantName(uData.linkedMemberName || uData.displayName || "").toLowerCase();
+  // A duplicate profile's state says nothing about the player's real picks.
+  if (isDuplicateProfileKey(docId, uData.linkedMemberName || uData.displayName || "")) linkedLow = "";
+  if (isClearedDoc) {
+    if (!state.deletedPicksByMember) state.deletedPicksByMember = {};
+    if (linkedLow) state.deletedPicksByMember[linkedLow] = true;
+  } else if (linkedLow && state.deletedPicksByMember && state.deletedPicksByMember[linkedLow] && hasLivePicks) {
+    // Picked again after a clear.
+    if ((Date.now() - lastLocalPickTs) < 4000) { deferRemotePickDoc(docId, uData); return false; }
+    delete state.deletedPicksByMember[linkedLow];
+  }
+  store[docId] = Object.assign({}, store[docId] || {}, {
+    picks: isClearedDoc ? {} : uData.picks,
+    _picksCleared: isClearedDoc,
+    tiebreaker: uData.tiebreaker || (store[docId] && store[docId].tiebreaker) || "28-24",
+    target: uData.target || (store[docId] && store[docId].target) || 20,
+    linkedMemberName: uData.linkedMemberName !== undefined ? uData.linkedMemberName : (store[docId] ? store[docId].linkedMemberName : "")
+  });
+  return true;
+}
+
+// False until the pool's shared state first arrives. Until then a
+// device with no saved slate only has the built-in games, which must not be shown or picked.
 var CLOUD_HYDRATED = false;
+// True once boot has waited 8 seconds without the shared state (offline or Firestore unreachable).
+var CLOUD_LOAD_TIMED_OUT = false;
+// commissionerConfig as last read from (or confirmed by) the cloud. Saves write only the fields
+// that differ from it, so a stale tab can't wipe settings saved elsewhere.
+var CLOUD_COMMISSIONER_CONFIG = null;
+// customUsers and profilePrivacy as last read from (or saved to) the cloud. A player device saves
+// only the entries it changed, so a stale phone can't drop new players or revive removed ones.
+var CLOUD_REGISTRY = { customUsers: null, profilePrivacy: null };
 
 function isAwaitingFirstSlate() {
-  return !CLOUD_HYDRATED && isHardcodedWeek7Slate(GAMES);
+  // Compared with the built-in slate itself: data/default-slate.js is no longer the Week 7 one.
+  return !CLOUD_HYDRATED && (isHardcodedWeek7Slate(GAMES) || getSlateSignature(GAMES) === getSlateSignature(DEFAULT_WEEK7_GAMES));
 }
 
 function applyRemoteCloudData(data, sourceLabel) {
@@ -198,190 +302,193 @@ function applyRemoteCloudData(data, sourceLabel) {
   }
 
   isApplyingRemoteUpdate = true;
-
-  var slateChanged = false;
-  var needsEspnEnrichment = false;
-  if (incomingGames) {
-    var incomingSig = getSlateSignature(incomingGames);
-    var currentSig = getSlateSignature(GAMES);
-    if (incomingSig !== currentSig) {
-      GAMES = incomingGames;
-      slateChanged = true;
-      if (!isHardcodedWeek7Slate(GAMES)) {
-        hasLockedCustomSlate = true;
+  // Always cleared: if it stayed set after a throw, every later save would silently skip.
+  try {
+    var slateChanged = false;
+    var needsEspnEnrichment = false;
+    if (incomingGames) {
+      var incomingSig = getSlateSignature(incomingGames);
+      var currentSig = getSlateSignature(GAMES);
+      if (incomingSig !== currentSig) {
+        GAMES = incomingGames;
+        slateChanged = true;
+        if (!isHardcodedWeek7Slate(GAMES)) {
+          hasLockedCustomSlate = true;
+        }
+        clearAllSlateCaches();
+      } else {
+        // Same 26 matchups: preserve any in-memory ESPN enrichments (insights, schedules, injuries, kickoff times)
+        for (var mIdx = 0; mIdx < GAMES.length; mIdx++) {
+          if (incomingGames[mIdx]) {
+            mergeEnrichedGameFields(incomingGames[mIdx], GAMES[mIdx]);
+            GAMES[mIdx] = incomingGames[mIdx];
+          }
+        }
       }
-      clearAllSlateCaches();
-    } else {
-      // Same 26 matchups: preserve any in-memory ESPN enrichments (insights, schedules, injuries, kickoff times)
-      for (var mIdx = 0; mIdx < GAMES.length; mIdx++) {
-        if (incomingGames[mIdx]) {
-          mergeEnrichedGameFields(incomingGames[mIdx], GAMES[mIdx]);
-          GAMES[mIdx] = incomingGames[mIdx];
+
+      for (var i = 0; i < GAMES.length; i++) {
+        var g = GAMES[i];
+        var aRank = TEAM_RANKS[g.away] || null;
+        var hRank = TEAM_RANKS[g.home] || null;
+        var aClean = (g.awayRec || "").replace(/#\d+\s*•?\s*/g, "").trim();
+        var hClean = (g.homeRec || "").replace(/#\d+\s*•?\s*/g, "").trim();
+        g.awayRec = (aRank ? (aRank + " • ") : "") + aClean;
+        g.homeRec = (hRank ? (hRank + " • ") : "") + hClean;
+        enrichGameInjuries(g);
+        if (g.awayL5 && g.awayL5.length) {
+          TEAM_LOGS[g.away] = Object.assign(TEAM_LOGS[g.away] || {}, { rec: g.awayRec || "2026", l5: g.awayL5 });
+        }
+        if (g.homeL5 && g.homeL5.length) {
+          TEAM_LOGS[g.home] = Object.assign(TEAM_LOGS[g.home] || {}, { rec: g.homeRec || "2026", l5: g.homeL5 });
+        }
+        if (!isGameEnrichedWithEspnData(g)) {
+          needsEspnEnrichment = true;
         }
       }
     }
 
-    for (var i = 0; i < GAMES.length; i++) {
-      var g = GAMES[i];
-      var aRank = TEAM_RANKS[g.away] || null;
-      var hRank = TEAM_RANKS[g.home] || null;
-      var aClean = (g.awayRec || "").replace(/#\d+\s*•?\s*/g, "").trim();
-      var hClean = (g.homeRec || "").replace(/#\d+\s*•?\s*/g, "").trim();
-      g.awayRec = (aRank ? (aRank + " • ") : "") + aClean;
-      g.homeRec = (hRank ? (hRank + " • ") : "") + hClean;
-      enrichGameInjuries(g);
-      if (g.awayL5 && g.awayL5.length) {
-        TEAM_LOGS[g.away] = Object.assign(TEAM_LOGS[g.away] || {}, { rec: g.awayRec || "2026", l5: g.awayL5 });
+    if (data.liveScores && typeof data.liveScores === "object" && !slateChanged) {
+      for (var lsKey in data.liveScores) {
+        var incomingLs = data.liveScores[lsKey];
+        var gCheck = findGameById(lsKey);
+        if (!gCheck || !incomingLs) continue;
+        if (incomingLs.matchupKey && incomingLs.matchupKey !== gameMatchupKey(gCheck)) continue;
+        var existingLs = LIVE_SCORES[lsKey];
+        if (incomingLs.completed || incomingLs.inProgress) {
+          if (!existingLs || (!existingLs.completed && !existingLs.inProgress) || incomingLs.completed) {
+            LIVE_SCORES[lsKey] = incomingLs;
+          }
+        }
       }
-      if (g.homeL5 && g.homeL5.length) {
-        TEAM_LOGS[g.home] = Object.assign(TEAM_LOGS[g.home] || {}, { rec: g.homeRec || "2026", l5: g.homeL5 });
-      }
-      if (!isGameEnrichedWithEspnData(g)) {
-        needsEspnEnrichment = true;
+      state.liveScores = LIVE_SCORES;
+    }
+
+    // 2. GRANULAR PER-PROFILE MERGE: Never let another user's cloud update switch your activeProfile
+    //    or compareTargetKey, and only protect `activeProfile` during a 1.5s local click while
+    //    ALWAYS accepting other users' incoming picks in real time!
+    var withinLocalPickLock = (Date.now() - lastLocalPickTs) < 3500;
+    if (data.deletedPicksByMember && typeof data.deletedPicksByMember === "object" && !withinLocalPickLock) {
+      state.deletedPicksByMember = data.deletedPicksByMember;
+    }
+    var shouldAcceptProfile = function(profKey) {
+      if (profKey === "test") return false; // Test Sim is always isolated per-device!
+      if (withinLocalPickLock || hasPendingProfileSave(profKey)) return false;
+      var pMeta = getProfileMetaByKey(profKey);
+      var pLow = standardizeParticipantName((pMeta && (pMeta.linkedMemberName || pMeta.name)) || "").toLowerCase();
+      if (pLow && state.deletedPicksByMember && state.deletedPicksByMember[pLow]) return false;
+      return true;
+    };
+
+    if (data.michael && data.michael.picks && shouldAcceptProfile("michael")) {
+      var mMatch = countMatchingPicksForSlate(data.michael.picks, GAMES);
+      if (mMatch.total < 5 || mMatch.matched >= Math.ceil(mMatch.total * 0.5)) {
+        state.michael = data.michael;
       }
     }
-  }
-
-  if (data.liveScores && typeof data.liveScores === "object" && !slateChanged) {
-    for (var lsKey in data.liveScores) {
-      var incomingLs = data.liveScores[lsKey];
-      var gCheck = findGameById(lsKey);
-      if (!gCheck || !incomingLs) continue;
-      if (incomingLs.matchupKey && incomingLs.matchupKey !== gameMatchupKey(gCheck)) continue;
-      var existingLs = LIVE_SCORES[lsKey];
-      if (incomingLs.completed || incomingLs.inProgress) {
-        if (!existingLs || (!existingLs.completed && !existingLs.inProgress) || incomingLs.completed) {
-          LIVE_SCORES[lsKey] = incomingLs;
+    if (data.kinyion && data.kinyion.picks && shouldAcceptProfile("kinyion")) {
+      var kMatch = countMatchingPicksForSlate(data.kinyion.picks, GAMES);
+      if (kMatch.total < 5 || kMatch.matched >= Math.ceil(kMatch.total * 0.5)) {
+        state.kinyion = data.kinyion;
+      }
+    }
+    if (data.customUsers && Array.isArray(data.customUsers)) {
+      CLOUD_REGISTRY.customUsers = JSON.parse(JSON.stringify(data.customUsers));
+      // The cloud list is the registry. A profile only this device has is kept only if it's one of
+      // this device's own (just created, not saved yet); any other local-only entry is a player
+      // removed or merged elsewhere, and keeping it let a stale phone or laptop push it back.
+      var incomingCfg = (data.commissionerConfig && typeof data.commissionerConfig === "object") ? data.commissionerConfig : null;
+      var notArchived = function(cu) { return !(cu && (isProfileArchived(cu.key, incomingCfg) || isProfileArchived(cu.key))); };
+      var mergedCu = data.customUsers.filter(notArchived);
+      var seenCuKeys = {};
+      for (var mcI = 0; mcI < mergedCu.length; mcI++) {
+        if (mergedCu[mcI] && mergedCu[mcI].key) seenCuKeys[mergedCu[mcI].key] = true;
+      }
+      if (state.customUsers && Array.isArray(state.customUsers)) {
+        for (var lcI = 0; lcI < state.customUsers.length; lcI++) {
+          var lcu = state.customUsers[lcI];
+          if (lcu && lcu.key && !seenCuKeys[lcu.key] && isDeviceOwnProfileKey(lcu.key) && notArchived(lcu)) {
+            mergedCu.push(lcu);
+            seenCuKeys[lcu.key] = true;
+          }
+        }
+      }
+      state.customUsers = mergedCu;
+      for (var cuIdx = 0; cuIdx < state.customUsers.length; cuIdx++) {
+        var cKey = state.customUsers[cuIdx].key;
+        if (cKey && data[cKey] && data[cKey].picks && shouldAcceptProfile(cKey)) {
+          if (!picksLookLikeAnotherWeek(data[cKey].picks, GAMES)) {
+            state[cKey] = withStaleClearFlagDropped(data[cKey]);
+          }
         }
       }
     }
-    state.liveScores = LIVE_SCORES;
-  }
-
-  // 2. GRANULAR PER-PROFILE MERGE: Never let another user's cloud update switch your activeProfile
-  //    or compareTargetKey, and only protect `activeProfile` during a 1.5s local click while
-  //    ALWAYS accepting other users' incoming picks in real time!
-  var withinLocalPickLock = (Date.now() - lastLocalPickTs) < 3500;
-  if (data.deletedPicksByMember && typeof data.deletedPicksByMember === "object" && !withinLocalPickLock) {
-    state.deletedPicksByMember = data.deletedPicksByMember;
-  }
-  var shouldAcceptProfile = function(profKey) {
-    if (profKey === "test") return false; // Test Sim is always isolated per-device!
-    if (withinLocalPickLock || hasPendingProfileSave(profKey)) return false;
-    var pMeta = getProfileMetaByKey(profKey);
-    var pLow = standardizeParticipantName((pMeta && (pMeta.linkedMemberName || pMeta.name)) || "").toLowerCase();
-    if (pLow && state.deletedPicksByMember && state.deletedPicksByMember[pLow]) return false;
-    return true;
-  };
-
-  if (data.michael && data.michael.picks && shouldAcceptProfile("michael")) {
-    var mMatch = countMatchingPicksForSlate(data.michael.picks, GAMES);
-    if (mMatch.total < 5 || mMatch.matched >= Math.ceil(mMatch.total * 0.5)) {
-      state.michael = data.michael;
-    }
-  }
-  if (data.kinyion && data.kinyion.picks && shouldAcceptProfile("kinyion")) {
-    var kMatch = countMatchingPicksForSlate(data.kinyion.picks, GAMES);
-    if (kMatch.total < 5 || kMatch.matched >= Math.ceil(kMatch.total * 0.5)) {
-      state.kinyion = data.kinyion;
-    }
-  }
-  if (data.customUsers && Array.isArray(data.customUsers)) {
-    // The cloud list is the registry. A profile only this device has is kept only if it's one of
-    // this device's own (just created, not saved yet); any other local-only entry is a player
-    // removed or merged elsewhere, and keeping it let a stale phone or laptop push it back.
-    var incomingCfg = (data.commissionerConfig && typeof data.commissionerConfig === "object") ? data.commissionerConfig : null;
-    var notArchived = function(cu) { return !(cu && (isProfileArchived(cu.key, incomingCfg) || isProfileArchived(cu.key))); };
-    var mergedCu = data.customUsers.filter(notArchived);
-    var seenCuKeys = {};
-    for (var mcI = 0; mcI < mergedCu.length; mcI++) {
-      if (mergedCu[mcI] && mergedCu[mcI].key) seenCuKeys[mergedCu[mcI].key] = true;
-    }
-    if (state.customUsers && Array.isArray(state.customUsers)) {
-      for (var lcI = 0; lcI < state.customUsers.length; lcI++) {
-        var lcu = state.customUsers[lcI];
-        if (lcu && lcu.key && !seenCuKeys[lcu.key] && isDeviceOwnProfileKey(lcu.key) && notArchived(lcu)) {
-          mergedCu.push(lcu);
-          seenCuKeys[lcu.key] = true;
+    if (data.profilePrivacy && typeof data.profilePrivacy === "object") {
+      CLOUD_REGISTRY.profilePrivacy = JSON.parse(JSON.stringify(data.profilePrivacy));
+      for (var ppk in data.profilePrivacy) {
+        var wasHidden = state.profilePrivacy && state.profilePrivacy[ppk] && state.profilePrivacy[ppk].hidden;
+        state.profilePrivacy[ppk] = data.profilePrivacy[ppk];
+        // Never auto-lock the profile that this device is signed into / actively using!
+        var isMyBoundProf = (AUTH_SESSION && AUTH_SESSION.boundProfileKey === ppk) || (ppk === activeProfile);
+        if (data.profilePrivacy[ppk].hidden && !wasHidden && !isMyBoundProf) {
+          SESSION_UNLOCKED_PROFILES[ppk] = false;
         }
       }
     }
-    state.customUsers = mergedCu;
-    for (var cuIdx = 0; cuIdx < state.customUsers.length; cuIdx++) {
-      var cKey = state.customUsers[cuIdx].key;
-      if (cKey && data[cKey] && data[cKey].picks && shouldAcceptProfile(cKey)) {
-        if (!picksLookLikeAnotherWeek(data[cKey].picks, GAMES)) {
-          state[cKey] = withStaleClearFlagDropped(data[cKey]);
-        }
-      }
+    if (data.watchlist && Array.isArray(data.watchlist) && !withinLocalPickLock) {
+      state.watchlist = data.watchlist;
     }
-  }
-  if (data.profilePrivacy && typeof data.profilePrivacy === "object") {
-    for (var ppk in data.profilePrivacy) {
-      var wasHidden = state.profilePrivacy && state.profilePrivacy[ppk] && state.profilePrivacy[ppk].hidden;
-      state.profilePrivacy[ppk] = data.profilePrivacy[ppk];
-      // Never auto-lock the profile that this device is signed into / actively using!
-      var isMyBoundProf = (AUTH_SESSION && AUTH_SESSION.boundProfileKey === ppk) || (ppk === activeProfile);
-      if (data.profilePrivacy[ppk].hidden && !wasHidden && !isMyBoundProf) {
-        SESSION_UNLOCKED_PROFILES[ppk] = false;
-      }
-    }
-  }
-  if (data.watchlist && Array.isArray(data.watchlist) && !withinLocalPickLock) {
-    state.watchlist = data.watchlist;
-  }
 
-  var localMaxPrior = Math.max(getMaxPriorPts(state.leaderboard), getMaxPriorPts(WEEK7_OFFICIAL_LEADERBOARD));
-  var cloudLbStale = false;
-  if (data.leaderboard && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
-    var incomingLbMax = getMaxPriorPts(data.leaderboard);
-    if (incomingLbMax >= localMaxPrior) {
+    var localMaxPrior = Math.max(getMaxPriorPts(state.leaderboard), getMaxPriorPts(WEEK7_OFFICIAL_LEADERBOARD));
+    var cloudLbStale = false;
+    // The cloud standings are the source of truth, even when their points are lower than this
+    // device's (a new season, or a commissioner's correction).
+    if (data.leaderboard && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
       state.leaderboard = data.leaderboard;
-    } else {
+    }
+    if (data.poolMembers) {
+      var incomingPm = Array.isArray(data.poolMembers) ? data.poolMembers : Object.values(data.poolMembers);
+      if (incomingPm.length > 0) {
+        state.poolMembers = incomingPm;
+      }
+    }
+    var minValidWeek = (!isHardcodedWeek7Slate(GAMES) || localMaxPrior >= 120) ? 8 : 7;
+    if (incomingWkNum >= minValidWeek && incomingWkNum >= (state.currentWeek || minValidWeek)) {
+      state.currentWeek = incomingWkNum;
+      state.weekLabel = "Week " + incomingWkNum;
+    } else if ((data.currentWeek && parseInt(data.currentWeek, 10) < minValidWeek) || (data.weekLabel && parseWeekNumFromLabel(data.weekLabel) < minValidWeek)) {
       cloudLbStale = true;
     }
-  }
-  if (data.poolMembers) {
-    var incomingPm = Array.isArray(data.poolMembers) ? data.poolMembers : Object.values(data.poolMembers);
-    if (incomingPm.length > 0) {
-      var incomingPmMax = getMaxPriorPts(incomingPm);
-      if (incomingPmMax < localMaxPrior) cloudLbStale = true;
-      state.poolMembers = incomingPm;
+    if (data.lastScrapedFile) state.lastScrapedFile = data.lastScrapedFile;
+    if (data.commissionerConfig && typeof data.commissionerConfig === "object") {
+      // Replaced, not merged into this device's copy: a setting removed in the cloud (e.g. the
+      // old public log, an unblocked account) must not linger here and be saved back.
+      state.commissionerConfig = Object.assign({}, data.commissionerConfig);
+      CLOUD_COMMISSIONER_CONFIG = JSON.parse(JSON.stringify(data.commissionerConfig));
+      ensureCommissionerConfig();
+      renderCommishAnnouncementBanner();
     }
-  }
-  var minValidWeek = (!isHardcodedWeek7Slate(GAMES) || localMaxPrior >= 120) ? 8 : 7;
-  if (incomingWkNum >= minValidWeek && incomingWkNum >= (state.currentWeek || minValidWeek)) {
-    state.currentWeek = incomingWkNum;
-    state.weekLabel = "Week " + incomingWkNum;
-  } else if ((data.currentWeek && parseInt(data.currentWeek, 10) < minValidWeek) || (data.weekLabel && parseWeekNumFromLabel(data.weekLabel) < minValidWeek)) {
-    cloudLbStale = true;
-  }
-  if (data.lastScrapedFile) state.lastScrapedFile = data.lastScrapedFile;
-  if (data.commissionerConfig && typeof data.commissionerConfig === "object") {
-    // Replaced, not merged into this device's copy: a setting removed in the cloud (e.g. the
-    // old public log, an unblocked account) must not linger here and be saved back.
-    state.commissionerConfig = Object.assign({}, data.commissionerConfig);
-    ensureCommissionerConfig();
-    renderCommishAnnouncementBanner();
-  }
-  if (data.tiebreakerGameId) state.tiebreakerGameId = parseInt(data.tiebreakerGameId, 10) || null;
-  if (data.weekArchives && typeof data.weekArchives === "object") {
-    state.weekArchives = Object.assign({}, state.weekArchives || {}, data.weekArchives);
-  }
-  ensureWeekArchivesState();
+    if (data.tiebreakerGameId) state.tiebreakerGameId = parseInt(data.tiebreakerGameId, 10) || null;
+    if (data.weekArchives && typeof data.weekArchives === "object") {
+      // Archives from before they moved to pickem_v14_archives. A newer copy there wins.
+      state.weekArchives = Object.assign({}, data.weekArchives, state.weekArchives || {});
+      moveSharedStateArchives(data.weekArchives);
+    }
+    ensureWeekArchivesState();
 
-  var neededClean = sanitizeStateForActiveSlate();
-  ensureWatchlistDefaults();
-  regradeAllPoolMembersLive();
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  setInputValueUnlessEditing(document.getElementById("tiebreaker-input"), state[activeProfile].tiebreaker || "28-24");
-  setInputValueUnlessEditing(document.getElementById("target-slider"), state[activeProfile].target || 20);
+    var neededClean = sanitizeStateForActiveSlate();
+    ensureWatchlistDefaults();
+    regradeAllPoolMembersLive();
+    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    setInputValueUnlessEditing(document.getElementById("tiebreaker-input"), state[activeProfile].tiebreaker || "28-24");
+    setInputValueUnlessEditing(document.getElementById("target-slider"), state[activeProfile].target || 20);
 
-  renderSwayFeed();
-  renderAll();
-  var nowStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  document.getElementById("cloud-status-text").textContent = "🔥 Firebase Live Sync (" + sourceLabel + " • " + nowStr + ") — Michael, Kinyon & Pool Synced!";
-  isApplyingRemoteUpdate = false;
+    renderSwayFeed();
+    renderAll();
+    var nowStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    document.getElementById("cloud-status-text").textContent = "🔥 Firebase Live Sync (" + sourceLabel + " • " + nowStr + ") — Michael, Kinyon & Pool Synced!";
+  } finally {
+    isApplyingRemoteUpdate = false;
+  }
 
   if ((neededClean || slateChanged || cloudLbStale) && !window._pushedSlateCleanup) {
     window._pushedSlateCleanup = true;
@@ -443,9 +550,8 @@ function pushProfileToFirebase(profKey) {
   };
   if (mine) userDoc.ownerUid = AUTH_SESSION.uid;
 
-  // 2. Then ONLY this profile's key in `pickem_v14/shared_state` (never other users' keys),
-  //    named in lastProfileWriter so the rules can check you own it. After step 1, so a new
-  //    profile's pick doc (its ownership record) exists first. The active week is never
+  // 2. And ONLY this profile's key in `pickem_v14/shared_state` (never other users' keys),
+  //    named in lastProfileWriter so the rules can check you own it. The active week is never
   //    written here: a pick save must never move everyone's week.
   var payload = {};
   payload[profKey] = profObj;
@@ -462,9 +568,13 @@ function pushProfileToFirebase(profKey) {
   // mergeFields replaces each listed field whole. A plain merge set deep-merges maps, so a
   // pick removed on one device (or a stale key dropped for the new slate) stayed in the cloud
   // and came back on every other device.
+  // One batch, so both copies change or neither does: when only the first write landed,
+  // devices showed different picks after a refresh.
   try {
-    fsDb.collection("pickem_v14_users").doc(profKey).set(userDoc, { mergeFields: Object.keys(userDoc) })
-      .then(function() { return fsDb.collection("pickem_v14").doc("shared_state").set(payload, { mergeFields: Object.keys(payload) }); })
+    var batch = fsDb.batch();
+    batch.set(fsDb.collection("pickem_v14_users").doc(profKey), userDoc, { mergeFields: Object.keys(userDoc) });
+    batch.set(fsDb.collection("pickem_v14").doc("shared_state"), payload, { mergeFields: Object.keys(payload) });
+    batch.commit()
       .then(function() { setStatus(true); }, function(e) { setStatus(false); reportCloudSaveFailure(profKey.toUpperCase() + "'s picks", e); });
   } catch (e) {}
 }
@@ -541,6 +651,24 @@ var LAST_CLOUD_WEEK = 0;
 // write them, and never while looking at an archived week. Every other client used to
 // push its own copy, so 40-100 browsers overwrote each other (lost sheet imports,
 // week flicker, a write->snapshot->re-render storm).
+// One-time move (B08): copy archives still stored in shared_state to their own docs (unless a
+// doc for that week already exists), then delete the field so shared_state shrinks.
+var MOVING_SHARED_ARCHIVES = false;
+function moveSharedStateArchives(oldArchives) {
+  if (!fsDb || MOVING_SHARED_ARCHIVES || !canWriteSharedPoolState()) return;
+  MOVING_SHARED_ARCHIVES = true;
+  var col = fsDb.collection("pickem_v14_archives");
+  Promise.all(Object.keys(oldArchives).map(function(k) {
+    var ref = col.doc(k);
+    return ref.get().then(function(d) { if (!d.exists) return ref.set(oldArchives[k]); });
+  })).then(function() {
+    return fsDb.collection("pickem_v14").doc("shared_state").update({ weekArchives: firebase.firestore.FieldValue.delete() });
+  }).catch(function(e) {
+    MOVING_SHARED_ARCHIVES = false;
+    reportCloudSaveFailure("the week archive move", e);
+  });
+}
+
 function canWriteSharedPoolState() {
   if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return false;
   if (typeof LIVE_ALERT_DEMO !== "undefined" && LIVE_ALERT_DEMO) return false; // sample scores on screen
@@ -564,19 +692,21 @@ function pushWatchlistOrStandingsToFirebase() {
     leaderboard: state.leaderboard,
     poolMembers: state.poolMembers || [],
     liveScores: LIVE_SCORES,
-    weekArchives: state.weekArchives || {},
     updatedAt: new Date().toISOString()
   }, sharedWeekFields());
   if (fsDb) {
-    try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }).catch(function(e) { reportCloudSaveFailure("standings", e); }); } catch (e) {}
+    // mergeFields replaces each field whole. A deep merge kept liveScores keys deleted here
+    // (last week's games) in the cloud, and they came back on every device.
+    try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { mergeFields: Object.keys(payload) }).catch(function(e) { reportCloudSaveFailure("standings", e); }); } catch (e) {}
   }
 }
 
+// Resolves true once the cloud confirmed the write, false when it was skipped or failed.
 function pushCustomGamesToFirebase() {
-  if (!canWriteSharedPoolState()) return;
+  if (!canWriteSharedPoolState()) return Promise.resolve(false);
   if (fsDb) {
     try {
-      fsDb.collection("pickem_v14").doc("shared_state").set(Object.assign({
+      var job = fsDb.collection("pickem_v14").doc("shared_state").set(Object.assign({
         customGames: GAMES,
         tiebreakerGameId: state.tiebreakerGameId || null,
         michael: state.michael,
@@ -584,11 +714,33 @@ function pushCustomGamesToFirebase() {
         watchlist: state.watchlist,
         leaderboard: state.leaderboard,
         poolMembers: state.poolMembers || [],
-        weekArchives: state.weekArchives || {},
         updatedAt: new Date().toISOString()
-      }, sharedWeekFields()), { merge: true }).catch(function(e) { reportCloudSaveFailure("the slate", e); });
+      }, sharedWeekFields()), { merge: true }).then(function() { return true; }, function(e) { reportCloudSaveFailure("the slate", e); return false; });
+      pushKickoffLocksToFirebase();
+      return job;
     } catch (e) {}
   }
+  return Promise.resolve(false);
+}
+
+// firestore.rules stop players changing a pick once its game kicks off. They read this small
+// doc (game ids grouped by kickoff time, for this week) instead of the whole slate, which costs
+// too much to scan. The rules check the first 20 kickoff times; games after that, or with no
+// kickoff time, lock in the app only.
+function pushKickoffLocksToFirebase() {
+  var week = sharedWeekFields().currentWeek;
+  if (!week || !fsDb) return;
+  var byTime = {};
+  GAMES.forEach(function(g) {
+    var ms = g.kickoffIso ? new Date(g.kickoffIso).getTime() : NaN;
+    if (isNaN(ms)) return;
+    (byTime[ms] = byTime[ms] || []).push(String(g.id));
+  });
+  var windows = Object.keys(byTime).map(Number).sort(function(a, b) { return a - b; }).map(function(ms) {
+    return { at: firebase.firestore.Timestamp.fromMillis(ms), ids: byTime[ms] };
+  });
+  fsDb.collection("pickem_v14").doc("kickoff_locks").set({ week: week, windows: windows, updatedAt: new Date().toISOString() })
+    .catch(function(e) { reportCloudSaveFailure("the kickoff locks", e); });
 }
 
 function pullFromFirebaseCloud() {

@@ -100,25 +100,37 @@ function loadBoundAccounts() {
     if (typeof fsDb === "undefined" || !fsDb) { resolve(false); return; }
     var first = true;
     try {
-      fsDb.collection("pickem_v14_bindings").onSnapshot(function(snap) {
+      // quiet: older rules have no bindings collection, so this failure is expected there.
+      listenWithRetry("account links", function(ok, err) {
+        fsDb.collection("pickem_v14_bindings").onSnapshot(ok, err);
+      }, function(snap) {
         var next = {};
         snap.forEach(function(d) { next[d.id] = d.data() || {}; });
+        var prev = BOUND_ACCOUNTS;
         BOUND_ACCOUNTS = next;
         ACCOUNT_SECURITY_LIVE = true;
         if (first) { first = false; resolve(true); return; }
-        onBoundAccountsChanged();
-      }, function() {
+        onBoundAccountsChanged(prev);
+      }, { quiet: true, onError: function() {
         // Older rules have no bindings collection: leave linking as it was.
         ACCOUNT_SECURITY_LIVE = false;
         if (first) { first = false; resolve(false); }
-      });
+      } });
     } catch (e) { resolve(false); }
   });
   return BOUND_ACCOUNTS_READY;
 }
 
 // A binding appeared for this unlinked account (the commissioner approved it): link now.
-function onBoundAccountsChanged() {
+function onBoundAccountsChanged(prev) {
+  // The commissioner unlinked or reassigned this device's player: drop to the unlinked state
+  // instead of leaving a session whose saves are denied.
+  var bk = AUTH_SESSION && AUTH_SESSION.boundProfileKey;
+  if (bk && prev && prev[bk] && prev[bk].uid === AUTH_SESSION.uid && (!BOUND_ACCOUNTS[bk] || BOUND_ACCOUNTS[bk].uid !== AUTH_SESSION.uid)) {
+    enterUnlinkedAccountSession({ uid: AUTH_SESSION.uid, email: AUTH_SESSION.email, displayName: AUTH_SESSION.displayName, provider: AUTH_SESSION.provider }, { status: "choose", memberName: "" });
+    showAppToast("The commissioner changed your player link. Pick your player again or ask them.");
+    return;
+  }
   if (AUTH_SESSION && !AUTH_SESSION.boundProfileKey && AUTH_SESSION.uid && ownedProfileKeys(AUTH_SESSION.uid).length) {
     var key = ownedProfileKeys(AUTH_SESSION.uid)[0];
     var b = BOUND_ACCOUNTS[key];
@@ -133,6 +145,23 @@ function onBoundAccountsChanged() {
   renderAccountSecurityBits();
 }
 
+// Writes a binding only if the doc is absent, already this uid's, or still held by the owner the
+// caller saw (expectedUid), so two writers can't silently overwrite each other's owner.
+function setBindingGuarded(profKey, data, expectedUid) {
+  var ref = fsDb.collection("pickem_v14_bindings").doc(profKey);
+  return fsDb.runTransaction(function(tx) {
+    return tx.get(ref).then(function(snap) {
+      var cur = snap.exists ? String((snap.data() || {}).uid || "") : "";
+      if (cur && cur !== data.uid && cur !== (expectedUid || "")) {
+        var err = new Error("binding-changed");
+        err.code = "binding-changed";
+        throw err;
+      }
+      tx.set(ref, data);
+    });
+  });
+}
+
 async function recordAccountBinding(profKey, memberName, verifiedBy, who) {
   if (!ACCOUNT_SECURITY_LIVE || !fsDb || !profKey || bindingOwnerUid(profKey)) return true;
   var b = {
@@ -140,7 +169,7 @@ async function recordAccountBinding(profKey, memberName, verifiedBy, who) {
     memberName: memberName, memberLow: memberLowOf(memberName), boundAt: new Date().toISOString(), verifiedBy: verifiedBy
   };
   try {
-    await fsDb.collection("pickem_v14_bindings").doc(profKey).set(b);
+    await setBindingGuarded(profKey, b, "");
     BOUND_ACCOUNTS[profKey] = b;
     return true;
   } catch (e) {
@@ -554,10 +583,10 @@ async function approveLinkRequest(uid) {
     return;
   }
   try {
-    await fsDb.collection("pickem_v14_bindings").doc(key).set({
+    await setBindingGuarded(key, {
       uid: r.uid, email: r.authEmail, displayName: r.authDisplayName || r.requestedMember, memberName: r.requestedMember,
       memberLow: r.requestedMemberLow || memberLowOf(r.requestedMember), boundAt: new Date().toISOString(), verifiedBy: "commish_approved"
-    });
+    }, "");
     await fsDb.collection("pickem_v14_link_requests").doc(uid).delete();
   } catch (e) {
     showAppToast("Couldn't approve (" + ((e && e.code) || "error") + "). Are the latest Firestore rules published?");
@@ -647,18 +676,6 @@ function loadInviteCode() {
     INVITE_CODE_CACHE = { code: d && d.exists ? String((d.data() || {}).code || "") : "" };
     renderCommissionerModalBody();
   }, function() { INVITE_CODE_CACHE = { code: "", error: true }; });
-}
-
-function saveInviteCode() {
-  if (!assertCommissionerRole("setting the invite code")) return;
-  var inp = document.getElementById("commish-invite-code");
-  var code = inp ? String(inp.value || "").trim() : "";
-  if (code && code.length < 4) { showAppToast("Use at least 4 characters."); return; }
-  fsDb.collection("pickem_v14_security").doc("invite").set({ code: code, updatedAt: new Date().toISOString() }).then(function() {
-    INVITE_CODE_CACHE = { code: code };
-    showAppToast(code ? "Invite code saved." : "Invite code cleared.");
-    renderCommissionerModalBody();
-  }, function(e) { showAppToast("Couldn't save the code (" + ((e && e.code) || "error") + ")."); });
 }
 
 function copyInviteLink() {
@@ -852,10 +869,10 @@ async function mergeProfileInto(dupKey, targetName) {
         jobs.push(fsDb.collection("pickem_v14").doc("shared_state").set(sharedPicks, { merge: true }));
       }
       if (uid && ACCOUNT_SECURITY_LIVE) {
-        jobs.push(fsDb.collection("pickem_v14_bindings").doc(targetKey).set({
+        jobs.push(setBindingGuarded(targetKey, {
           uid: uid, email: email, displayName: (dupBinding && dupBinding.displayName) || cu.name, memberName: rosterDisplayName(targetName),
           memberLow: targetLow, boundAt: now, verifiedBy: "commish_approved"
-        }));
+        }, bindingOwnerUid(targetKey)));
       }
       if (email) {
         // The account record decides where the account lands on its next load (auth.js re-check).
@@ -959,7 +976,6 @@ function leagueAccessHtml() {
     '<div class="acct-invite">' +
       '<label class="acct-link-label" for="commish-invite-code">League invite code' + (sc.registrationMode === "invite_code_required" ? '' : ' (used in Invite code mode)') + '</label>' +
       '<div class="acct-link-row"><input type="text" id="commish-invite-code" class="search-input" autocomplete="off" value="' + escapeShellHtml(code) + '" placeholder="e.g. TURF2026" />' +
-      '<button type="button" class="btn-sm" onclick="saveInviteCode()">Save code</button>' +
       '<button type="button" class="btn-sm" onclick="copyInviteLink()">Copy invite link</button></div>' +
       '<p class="muted-note">Only commissioners can see the code. The link (<code>?joinCode=…</code>) fills it in for whoever opens it.</p>' +
     '</div>' +
@@ -1045,7 +1061,11 @@ function renderAccountSecurityBits() {
   });
   if (typeof renderSimpleGuestAccountBar === "function") renderSimpleGuestAccountBar();
   var bd = document.getElementById("auth-modal-backdrop");
-  if (isUnlinkedAccountSession() && bd && bd.style.display === "flex") openAuthModal();
+  if (isUnlinkedAccountSession() && bd && bd.style.display === "flex") {
+    // Rebuilding the modal wipes a half-typed invite code, so leave it alone while an input is in use.
+    var typing = Array.prototype.some.call(bd.querySelectorAll("input"), function(inp) { return inp === document.activeElement || !!inp.value; });
+    if (!typing) openAuthModal();
+  }
 }
 
 var _acctPrevRenderAll = renderAll;

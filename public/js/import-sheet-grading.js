@@ -8,8 +8,7 @@ function standardizeParticipantName(rawName) {
   if (
     low === "michael" ||
     low === "michael a" ||
-    low === "michael adams" ||
-    low.indexOf("michael adams") === 0
+    low === "michael adams"
   ) {
     return "Michael A";
   }
@@ -21,9 +20,7 @@ function standardizeParticipantName(rawName) {
     low === "kinyon cooper" ||
     low === "kinyion cooper" ||
     low === "kenyon" ||
-    low === "kenyon cooper" ||
-    low.indexOf("kinyion") === 0 ||
-    low.indexOf("kenyon") === 0
+    low === "kenyon cooper"
   ) {
     // Matching key, not display text: pool sheets and stored keys use this spelling. The screen
     // shows "Kinyon C" (see fixDisplaySpelling in shell.js). Don't change it without migrating data.
@@ -272,7 +269,7 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
 
     // Always sync priorPts from state.leaderboard if present and > 0
     if (priorLookup[lowName] !== undefined && priorLookup[lowName] > 0) {
-      pm.priorPts = Math.max(parseFloat(pm.priorPts) || 0, priorLookup[lowName]);
+      pm.priorPts = priorLookup[lowName]; // leaderboard is the source of truth (B14)
     } else if (pm.priorPts === undefined || pm.priorPts === null) {
       pm.priorPts = 0;
     }
@@ -422,7 +419,7 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
       var wl = state.watchlist[w];
       var wlKey = standardizeParticipantName(wl.name).toLowerCase();
       if (priorLookup[wlKey] !== undefined && priorLookup[wlKey] > 0) {
-        wl.priorPts = Math.max(parseFloat(wl.priorPts) || 0, priorLookup[wlKey]);
+        wl.priorPts = priorLookup[wlKey];
       }
       if (rankLookup[wlKey]) {
         wl.rank = rankLookup[wlKey];

@@ -190,7 +190,7 @@ renderLiveScoreboardTab = function() {
     : '<p class="empty-note">No games match that filter.</p>');
 
   var setText = function(id, txt) { var el = document.getElementById(id); if (el) el.textContent = txt; };
-  var actMeta = getProfileMetaByKey(activeProfile);
+  var actMeta = getProfileDisplayMeta(activeProfile);
   setText("live-tab-inprog", inProgCnt);
   setText("live-tab-final", "Completed " + finalCnt + " of " + GAMES.length);
   setText("live-tab-m-label", actMeta.shortName || actMeta.name);
@@ -249,7 +249,7 @@ function updateLiveSyncAge() {
 
 function markLiveSynced(promise) {
   return Promise.resolve(promise).then(function(v) {
-    LAST_LIVE_SYNC_AT = Date.now();
+    if (!LIVE_POLL_FAILED) LAST_LIVE_SYNC_AT = Date.now();
     updateLiveSyncAge();
     return v;
   });

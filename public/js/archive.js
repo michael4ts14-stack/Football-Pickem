@@ -32,13 +32,20 @@ function ensureWeekArchivesState() {
   populateWeekArchiveDropdown();
 }
 
+// Picks of app-only (custom) profiles, keyed by profile key (B30).
+function customUserStates() {
+  var out = {};
+  (state.customUsers || []).forEach(function(u) {
+    if (u && u.key && state[u.key]) out[u.key] = state[u.key];
+  });
+  return out;
+}
+
 function saveCurrentWeekToArchive(notifyToast) {
   ensureWeekArchivesState();
   var wkNum = parseInt(state.currentWeek, 10) || 8;
   if (typeof isHardcodedWeek7Slate === "function" && isHardcodedWeek7Slate(GAMES)) {
     wkNum = 7;
-  } else if (GAMES && GAMES[0] && (GAMES[0].away === "Pittsburgh" || GAMES[0].home === "Miami")) {
-    wkNum = 8;
   }
   var key = "week_" + wkNum;
   state.weekArchives[key] = {
@@ -50,6 +57,7 @@ function saveCurrentWeekToArchive(notifyToast) {
     michael: JSON.parse(JSON.stringify(state.michael || {})),
     kinyion: JSON.parse(JSON.stringify(state.kinyion || {})),
     test: JSON.parse(JSON.stringify(state.test || {})),
+    customPicks: JSON.parse(JSON.stringify(customUserStates())),
     customUsers: JSON.parse(JSON.stringify(state.customUsers || [])),
     watchlist: JSON.parse(JSON.stringify(state.watchlist || [])),
     leaderboard: JSON.parse(JSON.stringify(state.leaderboard || [])),
@@ -59,10 +67,9 @@ function saveCurrentWeekToArchive(notifyToast) {
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
   if (fsDb && !isApplyingRemoteUpdate && canWriteSharedPoolState()) {
     try {
-      fsDb.collection("pickem_v14").doc("shared_state").set({
-        weekArchives: state.weekArchives,
-        updatedAt: new Date().toISOString()
-      }, { merge: true }).catch(function(e) { reportCloudSaveFailure("the week archive", e); });
+      // One doc per week (B08): archives inside shared_state would push it past 1 MiB.
+      fsDb.collection("pickem_v14_archives").doc(key).set(state.weekArchives[key])
+        .catch(function(e) { reportCloudSaveFailure("the week archive", e); });
     } catch (e) {}
   }
   populateWeekArchiveDropdown();
@@ -95,6 +102,7 @@ function captureLiveWeekSnapshot() {
     tiebreakerGameId: state.tiebreakerGameId,
     michael: copy(state.michael),
     kinyion: copy(state.kinyion),
+    customPicks: copy(customUserStates()),
     watchlist: copy(state.watchlist),
     poolMembers: copy(state.poolMembers),
     leaderboard: copy(state.leaderboard)
@@ -115,6 +123,7 @@ function returnToLiveWeek() {
   ["michael", "kinyion", "watchlist", "poolMembers", "leaderboard"].forEach(function(k) {
     if (snap[k] !== undefined) state[k] = snap[k];
   });
+  Object.keys(snap.customPicks || {}).forEach(function(k) { state[k] = snap.customPicks[k]; });
   MONTE_CARLO_CACHE = null;
   VIEWING_ARCHIVE_KEY = null;
   LIVE_WEEK_SNAPSHOT = null;
@@ -164,33 +173,37 @@ function switchWeekArchive(weekKey) {
   VIEWING_ARCHIVE_KEY = weekKey;
 
   isApplyingRemoteUpdate = true;
-  clearAllSlateCaches();
-  GAMES = JSON.parse(JSON.stringify(targetSnap.games || DEFAULT_WEEK7_GAMES));
-  state.currentWeek = parseInt(targetSnap.weekNum, 10) || 8;
-  state.weekLabel = targetSnap.weekLabel || ("Week " + state.currentWeek);
-  state.tiebreakerGameId = targetSnap.tiebreakerGameId || null;
+  try {
+    clearAllSlateCaches();
+    GAMES = JSON.parse(JSON.stringify(targetSnap.games || DEFAULT_WEEK7_GAMES));
+    state.currentWeek = parseInt(targetSnap.weekNum, 10) || 8;
+    state.weekLabel = targetSnap.weekLabel || ("Week " + state.currentWeek);
+    state.tiebreakerGameId = targetSnap.tiebreakerGameId || null;
 
-  if (targetSnap.michael) state.michael = JSON.parse(JSON.stringify(targetSnap.michael));
-  if (targetSnap.kinyion) state.kinyion = JSON.parse(JSON.stringify(targetSnap.kinyion));
-  if (targetSnap.watchlist) state.watchlist = JSON.parse(JSON.stringify(targetSnap.watchlist));
-  if (targetSnap.poolMembers) state.poolMembers = JSON.parse(JSON.stringify(targetSnap.poolMembers));
-  if (targetSnap.leaderboard) state.leaderboard = JSON.parse(JSON.stringify(targetSnap.leaderboard));
+    if (targetSnap.michael) state.michael = JSON.parse(JSON.stringify(targetSnap.michael));
+    if (targetSnap.kinyion) state.kinyion = JSON.parse(JSON.stringify(targetSnap.kinyion));
+    Object.keys(targetSnap.customPicks || {}).forEach(function(k) { state[k] = JSON.parse(JSON.stringify(targetSnap.customPicks[k])); });
+    if (targetSnap.watchlist) state.watchlist = JSON.parse(JSON.stringify(targetSnap.watchlist));
+    if (targetSnap.poolMembers) state.poolMembers = JSON.parse(JSON.stringify(targetSnap.poolMembers));
+    if (targetSnap.leaderboard) state.leaderboard = JSON.parse(JSON.stringify(targetSnap.leaderboard));
 
-  LIVE_SCORES = JSON.parse(JSON.stringify(targetSnap.liveScores || {}));
-  state.liveScores = LIVE_SCORES;
-  MONTE_CARLO_CACHE = null;
+    LIVE_SCORES = JSON.parse(JSON.stringify(targetSnap.liveScores || {}));
+    state.liveScores = LIVE_SCORES;
+    MONTE_CARLO_CACHE = null;
 
-  var brandEl = document.getElementById("sheet-title-brand");
-  if (brandEl) {
-    brandEl.textContent = state.weekLabel + " · Past week";
+    var brandEl = document.getElementById("sheet-title-brand");
+    if (brandEl) {
+      brandEl.textContent = state.weekLabel + " · Past week";
+    }
+
+    regradeAllPoolMembersLive();
+    syncActiveProfileControlsUI();
+    renderSwayFeed();
+    populateWeekArchiveDropdown();
+    renderAll();
+  } finally {
+    isApplyingRemoteUpdate = false;
   }
-
-  regradeAllPoolMembersLive();
-  syncActiveProfileControlsUI();
-  renderSwayFeed();
-  populateWeekArchiveDropdown();
-  renderAll();
-  isApplyingRemoteUpdate = false;
   showAppToast("📚 Loaded " + state.weekLabel + " from Season Archive!");
 }
 

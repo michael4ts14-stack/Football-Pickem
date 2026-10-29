@@ -114,28 +114,6 @@ function getLinkedMemberNameForProfile(profKey) {
   return "";
 }
 
-function isFridayNightOrWeekendCST() {
-  if (state.fridayNightRevealOverride === true) return true;
-  try {
-    var now = new Date();
-    var parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/Chicago",
-      weekday: "short",
-      hour: "numeric",
-      hour12: false
-    }).formatToParts(now);
-    var wkday = "", hr = 0;
-    for (var i = 0; i < parts.length; i++) {
-      if (parts[i].type === "weekday") wkday = parts[i].value;
-      if (parts[i].type === "hour") hr = parseInt(parts[i].value, 10) % 24;
-    }
-    // Friday night >= 5:00 PM CST (17:00), all day Saturday, or all day Sunday
-    if (wkday === "Sat" || wkday === "Sun") return true;
-    if (wkday === "Fri" && hr >= 17) return true;
-  } catch (e) {}
-  return false;
-}
-
 // The redesign uses text labels, not emoji, in the UI. Messages built elsewhere still carry them.
 function stripUiEmoji(text) {
   return String(text == null ? "" : text)
@@ -196,9 +174,6 @@ function getAutoUnhideReason(profKey, gameId) {
   if (!priv.manualLockOverride) {
     if (priv.autoUnhideOnSheet === true && hasLinkedSpreadsheetPicksArrived(profKey)) {
       return "Spreadsheet Synced";
-    }
-    if (priv.autoUnhideFridayNight === true && isFridayNightOrWeekendCST()) {
-      return "Friday Night CST";
     }
   }
   return null;
@@ -301,12 +276,19 @@ function getAllUserProfiles() {
   return list;
 }
 
+// null for a key that isn't a registered profile (never another player's meta, which a save
+// would write into that key's pick doc).
 function getProfileMetaByKey(profKey) {
   var list = getAllUserProfiles();
   for (var i = 0; i < list.length; i++) {
     if (list[i].key === profKey) return list[i];
   }
-  return list[0];
+  return null;
+}
+
+// For labels only: an unregistered key shows as a plain placeholder instead of failing.
+function getProfileDisplayMeta(profKey) {
+  return getProfileMetaByKey(profKey) || { key: profKey, name: "Unknown player", shortName: "Player", icon: "👤", color: "#10b981", tabClass: "active-custom", btnClass: "c-active", selClass: "selected-custom", tagClass: "p-tag-custom", priorPts: 0, defaultRank: "", linkedMemberName: "", isBuiltIn: false };
 }
 
 function isGameStartedOrFinal(gameId) {
@@ -413,6 +395,7 @@ function resolveCompareTargetDescriptor() {
     };
   }
   var meta = getProfileMetaByKey(key);
+  if (!meta) return null;
   var pState = state[meta.key] || { picks: {} };
   return {
     key: meta.key,
@@ -515,7 +498,7 @@ function unlockProfileWithPrompt(profKey, onSuccess) {
     if (onSuccess) onSuccess();
     return true;
   }
-  var otherMeta = getProfileMetaByKey(profKey);
+  var otherMeta = getProfileDisplayMeta(profKey);
   showAppToast("🔒 " + otherMeta.name + "'s picks are hidden until kickoff on their account instance.");
   return false;
 }
@@ -527,7 +510,7 @@ function toggleCompareTargetPinUnlock() {
 function toggleQuickLockActiveProfile() {
   ensureMultiUserAndPrivacyState();
   var myKey = getMyInstanceProfileKey();
-  var meta = getProfileMetaByKey(myKey);
+  var meta = getProfileDisplayMeta(myKey);
   var priv = state.profilePrivacy[myKey] || { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: false, autoUnhideFridayNight: false };
   priv.hidden = !priv.hidden;
   priv.manualLockOverride = priv.hidden;
@@ -577,21 +560,71 @@ function pushMultiUserAndPrivacyToFirebase() {
   // so one device NEVER overwrites another user's picks!
   // The active profile's picks go through pushProfileToFirebase below (it checks ownership);
   // the Friday-night reveal switch is the commissioner's (Console), not saved from here.
-  var payload = {
-    customUsers: state.customUsers || [],
-    profilePrivacy: state.profilePrivacy || {},
-    updatedAt: new Date().toISOString()
-  };
-  if (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
-    payload.fridayNightRevealOverride = !!state.fridayNightRevealOverride;
-  }
   // Signed-out visitors and accounts not linked to a player save nothing (firestore.rules agree).
   if (fsDb && AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
-    try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }).catch(function(e) { reportCloudSaveFailure("player settings", e); }); } catch (e) {}
+    try { saveRegistryChangesToCloud().catch(function(e) { reportCloudSaveFailure("player settings", e); }); } catch (e) {}
   }
   if (activeProfile && activeProfile !== "test") {
     pushProfileToFirebase(activeProfile);
   }
+}
+// Saves only the registry entries and privacy settings this device changed since the last cloud
+// read, merged into the current cloud list in a transaction. A profile the cloud copy never had
+// is added only if it's this device's own, and one removed elsewhere stays removed.
+function saveRegistryChangesToCloud() {
+  var same = function(a, b) { return JSON.stringify(a) === JSON.stringify(b); };
+  var baseCu = {};
+  (CLOUD_REGISTRY.customUsers || []).forEach(function(cu) { if (cu && cu.key) baseCu[cu.key] = cu; });
+  var basePriv = CLOUD_REGISTRY.profilePrivacy || {};
+  var isCommish = typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner();
+  // firestore.rules let a player change only their bound profile (named in lastProfileWriter):
+  // its own privacy entry, and adding its registry entry. Other entries are the commissioner's.
+  var writer = AUTH_SESSION && AUTH_SESSION.boundProfileKey;
+  var mayWrite = function(k) { return isCommish ? isDeviceOwnProfileKey(k) : k === writer; };
+  var changedCu = (state.customUsers || []).filter(function(cu) {
+    if (!cu || !cu.key) return false;
+    if (baseCu[cu.key]) return isCommish && !same(baseCu[cu.key], cu);
+    return mayWrite(cu.key);
+  }).map(function(cu) { return JSON.parse(JSON.stringify(cu)); });
+  // Privacy is only ever set for this device's own profiles (the defaults filled in for everyone
+  // else would otherwise look like changes).
+  var changedPriv = Object.keys(state.profilePrivacy || {}).filter(function(k) {
+    return mayWrite(k) && !same(basePriv[k], state.profilePrivacy[k]);
+  });
+  if (!changedCu.length && !changedPriv.length && !isCommish) return Promise.resolve();
+
+  var ref = fsDb.collection("pickem_v14").doc("shared_state");
+  var privVals = {};
+  changedPriv.forEach(function(k) { privVals[k] = JSON.parse(JSON.stringify(state.profilePrivacy[k])); });
+  return fsDb.runTransaction(function(tx) {
+    return tx.get(ref).then(function(snap) {
+      var cloud = snap.exists ? snap.data() : {};
+      var list = Array.isArray(cloud.customUsers) ? cloud.customUsers.slice() : [];
+      var cfg = (cloud.commissionerConfig && typeof cloud.commissionerConfig === "object") ? cloud.commissionerConfig : null;
+      changedCu.forEach(function(cu) {
+        for (var i = 0; i < list.length; i++) {
+          if (list[i] && list[i].key === cu.key) { if (isCommish) list[i] = cu; return; }
+        }
+        if (!baseCu[cu.key] && !isProfileArchived(cu.key, cfg)) list.push(cu);
+      });
+      var now = new Date().toISOString();
+      if (!snap.exists) {
+        var doc = { customUsers: list, profilePrivacy: privVals, updatedAt: now };
+        if (isCommish) doc.fridayNightRevealOverride = !!state.fridayNightRevealOverride;
+        tx.set(ref, doc, { merge: true });
+        return list;
+      }
+      var args = [ref, "customUsers", list, "updatedAt", now];
+      changedPriv.forEach(function(k) { args.push(new firebase.firestore.FieldPath("profilePrivacy", k), privVals[k]); });
+      if (isCommish) args.push("fridayNightRevealOverride", !!state.fridayNightRevealOverride);
+      else args.push("lastProfileWriter", writer);
+      tx.update.apply(tx, args);
+      return list;
+    });
+  }).then(function(list) {
+    CLOUD_REGISTRY.customUsers = JSON.parse(JSON.stringify(list));
+    CLOUD_REGISTRY.profilePrivacy = Object.assign({}, CLOUD_REGISTRY.profilePrivacy || {}, privVals);
+  });
 }
 var MEMORY_STORE = {};
 // Sets an input's value unless the person is typing in it (a background update must never

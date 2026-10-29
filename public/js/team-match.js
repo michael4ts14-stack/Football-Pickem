@@ -754,13 +754,6 @@ function sanitizeStateForActiveSlate() {
   updateWeekBrandingUI();
   if (state.weekLabel !== prevWkLabel || state.currentWeek !== prevWkNum) cleanedAny = true;
 
-  // 2b. Ensure state.leaderboard & state.poolMembers never revert to pre-Week-7 points (max 107) when official Week 8 standings (max 124) are available!
-  var curMaxLbPts = getMaxPriorPts(state.leaderboard);
-  var officialWk8MaxPts = getMaxPriorPts(WEEK7_OFFICIAL_LEADERBOARD);
-  if (curMaxLbPts < officialWk8MaxPts) {
-    state.leaderboard = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_LEADERBOARD));
-    cleanedAny = true;
-  }
   var latestPtsLookup = {};
   var latestRankLookup = {};
   if (state.leaderboard && Array.isArray(state.leaderboard)) {
@@ -775,7 +768,7 @@ function sanitizeStateForActiveSlate() {
     for (var pmIdx = 0; pmIdx < state.poolMembers.length; pmIdx++) {
       var pmObj = state.poolMembers[pmIdx];
       var pmKey = standardizeParticipantName(pmObj.name).toLowerCase();
-      if (latestPtsLookup[pmKey] !== undefined && (parseFloat(pmObj.priorPts) || 0) < latestPtsLookup[pmKey]) {
+      if (latestPtsLookup[pmKey] !== undefined && (parseFloat(pmObj.priorPts) || 0) !== latestPtsLookup[pmKey]) {
         pmObj.priorPts = latestPtsLookup[pmKey];
         if (latestRankLookup[pmKey]) pmObj.priorRank = latestRankLookup[pmKey];
         cleanedAny = true;
@@ -794,7 +787,7 @@ function sanitizeStateForActiveSlate() {
       for (var wUp = 0; wUp < state.watchlist.length; wUp++) {
         var wlItem = state.watchlist[wUp];
         var wlKey = standardizeParticipantName(wlItem.name).toLowerCase();
-        if (latestPtsLookup[wlKey] !== undefined && (parseFloat(wlItem.priorPts) || 0) < latestPtsLookup[wlKey]) {
+        if (latestPtsLookup[wlKey] !== undefined && (parseFloat(wlItem.priorPts) || 0) !== latestPtsLookup[wlKey]) {
           wlItem.priorPts = latestPtsLookup[wlKey];
           if (latestRankLookup[wlKey]) wlItem.rank = latestRankLookup[wlKey];
           cleanedAny = true;
@@ -902,8 +895,9 @@ function sanitizeStateForActiveSlate() {
   return cleanedAny;
 }
 
+// Callers archive the outgoing week before they replace GAMES or currentWeek; by the time this
+// runs the new slate is already in place, so archiving here would file it under the wrong week.
 function resetPoolPicksForNewWeek(syncToCloud) {
-  saveCurrentWeekToArchive(false);
   if (state.poolMembers && Array.isArray(state.poolMembers)) {
     for (var i = 0; i < state.poolMembers.length; i++) {
       state.poolMembers[i].picks = {};
@@ -947,10 +941,15 @@ function ensureWatchlistDefaults() {
       { id: "w3", name: "Rival #3", rank: "T-25th", priorPts: 101, picks: {} }
     ];
   }
-  if (!state.poolMembers || !Array.isArray(state.poolMembers) || state.poolMembers.length < 10) {
+  // The built-in roster is only a placeholder until the pool's own arrives: once the cloud has
+  // loaded, a small (or empty) league is the real one.
+  var seedRoster = typeof CLOUD_HYDRATED === "undefined" || !CLOUD_HYDRATED;
+  if (!Array.isArray(state.poolMembers)) state.poolMembers = [];
+  if (!Array.isArray(state.leaderboard)) state.leaderboard = [];
+  if (seedRoster && state.poolMembers.length === 0) {
     state.poolMembers = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_POOL_MEMBERS));
   }
-  if (!state.leaderboard || !Array.isArray(state.leaderboard) || state.leaderboard.length < 10) {
+  if (seedRoster && state.leaderboard.length === 0) {
     state.leaderboard = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_LEADERBOARD));
   }
   if (state.watchlist && state.watchlist[0] && state.watchlist[0].name === "Pool Leader") {

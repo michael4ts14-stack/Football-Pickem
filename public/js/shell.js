@@ -525,7 +525,7 @@ function renderMoreView() {
   var box = document.getElementById("more-view-container");
   if (!box) return;
   var isCommish = isVerifiedCommissioner();
-  var meta = getProfileMetaByKey(activeProfile);
+  var meta = getProfileDisplayMeta(activeProfile);
   var signedIn = !!AUTH_SESSION;
   var theme = getAppTheme();
 
@@ -713,8 +713,22 @@ function isOverlayVisible(el) {
 
 function syncOverlayScrollLock() {
   var any = OVERLAY_IDS.some(function(id) { return isOverlayVisible(document.getElementById(id)); });
-  document.body.classList.toggle("modal-open", any);
+  var wasLocked = document.body.classList.contains("modal-open");
+  if (any === wasLocked) return;
+  // overflow:hidden alone doesn't stop the page scrolling behind a sheet on iOS Safari, so pin the
+  // body in place and put the scroll position back when the last overlay closes.
+  var b = document.body;
+  if (any) {
+    overlayLockScrollY = window.pageYOffset || 0;
+    b.style.top = "-" + overlayLockScrollY + "px";
+    b.classList.add("modal-open");
+  } else {
+    b.classList.remove("modal-open");
+    b.style.top = "";
+    window.scrollTo(0, overlayLockScrollY);
+  }
 }
+var overlayLockScrollY = 0;
 
 function closeAllModalsExcept(activeModalId) {
   Object.keys(OVERLAY_CLOSERS).forEach(function(id) {

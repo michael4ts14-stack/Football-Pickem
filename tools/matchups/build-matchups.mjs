@@ -8,7 +8,7 @@
 // --dry-run   fetch and build, print a summary, write nothing to Firestore
 // --force     full refresh even if one ran in the last 20 hours
 // Auth: if GOOGLE_SERVICE_ACCOUNT_JSON is set, Firestore calls use that service account;
-// otherwise they are unauthenticated (allowed while firestore.rules leaves live_games open).
+// otherwise they are unauthenticated (firestore.rules now rejects those writes).
 import { writeFileSync } from "node:fs";
 import {
   seasonStatsFromSummary, extraStatsFromTeamFeed, computeNationalRanks, matchupEdges,

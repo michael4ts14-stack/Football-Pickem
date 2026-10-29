@@ -1,8 +1,9 @@
 // firestore.rules against the Firestore emulator. Run: cd tests/rules && npm install && npm test
 import { test, before, after } from "node:test";
 import { readFileSync } from "node:fs";
+import assert from "node:assert/strict";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, getDocs, collection, deleteField, deleteDoc, Timestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, getDocs, collection, deleteField, deleteDoc, Timestamp, FieldPath, writeBatch } from "firebase/firestore";
 
 let env;
 const J = { uid: "uid-justin", email: "justin@example.com" };      // owns u_justinc
@@ -75,10 +76,40 @@ test("pool state: a player saves their own profile, not anyone else's", async ()
 
 test("pool state: players can update the registry and privacy, nothing pool-wide", async () => {
   await seed();
-  await assertSucceeds(setDoc(SS(db(J)), { customUsers: [{ key: "u_justinc" }], profilePrivacy: { u_justinc: { hidden: true } }, updatedAt: "t" }, { merge: true }));
+  await assertSucceeds(setDoc(SS(db(J)), { customUsers: [{ key: "u_justinc" }], profilePrivacy: { u_justinc: { hidden: true } }, lastProfileWriter: "u_justinc", updatedAt: "t" }, { merge: true }));
   for (const field of ["customGames", "commissionerConfig", "poolMembers", "leaderboard", "currentWeek", "weekArchives", "deletedPicksByMember", "fridayNightRevealOverride", "liveScores"]) {
     await assertFails(setDoc(SS(db(J)), { [field]: 1, updatedAt: "t" }, { merge: true }), field);
   }
+});
+
+test("pool state: players change only their own privacy and registry entry", async () => {
+  await seed();
+  const steve = { key: "u_stevem", name: "Steve M" };
+  await env.withSecurityRulesDisabled((c) => setDoc(SS(c.firestore()), { customUsers: [steve], profilePrivacy: { michael: { hidden: true } } }, { merge: true }));
+  const reg = (who, data) => setDoc(SS(db(who)), Object.assign({ updatedAt: "t" }, data), { merge: true });
+  const mine = { key: "u_justinc", name: "Justin C" };
+  // Someone else's privacy, with or without naming them as the writer.
+  await assertFails(reg(J, { profilePrivacy: { michael: { hidden: false } }, lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(J, { profilePrivacy: { michael: { hidden: false } }, lastProfileWriter: "michael" }));
+  await assertFails(reg(J, { profilePrivacy: { u_justinc: { hidden: true } } }));                       // writer not named
+  await assertFails(reg(O, { profilePrivacy: { u_other: { hidden: true } }, lastProfileWriter: "u_other" })); // not bound
+  await assertSucceeds(reg(J, { profilePrivacy: { u_justinc: { hidden: true } }, lastProfileWriter: "u_justinc" }));
+  // The registry: no removing, editing or reordering entries, no adding someone else's.
+  await assertFails(reg(J, { customUsers: [], lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(J, { customUsers: [{ key: "u_stevem", name: "Steve", priorPts: 99 }], lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(J, { customUsers: [mine, steve], lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(J, { customUsers: [steve, { key: "u_x" }], lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(J, { customUsers: [steve, mine, mine], lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(O, { customUsers: [steve, { key: "u_other" }], lastProfileWriter: "u_other" }));
+  // The app's own write (saveRegistryChangesToCloud): the whole list plus field-path privacy.
+  await assertFails(updateDoc(SS(db(J)), "customUsers", [steve, mine], "updatedAt", "t",
+    new FieldPath("profilePrivacy", "michael"), { hidden: false }, "lastProfileWriter", "u_justinc"));
+  await assertSucceeds(updateDoc(SS(db(J)), "customUsers", [steve, mine], "updatedAt", "t",
+    new FieldPath("profilePrivacy", "u_justinc"), { hidden: false }, "lastProfileWriter", "u_justinc"));
+  await assertSucceeds(updateDoc(SS(db(J)), "customUsers", [steve, mine], "updatedAt", "t2", "lastProfileWriter", "u_justinc"));
+  // Once added, the player's own entry stays as it is too (commissioners edit it).
+  await assertFails(reg(J, { customUsers: [steve, { key: "u_justinc", name: "JC" }], lastProfileWriter: "u_justinc" }));
+  await assertSucceeds(reg(M, { customUsers: [steve, { key: "u_justinc", name: "JC" }], profilePrivacy: { michael: { hidden: false } } }));
 });
 
 test("pool state: commissioner writes anything; unverified or typo-domain accounts don't count", async () => {
@@ -236,5 +267,125 @@ test("commissioner settings, send log and live data", async () => {
   await assertSucceeds(getDoc(doc(db(M), "pickem_v14_email_log/a")));
   await assertFails(getDoc(doc(db(J), "pickem_v14_email_log/a")));
   await assertFails(setDoc(doc(db(M), "pickem_v14_email_log/b"), { ok: true }));
-  await assertSucceeds(setDoc(doc(guest(), "live_games/week_9_matchups"), { x: 1 })); // still open (GitHub jobs)
+  // live_games: everyone reads; only commissioners write (the GitHub jobs use a service account).
+  await assertSucceeds(getDoc(doc(guest(), "live_games/week_9_matchups")));
+  await assertFails(setDoc(doc(guest(), "live_games/week_9_matchups"), { x: 1 }));
+  await assertFails(setDoc(doc(db(J), "live_games/bot_status"), { x: 1 }));
+  await assertSucceeds(setDoc(doc(db(M), "live_games/week_9_matchups"), { x: 1 }));
+});
+
+const ago = (mins) => Timestamp.fromMillis(Date.now() + mins * 60000);
+const LOCKS = (d) => doc(d, "pickem_v14/kickoff_locks");
+async function seedKickoffs() {
+  await seed();
+  await env.withSecurityRulesDisabled(async (c) => {
+    const d = c.firestore();
+    await setDoc(SS(d), { u_justinc: { picks: { 1: "Arizona", 2: "Iowa" } } }, { merge: true });
+    await setDoc(doc(d, "pickem_v14_users/u_justinc"), { ownerUid: J.uid, picks: { 1: "Arizona", 2: "Iowa" } });
+    // Game 1 kicked off 2 minutes ago, game 2 kicks off in an hour, game 3 has no kickoff time.
+    await setDoc(LOCKS(d), { week: 9, windows: [{ at: ago(-2), ids: ["1"] }, { at: ago(60), ids: ["2"] }] });
+  });
+}
+const pickDoc = (d, p) => setDoc(doc(d, "pickem_v14_users/u_justinc"), { ownerUid: J.uid, picks: p }, { mergeFields: ["ownerUid", "picks"] });
+const sharedPicks = (d, p) => setDoc(SS(d), { u_justinc: { picks: p }, lastProfileWriter: "u_justinc", updatedAt: "t" }, { mergeFields: ["u_justinc", "lastProfileWriter", "updatedAt"] });
+
+test("week archives: everyone reads; only commissioners write", async () => {
+  await seed();
+  const A = (d) => doc(d, "pickem_v14_archives/week_8");
+  await assertSucceeds(setDoc(A(db(M)), { weekNum: 8, games: [{ id: 1 }] }));
+  await assertSucceeds(getDoc(A(guest())));
+  await assertFails(setDoc(A(guest()), { weekNum: 8 }));
+  await assertFails(setDoc(A(db(J)), { weekNum: 8 }));
+  await assertFails(deleteDoc(A(db(J))));
+  await assertSucceeds(deleteDoc(A(db(M))));
+  // A commissioner clears the old copy out of shared_state.
+  await assertSucceeds(setDoc(SS(db(M)), { weekArchives: deleteField() }, { merge: true }));
+});
+
+test("kickoff lock: a player can't change a pick once that game kicked off", async () => {
+  await seedKickoffs();
+  await assertSucceeds(pickDoc(db(J), { 1: "Arizona", 2: "Wisconsin", 3: "SMU" }));  // future / untimed games
+  await assertFails(pickDoc(db(J), { 1: "Texas Tech", 2: "Wisconsin", 3: "SMU" }));   // started game changed
+  await assertFails(pickDoc(db(J), { 2: "Wisconsin", 3: "SMU" }));                    // started pick removed
+  await assertSucceeds(sharedPicks(db(J), { 1: "Arizona", 2: "Wisconsin" }));
+  await assertFails(sharedPicks(db(J), { 1: "Texas Tech", 2: "Wisconsin" }));
+  await assertFails(sharedPicks(db(J), { 2: "Wisconsin" }));
+});
+
+test("kickoff lock: a new pick doc can't add a pick for a started game", async () => {
+  await seedKickoffs();
+  await env.withSecurityRulesDisabled(async (c) => { await deleteDoc(doc(c.firestore(), "pickem_v14_users/u_justinc")); });
+  await assertFails(pickDoc(db(J), { 1: "Arizona" }));
+  await assertSucceeds(pickDoc(db(J), { 2: "Iowa" }));
+});
+
+test("kickoff lock: locks from another week don't apply", async () => {
+  await seedKickoffs();
+  await env.withSecurityRulesDisabled(async (c) => { await setDoc(SS(c.firestore()), { currentWeek: 10 }, { merge: true }); });
+  await assertSucceeds(pickDoc(db(J), { 1: "Texas Tech" }));
+  await env.withSecurityRulesDisabled(async (c) => { await deleteDoc(LOCKS(c.firestore())); });
+  await assertSucceeds(pickDoc(db(J), { 1: "Arizona" }));                             // no locks doc at all
+});
+
+test("kickoff lock: commissioners write the locks and can still correct started games", async () => {
+  await seedKickoffs();
+  await assertSucceeds(pickDoc(db(M), { 1: "Texas Tech", 2: "Iowa" }));
+  await assertSucceeds(sharedPicks(db(M), { 1: "Texas Tech", 2: "Iowa" }));
+  await assertSucceeds(setDoc(LOCKS(db(M)), { week: 9, windows: [] }));
+  await assertFails(setDoc(LOCKS(db(J)), { week: 9, windows: [] }));
+  await assertSucceeds(getDoc(LOCKS(guest())));
+});
+
+test("kickoff lock: 30 games in 20 windows, 90 players, every pick changed stays inside the rules' limit", async () => {
+  await seed();
+  const ids = Array.from({ length: 30 }, (_, i) => String(i + 1));
+  const windows = Array.from({ length: 20 }, (_, w) => ({ at: ago(w === 19 ? -5 : 60 + w), ids: w < 10 ? ids.slice(w * 2, w * 2 + 2) : [ids[w + 10]] }));
+  await env.withSecurityRulesDisabled(async (c) => {
+    const d = c.firestore();
+    const players = Object.fromEntries(Array.from({ length: 90 }, (_, i) => ["u_p" + i, { picks: Object.fromEntries(ids.map((id) => [id, "A"])) }]));
+    await setDoc(SS(d), Object.assign(players, { customGames: ids.map((id) => ({ id: +id })) }), { merge: true });
+    await setDoc(LOCKS(d), { week: 9, windows });
+  });
+  const open = Object.fromEntries(ids.slice(0, 29).map((id) => [id, "B"]));             // game 30 (window 20) started
+  await assertSucceeds(pickDoc(db(J), open));
+  await assertSucceeds(sharedPicks(db(J), open));
+  await assertFails(pickDoc(db(J), Object.assign({}, open, { 30: "B" })));
+  await assertFails(sharedPicks(db(J), Object.assign({}, open, { 30: "B" })));
+});
+
+// pushProfileToFirebase saves the pick doc and shared_state in one batch (same field lists).
+const pickSaveBatch = (d, who, key, p, extra = {}) => {
+  const b = writeBatch(d);
+  const userDoc = { profileKey: key, picks: p, ownerUid: who.uid, updatedAt: "t" };
+  const shared = Object.assign({ [key]: { picks: p }, lastProfileWriter: key, updatedAt: "t" }, extra);
+  b.set(doc(d, "pickem_v14_users/" + key), userDoc, { mergeFields: Object.keys(userDoc) });
+  b.set(SS(d), shared, { mergeFields: Object.keys(shared) });
+  return b.commit();
+};
+
+test("pick save batch: the owner's batch writes both copies; a denied half writes neither", async () => {
+  await seed();
+  await assertSucceeds(pickSaveBatch(db(J), J, "u_justinc", { 1: "Texas Tech" }));
+  await assertFails(pickSaveBatch(db(J), J, "u_justinc", { 1: "Arizona" }, { michael: { picks } })); // shared half denied
+  await assertFails(pickSaveBatch(db(O), O, "u_justinc", { 1: "Arizona" }));
+  // A new profile (binding but no pick doc yet) saves in the same batch.
+  await env.withSecurityRulesDisabled(async (c) => { await deleteDoc(doc(c.firestore(), "pickem_v14_users/u_justinc")); });
+  await assertSucceeds(pickSaveBatch(db(J), J, "u_justinc", { 1: "Texas Tech" }));
+  await env.withSecurityRulesDisabled(async (c) => {
+    const d = c.firestore();
+    assert.deepEqual((await getDoc(doc(d, "pickem_v14_users/u_justinc"))).data().picks, { 1: "Texas Tech" });
+    assert.deepEqual((await getDoc(SS(d))).data().u_justinc.picks, { 1: "Texas Tech" });
+  });
+});
+
+test("standings save: liveScores is replaced whole, so removed games don't come back", async () => {
+  await seed();
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(SS(c.firestore()), { liveScores: { 1: { completed: true }, 2: { inProgress: true } } }, { merge: true });
+  });
+  const payload = { watchlist: [], leaderboard: [], poolMembers: [], liveScores: { 3: { inProgress: true } }, updatedAt: "t" };
+  await assertSucceeds(setDoc(SS(db(M)), payload, { mergeFields: Object.keys(payload) }));
+  const data = (await getDoc(SS(guest()))).data();
+  assert.deepEqual(data.liveScores, { 3: { inProgress: true } });
+  assert.equal(data.currentWeek, 9); // fields not listed are left alone
 });

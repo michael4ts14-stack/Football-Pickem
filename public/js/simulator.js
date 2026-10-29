@@ -62,7 +62,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
     return { choices: arr, validCnt: validCnt };
   };
 
-  var actMeta = getProfileMetaByKey(activeProfile);
+  var actMeta = getProfileDisplayMeta(activeProfile);
   var participants = [];
   var seenNames = {};
 
@@ -300,7 +300,7 @@ function renderMonteCarloSimulatorBox() {
   if (!el) return;
 
   var sim = runMonteCarloPoolSimulation(5000, false);
-  var actMeta = getProfileMetaByKey(activeProfile);
+  var actMeta = getProfileDisplayMeta(activeProfile);
   var cmpDesc = resolveCompareTargetDescriptor();
   var actHidden = isProfileHiddenFromViewer(activeProfile, null);
   var cmpHidden = cmpDesc ? cmpDesc.isHiddenForGame(null) : false;

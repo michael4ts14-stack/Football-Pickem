@@ -22,9 +22,10 @@ syncCommissionerVisibilityDOM();
 syncManualLockButtonUI();
 renderMultiBuyInEntryStrip();
 syncSimpleModeTabHighlights();
-// Offline or Firestore unreachable: stop waiting for the pool's slate after 8 seconds.
+// Offline or Firestore unreachable: after 8 seconds say so, but keep picking off until the
+// pool's slate arrives (the built-in games are not this week's).
 setTimeout(function() {
-  if (!CLOUD_HYDRATED) { CLOUD_HYDRATED = true; renderAll(); }
+  if (!CLOUD_HYDRATED) { CLOUD_LOAD_TIMED_OUT = true; renderAll(); }
 }, 8000);
 setTimeout(function() {
   if (!window._fullWeekEnrichmentRunning) {
