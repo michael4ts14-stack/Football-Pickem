@@ -37,8 +37,6 @@ function saveCurrentWeekToArchive(notifyToast) {
   var wkNum = parseInt(state.currentWeek, 10) || 8;
   if (typeof isHardcodedWeek7Slate === "function" && isHardcodedWeek7Slate(GAMES)) {
     wkNum = 7;
-  } else if (GAMES && GAMES[0] && (GAMES[0].away === "Pittsburgh" || GAMES[0].home === "Miami")) {
-    wkNum = 8;
   }
   var key = "week_" + wkNum;
   state.weekArchives[key] = {
