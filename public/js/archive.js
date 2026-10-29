@@ -164,33 +164,36 @@ function switchWeekArchive(weekKey) {
   VIEWING_ARCHIVE_KEY = weekKey;
 
   isApplyingRemoteUpdate = true;
-  clearAllSlateCaches();
-  GAMES = JSON.parse(JSON.stringify(targetSnap.games || DEFAULT_WEEK7_GAMES));
-  state.currentWeek = parseInt(targetSnap.weekNum, 10) || 8;
-  state.weekLabel = targetSnap.weekLabel || ("Week " + state.currentWeek);
-  state.tiebreakerGameId = targetSnap.tiebreakerGameId || null;
+  try {
+    clearAllSlateCaches();
+    GAMES = JSON.parse(JSON.stringify(targetSnap.games || DEFAULT_WEEK7_GAMES));
+    state.currentWeek = parseInt(targetSnap.weekNum, 10) || 8;
+    state.weekLabel = targetSnap.weekLabel || ("Week " + state.currentWeek);
+    state.tiebreakerGameId = targetSnap.tiebreakerGameId || null;
 
-  if (targetSnap.michael) state.michael = JSON.parse(JSON.stringify(targetSnap.michael));
-  if (targetSnap.kinyion) state.kinyion = JSON.parse(JSON.stringify(targetSnap.kinyion));
-  if (targetSnap.watchlist) state.watchlist = JSON.parse(JSON.stringify(targetSnap.watchlist));
-  if (targetSnap.poolMembers) state.poolMembers = JSON.parse(JSON.stringify(targetSnap.poolMembers));
-  if (targetSnap.leaderboard) state.leaderboard = JSON.parse(JSON.stringify(targetSnap.leaderboard));
+    if (targetSnap.michael) state.michael = JSON.parse(JSON.stringify(targetSnap.michael));
+    if (targetSnap.kinyion) state.kinyion = JSON.parse(JSON.stringify(targetSnap.kinyion));
+    if (targetSnap.watchlist) state.watchlist = JSON.parse(JSON.stringify(targetSnap.watchlist));
+    if (targetSnap.poolMembers) state.poolMembers = JSON.parse(JSON.stringify(targetSnap.poolMembers));
+    if (targetSnap.leaderboard) state.leaderboard = JSON.parse(JSON.stringify(targetSnap.leaderboard));
 
-  LIVE_SCORES = JSON.parse(JSON.stringify(targetSnap.liveScores || {}));
-  state.liveScores = LIVE_SCORES;
-  MONTE_CARLO_CACHE = null;
+    LIVE_SCORES = JSON.parse(JSON.stringify(targetSnap.liveScores || {}));
+    state.liveScores = LIVE_SCORES;
+    MONTE_CARLO_CACHE = null;
 
-  var brandEl = document.getElementById("sheet-title-brand");
-  if (brandEl) {
-    brandEl.textContent = state.weekLabel + " · Past week";
+    var brandEl = document.getElementById("sheet-title-brand");
+    if (brandEl) {
+      brandEl.textContent = state.weekLabel + " · Past week";
+    }
+
+    regradeAllPoolMembersLive();
+    syncActiveProfileControlsUI();
+    renderSwayFeed();
+    populateWeekArchiveDropdown();
+    renderAll();
+  } finally {
+    isApplyingRemoteUpdate = false;
   }
-
-  regradeAllPoolMembersLive();
-  syncActiveProfileControlsUI();
-  renderSwayFeed();
-  populateWeekArchiveDropdown();
-  renderAll();
-  isApplyingRemoteUpdate = false;
   showAppToast("📚 Loaded " + state.weekLabel + " from Season Archive!");
 }
 

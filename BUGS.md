@@ -1,6 +1,6 @@
 # Bug Audit: Separated at Turf Pick'em
 
-Static read of `public/js`, `public/css`, `firestore.rules` and `sw.js` on `claude/sat-ui-redesign-ogkerh`. Nothing has been fixed. Line numbers point at the current files.
+Static read of `public/js`, `public/css`, `firestore.rules` and `sw.js` on `claude/sat-ui-redesign-ogkerh`. Line numbers point at the files as audited. Fixed items are marked ✅ in the ID column.
 
 | ID | Severity | System | File:line | Bug | Fix idea |
 |---|---|---|---|---|---|
@@ -10,7 +10,7 @@ Static read of `public/js`, `public/css`, `firestore.rules` and `sw.js` on `clau
 | B04 | P1 | Commissioner / new week | `public/js/espn.js:192` | `hardResetToDefaults()` runs on every slate publish/import (`live-scores.js:951`, `simple-mode-commissioner.js:1223`). It writes recommended picks as Michael's and Kinyon's real picks for the new week and saves them. | Remove it from the publish paths. New weeks should start with empty picks. |
 | B05 | P1 | Archive (data loss) | `public/js/live-scores.js:943` | Slate import replaces `GAMES`, clears `LIVE_SCORES` and bumps the week before `resetPoolPicksForNewWeek` archives (`team-match.js:906`). The archive gets the new games with no scores. When the week isn't detected, it overwrites the finished week's archive. | Archive the outgoing week before touching `GAMES` or `currentWeek`, and make `reset` stop archiving. |
 | B06 | P1 | Archive (data loss) | `public/js/archive.js:40` | Any slate whose first game has Pittsburgh away or Miami home is archived as `week_8`, overwriting the real Week 8 archive. | Drop the hardcoded team check and use `state.currentWeek` only. |
-| B07 | P1 | Persistence | `public/js/firestore.js:200` | `isApplyingRemoteUpdate` is set to true and only reset at `:384`, with no try/finally. Any throw in regrade or render leaves it stuck, and every later save returns early without an error. `archive.js:166` has the same pattern. | Wrap the body in try/finally. |
+| B07 ✅ | P1 | Persistence | `public/js/firestore.js:200` | `isApplyingRemoteUpdate` is set to true and only reset at `:384`, with no try/finally. Any throw in regrade or render leaves it stuck, and every later save returns early without an error. `archive.js:166` has the same pattern. | Wrap the body in try/finally. |
 | B08 | P1 | Persistence | `public/js/archive.js:62` | Each archived week, including fully enriched games, lives inside the single `shared_state` doc next to the pool, picks and config. Mid-season it can pass Firestore's 1 MiB doc limit, and then every pool write fails. | Move archives to `pickem_v14_archives/{week}` docs. |
 | B09 | P1 | Persistence / race | `public/js/simple-mode-commissioner.js:567` | `saveCommissionerConfigToCloud` writes the whole `commissionerConfig` from this device's copy. A stale tab or a second commissioner wipes dues flags (written per field), `inviteLink`, blocked users and archived players saved elsewhere. | Write per-field `FieldPath` updates, or use a transaction that merges. |
 | B10 | P1 | Persistence / race | `public/js/state.js:590` | Every player device writes the whole `customUsers` array (and `profilePrivacy`) on many actions. Two signups at once, or a stale phone, drop new players or revive removed ones. | Move the registry to one doc per player, or use arrayUnion/field updates. |

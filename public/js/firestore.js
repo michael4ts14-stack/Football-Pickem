@@ -198,190 +198,193 @@ function applyRemoteCloudData(data, sourceLabel) {
   }
 
   isApplyingRemoteUpdate = true;
-
-  var slateChanged = false;
-  var needsEspnEnrichment = false;
-  if (incomingGames) {
-    var incomingSig = getSlateSignature(incomingGames);
-    var currentSig = getSlateSignature(GAMES);
-    if (incomingSig !== currentSig) {
-      GAMES = incomingGames;
-      slateChanged = true;
-      if (!isHardcodedWeek7Slate(GAMES)) {
-        hasLockedCustomSlate = true;
+  // Always cleared: if it stayed set after a throw, every later save would silently skip.
+  try {
+    var slateChanged = false;
+    var needsEspnEnrichment = false;
+    if (incomingGames) {
+      var incomingSig = getSlateSignature(incomingGames);
+      var currentSig = getSlateSignature(GAMES);
+      if (incomingSig !== currentSig) {
+        GAMES = incomingGames;
+        slateChanged = true;
+        if (!isHardcodedWeek7Slate(GAMES)) {
+          hasLockedCustomSlate = true;
+        }
+        clearAllSlateCaches();
+      } else {
+        // Same 26 matchups: preserve any in-memory ESPN enrichments (insights, schedules, injuries, kickoff times)
+        for (var mIdx = 0; mIdx < GAMES.length; mIdx++) {
+          if (incomingGames[mIdx]) {
+            mergeEnrichedGameFields(incomingGames[mIdx], GAMES[mIdx]);
+            GAMES[mIdx] = incomingGames[mIdx];
+          }
+        }
       }
-      clearAllSlateCaches();
-    } else {
-      // Same 26 matchups: preserve any in-memory ESPN enrichments (insights, schedules, injuries, kickoff times)
-      for (var mIdx = 0; mIdx < GAMES.length; mIdx++) {
-        if (incomingGames[mIdx]) {
-          mergeEnrichedGameFields(incomingGames[mIdx], GAMES[mIdx]);
-          GAMES[mIdx] = incomingGames[mIdx];
+
+      for (var i = 0; i < GAMES.length; i++) {
+        var g = GAMES[i];
+        var aRank = TEAM_RANKS[g.away] || null;
+        var hRank = TEAM_RANKS[g.home] || null;
+        var aClean = (g.awayRec || "").replace(/#\d+\s*•?\s*/g, "").trim();
+        var hClean = (g.homeRec || "").replace(/#\d+\s*•?\s*/g, "").trim();
+        g.awayRec = (aRank ? (aRank + " • ") : "") + aClean;
+        g.homeRec = (hRank ? (hRank + " • ") : "") + hClean;
+        enrichGameInjuries(g);
+        if (g.awayL5 && g.awayL5.length) {
+          TEAM_LOGS[g.away] = Object.assign(TEAM_LOGS[g.away] || {}, { rec: g.awayRec || "2026", l5: g.awayL5 });
+        }
+        if (g.homeL5 && g.homeL5.length) {
+          TEAM_LOGS[g.home] = Object.assign(TEAM_LOGS[g.home] || {}, { rec: g.homeRec || "2026", l5: g.homeL5 });
+        }
+        if (!isGameEnrichedWithEspnData(g)) {
+          needsEspnEnrichment = true;
         }
       }
     }
 
-    for (var i = 0; i < GAMES.length; i++) {
-      var g = GAMES[i];
-      var aRank = TEAM_RANKS[g.away] || null;
-      var hRank = TEAM_RANKS[g.home] || null;
-      var aClean = (g.awayRec || "").replace(/#\d+\s*•?\s*/g, "").trim();
-      var hClean = (g.homeRec || "").replace(/#\d+\s*•?\s*/g, "").trim();
-      g.awayRec = (aRank ? (aRank + " • ") : "") + aClean;
-      g.homeRec = (hRank ? (hRank + " • ") : "") + hClean;
-      enrichGameInjuries(g);
-      if (g.awayL5 && g.awayL5.length) {
-        TEAM_LOGS[g.away] = Object.assign(TEAM_LOGS[g.away] || {}, { rec: g.awayRec || "2026", l5: g.awayL5 });
+    if (data.liveScores && typeof data.liveScores === "object" && !slateChanged) {
+      for (var lsKey in data.liveScores) {
+        var incomingLs = data.liveScores[lsKey];
+        var gCheck = findGameById(lsKey);
+        if (!gCheck || !incomingLs) continue;
+        if (incomingLs.matchupKey && incomingLs.matchupKey !== gameMatchupKey(gCheck)) continue;
+        var existingLs = LIVE_SCORES[lsKey];
+        if (incomingLs.completed || incomingLs.inProgress) {
+          if (!existingLs || (!existingLs.completed && !existingLs.inProgress) || incomingLs.completed) {
+            LIVE_SCORES[lsKey] = incomingLs;
+          }
+        }
       }
-      if (g.homeL5 && g.homeL5.length) {
-        TEAM_LOGS[g.home] = Object.assign(TEAM_LOGS[g.home] || {}, { rec: g.homeRec || "2026", l5: g.homeL5 });
-      }
-      if (!isGameEnrichedWithEspnData(g)) {
-        needsEspnEnrichment = true;
+      state.liveScores = LIVE_SCORES;
+    }
+
+    // 2. GRANULAR PER-PROFILE MERGE: Never let another user's cloud update switch your activeProfile
+    //    or compareTargetKey, and only protect `activeProfile` during a 1.5s local click while
+    //    ALWAYS accepting other users' incoming picks in real time!
+    var withinLocalPickLock = (Date.now() - lastLocalPickTs) < 3500;
+    if (data.deletedPicksByMember && typeof data.deletedPicksByMember === "object" && !withinLocalPickLock) {
+      state.deletedPicksByMember = data.deletedPicksByMember;
+    }
+    var shouldAcceptProfile = function(profKey) {
+      if (profKey === "test") return false; // Test Sim is always isolated per-device!
+      if (withinLocalPickLock || hasPendingProfileSave(profKey)) return false;
+      var pMeta = getProfileMetaByKey(profKey);
+      var pLow = standardizeParticipantName((pMeta && (pMeta.linkedMemberName || pMeta.name)) || "").toLowerCase();
+      if (pLow && state.deletedPicksByMember && state.deletedPicksByMember[pLow]) return false;
+      return true;
+    };
+
+    if (data.michael && data.michael.picks && shouldAcceptProfile("michael")) {
+      var mMatch = countMatchingPicksForSlate(data.michael.picks, GAMES);
+      if (mMatch.total < 5 || mMatch.matched >= Math.ceil(mMatch.total * 0.5)) {
+        state.michael = data.michael;
       }
     }
-  }
-
-  if (data.liveScores && typeof data.liveScores === "object" && !slateChanged) {
-    for (var lsKey in data.liveScores) {
-      var incomingLs = data.liveScores[lsKey];
-      var gCheck = findGameById(lsKey);
-      if (!gCheck || !incomingLs) continue;
-      if (incomingLs.matchupKey && incomingLs.matchupKey !== gameMatchupKey(gCheck)) continue;
-      var existingLs = LIVE_SCORES[lsKey];
-      if (incomingLs.completed || incomingLs.inProgress) {
-        if (!existingLs || (!existingLs.completed && !existingLs.inProgress) || incomingLs.completed) {
-          LIVE_SCORES[lsKey] = incomingLs;
+    if (data.kinyion && data.kinyion.picks && shouldAcceptProfile("kinyion")) {
+      var kMatch = countMatchingPicksForSlate(data.kinyion.picks, GAMES);
+      if (kMatch.total < 5 || kMatch.matched >= Math.ceil(kMatch.total * 0.5)) {
+        state.kinyion = data.kinyion;
+      }
+    }
+    if (data.customUsers && Array.isArray(data.customUsers)) {
+      // The cloud list is the registry. A profile only this device has is kept only if it's one of
+      // this device's own (just created, not saved yet); any other local-only entry is a player
+      // removed or merged elsewhere, and keeping it let a stale phone or laptop push it back.
+      var incomingCfg = (data.commissionerConfig && typeof data.commissionerConfig === "object") ? data.commissionerConfig : null;
+      var notArchived = function(cu) { return !(cu && (isProfileArchived(cu.key, incomingCfg) || isProfileArchived(cu.key))); };
+      var mergedCu = data.customUsers.filter(notArchived);
+      var seenCuKeys = {};
+      for (var mcI = 0; mcI < mergedCu.length; mcI++) {
+        if (mergedCu[mcI] && mergedCu[mcI].key) seenCuKeys[mergedCu[mcI].key] = true;
+      }
+      if (state.customUsers && Array.isArray(state.customUsers)) {
+        for (var lcI = 0; lcI < state.customUsers.length; lcI++) {
+          var lcu = state.customUsers[lcI];
+          if (lcu && lcu.key && !seenCuKeys[lcu.key] && isDeviceOwnProfileKey(lcu.key) && notArchived(lcu)) {
+            mergedCu.push(lcu);
+            seenCuKeys[lcu.key] = true;
+          }
+        }
+      }
+      state.customUsers = mergedCu;
+      for (var cuIdx = 0; cuIdx < state.customUsers.length; cuIdx++) {
+        var cKey = state.customUsers[cuIdx].key;
+        if (cKey && data[cKey] && data[cKey].picks && shouldAcceptProfile(cKey)) {
+          if (!picksLookLikeAnotherWeek(data[cKey].picks, GAMES)) {
+            state[cKey] = withStaleClearFlagDropped(data[cKey]);
+          }
         }
       }
     }
-    state.liveScores = LIVE_SCORES;
-  }
-
-  // 2. GRANULAR PER-PROFILE MERGE: Never let another user's cloud update switch your activeProfile
-  //    or compareTargetKey, and only protect `activeProfile` during a 1.5s local click while
-  //    ALWAYS accepting other users' incoming picks in real time!
-  var withinLocalPickLock = (Date.now() - lastLocalPickTs) < 3500;
-  if (data.deletedPicksByMember && typeof data.deletedPicksByMember === "object" && !withinLocalPickLock) {
-    state.deletedPicksByMember = data.deletedPicksByMember;
-  }
-  var shouldAcceptProfile = function(profKey) {
-    if (profKey === "test") return false; // Test Sim is always isolated per-device!
-    if (withinLocalPickLock || hasPendingProfileSave(profKey)) return false;
-    var pMeta = getProfileMetaByKey(profKey);
-    var pLow = standardizeParticipantName((pMeta && (pMeta.linkedMemberName || pMeta.name)) || "").toLowerCase();
-    if (pLow && state.deletedPicksByMember && state.deletedPicksByMember[pLow]) return false;
-    return true;
-  };
-
-  if (data.michael && data.michael.picks && shouldAcceptProfile("michael")) {
-    var mMatch = countMatchingPicksForSlate(data.michael.picks, GAMES);
-    if (mMatch.total < 5 || mMatch.matched >= Math.ceil(mMatch.total * 0.5)) {
-      state.michael = data.michael;
-    }
-  }
-  if (data.kinyion && data.kinyion.picks && shouldAcceptProfile("kinyion")) {
-    var kMatch = countMatchingPicksForSlate(data.kinyion.picks, GAMES);
-    if (kMatch.total < 5 || kMatch.matched >= Math.ceil(kMatch.total * 0.5)) {
-      state.kinyion = data.kinyion;
-    }
-  }
-  if (data.customUsers && Array.isArray(data.customUsers)) {
-    // The cloud list is the registry. A profile only this device has is kept only if it's one of
-    // this device's own (just created, not saved yet); any other local-only entry is a player
-    // removed or merged elsewhere, and keeping it let a stale phone or laptop push it back.
-    var incomingCfg = (data.commissionerConfig && typeof data.commissionerConfig === "object") ? data.commissionerConfig : null;
-    var notArchived = function(cu) { return !(cu && (isProfileArchived(cu.key, incomingCfg) || isProfileArchived(cu.key))); };
-    var mergedCu = data.customUsers.filter(notArchived);
-    var seenCuKeys = {};
-    for (var mcI = 0; mcI < mergedCu.length; mcI++) {
-      if (mergedCu[mcI] && mergedCu[mcI].key) seenCuKeys[mergedCu[mcI].key] = true;
-    }
-    if (state.customUsers && Array.isArray(state.customUsers)) {
-      for (var lcI = 0; lcI < state.customUsers.length; lcI++) {
-        var lcu = state.customUsers[lcI];
-        if (lcu && lcu.key && !seenCuKeys[lcu.key] && isDeviceOwnProfileKey(lcu.key) && notArchived(lcu)) {
-          mergedCu.push(lcu);
-          seenCuKeys[lcu.key] = true;
+    if (data.profilePrivacy && typeof data.profilePrivacy === "object") {
+      for (var ppk in data.profilePrivacy) {
+        var wasHidden = state.profilePrivacy && state.profilePrivacy[ppk] && state.profilePrivacy[ppk].hidden;
+        state.profilePrivacy[ppk] = data.profilePrivacy[ppk];
+        // Never auto-lock the profile that this device is signed into / actively using!
+        var isMyBoundProf = (AUTH_SESSION && AUTH_SESSION.boundProfileKey === ppk) || (ppk === activeProfile);
+        if (data.profilePrivacy[ppk].hidden && !wasHidden && !isMyBoundProf) {
+          SESSION_UNLOCKED_PROFILES[ppk] = false;
         }
       }
     }
-    state.customUsers = mergedCu;
-    for (var cuIdx = 0; cuIdx < state.customUsers.length; cuIdx++) {
-      var cKey = state.customUsers[cuIdx].key;
-      if (cKey && data[cKey] && data[cKey].picks && shouldAcceptProfile(cKey)) {
-        if (!picksLookLikeAnotherWeek(data[cKey].picks, GAMES)) {
-          state[cKey] = withStaleClearFlagDropped(data[cKey]);
-        }
-      }
+    if (data.watchlist && Array.isArray(data.watchlist) && !withinLocalPickLock) {
+      state.watchlist = data.watchlist;
     }
-  }
-  if (data.profilePrivacy && typeof data.profilePrivacy === "object") {
-    for (var ppk in data.profilePrivacy) {
-      var wasHidden = state.profilePrivacy && state.profilePrivacy[ppk] && state.profilePrivacy[ppk].hidden;
-      state.profilePrivacy[ppk] = data.profilePrivacy[ppk];
-      // Never auto-lock the profile that this device is signed into / actively using!
-      var isMyBoundProf = (AUTH_SESSION && AUTH_SESSION.boundProfileKey === ppk) || (ppk === activeProfile);
-      if (data.profilePrivacy[ppk].hidden && !wasHidden && !isMyBoundProf) {
-        SESSION_UNLOCKED_PROFILES[ppk] = false;
-      }
-    }
-  }
-  if (data.watchlist && Array.isArray(data.watchlist) && !withinLocalPickLock) {
-    state.watchlist = data.watchlist;
-  }
 
-  var localMaxPrior = Math.max(getMaxPriorPts(state.leaderboard), getMaxPriorPts(WEEK7_OFFICIAL_LEADERBOARD));
-  var cloudLbStale = false;
-  if (data.leaderboard && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
-    var incomingLbMax = getMaxPriorPts(data.leaderboard);
-    if (incomingLbMax >= localMaxPrior) {
-      state.leaderboard = data.leaderboard;
-    } else {
+    var localMaxPrior = Math.max(getMaxPriorPts(state.leaderboard), getMaxPriorPts(WEEK7_OFFICIAL_LEADERBOARD));
+    var cloudLbStale = false;
+    if (data.leaderboard && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
+      var incomingLbMax = getMaxPriorPts(data.leaderboard);
+      if (incomingLbMax >= localMaxPrior) {
+        state.leaderboard = data.leaderboard;
+      } else {
+        cloudLbStale = true;
+      }
+    }
+    if (data.poolMembers) {
+      var incomingPm = Array.isArray(data.poolMembers) ? data.poolMembers : Object.values(data.poolMembers);
+      if (incomingPm.length > 0) {
+        var incomingPmMax = getMaxPriorPts(incomingPm);
+        if (incomingPmMax < localMaxPrior) cloudLbStale = true;
+        state.poolMembers = incomingPm;
+      }
+    }
+    var minValidWeek = (!isHardcodedWeek7Slate(GAMES) || localMaxPrior >= 120) ? 8 : 7;
+    if (incomingWkNum >= minValidWeek && incomingWkNum >= (state.currentWeek || minValidWeek)) {
+      state.currentWeek = incomingWkNum;
+      state.weekLabel = "Week " + incomingWkNum;
+    } else if ((data.currentWeek && parseInt(data.currentWeek, 10) < minValidWeek) || (data.weekLabel && parseWeekNumFromLabel(data.weekLabel) < minValidWeek)) {
       cloudLbStale = true;
     }
-  }
-  if (data.poolMembers) {
-    var incomingPm = Array.isArray(data.poolMembers) ? data.poolMembers : Object.values(data.poolMembers);
-    if (incomingPm.length > 0) {
-      var incomingPmMax = getMaxPriorPts(incomingPm);
-      if (incomingPmMax < localMaxPrior) cloudLbStale = true;
-      state.poolMembers = incomingPm;
+    if (data.lastScrapedFile) state.lastScrapedFile = data.lastScrapedFile;
+    if (data.commissionerConfig && typeof data.commissionerConfig === "object") {
+      // Replaced, not merged into this device's copy: a setting removed in the cloud (e.g. the
+      // old public log, an unblocked account) must not linger here and be saved back.
+      state.commissionerConfig = Object.assign({}, data.commissionerConfig);
+      ensureCommissionerConfig();
+      renderCommishAnnouncementBanner();
     }
-  }
-  var minValidWeek = (!isHardcodedWeek7Slate(GAMES) || localMaxPrior >= 120) ? 8 : 7;
-  if (incomingWkNum >= minValidWeek && incomingWkNum >= (state.currentWeek || minValidWeek)) {
-    state.currentWeek = incomingWkNum;
-    state.weekLabel = "Week " + incomingWkNum;
-  } else if ((data.currentWeek && parseInt(data.currentWeek, 10) < minValidWeek) || (data.weekLabel && parseWeekNumFromLabel(data.weekLabel) < minValidWeek)) {
-    cloudLbStale = true;
-  }
-  if (data.lastScrapedFile) state.lastScrapedFile = data.lastScrapedFile;
-  if (data.commissionerConfig && typeof data.commissionerConfig === "object") {
-    // Replaced, not merged into this device's copy: a setting removed in the cloud (e.g. the
-    // old public log, an unblocked account) must not linger here and be saved back.
-    state.commissionerConfig = Object.assign({}, data.commissionerConfig);
-    ensureCommissionerConfig();
-    renderCommishAnnouncementBanner();
-  }
-  if (data.tiebreakerGameId) state.tiebreakerGameId = parseInt(data.tiebreakerGameId, 10) || null;
-  if (data.weekArchives && typeof data.weekArchives === "object") {
-    state.weekArchives = Object.assign({}, state.weekArchives || {}, data.weekArchives);
-  }
-  ensureWeekArchivesState();
+    if (data.tiebreakerGameId) state.tiebreakerGameId = parseInt(data.tiebreakerGameId, 10) || null;
+    if (data.weekArchives && typeof data.weekArchives === "object") {
+      state.weekArchives = Object.assign({}, state.weekArchives || {}, data.weekArchives);
+    }
+    ensureWeekArchivesState();
 
-  var neededClean = sanitizeStateForActiveSlate();
-  ensureWatchlistDefaults();
-  regradeAllPoolMembersLive();
-  safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
-  setInputValueUnlessEditing(document.getElementById("tiebreaker-input"), state[activeProfile].tiebreaker || "28-24");
-  setInputValueUnlessEditing(document.getElementById("target-slider"), state[activeProfile].target || 20);
+    var neededClean = sanitizeStateForActiveSlate();
+    ensureWatchlistDefaults();
+    regradeAllPoolMembersLive();
+    safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
+    setInputValueUnlessEditing(document.getElementById("tiebreaker-input"), state[activeProfile].tiebreaker || "28-24");
+    setInputValueUnlessEditing(document.getElementById("target-slider"), state[activeProfile].target || 20);
 
-  renderSwayFeed();
-  renderAll();
-  var nowStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  document.getElementById("cloud-status-text").textContent = "🔥 Firebase Live Sync (" + sourceLabel + " • " + nowStr + ") — Michael, Kinyon & Pool Synced!";
-  isApplyingRemoteUpdate = false;
+    renderSwayFeed();
+    renderAll();
+    var nowStr = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    document.getElementById("cloud-status-text").textContent = "🔥 Firebase Live Sync (" + sourceLabel + " • " + nowStr + ") — Michael, Kinyon & Pool Synced!";
+  } finally {
+    isApplyingRemoteUpdate = false;
+  }
 
   if ((neededClean || slateChanged || cloudLbStale) && !window._pushedSlateCleanup) {
     window._pushedSlateCleanup = true;
