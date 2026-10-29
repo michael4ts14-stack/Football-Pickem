@@ -956,14 +956,8 @@ function initState() {
       }
     } catch (e) {}
   }
-  var mCleared = !!((state.deletedPicksByMember && state.deletedPicksByMember["michael a"]) || (state.michael && state.michael._picksCleared));
-  var kCleared = !!((state.deletedPicksByMember && state.deletedPicksByMember["kinyion c"]) || (state.kinyion && state.kinyion._picksCleared));
-  var mEmptyUnedited = (!mCleared && Object.keys(state.michael.picks || {}).length === 0 && !state.michael._manualEditsThisWeek);
-  var kEmptyUnedited = (!kCleared && Object.keys(state.kinyion.picks || {}).length === 0 && !state.kinyion._manualEditsThisWeek);
   for (var i = 0; i < GAMES.length; i++) {
     var g = GAMES[i];
-    if (mEmptyUnedited) state.michael.picks[g.id] = g.rec;
-    if (kEmptyUnedited) state.kinyion.picks[g.id] = g.kinyionDefault;
     if (!g.keyInjHeader) {
       var compInjHdr = computeKeyInjHeaderFromLists(g);
       if (compInjHdr) g.keyInjHeader = compInjHdr;
