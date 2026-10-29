@@ -938,6 +938,8 @@ async function importStrictSheetText() {
         break;
       }
     }
+    // Archive the outgoing week while GAMES, LIVE_SCORES and currentWeek still hold it.
+    saveCurrentWeekToArchive(false);
     state.tiebreakerGameId = detectedTbId || 9;
     state.tiebreakerOverUnder = 56.5;
     GAMES = parsedGames;

@@ -902,8 +902,9 @@ function sanitizeStateForActiveSlate() {
   return cleanedAny;
 }
 
+// Callers archive the outgoing week before they replace GAMES or currentWeek; by the time this
+// runs the new slate is already in place, so archiving here would file it under the wrong week.
 function resetPoolPicksForNewWeek(syncToCloud) {
-  saveCurrentWeekToArchive(false);
   if (state.poolMembers && Array.isArray(state.poolMembers)) {
     for (var i = 0; i < state.poolMembers.length; i++) {
       state.poolMembers[i].picks = {};

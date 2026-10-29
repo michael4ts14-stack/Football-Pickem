@@ -38,7 +38,7 @@ var _dlgPrevNewWeekReset = resetPoolPicksForNewWeek;
 resetPoolPicksForNewWeek = function(syncToCloud) {
   var self = this, args = arguments;
   if (syncToCloud !== true) return _dlgPrevNewWeekReset.apply(self, args);
-  confirmDanger("Clear every other pool member's picks for the new week? The current week is archived first.", "Clear pool picks", function() {
+  confirmDanger("Clear every other pool member's picks for the new week?", "Clear pool picks", function() {
     _dlgPrevNewWeekReset.apply(self, args);
   });
 };
