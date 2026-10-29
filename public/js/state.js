@@ -301,12 +301,19 @@ function getAllUserProfiles() {
   return list;
 }
 
+// null for a key that isn't a registered profile (never another player's meta, which a save
+// would write into that key's pick doc).
 function getProfileMetaByKey(profKey) {
   var list = getAllUserProfiles();
   for (var i = 0; i < list.length; i++) {
     if (list[i].key === profKey) return list[i];
   }
-  return list[0];
+  return null;
+}
+
+// For labels only: an unregistered key shows as a plain placeholder instead of failing.
+function getProfileDisplayMeta(profKey) {
+  return getProfileMetaByKey(profKey) || { key: profKey, name: "Unknown player", shortName: "Player", icon: "👤", color: "#10b981", tabClass: "active-custom", btnClass: "c-active", selClass: "selected-custom", tagClass: "p-tag-custom", priorPts: 0, defaultRank: "", linkedMemberName: "", isBuiltIn: false };
 }
 
 function isGameStartedOrFinal(gameId) {
@@ -413,6 +420,7 @@ function resolveCompareTargetDescriptor() {
     };
   }
   var meta = getProfileMetaByKey(key);
+  if (!meta) return null;
   var pState = state[meta.key] || { picks: {} };
   return {
     key: meta.key,
@@ -515,7 +523,7 @@ function unlockProfileWithPrompt(profKey, onSuccess) {
     if (onSuccess) onSuccess();
     return true;
   }
-  var otherMeta = getProfileMetaByKey(profKey);
+  var otherMeta = getProfileDisplayMeta(profKey);
   showAppToast("🔒 " + otherMeta.name + "'s picks are hidden until kickoff on their account instance.");
   return false;
 }
@@ -527,7 +535,7 @@ function toggleCompareTargetPinUnlock() {
 function toggleQuickLockActiveProfile() {
   ensureMultiUserAndPrivacyState();
   var myKey = getMyInstanceProfileKey();
-  var meta = getProfileMetaByKey(myKey);
+  var meta = getProfileDisplayMeta(myKey);
   var priv = state.profilePrivacy[myKey] || { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: false, autoUnhideFridayNight: false };
   priv.hidden = !priv.hidden;
   priv.manualLockOverride = priv.hidden;

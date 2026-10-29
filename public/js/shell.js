@@ -525,7 +525,7 @@ function renderMoreView() {
   var box = document.getElementById("more-view-container");
   if (!box) return;
   var isCommish = isVerifiedCommissioner();
-  var meta = getProfileMetaByKey(activeProfile);
+  var meta = getProfileDisplayMeta(activeProfile);
   var signedIn = !!AUTH_SESSION;
   var theme = getAppTheme();
 

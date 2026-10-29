@@ -271,7 +271,7 @@ function updateScoreboard(skipFullRegrade) {
   }
   var diffLabelEl = document.getElementById("h2h-diffs-label");
   if (diffLabelEl) {
-    diffLabelEl.textContent = getProfileMetaByKey(activeProfile).shortName + " vs " + (cmpDesc ? cmpDesc.shortName : "nobody chosen") + " Diffs:";
+    diffLabelEl.textContent = getProfileDisplayMeta(activeProfile).shortName + " vs " + (cmpDesc ? cmpDesc.shortName : "nobody chosen") + " Diffs:";
   }
   var fltDiffBtn = document.getElementById("flt-diffs");
   if (fltDiffBtn) {
@@ -281,7 +281,7 @@ function updateScoreboard(skipFullRegrade) {
 
   // Render ONLY your own 2 personal instance modes (Official Picks + Sandbox Sim) — NO profile swapping!
   var myKey = getMyInstanceProfileKey();
-  var myMeta = getProfileMetaByKey(myKey);
+  var myMeta = getProfileDisplayMeta(myKey);
   var myMetrics = calcProfileMetrics(myKey) || m;
   var myWkBest = Math.max(myMetrics.liveProjectedPts, myMetrics.finalWonPts);
   var myTotPts = (parseFloat(myMeta.priorPts) || 0) + myWkBest;
@@ -349,7 +349,7 @@ function updateScoreboard(skipFullRegrade) {
   if (privStatusEl && quickHideBtn) {
     var myKeyPriv = getMyInstanceProfileKey();
     var curPriv = state.profilePrivacy[myKeyPriv] || { hidden: false };
-    var curMeta = getProfileMetaByKey(myKeyPriv);
+    var curMeta = getProfileDisplayMeta(myKeyPriv);
     if (curPriv.hidden) {
       privStatusEl.innerHTML = '🔒 <strong>' + escapeHtml(curMeta.shortName) + '</strong> Hidden From Others Until Kickoff';
       privStatusEl.style.color = "var(--win)";
@@ -521,7 +521,7 @@ function renderStandingsAndGradingView() {
   regradeAllPoolMembersLive();
   populateCompareTargetSelectors();
 
-  var actMeta = getProfileMetaByKey(activeProfile);
+  var actMeta = getProfileDisplayMeta(activeProfile);
   var cmpTarget = resolveCompareTargetDescriptor();
   var m = calcProfileMetrics(activeProfile) || calcProfileMetrics("michael");
   var k = cmpTarget

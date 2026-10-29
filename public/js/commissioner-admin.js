@@ -287,7 +287,7 @@ function clearDeletedFlagForProfile(profKey) {
 function commishDeletePlayerPicks(memberName) {
   if (!assertCommissionerRole("Delete Player Picks")) return;
   lastLocalPickTs = Date.now();
-  var stdName = standardizeParticipantName(memberName || getProfileMetaByKey(activeProfile).name);
+  var stdName = standardizeParticipantName(memberName || getProfileDisplayMeta(activeProfile).name);
   var lowName = stdName.toLowerCase();
   if (!state.deletedPicksByMember || typeof state.deletedPicksByMember !== "object") {
     state.deletedPicksByMember = {};
@@ -375,7 +375,7 @@ function commishDeletePlayerPicks(memberName) {
 
 function commishAutoSelectPlayerPicks(memberName, strategy) {
   if (!assertCommissionerRole("Auto-Select Picks")) return;
-  var stdName = standardizeParticipantName(memberName || getProfileMetaByKey(activeProfile).name);
+  var stdName = standardizeParticipantName(memberName || getProfileDisplayMeta(activeProfile).name);
   lastLocalPickTs = Date.now();
   if (state.deletedPicksByMember) delete state.deletedPicksByMember[stdName.toLowerCase()];
   var resolved = resolveOrCreateProfileForMember(stdName, stdName, "", "");
@@ -446,7 +446,7 @@ function renderCommishActiveEditBar() {
   bar.classList.remove("commish-only-hidden");
   bar.style.display = "flex";
 
-  var curMeta = getProfileMetaByKey(activeProfile);
+  var curMeta = getProfileDisplayMeta(activeProfile);
   var pmList = state.poolMembers || [];
   var opts = "";
   for (var i = 0; i < pmList.length; i++) {
@@ -477,7 +477,7 @@ function renderCommishActiveEditBar() {
 function ensureMultiBuyInEntries() {
   if (!AUTH_SESSION || !AUTH_SESSION.boundProfileKey) return [];
   if (!Array.isArray(AUTH_SESSION.linkedEntries) || AUTH_SESSION.linkedEntries.length === 0) {
-    var bMeta = getProfileMetaByKey(AUTH_SESSION.boundProfileKey);
+    var bMeta = getProfileDisplayMeta(AUTH_SESSION.boundProfileKey);
     AUTH_SESSION.linkedEntries = [{
       profileKey: AUTH_SESSION.boundProfileKey,
       memberName: AUTH_SESSION.linkedMemberName || bMeta.name,
@@ -526,7 +526,7 @@ function switchLinkedBuyInEntry(targetProfileKey) {
   syncActiveProfileControlsUI();
   updateAuthUI();
   renderAll();
-  var meta = getProfileMetaByKey(targetProfileKey);
+  var meta = getProfileDisplayMeta(targetProfileKey);
   showAppToast("🏈 Switched active buy-in entry to " + meta.name + "!");
 }
 
@@ -660,9 +660,9 @@ function toggleManualUserPickLock(forceLockState) {
     renderReviewChecklistModalBody();
   }
   if (nextState) {
-    showAppToast("🔒 Picks LOCKED for " + getProfileMetaByKey(activeProfile).name + "! Accidental edits are now blocked.");
+    showAppToast("🔒 Picks LOCKED for " + getProfileDisplayMeta(activeProfile).name + "! Accidental edits are now blocked.");
   } else {
-    showAppToast("🔓 Picks UNLOCKED for editing (" + getProfileMetaByKey(activeProfile).name + "). Remember to Lock Picks when finished!");
+    showAppToast("🔓 Picks UNLOCKED for editing (" + getProfileDisplayMeta(activeProfile).name + "). Remember to Lock Picks when finished!");
   }
 }
 
@@ -705,7 +705,7 @@ pickSide = function(gameId, sideCode) {
 var _origPickSideForProfileV166 = pickSideForProfile;
 pickSideForProfile = function(profKey, gameId, sideCode) {
   if (state[profKey] && state[profKey].userLockedPicks && !(AUTH_SESSION && AUTH_SESSION.adminUnlock && isVerifiedCommissioner())) {
-    showAppToast("🔒 Picks for " + getProfileMetaByKey(profKey).name + " are locked! Unlock picks first to make changes.");
+    showAppToast("🔒 Picks for " + getProfileDisplayMeta(profKey).name + " are locked! Unlock picks first to make changes.");
     return;
   }
   _origPickSideForProfileV166(profKey, gameId, sideCode);
@@ -918,7 +918,7 @@ function renderReviewChecklistModalBody() {
   if (!body) return;
   ensureMondayLockedOddsOnGames();
 
-  var meta = getProfileMetaByKey(activeProfile);
+  var meta = getProfileDisplayMeta(activeProfile);
   var picks = (state[activeProfile] && state[activeProfile].picks) ? state[activeProfile].picks : {};
   var tb = (state[activeProfile] && state[activeProfile].tiebreaker) ? state[activeProfile].tiebreaker : "28-24";
   var isLocked = isCurrentProfileManuallyLocked();
@@ -1019,7 +1019,7 @@ function renderSettingsDrawerBody() {
   if (!body) return;
   ensureMultiUserAndPrivacyState();
   var myKey = getMyInstanceProfileKey();
-  var myMeta = getProfileMetaByKey(myKey);
+  var myMeta = getProfileDisplayMeta(myKey);
   var myPriv = state.profilePrivacy[myKey] || { hidden: false };
   var isCommish = isVerifiedCommissioner();
   var entries = ensureMultiBuyInEntries();
@@ -1056,7 +1056,7 @@ function renderSettingsDrawerBody() {
   body.innerHTML =
     '<div class="drawer-section">' +
       '<div class="drawer-section-title"><span>👤 Account & Multi-Buy-In Entries</span><span class="badge ' + (AUTH_SESSION ? 'badge-ev' : 'badge-2x') + '">' + (AUTH_SESSION ? 'Signed In' : 'Guest / Local') + '</span></div>' +
-      '<div style="font-size:0.76rem;color:var(--text);">Active Entry: <strong style="color:var(--text);">' + escapeHtml(getProfileMetaByKey(activeProfile).name) + '</strong> ' + (AUTH_SESSION && AUTH_SESSION.email ? ('<span style="color:var(--muted);">(' + AUTH_SESSION.email + ')</span>') : '') + '</div>' +
+      '<div style="font-size:0.76rem;color:var(--text);">Active Entry: <strong style="color:var(--text);">' + escapeHtml(getProfileDisplayMeta(activeProfile).name) + '</strong> ' + (AUTH_SESSION && AUTH_SESSION.email ? ('<span style="color:var(--muted);">(' + AUTH_SESSION.email + ')</span>') : '') + '</div>' +
       (AUTH_SESSION ? (
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin:4px 0;">' + entriesHtml +
           '<button type="button" class="entry-pill-btn' + (activeProfile === "test" ? ' active' : '') + '" onclick="switchProfile(\'test\'); renderSettingsDrawerBody();">🧪 Sandbox Sim</button>' +
@@ -1133,7 +1133,7 @@ function renderEvSimulatorDrawerBody() {
 
   body.innerHTML =
     '<div class="drawer-section">' +
-      '<div class="drawer-section-title"><span>📊 Exact Dynamic Programming EV & Score Distribution (' + getProfileMetaByKey(activeProfile).name + ')</span></div>' +
+      '<div class="drawer-section-title"><span>📊 Exact Dynamic Programming EV & Score Distribution (' + getProfileDisplayMeta(activeProfile).name + ')</span></div>' +
       '<div class="score-grid">' +
         '<div class="metric-card"><div class="metric-label">Max Ceiling</div><div class="metric-val">' + cur.ceiling + ' pts</div><div class="metric-sub">' + cur.dogs + ' multiplier dog(s)</div></div>' +
         '<div class="metric-card"><div class="metric-label">Expected EV</div><div class="metric-val" style="color:var(--legacy-accent);">' + cur.ev.toFixed(2) + '</div><div class="metric-sub">True Moneyline EV</div></div>' +

@@ -762,7 +762,7 @@ function openAuthModal() {
   }
 
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
-    var boundMeta = getProfileMetaByKey(AUTH_SESSION.boundProfileKey);
+    var boundMeta = getProfileDisplayMeta(AUTH_SESSION.boundProfileKey);
     var isStrict = isAccountInstanceLocked();
     bodyEl.innerHTML =
       '<div style="background:var(--raised);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px;">' +
@@ -862,7 +862,7 @@ function updateAuthUI() {
   var isLocked = isAccountInstanceLocked();
 
   if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) {
-    var bMeta = getProfileMetaByKey(AUTH_SESSION.boundProfileKey);
+    var bMeta = getProfileDisplayMeta(AUTH_SESSION.boundProfileKey);
     if (btn) {
       btn.textContent = "🔐 " + bMeta.shortName + (isLocked ? " (Locked Instance)" : " (Admin Mode)");
       btn.className = "btn-sm auth-pill-active";
@@ -1025,7 +1025,7 @@ function switchProfile(prof) {
   var isAllowedOwn = (prof === myKey || prof === "test" || (typeof isMyLinkedBuyInProfile === "function" && isMyLinkedBuyInProfile(prof)));
   // Unless Commissioner Override is enabled, only allow switching between your own linked buy-in profiles and your personal `test` Sandbox Sim.
   if (!isCommish && !isAllowedOwn) {
-    var targetMeta = getProfileMetaByKey(prof);
+    var targetMeta = getProfileDisplayMeta(prof);
     setCompareTarget(prof);
     showAppToast("⚔️ Comparing against " + targetMeta.name + " (Read-Only). To switch accounts, use 🔐 Account Sign-In.");
     return;
@@ -1036,7 +1036,7 @@ function switchProfile(prof) {
   syncActiveProfileControlsUI();
   updateAuthUI();
   renderAll();
-  showAppToast(prof === "test" ? "🧪 Switched to your personal Sandbox Simulator" : ("🏈 Switched to your Official Picks (" + getProfileMetaByKey(prof).name + ")"));
+  showAppToast(prof === "test" ? "🧪 Switched to your personal Sandbox Simulator" : ("🏈 Switched to your Official Picks (" + getProfileDisplayMeta(prof).name + ")"));
 }
 
 function copyOtherProfile() {
@@ -1064,7 +1064,7 @@ function copyOtherProfile() {
   state[activeProfile].picks = copy;
   saveCurrentState(activeProfile);
   renderAll();
-  showAppToast("📥 Copied picks from " + sourceName + " into " + getProfileMetaByKey(activeProfile).name + "!");
+  showAppToast("📥 Copied picks from " + sourceName + " into " + getProfileDisplayMeta(activeProfile).name + "!");
 }
 
 // Games that are locked (kickoff, deadline or commissioner) keep the profile's current pick

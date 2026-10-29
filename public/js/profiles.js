@@ -140,7 +140,7 @@ function claimOrCompareFromLeaderboard(memberName, mode) {
 function openUserAndPrivacyModal() {
   ensureMultiUserAndPrivacyState();
   var myKey = getMyInstanceProfileKey();
-  var myMeta = getProfileMetaByKey(myKey);
+  var myMeta = getProfileDisplayMeta(myKey);
   var myPriv = state.profilePrivacy[myKey] || { hidden: false, revealAtKickoff: true, autoUnhideOnSheet: false, autoUnhideFridayNight: false };
   var cmpDesc = resolveCompareTargetDescriptor();
 
@@ -202,7 +202,7 @@ function toggleProfilePrivacyOption(profKey, fieldName, checked) {
 }
 
 function syncActiveProfileControlsUI() {
-  var meta = getProfileMetaByKey(activeProfile);
+  var meta = getProfileDisplayMeta(activeProfile);
   var topProf = document.getElementById("top-profile-name");
   if (topProf) topProf.textContent = meta.name;
   if (!state[activeProfile]) state[activeProfile] = { picks: {}, tiebreaker: "28-24", target: 20 };

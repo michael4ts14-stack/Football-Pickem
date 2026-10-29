@@ -190,7 +190,7 @@ renderLiveScoreboardTab = function() {
     : '<p class="empty-note">No games match that filter.</p>');
 
   var setText = function(id, txt) { var el = document.getElementById(id); if (el) el.textContent = txt; };
-  var actMeta = getProfileMetaByKey(activeProfile);
+  var actMeta = getProfileDisplayMeta(activeProfile);
   setText("live-tab-inprog", inProgCnt);
   setText("live-tab-final", "Completed " + finalCnt + " of " + GAMES.length);
   setText("live-tab-m-label", actMeta.shortName || actMeta.name);

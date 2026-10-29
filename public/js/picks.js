@@ -62,7 +62,7 @@ function buildTeamPickPillsHtml(g, teamName) {
   // Clean Research Cards: ONLY show Active User's pick + currently selected Compare Target's pick (if unhidden) + Watchlist Rivals
   // Never clutter Research Cards with hidden-pick badges or every extra profile!
   var html = "";
-  var actMeta = getProfileMetaByKey(activeProfile);
+  var actMeta = getProfileDisplayMeta(activeProfile);
   if (!isProfileHiddenFromViewer(activeProfile, g.id) && state[activeProfile] && state[activeProfile].picks) {
     var actPick = getResolvedPickForGame(state[activeProfile].picks, g, true);
     if (isSameTeamPick(actPick, teamName, g)) {
@@ -104,7 +104,7 @@ function updateSingleGameCardPickUI(g) {
   var btns = cardEl.querySelectorAll(".teams-grid .team-btn");
   if (!btns || btns.length < 2) return false;
 
-  var activeMeta = getProfileMetaByKey(activeProfile);
+  var activeMeta = getProfileDisplayMeta(activeProfile);
   var activePick = isProfileHiddenFromViewer(activeProfile, g.id) ? null : getResolvedPickForGame(state[activeProfile].picks, g, true);
   var selClass = activeMeta.selClass || "selected-custom";
 
@@ -175,8 +175,8 @@ function pickSideForProfile(profKey, gameId, sideCode) {
     return;
   }
   if (isAccountInstanceLocked() && !canEditProfileInCurrentInstance(profKey)) {
-    var myMeta = getProfileMetaByKey(AUTH_SESSION.boundProfileKey);
-    var otherMeta = getProfileMetaByKey(profKey);
+    var myMeta = getProfileDisplayMeta(AUTH_SESSION.boundProfileKey);
+    var otherMeta = getProfileDisplayMeta(profKey);
     showAppToast("🔒 Instance Locked to " + myMeta.name + ": " + otherMeta.name + "'s picks are read-only on your instance.");
     return;
   }

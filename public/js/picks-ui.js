@@ -673,7 +673,7 @@ updatePicksHead = function() {
 // ---------- Review before locking + copyable summary ----------
 function myPicksSummaryText() {
   var s = myPickSummary();
-  var name = getProfileMetaByKey(activeProfile).name;
+  var name = getProfileDisplayMeta(activeProfile).name;
   return "Separated at Turf " + (state.weekLabel || ("Week " + state.currentWeek)) + " picks: " + name + "\n" +
     s.done + "/" + s.total + " picked · " + s.x1 + " favorites (1x) · " + s.x2 + " 2x dogs · " + s.x3 + " 3x dogs · max " + s.maxPts + " pts\n" +
     "Tiebreaker: " + (s.tiebreaker || "not set") + "\n\n" + s.lines.join("\n");

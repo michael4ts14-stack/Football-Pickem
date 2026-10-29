@@ -255,7 +255,7 @@ async function saveAndSendPickConfirmationReceipt() {
     return;
   }
   // If user is in Guest Mode and hasn't created an account yet, prompt them to enter an email or create an account while keeping their picks!
-  var meta = getProfileMetaByKey(activeProfile);
+  var meta = getProfileDisplayMeta(activeProfile);
   var shownName = fixDisplaySpelling(meta.name); // Kinyion C -> Kinyon Cooper
   var userEmail = (AUTH_SESSION && AUTH_SESSION.email) || cfg.playerEmailsMap[standardizeParticipantName(meta.name).toLowerCase()] || "";
 

@@ -52,7 +52,7 @@ function renderCondensedTable() {
   var diffOnly = document.getElementById("chk-cond-diff-only") && document.getElementById("chk-cond-diff-only").checked;
 
   var allProfs = getAllUserProfiles();
-  var actMeta = getProfileMetaByKey(activeProfile);
+  var actMeta = getProfileDisplayMeta(activeProfile);
   var cmpTarget = resolveCompareTargetDescriptor();
 
   // Decide which user profiles to display as columns:
@@ -63,7 +63,7 @@ function renderCondensedTable() {
   } else {
     displayProfs.push(actMeta);
     if (cmpTarget && !cmpTarget.isPoolMember && cmpTarget.key !== actMeta.key) {
-      displayProfs.push(getProfileMetaByKey(cmpTarget.key));
+      displayProfs.push(getProfileDisplayMeta(cmpTarget.key));
     }
   }
 
@@ -242,7 +242,7 @@ function printCheckmarkSheet() {
     unlockProfileWithPrompt(activeProfile, function() { printCheckmarkSheet(); });
     return;
   }
-  var profName = getProfileMetaByKey(activeProfile).name;
+  var profName = getProfileDisplayMeta(activeProfile).name;
   var picks = state[activeProfile].picks;
   var rowsHtml = "";
   for (var i = 0; i < GAMES.length; i++) {
