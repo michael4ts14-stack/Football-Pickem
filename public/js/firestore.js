@@ -1038,19 +1038,21 @@ function pushKickoffLocksToFirebase() {
       if (!(e && e.code === "permission-denied")) { reportCloudSaveFailure("the kickoff locks", e); return; }
       // A refusal can be old rules (no kickoff_locks yet) or a commissioner whose verification
       // lapsed. Either way the server isn't enforcing kickoff locks, which the commissioner
-      // (the only one who saves this) needs to know, at most once a minute.
-      console.warn("Kickoff locks not saved: firestore.rules refused pickem_v14/kickoff_locks.", e);
-      var now = Date.now();
-      if (typeof showAppToast === "function" && now - KICKOFF_LOCKS_WARNED_AT > 60000) {
-        KICKOFF_LOCKS_WARNED_AT = now;
-        showAppToast("⚠️ Server kickoff locks could not be saved (permission denied). Verify your commissioner email/account link or Firestore rules.", 6000);
+      // (the only one who saves this) needs to know, but a slate save runs on every reload, so
+      // the toast shows at most once a day per device; the lock status line always shows it.
+      console.warn("Kickoff locks not saved: firestore.rules refused pickem_v14/kickoff_locks. Publish the rules: firebase deploy --only firestore:rules", e);
+      var now = Date.now(), warnedAt = 0;
+      try { warnedAt = parseInt(localStorage.getItem(KICKOFF_LOCKS_WARNED_KEY), 10) || 0; } catch (err) {}
+      if (typeof showAppToast === "function" && now - warnedAt > 86400000) {
+        try { localStorage.setItem(KICKOFF_LOCKS_WARNED_KEY, String(now)); } catch (err) {}
+        showAppToast("⚠️ Server kickoff locks could not be saved (permission denied). Publish the latest Firestore rules or check your commissioner account link.", 6000);
       }
     });
 }
 
 // Last kickoff-locks write: { ok, code, at }. Shown in the commissioner's lock status line.
 var KICKOFF_LOCKS_STATUS = null;
-var KICKOFF_LOCKS_WARNED_AT = 0;
+var KICKOFF_LOCKS_WARNED_KEY = "pickem_kickoff_locks_warned_at";
 function setKickoffLocksStatus(ok, err) {
   KICKOFF_LOCKS_STATUS = { ok: ok, code: ok ? "" : ((err && err.code) || "error"), at: Date.now() };
   var el = document.getElementById("kickoff-locks-status");
