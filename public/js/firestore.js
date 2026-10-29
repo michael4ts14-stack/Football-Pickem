@@ -57,6 +57,20 @@ function startFirebaseRealtimeListeners() {
       setInterval(renderBotSyncPill, 60000);
     } catch (eBot) {}
 
+    // Season history: one doc per archived week (`pickem_v14_archives/week_N`).
+    try {
+      fsDb.collection("pickem_v14_archives").onSnapshot(function(snapshot) {
+        if (!snapshot || !snapshot.docChanges) return;
+        ensureWeekArchivesState();
+        snapshot.docChanges().forEach(function(ch) {
+          if (ch.type === "removed") delete state.weekArchives[ch.doc.id];
+          else state.weekArchives[ch.doc.id] = ch.doc.data();
+        });
+        populateWeekArchiveDropdown();
+        if (currentMainView === "standings") renderSeasonArchiveHub();
+      }, function(errArch) {});
+    } catch (eArch) {}
+
     // Dedicated Per-User Instance Collection (`pickem_v14_users/{profileKey}`)
     // Every user writes their own picks to their own document so 80+ users can pick simultaneously
     // with zero document contention and real-time updates across all connected browsers!
@@ -376,7 +390,9 @@ function applyRemoteCloudData(data, sourceLabel) {
     }
     if (data.tiebreakerGameId) state.tiebreakerGameId = parseInt(data.tiebreakerGameId, 10) || null;
     if (data.weekArchives && typeof data.weekArchives === "object") {
-      state.weekArchives = Object.assign({}, state.weekArchives || {}, data.weekArchives);
+      // Archives from before they moved to pickem_v14_archives. A newer copy there wins.
+      state.weekArchives = Object.assign({}, data.weekArchives, state.weekArchives || {});
+      moveSharedStateArchives(data.weekArchives);
     }
     ensureWeekArchivesState();
 
@@ -553,6 +569,24 @@ var LAST_CLOUD_WEEK = 0;
 // write them, and never while looking at an archived week. Every other client used to
 // push its own copy, so 40-100 browsers overwrote each other (lost sheet imports,
 // week flicker, a write->snapshot->re-render storm).
+// One-time move (B08): copy archives still stored in shared_state to their own docs (unless a
+// doc for that week already exists), then delete the field so shared_state shrinks.
+var MOVING_SHARED_ARCHIVES = false;
+function moveSharedStateArchives(oldArchives) {
+  if (!fsDb || MOVING_SHARED_ARCHIVES || !canWriteSharedPoolState()) return;
+  MOVING_SHARED_ARCHIVES = true;
+  var col = fsDb.collection("pickem_v14_archives");
+  Promise.all(Object.keys(oldArchives).map(function(k) {
+    var ref = col.doc(k);
+    return ref.get().then(function(d) { if (!d.exists) return ref.set(oldArchives[k]); });
+  })).then(function() {
+    return fsDb.collection("pickem_v14").doc("shared_state").update({ weekArchives: firebase.firestore.FieldValue.delete() });
+  }).catch(function(e) {
+    MOVING_SHARED_ARCHIVES = false;
+    reportCloudSaveFailure("the week archive move", e);
+  });
+}
+
 function canWriteSharedPoolState() {
   if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return false;
   if (typeof LIVE_ALERT_DEMO !== "undefined" && LIVE_ALERT_DEMO) return false; // sample scores on screen
@@ -576,7 +610,6 @@ function pushWatchlistOrStandingsToFirebase() {
     leaderboard: state.leaderboard,
     poolMembers: state.poolMembers || [],
     liveScores: LIVE_SCORES,
-    weekArchives: state.weekArchives || {},
     updatedAt: new Date().toISOString()
   }, sharedWeekFields());
   if (fsDb) {
@@ -596,7 +629,6 @@ function pushCustomGamesToFirebase() {
         watchlist: state.watchlist,
         leaderboard: state.leaderboard,
         poolMembers: state.poolMembers || [],
-        weekArchives: state.weekArchives || {},
         updatedAt: new Date().toISOString()
       }, sharedWeekFields()), { merge: true }).catch(function(e) { reportCloudSaveFailure("the slate", e); });
       pushKickoffLocksToFirebase();

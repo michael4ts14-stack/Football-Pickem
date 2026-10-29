@@ -57,10 +57,9 @@ function saveCurrentWeekToArchive(notifyToast) {
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
   if (fsDb && !isApplyingRemoteUpdate && canWriteSharedPoolState()) {
     try {
-      fsDb.collection("pickem_v14").doc("shared_state").set({
-        weekArchives: state.weekArchives,
-        updatedAt: new Date().toISOString()
-      }, { merge: true }).catch(function(e) { reportCloudSaveFailure("the week archive", e); });
+      // One doc per week (B08): archives inside shared_state would push it past 1 MiB.
+      fsDb.collection("pickem_v14_archives").doc(key).set(state.weekArchives[key])
+        .catch(function(e) { reportCloudSaveFailure("the week archive", e); });
     } catch (e) {}
   }
   populateWeekArchiveDropdown();

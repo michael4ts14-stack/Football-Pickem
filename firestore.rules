@@ -227,6 +227,13 @@ service cloud.firestore {
       allow write: if isVerifiedCommissioner();
     }
 
+    // ---------- Season history archive ----------
+    // One doc per finished week (week_N), kept out of shared_state so it stays under 1 MiB.
+    match /pickem_v14_archives/{weekKey} {
+      allow read: if true;
+      allow write: if isVerifiedCommissioner();
+    }
+
     // ---------- Commissioner log (who / what / when) ----------
     // One doc per action. Commissioners read it and add entries under their own email
     // (or "migrated" copies of the old log); nobody edits or deletes entries.

@@ -254,6 +254,19 @@ async function seedKickoffs() {
 const pickDoc = (d, p) => setDoc(doc(d, "pickem_v14_users/u_justinc"), { ownerUid: J.uid, picks: p }, { mergeFields: ["ownerUid", "picks"] });
 const sharedPicks = (d, p) => setDoc(SS(d), { u_justinc: { picks: p }, lastProfileWriter: "u_justinc", updatedAt: "t" }, { mergeFields: ["u_justinc", "lastProfileWriter", "updatedAt"] });
 
+test("week archives: everyone reads; only commissioners write", async () => {
+  await seed();
+  const A = (d) => doc(d, "pickem_v14_archives/week_8");
+  await assertSucceeds(setDoc(A(db(M)), { weekNum: 8, games: [{ id: 1 }] }));
+  await assertSucceeds(getDoc(A(guest())));
+  await assertFails(setDoc(A(guest()), { weekNum: 8 }));
+  await assertFails(setDoc(A(db(J)), { weekNum: 8 }));
+  await assertFails(deleteDoc(A(db(J))));
+  await assertSucceeds(deleteDoc(A(db(M))));
+  // A commissioner clears the old copy out of shared_state.
+  await assertSucceeds(setDoc(SS(db(M)), { weekArchives: deleteField() }, { merge: true }));
+});
+
 test("kickoff lock: a player can't change a pick once that game kicked off", async () => {
   await seedKickoffs();
   await assertSucceeds(pickDoc(db(J), { 1: "Arizona", 2: "Wisconsin", 3: "SMU" }));  // future / untimed games
