@@ -135,9 +135,10 @@ function saveDuesFlags(changes, auditText) {
   var args = [];
   Object.keys(changes).forEach(function(low) { args.push(new FP("commissionerConfig", "duesPaidMap", low), !!changes[low]); });
   args.push("updatedAt", new Date().toISOString());
-  if (typeof logCommishAction === "function") logCommishAction(auditText, "", "");
   var ref = fsDb.collection("pickem_v14").doc("shared_state");
-  return ref.update.apply(ref, args);
+  return ref.update.apply(ref, args).then(function() {
+    if (typeof logCommishAction === "function") logCommishAction(auditText, "", "");
+  });
 }
 
 function applyDuesChanges(changes, auditText) {
