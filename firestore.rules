@@ -137,8 +137,8 @@ service cloud.firestore {
     // ---------- Pool state ----------
     // Everyone reads it. Commissioners (and the Apps Script bot, which uses the owner's Google
     // login and so isn't subject to these rules) change anything. A signed-in player changes
-    // only the profile registry / privacy settings, plus the one profile named in
-    // lastProfileWriter, and only if that profile is bound to their account.
+    // only the one profile named in lastProfileWriter, if it is bound to their account: its
+    // picks, its own profilePrivacy entry, and adding its entry to the end of customUsers.
     match /pickem_v14/shared_state {
       allow read: if true;
       allow write: if isVerifiedCommissioner() || playerSharedWrite();
@@ -150,7 +150,19 @@ service cloud.firestore {
       return notBlocked() && resource != null &&
         (changed.size() == 0 || (writer != '' && changed.hasOnly([writer]) && boundToMe(writer) &&
           noStartedPickChanged(request.resource.data.get(writer, {}).get('picks', {}),
-            resource.data.get(writer, {}).get('picks', {}))));
+            resource.data.get(writer, {}).get('picks', {})))) &&
+        ownPrivacyOnly(writer) && ownRegistryEntryAdded(writer);
+    }
+    function ownPrivacyOnly(writer) {
+      let changed = request.resource.data.get('profilePrivacy', {}).diff(resource.data.get('profilePrivacy', {})).affectedKeys();
+      return changed.size() == 0 || (writer != '' && changed.hasOnly([writer]) && boundToMe(writer));
+    }
+    // Existing registry entries (anyone's) stay as they are; a player can only append their own.
+    function ownRegistryEntryAdded(writer) {
+      let before = resource.data.get('customUsers', []);
+      let after = request.resource.data.get('customUsers', []);
+      return after == before || (writer != '' && boundToMe(writer) &&
+        after.size() == before.size() + 1 && after.hasAll(before) && after[after.size() - 1].get('key', '') == writer);
     }
 
     // ---------- Kickoff locks ----------

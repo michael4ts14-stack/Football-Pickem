@@ -2,7 +2,7 @@
 import { test, before, after } from "node:test";
 import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertSucceeds, assertFails } from "@firebase/rules-unit-testing";
-import { doc, getDoc, setDoc, getDocs, collection, deleteField, deleteDoc, Timestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, getDocs, collection, deleteField, deleteDoc, Timestamp, FieldPath } from "firebase/firestore";
 
 let env;
 const J = { uid: "uid-justin", email: "justin@example.com" };      // owns u_justinc
@@ -75,10 +75,40 @@ test("pool state: a player saves their own profile, not anyone else's", async ()
 
 test("pool state: players can update the registry and privacy, nothing pool-wide", async () => {
   await seed();
-  await assertSucceeds(setDoc(SS(db(J)), { customUsers: [{ key: "u_justinc" }], profilePrivacy: { u_justinc: { hidden: true } }, updatedAt: "t" }, { merge: true }));
+  await assertSucceeds(setDoc(SS(db(J)), { customUsers: [{ key: "u_justinc" }], profilePrivacy: { u_justinc: { hidden: true } }, lastProfileWriter: "u_justinc", updatedAt: "t" }, { merge: true }));
   for (const field of ["customGames", "commissionerConfig", "poolMembers", "leaderboard", "currentWeek", "weekArchives", "deletedPicksByMember", "fridayNightRevealOverride", "liveScores"]) {
     await assertFails(setDoc(SS(db(J)), { [field]: 1, updatedAt: "t" }, { merge: true }), field);
   }
+});
+
+test("pool state: players change only their own privacy and registry entry", async () => {
+  await seed();
+  const steve = { key: "u_stevem", name: "Steve M" };
+  await env.withSecurityRulesDisabled((c) => setDoc(SS(c.firestore()), { customUsers: [steve], profilePrivacy: { michael: { hidden: true } } }, { merge: true }));
+  const reg = (who, data) => setDoc(SS(db(who)), Object.assign({ updatedAt: "t" }, data), { merge: true });
+  const mine = { key: "u_justinc", name: "Justin C" };
+  // Someone else's privacy, with or without naming them as the writer.
+  await assertFails(reg(J, { profilePrivacy: { michael: { hidden: false } }, lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(J, { profilePrivacy: { michael: { hidden: false } }, lastProfileWriter: "michael" }));
+  await assertFails(reg(J, { profilePrivacy: { u_justinc: { hidden: true } } }));                       // writer not named
+  await assertFails(reg(O, { profilePrivacy: { u_other: { hidden: true } }, lastProfileWriter: "u_other" })); // not bound
+  await assertSucceeds(reg(J, { profilePrivacy: { u_justinc: { hidden: true } }, lastProfileWriter: "u_justinc" }));
+  // The registry: no removing, editing or reordering entries, no adding someone else's.
+  await assertFails(reg(J, { customUsers: [], lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(J, { customUsers: [{ key: "u_stevem", name: "Steve", priorPts: 99 }], lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(J, { customUsers: [mine, steve], lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(J, { customUsers: [steve, { key: "u_x" }], lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(J, { customUsers: [steve, mine, mine], lastProfileWriter: "u_justinc" }));
+  await assertFails(reg(O, { customUsers: [steve, { key: "u_other" }], lastProfileWriter: "u_other" }));
+  // The app's own write (saveRegistryChangesToCloud): the whole list plus field-path privacy.
+  await assertFails(updateDoc(SS(db(J)), "customUsers", [steve, mine], "updatedAt", "t",
+    new FieldPath("profilePrivacy", "michael"), { hidden: false }, "lastProfileWriter", "u_justinc"));
+  await assertSucceeds(updateDoc(SS(db(J)), "customUsers", [steve, mine], "updatedAt", "t",
+    new FieldPath("profilePrivacy", "u_justinc"), { hidden: false }, "lastProfileWriter", "u_justinc"));
+  await assertSucceeds(updateDoc(SS(db(J)), "customUsers", [steve, mine], "updatedAt", "t2", "lastProfileWriter", "u_justinc"));
+  // Once added, the player's own entry stays as it is too (commissioners edit it).
+  await assertFails(reg(J, { customUsers: [steve, { key: "u_justinc", name: "JC" }], lastProfileWriter: "u_justinc" }));
+  await assertSucceeds(reg(M, { customUsers: [steve, { key: "u_justinc", name: "JC" }], profilePrivacy: { michael: { hidden: false } } }));
 });
 
 test("pool state: commissioner writes anything; unverified or typo-domain accounts don't count", async () => {

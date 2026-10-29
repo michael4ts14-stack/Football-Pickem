@@ -576,16 +576,21 @@ function saveRegistryChangesToCloud() {
   var baseCu = {};
   (CLOUD_REGISTRY.customUsers || []).forEach(function(cu) { if (cu && cu.key) baseCu[cu.key] = cu; });
   var basePriv = CLOUD_REGISTRY.profilePrivacy || {};
+  var isCommish = typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner();
+  // firestore.rules let a player change only their bound profile (named in lastProfileWriter):
+  // its own privacy entry, and adding its registry entry. Other entries are the commissioner's.
+  var writer = AUTH_SESSION && AUTH_SESSION.boundProfileKey;
+  var mayWrite = function(k) { return isCommish ? isDeviceOwnProfileKey(k) : k === writer; };
   var changedCu = (state.customUsers || []).filter(function(cu) {
     if (!cu || !cu.key) return false;
-    return baseCu[cu.key] ? !same(baseCu[cu.key], cu) : isDeviceOwnProfileKey(cu.key);
+    if (baseCu[cu.key]) return isCommish && !same(baseCu[cu.key], cu);
+    return mayWrite(cu.key);
   }).map(function(cu) { return JSON.parse(JSON.stringify(cu)); });
   // Privacy is only ever set for this device's own profiles (the defaults filled in for everyone
   // else would otherwise look like changes).
   var changedPriv = Object.keys(state.profilePrivacy || {}).filter(function(k) {
-    return isDeviceOwnProfileKey(k) && !same(basePriv[k], state.profilePrivacy[k]);
+    return mayWrite(k) && !same(basePriv[k], state.profilePrivacy[k]);
   });
-  var isCommish = typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner();
   if (!changedCu.length && !changedPriv.length && !isCommish) return Promise.resolve();
 
   var ref = fsDb.collection("pickem_v14").doc("shared_state");
@@ -598,7 +603,7 @@ function saveRegistryChangesToCloud() {
       var cfg = (cloud.commissionerConfig && typeof cloud.commissionerConfig === "object") ? cloud.commissionerConfig : null;
       changedCu.forEach(function(cu) {
         for (var i = 0; i < list.length; i++) {
-          if (list[i] && list[i].key === cu.key) { list[i] = cu; return; }
+          if (list[i] && list[i].key === cu.key) { if (isCommish) list[i] = cu; return; }
         }
         if (!baseCu[cu.key] && !isProfileArchived(cu.key, cfg)) list.push(cu);
       });
@@ -612,6 +617,7 @@ function saveRegistryChangesToCloud() {
       var args = [ref, "customUsers", list, "updatedAt", now];
       changedPriv.forEach(function(k) { args.push(new firebase.firestore.FieldPath("profilePrivacy", k), privVals[k]); });
       if (isCommish) args.push("fridayNightRevealOverride", !!state.fridayNightRevealOverride);
+      else args.push("lastProfileWriter", writer);
       tx.update.apply(tx, args);
       return list;
     });
