@@ -236,7 +236,11 @@ test("commissioner settings, send log and live data", async () => {
   await assertSucceeds(getDoc(doc(db(M), "pickem_v14_email_log/a")));
   await assertFails(getDoc(doc(db(J), "pickem_v14_email_log/a")));
   await assertFails(setDoc(doc(db(M), "pickem_v14_email_log/b"), { ok: true }));
-  await assertSucceeds(setDoc(doc(guest(), "live_games/week_9_matchups"), { x: 1 })); // still open (GitHub jobs)
+  // live_games: everyone reads; only commissioners write (the GitHub jobs use a service account).
+  await assertSucceeds(getDoc(doc(guest(), "live_games/week_9_matchups")));
+  await assertFails(setDoc(doc(guest(), "live_games/week_9_matchups"), { x: 1 }));
+  await assertFails(setDoc(doc(db(J), "live_games/bot_status"), { x: 1 }));
+  await assertSucceeds(setDoc(doc(db(M), "live_games/week_9_matchups"), { x: 1 }));
 });
 
 const ago = (mins) => Timestamp.fromMillis(Date.now() + mins * 60000);

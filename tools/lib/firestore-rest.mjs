@@ -1,7 +1,7 @@
 // Shared by the GitHub Actions jobs (tools/matchups, tools/live): fetch with retries and
 // the bits of the Firestore REST API they use. Auth: if GOOGLE_SERVICE_ACCOUNT_JSON is set,
-// calls use that service account; otherwise they are unauthenticated (allowed while
-// firestore.rules leaves live_games open).
+// calls use that service account; otherwise they are unauthenticated, which firestore.rules no
+// longer allows for live_games writes (B22).
 import { createSign } from "node:crypto";
 
 export const PROJECT = "football-pickem-46206";
