@@ -14,11 +14,7 @@ async function pollLiveSaturdayScores(manual) {
       await fetchLiveCollegeFootballInjuries(manual);
     } catch (eInj) {}
     var matches = matchGamesToEvents(events);
-    var minAllowedWk = Math.max(8, parseInt(state.currentWeek, 10) || 8);
-    if (matches._detectedWeek && !isHardcodedWeek7Slate(GAMES) && matches._detectedWeek >= minAllowedWk) {
-      state.currentWeek = matches._detectedWeek;
-      state.weekLabel = "Week " + matches._detectedWeek;
-    }
+    // The week changes only by a commissioner action (posting a slate), never from ESPN's detected week (B16).
     updateWeekBrandingUI();
     var unmatched = [];
 
