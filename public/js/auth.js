@@ -704,28 +704,25 @@ function saveCustomInstanceDisplayName() {
     showAppToast("⚠️ Please enter a display name.");
     return;
   }
-  var customPts = ptsInp ? (parseFloat(ptsInp.value) || 0) : 0;
-  bindAuthenticatedAccountToProfile({
-    uid: AUTH_SESSION.uid,
-    email: AUTH_SESSION.email,
-    displayName: newName,
-    provider: AUTH_SESSION.provider
-  }, newName).then(function() {
-    var bKey = AUTH_SESSION.boundProfileKey;
-    if (state.customUsers && Array.isArray(state.customUsers)) {
-      for (var i = 0; i < state.customUsers.length; i++) {
-        if (state.customUsers[i].key === bKey && !findLeaderboardEntryByName(newName)) {
-          state.customUsers[i].priorPts = customPts;
-          state.customUsers[i].rank = customPts > 0 ? "Custom" : "New";
-        }
-      }
-    }
-    regradeAllPoolMembersLive();
-    pushMultiUserAndPrivacyToFirebase();
-    openAuthModal();
-    renderAll();
-    showAppToast("✅ Updated your instance profile to " + newName + "!");
-  });
+  var bKey = AUTH_SESSION.boundProfileKey;
+  var cu = null;
+  (state.customUsers || []).forEach(function(u) { if (u && u.key === bKey) cu = u; });
+  if (!cu) {
+    showAppToast("⚠️ Only custom player profiles can be renamed here.");
+    return;
+  }
+  // Rename in place: the profile key, picks and account link stay put. Starting points are the commissioner's to set.
+  cu.name = newName;
+  if (ptsInp && isVerifiedCommissioner() && !findLeaderboardEntryByName(cu.linkedMemberName || cu.name)) {
+    var customPts = parseFloat(ptsInp.value) || 0;
+    cu.priorPts = customPts;
+    cu.rank = customPts > 0 ? "Custom" : "New";
+  }
+  regradeAllPoolMembersLive();
+  pushMultiUserAndPrivacyToFirebase();
+  openAuthModal();
+  renderAll();
+  showAppToast("✅ Updated your display name to " + newName + "!");
 }
 
 function openAuthModal() {
@@ -787,7 +784,7 @@ function openAuthModal() {
         '<div style="font-size:0.71rem;font-weight:800;color:var(--text);margin-bottom:5px;">✨ Not on the Leaderboard Yet? Set Your Custom Display Name & Starting Points:</div>' +
         '<div style="display:grid;grid-template-columns:1fr 95px auto;gap:6px;align-items:center;">' +
           '<input type="text" id="auth-edit-display-name" class="search-input" style="min-width:0;padding:6px 8px;font-size:0.76rem;" value="' + boundMeta.name.replace(/"/g, '&quot;') + '" placeholder="Your Display Name" />' +
-          '<input type="number" id="auth-edit-prior-pts" class="search-input" style="min-width:0;padding:6px 8px;font-size:0.76rem;" value="' + (boundMeta.priorPts || 0) + '" placeholder="Prior Pts" title="Starting / Prior Season Points (0 for new players)" />' +
+          '<input type="number" id="auth-edit-prior-pts" class="search-input" style="min-width:0;padding:6px 8px;font-size:0.76rem;" value="' + (boundMeta.priorPts || 0) + '" placeholder="Prior Pts" title="Starting / Prior Season Points (set by the commissioner)"' + (isVerifiedCommissioner() ? '' : ' disabled') + ' />' +
           '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;padding:6px 10px;" onclick="saveCustomInstanceDisplayName()">Save</button>' +
         '</div>' +
       '</div>' +
