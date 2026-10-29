@@ -87,31 +87,19 @@ function isPastFriday9PmCST() {
   return isPastPickDeadline();
 }
 
-function isSaturdayMorningOrLaterCST() {
-  try {
-    var now = new Date();
-    var parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/Chicago",
-      weekday: "short",
-      hour: "numeric",
-      hour12: false
-    }).formatToParts(now);
-    var wkday = "", hr = 0;
-    for (var i = 0; i < parts.length; i++) {
-      if (parts[i].type === "weekday") wkday = parts[i].value;
-      if (parts[i].type === "hour") hr = parseInt(parts[i].value, 10) % 24;
-    }
-    if (wkday === "Sun") return true;
-    if (wkday === "Sat" && hr >= 6) return true; // Saturday morning 6:00 AM+ CST
-  } catch (e) {}
-  return false;
+// Hidden picks open to everyone once that player's picks are closed for the week: a commissioner
+// lock, or the configured deadline in deadline-lock mode (unless they were let past it). In the
+// other modes picks stay editable until kickoff, so each game reveals at its own kickoff.
+function isPickSheetClosedFor(profKey) {
+  var cfg = ensureCommissionerConfig();
+  if (cfg.lockMode === "global_locked") return true;
+  return cfg.lockMode === "friday_9pm_cst" && isPastPickDeadline() && !isProfileForceUnlocked(profKey);
 }
 
-// Automatically reveal all picks on Saturday morning (or after Friday 9:00 PM CST lock if configured)
 var _origGetAutoUnhideReason = getAutoUnhideReason;
 getAutoUnhideReason = function(profKey, gameId) {
-  if (isSaturdayMorningOrLaterCST()) {
-    return "Saturday Morning Public Sheet Reveal";
+  if (isPickSheetClosedFor(profKey)) {
+    return "Pick Deadline Passed";
   }
   return _origGetAutoUnhideReason(profKey, gameId);
 };

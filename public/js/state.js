@@ -114,28 +114,6 @@ function getLinkedMemberNameForProfile(profKey) {
   return "";
 }
 
-function isFridayNightOrWeekendCST() {
-  if (state.fridayNightRevealOverride === true) return true;
-  try {
-    var now = new Date();
-    var parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/Chicago",
-      weekday: "short",
-      hour: "numeric",
-      hour12: false
-    }).formatToParts(now);
-    var wkday = "", hr = 0;
-    for (var i = 0; i < parts.length; i++) {
-      if (parts[i].type === "weekday") wkday = parts[i].value;
-      if (parts[i].type === "hour") hr = parseInt(parts[i].value, 10) % 24;
-    }
-    // Friday night >= 5:00 PM CST (17:00), all day Saturday, or all day Sunday
-    if (wkday === "Sat" || wkday === "Sun") return true;
-    if (wkday === "Fri" && hr >= 17) return true;
-  } catch (e) {}
-  return false;
-}
-
 // The redesign uses text labels, not emoji, in the UI. Messages built elsewhere still carry them.
 function stripUiEmoji(text) {
   return String(text == null ? "" : text)
@@ -196,9 +174,6 @@ function getAutoUnhideReason(profKey, gameId) {
   if (!priv.manualLockOverride) {
     if (priv.autoUnhideOnSheet === true && hasLinkedSpreadsheetPicksArrived(profKey)) {
       return "Spreadsheet Synced";
-    }
-    if (priv.autoUnhideFridayNight === true && isFridayNightOrWeekendCST()) {
-      return "Friday Night CST";
     }
   }
   return null;
