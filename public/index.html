@@ -513,7 +513,7 @@
           NO Team Names! HIGHEST score FIRST (Ex: 28-24):
         </div>
         <div style="display:flex;gap:6px;margin-bottom:6px;">
-          <input type="text" id="tiebreaker-input" value="28-24" class="search-input" style="min-width:0;padding:6px 10px;font-weight:700;" oninput="lastLocalPickTs = Date.now(); saveCurrentState(activeProfile, true)" />
+          <input type="text" id="tiebreaker-input" value="28-24" class="search-input" style="min-width:0;padding:6px 10px;font-weight:700;" oninput="if (blockTiebreakerEditIfLocked()) return; lastLocalPickTs = Date.now(); saveCurrentState(activeProfile, true)" />
           <button class="btn-sm" onclick="copyPicksToClipboard()" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;">Copy Picks</button>
         </div>
         <div id="copy-status" style="font-size:0.72rem;color:var(--green);min-height:14px;"></div>

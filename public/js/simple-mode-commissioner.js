@@ -501,6 +501,7 @@ function applySimpleUiModeDOM() {
 }
 
 function syncSimpleTiebreakerInput(val) {
+  if (blockTiebreakerEditIfLocked()) return;
   var mainTb = document.getElementById("tiebreaker-input");
   if (mainTb) mainTb.value = val;
   lastLocalPickTs = Date.now(); // the cloud echo of an earlier save must not undo this edit
@@ -538,6 +539,27 @@ function isWeekLockedForActiveProfile() {
   if (cfg.lockMode === "global_locked") return true;
   if (cfg.lockMode === "friday_9pm_cst") return isPastPickDeadline() && !isProfileForceUnlocked(activeProfile);
   return false;
+}
+
+// The tiebreaker closes with the week, and at the tiebreaker game's kickoff whatever the lock
+// mode. The sandbox ignores locks, as in pickSide.
+function isTiebreakerLocked() {
+  if (activeProfile === "test" || (AUTH_SESSION && AUTH_SESSION.adminUnlock)) return false;
+  if (isWeekLockedForActiveProfile()) return true;
+  var tbGame = resolveTiebreakerGame();
+  return !!tbGame && (isGameLockedByCommissioner(tbGame.id) || hasGameKickedOff(tbGame.id));
+}
+
+// Puts the tiebreaker inputs back to the saved value when it is locked. True when it blocked.
+function blockTiebreakerEditIfLocked() {
+  if (!isTiebreakerLocked()) return false;
+  var saved = (state[activeProfile] && state[activeProfile].tiebreaker) || "28-24";
+  ["tiebreaker-input", "simple-tiebreaker-input"].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = saved;
+  });
+  showAppToast("🔒 The tie-breaker is locked.");
+  return true;
 }
 
 function isGameLockedByCommissioner(gameId) {

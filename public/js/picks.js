@@ -267,6 +267,7 @@ function recalcImpliedTiebreaker() {
 }
 
 function applyCalculatedTiebreaker() {
+  if (blockTiebreakerEditIfLocked()) return;
   var scoreStr = recalcImpliedTiebreaker();
   document.getElementById("tiebreaker-input").value = scoreStr;
   saveCurrentState(activeProfile);
