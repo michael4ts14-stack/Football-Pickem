@@ -59,8 +59,8 @@
     .risk-meter-pill { font-size: 0.64rem; padding: 3px 7px; gap: 5px; flex: 1; justify-content: space-around; }
     .sidebar { display: none !important; }
     .sidebar.mobile-drawer-open {
-      display: flex !important; position: fixed !important; inset: 0 !important; z-index: 950 !important;
-      background: var(--bg) !important; padding: 14px 12px 95px 12px !important; max-height: 100vh !important; overflow-y: auto !important;
+      display: flex !important; position: fixed !important; inset: 0 !important; z-index: 990 !important;
+      background: var(--bg) !important; padding: 14px 12px 95px 12px !important; max-height: 100vh !important; max-height: 100dvh !important; overflow-y: auto !important;
     }
   }
 
@@ -317,7 +317,7 @@
     pointer-events: none; display: none; font-size: 0.72rem;
   }
   #opp-modal-backdrop {
-    position: fixed; inset: 0; background: var(--bg); z-index: 1000;
+    position: fixed; inset: 0; background: var(--bg); z-index: 1550;
     display: none; align-items: center; justify-content: center; padding: 12px;
   }
   #opp-modal {

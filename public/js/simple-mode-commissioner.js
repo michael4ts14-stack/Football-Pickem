@@ -311,6 +311,7 @@ async function saveAndSendPickConfirmationReceipt() {
       '----------------------------------------\n' +
       summaryLines.join('\n') +
     '</textarea>';
+  if (typeof closeAllModalsExcept === "function") closeAllModalsExcept("opp-modal-backdrop");
   document.getElementById("opp-modal-backdrop").style.display = "flex";
   showReceiptSendStatus(receiptPromise);
 }

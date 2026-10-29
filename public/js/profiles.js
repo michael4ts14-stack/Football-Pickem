@@ -181,6 +181,7 @@ function openUserAndPrivacyModal() {
       '</div>' +
     '</div>';
 
+  if (typeof closeAllModalsExcept === "function") closeAllModalsExcept("opp-modal-backdrop");
   document.getElementById("opp-modal-backdrop").style.display = "flex";
 }
 
