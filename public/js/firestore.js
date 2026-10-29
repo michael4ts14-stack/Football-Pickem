@@ -599,8 +599,29 @@ function pushCustomGamesToFirebase() {
         weekArchives: state.weekArchives || {},
         updatedAt: new Date().toISOString()
       }, sharedWeekFields()), { merge: true }).catch(function(e) { reportCloudSaveFailure("the slate", e); });
+      pushKickoffLocksToFirebase();
     } catch (e) {}
   }
+}
+
+// firestore.rules stop players changing a pick once its game kicks off. They read this small
+// doc (game ids grouped by kickoff time, for this week) instead of the whole slate, which costs
+// too much to scan. The rules check the first 20 kickoff times; games after that, or with no
+// kickoff time, lock in the app only.
+function pushKickoffLocksToFirebase() {
+  var week = sharedWeekFields().currentWeek;
+  if (!week || !fsDb) return;
+  var byTime = {};
+  GAMES.forEach(function(g) {
+    var ms = g.kickoffIso ? new Date(g.kickoffIso).getTime() : NaN;
+    if (isNaN(ms)) return;
+    (byTime[ms] = byTime[ms] || []).push(String(g.id));
+  });
+  var windows = Object.keys(byTime).map(Number).sort(function(a, b) { return a - b; }).map(function(ms) {
+    return { at: firebase.firestore.Timestamp.fromMillis(ms), ids: byTime[ms] };
+  });
+  fsDb.collection("pickem_v14").doc("kickoff_locks").set({ week: week, windows: windows, updatedAt: new Date().toISOString() })
+    .catch(function(e) { reportCloudSaveFailure("the kickoff locks", e); });
 }
 
 function pullFromFirebaseCloud() {

@@ -148,14 +148,59 @@ service cloud.firestore {
       let changed = request.resource.data.diff(resource.data).affectedKeys().difference(meta.toSet());
       let writer = request.resource.data.get('lastProfileWriter', '');
       return notBlocked() && resource != null &&
-        (changed.size() == 0 || (writer != '' && changed.hasOnly([writer]) && boundToMe(writer)));
+        (changed.size() == 0 || (writer != '' && changed.hasOnly([writer]) && boundToMe(writer) &&
+          noStartedPickChanged(request.resource.data.get(writer, {}).get('picks', {}),
+            resource.data.get(writer, {}).get('picks', {}))));
+    }
+
+    // ---------- Kickoff locks ----------
+    // A player can't change the pick for a game that has kicked off. pickem_v14/kickoff_locks
+    // (written by the commissioner's app with the slate) lists game ids by kickoff time:
+    // { week, windows: [{ at: Timestamp, ids: ['1', ...] }] }. It only counts for the week
+    // shared_state is on, so a slate the bot posts never inherits last week's locks. Rules
+    // can't loop, so the first 20 kickoff times are checked.
+    match /pickem_v14/kickoff_locks {
+      allow read: if true;
+      allow write: if isVerifiedCommissioner();
+    }
+    function kickoffWindows() {
+      let path = /databases/$(database)/documents/pickem_v14/kickoff_locks;
+      let locks = exists(path) ? get(path).data : {};
+      let week = get(/databases/$(database)/documents/pickem_v14/shared_state).data.get('currentWeek', null);
+      return locks.get('week', null) != null && string(locks.get('week', null)) == string(week) ? locks.get('windows', []) : [];
+    }
+    function noStartedPickChanged(newPicks, oldPicks) {
+      let changed = newPicks.diff(oldPicks).affectedKeys();
+      let w = changed.size() == 0 ? [] : kickoffWindows();
+      return !(
+        (w.size() > 0 && w[0].at <= request.time && changed.hasAny(w[0].ids)) ||
+        (w.size() > 1 && w[1].at <= request.time && changed.hasAny(w[1].ids)) ||
+        (w.size() > 2 && w[2].at <= request.time && changed.hasAny(w[2].ids)) ||
+        (w.size() > 3 && w[3].at <= request.time && changed.hasAny(w[3].ids)) ||
+        (w.size() > 4 && w[4].at <= request.time && changed.hasAny(w[4].ids)) ||
+        (w.size() > 5 && w[5].at <= request.time && changed.hasAny(w[5].ids)) ||
+        (w.size() > 6 && w[6].at <= request.time && changed.hasAny(w[6].ids)) ||
+        (w.size() > 7 && w[7].at <= request.time && changed.hasAny(w[7].ids)) ||
+        (w.size() > 8 && w[8].at <= request.time && changed.hasAny(w[8].ids)) ||
+        (w.size() > 9 && w[9].at <= request.time && changed.hasAny(w[9].ids)) ||
+        (w.size() > 10 && w[10].at <= request.time && changed.hasAny(w[10].ids)) ||
+        (w.size() > 11 && w[11].at <= request.time && changed.hasAny(w[11].ids)) ||
+        (w.size() > 12 && w[12].at <= request.time && changed.hasAny(w[12].ids)) ||
+        (w.size() > 13 && w[13].at <= request.time && changed.hasAny(w[13].ids)) ||
+        (w.size() > 14 && w[14].at <= request.time && changed.hasAny(w[14].ids)) ||
+        (w.size() > 15 && w[15].at <= request.time && changed.hasAny(w[15].ids)) ||
+        (w.size() > 16 && w[16].at <= request.time && changed.hasAny(w[16].ids)) ||
+        (w.size() > 17 && w[17].at <= request.time && changed.hasAny(w[17].ids)) ||
+        (w.size() > 18 && w[18].at <= request.time && changed.hasAny(w[18].ids)) ||
+        (w.size() > 19 && w[19].at <= request.time && changed.hasAny(w[19].ids)));
     }
 
     // ---------- A player's own pick document ----------
     match /pickem_v14_users/{profileKey} {
       allow read: if true;
       allow create, update: if isVerifiedCommissioner() ||
-        (notBlocked() && boundToMe(profileKey) && request.resource.data.get('ownerUid', '') == request.auth.uid);
+        (notBlocked() && boundToMe(profileKey) && request.resource.data.get('ownerUid', '') == request.auth.uid &&
+          noStartedPickChanged(request.resource.data.get('picks', {}), resource == null ? {} : resource.data.get('picks', {})));
       allow delete: if isVerifiedCommissioner();
     }
 

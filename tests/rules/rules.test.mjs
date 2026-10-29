@@ -238,3 +238,69 @@ test("commissioner settings, send log and live data", async () => {
   await assertFails(setDoc(doc(db(M), "pickem_v14_email_log/b"), { ok: true }));
   await assertSucceeds(setDoc(doc(guest(), "live_games/week_9_matchups"), { x: 1 })); // still open (GitHub jobs)
 });
+
+const ago = (mins) => Timestamp.fromMillis(Date.now() + mins * 60000);
+const LOCKS = (d) => doc(d, "pickem_v14/kickoff_locks");
+async function seedKickoffs() {
+  await seed();
+  await env.withSecurityRulesDisabled(async (c) => {
+    const d = c.firestore();
+    await setDoc(SS(d), { u_justinc: { picks: { 1: "Arizona", 2: "Iowa" } } }, { merge: true });
+    await setDoc(doc(d, "pickem_v14_users/u_justinc"), { ownerUid: J.uid, picks: { 1: "Arizona", 2: "Iowa" } });
+    // Game 1 kicked off 2 minutes ago, game 2 kicks off in an hour, game 3 has no kickoff time.
+    await setDoc(LOCKS(d), { week: 9, windows: [{ at: ago(-2), ids: ["1"] }, { at: ago(60), ids: ["2"] }] });
+  });
+}
+const pickDoc = (d, p) => setDoc(doc(d, "pickem_v14_users/u_justinc"), { ownerUid: J.uid, picks: p }, { mergeFields: ["ownerUid", "picks"] });
+const sharedPicks = (d, p) => setDoc(SS(d), { u_justinc: { picks: p }, lastProfileWriter: "u_justinc", updatedAt: "t" }, { mergeFields: ["u_justinc", "lastProfileWriter", "updatedAt"] });
+
+test("kickoff lock: a player can't change a pick once that game kicked off", async () => {
+  await seedKickoffs();
+  await assertSucceeds(pickDoc(db(J), { 1: "Arizona", 2: "Wisconsin", 3: "SMU" }));  // future / untimed games
+  await assertFails(pickDoc(db(J), { 1: "Texas Tech", 2: "Wisconsin", 3: "SMU" }));   // started game changed
+  await assertFails(pickDoc(db(J), { 2: "Wisconsin", 3: "SMU" }));                    // started pick removed
+  await assertSucceeds(sharedPicks(db(J), { 1: "Arizona", 2: "Wisconsin" }));
+  await assertFails(sharedPicks(db(J), { 1: "Texas Tech", 2: "Wisconsin" }));
+  await assertFails(sharedPicks(db(J), { 2: "Wisconsin" }));
+});
+
+test("kickoff lock: a new pick doc can't add a pick for a started game", async () => {
+  await seedKickoffs();
+  await env.withSecurityRulesDisabled(async (c) => { await deleteDoc(doc(c.firestore(), "pickem_v14_users/u_justinc")); });
+  await assertFails(pickDoc(db(J), { 1: "Arizona" }));
+  await assertSucceeds(pickDoc(db(J), { 2: "Iowa" }));
+});
+
+test("kickoff lock: locks from another week don't apply", async () => {
+  await seedKickoffs();
+  await env.withSecurityRulesDisabled(async (c) => { await setDoc(SS(c.firestore()), { currentWeek: 10 }, { merge: true }); });
+  await assertSucceeds(pickDoc(db(J), { 1: "Texas Tech" }));
+  await env.withSecurityRulesDisabled(async (c) => { await deleteDoc(LOCKS(c.firestore())); });
+  await assertSucceeds(pickDoc(db(J), { 1: "Arizona" }));                             // no locks doc at all
+});
+
+test("kickoff lock: commissioners write the locks and can still correct started games", async () => {
+  await seedKickoffs();
+  await assertSucceeds(pickDoc(db(M), { 1: "Texas Tech", 2: "Iowa" }));
+  await assertSucceeds(sharedPicks(db(M), { 1: "Texas Tech", 2: "Iowa" }));
+  await assertSucceeds(setDoc(LOCKS(db(M)), { week: 9, windows: [] }));
+  await assertFails(setDoc(LOCKS(db(J)), { week: 9, windows: [] }));
+  await assertSucceeds(getDoc(LOCKS(guest())));
+});
+
+test("kickoff lock: 30 games in 20 windows, 90 players, every pick changed stays inside the rules' limit", async () => {
+  await seed();
+  const ids = Array.from({ length: 30 }, (_, i) => String(i + 1));
+  const windows = Array.from({ length: 20 }, (_, w) => ({ at: ago(w === 19 ? -5 : 60 + w), ids: w < 10 ? ids.slice(w * 2, w * 2 + 2) : [ids[w + 10]] }));
+  await env.withSecurityRulesDisabled(async (c) => {
+    const d = c.firestore();
+    const players = Object.fromEntries(Array.from({ length: 90 }, (_, i) => ["u_p" + i, { picks: Object.fromEntries(ids.map((id) => [id, "A"])) }]));
+    await setDoc(SS(d), Object.assign(players, { customGames: ids.map((id) => ({ id: +id })) }), { merge: true });
+    await setDoc(LOCKS(d), { week: 9, windows });
+  });
+  const open = Object.fromEntries(ids.slice(0, 29).map((id) => [id, "B"]));             // game 30 (window 20) started
+  await assertSucceeds(pickDoc(db(J), open));
+  await assertSucceeds(sharedPicks(db(J), open));
+  await assertFails(pickDoc(db(J), Object.assign({}, open, { 30: "B" })));
+  await assertFails(sharedPicks(db(J), Object.assign({}, open, { 30: "B" })));
+});
