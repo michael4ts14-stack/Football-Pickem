@@ -531,7 +531,7 @@ function isProfileForceUnlocked(profKey) {
   var cfg = ensureCommissionerConfig();
   var name = getLinkedMemberNameForProfile(profKey);
   var wk = name ? cfg.forceUnlocked[standardizeParticipantName(name).toLowerCase()] : null;
-  return !!wk && parseInt(wk, 10) === parseInt(state.currentWeek, 10);
+  return forceUnlockFlagIsCurrent(wk);
 }
 
 // The whole week is closed for the active player (as opposed to single games locking at kickoff).

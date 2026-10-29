@@ -100,9 +100,20 @@ function overrideTiebreaker(memberName) {
   showAppToast("Tiebreaker for " + stdName + " is now " + val + ".");
 }
 
+// Stored as "season:week" so a flag can't re-activate in the same week number next season (B49).
+// Older flags are bare week numbers; they count only for the season in progress when this shipped.
+function forceUnlockToken() {
+  return duesSeason() + ":" + (parseInt(state.currentWeek, 10) || 0);
+}
+
+function forceUnlockFlagIsCurrent(wk) {
+  if (!wk) return false;
+  if (typeof wk === "string" && wk.indexOf(":") !== -1) return wk === forceUnlockToken();
+  return duesSeason() === DUES_LEGACY_SEASON && parseInt(wk, 10) === parseInt(state.currentWeek, 10);
+}
+
 function isMemberForceUnlocked(memberName) {
-  var wk = ensureCommissionerConfig().forceUnlocked[standardizeParticipantName(memberName).toLowerCase()];
-  return !!wk && parseInt(wk, 10) === parseInt(state.currentWeek, 10);
+  return forceUnlockFlagIsCurrent(ensureCommissionerConfig().forceUnlocked[standardizeParticipantName(memberName).toLowerCase()]);
 }
 
 // Lets one player keep changing games that haven't kicked off after the weekly deadline (this week only).
@@ -111,7 +122,7 @@ function forceUnlockPicks(memberName) {
   var cfg = ensureCommissionerConfig();
   var low = standardizeParticipantName(memberName).toLowerCase();
   var on = !isMemberForceUnlocked(memberName);
-  if (on) cfg.forceUnlocked[low] = parseInt(state.currentWeek, 10) || 0;
+  if (on) cfg.forceUnlocked[low] = forceUnlockToken();
   else delete cfg.forceUnlocked[low];
   logCommissionerOverride(standardizeParticipantName(memberName), on ? "Force unlocked past the deadline" : "Removed force unlock", "");
   renderCommissionerModalBody();
