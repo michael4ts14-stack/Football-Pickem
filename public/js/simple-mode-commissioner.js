@@ -553,21 +553,79 @@ function isGameLockedByCommissioner(gameId) {
   return false;
 }
 
-// Saves the whole commissionerConfig. update() replaces the field (a merge set kept keys that
-// were deleted here: an unblocked account, a removed force-unlock or per-game lock override all
-// came back after a refresh). Only commissioners can write it (firestore.rules); the returned
-// promise rejects when the save fails, and a failure is always shown.
+// The fields that differ between two commissionerConfigs: [{ path, value }], value undefined
+// meaning delete. Maps are compared key by key; anything else (arrays, values) is one field.
+function diffCommissionerConfig(base, next) {
+  var changes = [];
+  var isMap = function(v) { return !!v && typeof v === "object" && !Array.isArray(v); };
+  var walk = function(a, b, path) {
+    Object.keys(b).forEach(function(k) {
+      if (b[k] === undefined) return;
+      if (isMap(a[k]) && isMap(b[k])) walk(a[k], b[k], path.concat(k));
+      else if (JSON.stringify(a[k]) !== JSON.stringify(b[k])) changes.push({ path: path.concat(k), value: JSON.parse(JSON.stringify(b[k])) });
+    });
+    Object.keys(a).forEach(function(k) {
+      if (a[k] !== undefined && b[k] === undefined) changes.push({ path: path.concat(k), value: undefined });
+    });
+  };
+  walk(base || {}, next || {}, []);
+  return changes;
+}
+
+function applyCommissionerConfigChanges(cfg, changes) {
+  changes.forEach(function(c) {
+    var o = cfg;
+    for (var i = 0; i < c.path.length - 1; i++) {
+      var k = c.path[i];
+      if (!o[k] || typeof o[k] !== "object" || Array.isArray(o[k])) o[k] = {};
+      o = o[k];
+    }
+    var last = c.path[c.path.length - 1];
+    if (c.value === undefined) delete o[last]; else o[last] = c.value;
+  });
+}
+
+// Writes `next` as per-field updates against `base` (a commissioner on another device, or the
+// dues list, may have changed other fields since this device read them). With no base (the
+// doc hasn't been read yet) the whole config is written. Only commissioners can write it
+// (firestore.rules). Resolves once saved; the cloud copy then includes these changes.
+function writeCommissionerConfigChanges(base, next) {
+  var ref = fsDb.collection("pickem_v14").doc("shared_state");
+  var now = new Date().toISOString();
+  var whole = function() { return ref.set({ commissionerConfig: next, updatedAt: now }, { merge: true }); };
+  var write;
+  var changes = base ? diffCommissionerConfig(base, next) : null;
+  if (!changes) {
+    write = ref.update({ commissionerConfig: next, updatedAt: now });
+  } else if (!changes.length) {
+    return Promise.resolve();
+  } else {
+    var FP = firebase.firestore.FieldPath;
+    var args = [];
+    changes.forEach(function(c) {
+      args.push(Reflect.construct(FP, ["commissionerConfig"].concat(c.path)), c.value === undefined ? firebase.firestore.FieldValue.delete() : c.value);
+    });
+    args.push("updatedAt", now);
+    write = ref.update.apply(ref, args);
+  }
+  return write.catch(function(e) {
+    if (e && e.code === "not-found") return whole();
+    throw e;
+  }).then(function() {
+    if (!changes) CLOUD_COMMISSIONER_CONFIG = JSON.parse(JSON.stringify(next));
+    else if (CLOUD_COMMISSIONER_CONFIG) applyCommissionerConfigChanges(CLOUD_COMMISSIONER_CONFIG, changes);
+  });
+}
+
+// Saves this device's commissionerConfig: only what changed since the last cloud read (a key
+// deleted here, like an unblocked account or a removed lock override, is deleted there). The
+// returned promise rejects when the save fails, and a failure is always shown.
 function saveCommissionerConfigToCloud() {
   ensureCommissionerConfig();
   safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
   var job = Promise.resolve();
   if (fsDb && !isApplyingRemoteUpdate && typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
-    var ref = fsDb.collection("pickem_v14").doc("shared_state");
-    var patch = { commissionerConfig: state.commissionerConfig, updatedAt: new Date().toISOString() };
-    job = ref.update(patch).catch(function(e) {
-      if (e && e.code === "not-found") return ref.set(patch, { merge: true });
-      throw e;
-    });
+    job = writeCommissionerConfigChanges(CLOUD_COMMISSIONER_CONFIG, state.commissionerConfig);
     job.catch(function(e) { reportCloudSaveFailure("commissioner settings", e); });
   }
   renderCommishAnnouncementBanner();
@@ -575,21 +633,18 @@ function saveCommissionerConfigToCloud() {
   return job;
 }
 
-// Applies `mutate` to a copy of commissionerConfig, saves the copy, and only then makes it this
-// device's config, so the screen shows what the cloud confirmed. Resolves with the new config.
+// Applies `mutate` to a copy of commissionerConfig, saves only what it changed, and only then
+// makes it this device's config, so the screen shows what the cloud confirmed. Resolves with
+// the new config.
 function commitCommissionerConfig(mutate) {
   ensureCommissionerConfig();
+  var before = JSON.parse(JSON.stringify(state.commissionerConfig));
   var next = JSON.parse(JSON.stringify(state.commissionerConfig));
   mutate(next);
   if (!fsDb || !(typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) {
     return Promise.reject({ code: "permission-denied" });
   }
-  var ref = fsDb.collection("pickem_v14").doc("shared_state");
-  var patch = { commissionerConfig: next, updatedAt: new Date().toISOString() };
-  return ref.update(patch).catch(function(e) {
-    if (e && e.code === "not-found") return ref.set(patch, { merge: true });
-    throw e;
-  }).then(function() {
+  return writeCommissionerConfigChanges(before, next).then(function() {
     state.commissionerConfig = next;
     safeSetStorage("sat_week7_official_v14", JSON.stringify(state));
     return next;

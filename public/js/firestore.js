@@ -162,6 +162,9 @@ function startFirebaseRealtimeListeners() {
 // False until the pool's shared state first arrives (or boot gives up waiting). Until then a
 // device with no saved slate only has the built-in Week 7 games, which must not be shown or picked.
 var CLOUD_HYDRATED = false;
+// commissionerConfig as last read from (or confirmed by) the cloud. Saves write only the fields
+// that differ from it, so a stale tab can't wipe settings saved elsewhere.
+var CLOUD_COMMISSIONER_CONFIG = null;
 
 function isAwaitingFirstSlate() {
   return !CLOUD_HYDRATED && isHardcodedWeek7Slate(GAMES);
@@ -362,6 +365,7 @@ function applyRemoteCloudData(data, sourceLabel) {
       // Replaced, not merged into this device's copy: a setting removed in the cloud (e.g. the
       // old public log, an unblocked account) must not linger here and be saved back.
       state.commissionerConfig = Object.assign({}, data.commissionerConfig);
+      CLOUD_COMMISSIONER_CONFIG = JSON.parse(JSON.stringify(data.commissionerConfig));
       ensureCommissionerConfig();
       renderCommishAnnouncementBanner();
     }
