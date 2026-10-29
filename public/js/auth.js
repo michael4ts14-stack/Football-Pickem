@@ -1064,19 +1064,41 @@ function copyOtherProfile() {
     showAppToast("⚠️ No picks available on " + sourceName + " to copy.");
     return;
   }
+  if (isWeekLockedForActiveProfile() && activeProfile !== "test") {
+    showAppToast("🔒 Picks are locked for the week.");
+    return;
+  }
   var copy = {};
   for (var k in sourcePicks) copy[k] = sourcePicks[k];
+  keepLockedGamePicks(copy, state[activeProfile].picks || {});
   state[activeProfile].picks = copy;
   saveCurrentState(activeProfile);
   renderAll();
   showAppToast("📥 Copied picks from " + sourceName + " into " + getProfileMetaByKey(activeProfile).name + "!");
 }
 
+// Games that are locked (kickoff, deadline or commissioner) keep the profile's current pick
+// when a bulk action (copy, preset) fills the rest. The sandbox ignores locks, as in pickSide.
+function keepLockedGamePicks(nextPicks, currentPicks) {
+  if (activeProfile === "test") return;
+  for (var i = 0; i < GAMES.length; i++) {
+    var id = GAMES[i].id;
+    if (!isGameLockedByCommissioner(id)) continue;
+    if (currentPicks[id] !== undefined) nextPicks[id] = currentPicks[id];
+    else delete nextPicks[id];
+  }
+}
+
 function applyPreset(type) {
+  if (isWeekLockedForActiveProfile() && activeProfile !== "test") {
+    showAppToast("🔒 Picks are locked for the week.");
+    return;
+  }
   lastLocalPickTs = Date.now();
   clearDeletedFlagForProfile(activeProfile);
   for (var i = 0; i < GAMES.length; i++) {
     var g = GAMES[i];
+    if (activeProfile !== "test" && isGameLockedByCommissioner(g.id)) continue;
     if (type === "optimal") {
       state[activeProfile].picks[g.id] = g.rec;
     } else if (type === "safe" || type === "chalk") {
