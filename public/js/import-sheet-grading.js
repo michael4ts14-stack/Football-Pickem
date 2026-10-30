@@ -474,8 +474,16 @@ async function triggerAppsScriptGmailScraper() {
 
   try {
     if (stEl) stEl.textContent = "↻ Triggering Google Apps Script Web App to scrape latest Gmail .xlsx attachment...";
-    var sep = url.indexOf("?") === -1 ? "?force=1" : "&force=1";
-    var resp = await fetch(url + sep);
+    var idToken = await getBotIdToken();
+    if (!idToken) {
+      if (stEl) stEl.textContent = "⚠️ Sign in with your commissioner Google account to run the bot.";
+      return;
+    }
+    var resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "runBot", force: true, idToken: idToken })
+    });
     var data = await resp.json();
     pullFromFirebaseCloud();
     var wkStr = data.weekLabel || (data.week ? ("Week " + data.week) : (state.weekLabel || "Week 9"));

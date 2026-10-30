@@ -59,25 +59,6 @@ function canEditProfileInCurrentInstance(profKey) {
   return (profKey === AUTH_SESSION.boundProfileKey || profKey === "test");
 }
 
-async function sha256Hex(str) {
-  try {
-    if (window.crypto && window.crypto.subtle) {
-      var buf = new TextEncoder().encode(String(str || ""));
-      var hashBuf = await window.crypto.subtle.digest("SHA-256", buf);
-      var hashArr = Array.from(new Uint8Array(hashBuf));
-      return hashArr.map(function(b) { return b.toString(16).padStart(2, "0"); }).join("");
-    }
-  } catch (e) {}
-  // Fallback deterministic hash if subtle crypto unavailable
-  var h = 2166136261;
-  var s = String(str || "");
-  for (var i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
-  }
-  return "fnv_" + (h >>> 0).toString(16);
-}
-
 function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerUid, emailStr) {
   ensureMultiUserAndPrivacyState();
   var cleanMember = standardizeParticipantName(memberName || displayNameFallback || "Player");
@@ -263,7 +244,6 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
         linkedEntries: AUTH_SESSION.linkedEntries || [],
         updatedAt: new Date().toISOString()
       };
-      if (authUser.passwordHash) saveAcct.passwordHash = authUser.passwordHash;
       await fsDb.collection("pickem_v14_accounts").doc(emailDocKey).set(saveAcct, { merge: true });
     } catch (eSave) {}
   }
@@ -424,9 +404,6 @@ async function submitEmailPasswordAuth(modeOverride) {
     errEl.textContent = mode === "signup" ? "↻ Creating your account & isolated instance..." : "↻ Signing in to your instance...";
   }
 
-  var passHash = await sha256Hex(email + "::" + password);
-  var emailDocKey = "email_" + email.replace(/[^a-z0-9]/g, "_");
-
   // 1. Try Official Firebase Authentication (Email/Password) first
   if (fbAuth && password.length >= 6) {
     try {
@@ -444,8 +421,7 @@ async function submitEmailPasswordAuth(modeOverride) {
           uid: cred.user.uid,
           email: cred.user.email || email,
           displayName: cred.user.displayName || chosenMember || customName,
-          provider: "firebase_email",
-          passwordHash: passHash
+          provider: "firebase_email"
         }, chosenMember || customName);
         closeAuthModal();
         showAppToast("🔐 Signed in as " + AUTH_SESSION.displayName + " (Instance Locked)!");
@@ -466,8 +442,7 @@ async function submitEmailPasswordAuth(modeOverride) {
               uid: signCred.user.uid,
               email: email,
               displayName: signCred.user.displayName || chosenMember || customName,
-              provider: "firebase_email",
-              passwordHash: passHash
+              provider: "firebase_email"
             }, chosenMember || customName);
             closeAuthModal();
             showAppToast("🔐 Signed in as " + AUTH_SESSION.displayName + "!");
@@ -478,71 +453,26 @@ async function submitEmailPasswordAuth(modeOverride) {
           return;
         }
       }
-      // If Email/Password provider isn't enabled yet in Firebase Console (`auth/operation-not-allowed` / `auth/configuration-not-found`),
-      // seamlessly fall through to the Cloud Firestore Account Vault (`pickem_v14_accounts`)!
     }
   }
 
-  // 2. Cloud Firestore Account Vault (`pickem_v14_accounts/{emailDocKey}`) — Works 100% out-of-the-box!
-  if (fsDb) {
-    try {
-      var snap = await fsDb.collection("pickem_v14_accounts").doc(emailDocKey).get();
-      if (snap && snap.exists) {
-        var existingAcct = snap.data();
-        var isResettingVaultPass = (window._pendingVaultPasswordResetEmail === email);
-        var verifyTarget = standardizeParticipantName(chosenMember || customName || "").toLowerCase();
-        var acctLinked = standardizeParticipantName(existingAcct.linkedMemberName || existingAcct.displayName || "").toLowerCase();
-        var verifiedForReset = isResettingVaultPass && (!acctLinked || (verifyTarget && verifyTarget === acctLinked));
-
-        if (existingAcct.passwordHash && existingAcct.passwordHash !== passHash && !verifiedForReset) {
-          if (errEl) {
-            errEl.style.color = "#f87171";
-            if (isResettingVaultPass && acctLinked) {
-              errEl.textContent = "⚠️ To finish resetting password for " + email + ", select '" + (existingAcct.linkedMemberName || existingAcct.displayName) + "' in Step 1 above to verify your identity, then click Sign In.";
-            } else {
-              errEl.textContent = "❌ Incorrect password for " + email + ". Click 'Forgot Password?' below to reset.";
-            }
-          }
-          return;
-        }
-        window._pendingVaultPasswordResetEmail = null;
-        await bindAuthenticatedAccountToProfile({
-          uid: existingAcct.uid || emailDocKey,
-          email: email,
-          displayName: existingAcct.displayName || chosenMember || customName,
-          provider: "firestore_email",
-          passwordHash: passHash
-        }, chosenMember || existingAcct.linkedMemberName || customName);
-        closeAuthModal();
-        showAppToast(verifiedForReset ? ("✅ Password updated & signed in as " + AUTH_SESSION.displayName + "!") : ("🔐 Signed in as " + AUTH_SESSION.displayName + " (Instance Locked)!"));
-        return;
-      } else {
-        // Create new account in Firestore Vault
-        window._pendingVaultPasswordResetEmail = null;
-        await bindAuthenticatedAccountToProfile({
-          uid: emailDocKey,
-          email: email,
-          displayName: chosenMember || customName || email.split("@")[0],
-          provider: "firestore_email",
-          passwordHash: passHash
-        }, chosenMember || customName);
-        closeAuthModal();
-        showAppToast("✅ Created account & locked instance for " + AUTH_SESSION.displayName + "!");
-        return;
-      }
-    } catch (fsErr) {}
+  // No device-only fallback: without a Firebase sign-in, Firestore rejects every save, so a
+  // "signed in" player would see picks that never reach the pool.
+  if (errEl) {
+    errEl.style.color = "#f87171";
+    errEl.textContent = password.length < 6
+      ? "❌ Password must be at least 6 characters."
+      : "❌ Couldn't sign in with email and password. Use 'Sign in with Google' instead.";
   }
+}
 
-  // 3. Offline / Local fallback
-  await bindAuthenticatedAccountToProfile({
-    uid: emailDocKey,
-    email: email,
-    displayName: chosenMember || customName || email.split("@")[0],
-    provider: "local_email",
-    passwordHash: passHash
-  }, chosenMember || customName);
-  closeAuthModal();
-  showAppToast("🔐 Signed in as " + AUTH_SESSION.displayName + "!");
+// Firebase ID token the Apps Script bot checks before acting; null when not signed in to Firebase.
+async function getBotIdToken() {
+  try {
+    return (fbAuth && fbAuth.currentUser) ? await fbAuth.currentUser.getIdToken() : null;
+  } catch (e) {
+    return null;
+  }
 }
 
 async function sendEmailPasswordReset() {
@@ -562,16 +492,11 @@ async function sendEmailPasswordReset() {
       sentFirebaseEmail = true;
     } catch (e) {}
   }
-  // Also arm Cloud Firestore Vault Self-Service Reset so users on the Firestore Vault can immediately set a new password
-  window._pendingVaultPasswordResetEmail = email;
   if (errEl) {
-    if (sentFirebaseEmail) {
-      errEl.style.color = "#34d399";
-      errEl.innerHTML = "✅ <strong>Password reset email sent to " + email + "!</strong><br>*(Or if your account uses the Cloud Firestore Vault, select your Leaderboard Name in Step 1, type a new password above, and click Sign In to update it immediately.)*";
-    } else {
-      errEl.style.color = "#fde68a";
-      errEl.innerHTML = "🔑 <strong>Password Reset Armed for " + email + ":</strong><br>1. Select your linked <strong>Leaderboard Name</strong> in Step 1 above (to verify your identity).<br>2. Type your <strong>NEW password</strong> in the password box above and click <strong>Sign In & Lock Instance</strong> to save your new password!";
-    }
+    errEl.style.color = sentFirebaseEmail ? "#34d399" : "#f87171";
+    errEl.textContent = sentFirebaseEmail
+      ? "✅ Password reset email sent to " + email + "."
+      : "❌ Couldn't send a reset email to " + email + ". Use 'Sign in with Google' instead.";
   }
   if (passEl) passEl.focus();
 }
@@ -627,20 +552,12 @@ async function commissionerResetPlayerPassword() {
     showAppToast("⚠️ Enter the player's email address to reset their password.");
     return;
   }
-  var emailDocKey = "email_" + targetEmail.replace(/[^a-z0-9]/g, "_");
-  if (fsDb) {
-    try {
-      await fsDb.collection("pickem_v14_accounts").doc(emailDocKey).set({
-        passwordHash: "",
-        resetByCommissionerAt: new Date().toISOString()
-      }, { merge: true });
-    } catch (e) {}
-  }
+  var sent = false;
   if (fbAuth) {
-    try { await fbAuth.sendPasswordResetEmail(targetEmail); } catch (e2) {}
+    try { await fbAuth.sendPasswordResetEmail(targetEmail); sent = true; } catch (e2) {}
   }
   if (inp) inp.value = "";
-  showAppToast("✅ Cleared vault password lock & triggered reset for " + targetEmail + "!");
+  showAppToast(sent ? ("✅ Sent a password reset email to " + targetEmail + "!") : ("❌ Couldn't send a reset email to " + targetEmail + "."));
 }
 
 function changeAuthenticatedLinkedMember(newMemberName) {

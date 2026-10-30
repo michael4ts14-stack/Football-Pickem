@@ -516,6 +516,7 @@ function pushMultiUserAndPrivacyToFirebase() {
   };
   if (activeProfile && activeProfile !== "test" && state[activeProfile]) {
     payload[activeProfile] = state[activeProfile];
+    payload.lastWriterProfileKey = activeProfile;
   }
   if (fsDb) {
     try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }); } catch (e) {}

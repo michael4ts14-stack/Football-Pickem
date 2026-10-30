@@ -23,42 +23,83 @@ var ESPN_SUMMARY_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/footb
 // ============================================================================
 var ENABLE_OUTBOUND_POOL_BROADCAST_EMAILS = false;
 
-// Web App GET endpoint so index.html can trigger an instant Gmail scrape or live ESPN sync from any browser
-function doGet(e) {
-  var action = (e && e.parameter && e.parameter.action) ? String(e.parameter.action) : "";
-  var force = e && e.parameter && e.parameter.force === "1";
-  if (action === "emergencyStop") {
-    var stopRes = emergencyStopEmailLoopAndCleanState();
-    return ContentService
-      .createTextOutput(JSON.stringify(stopRes))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  if (action === "syncEspn") {
-    var espnRes = syncEspnLiveStateToFirestore(true);
-    return ContentService
-      .createTextOutput(JSON.stringify(espnRes))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  if (action === "pollSubMinute") {
-    var subRes = pollEspnLiveGamesSubMinute();
-    return ContentService
-      .createTextOutput(JSON.stringify(subRes))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  var summary = runMasterPickemEmailBot(force);
-  var liveSync = syncEspnLiveStateToFirestore(force);
-  summary.espnLiveSync = liveSync;
-  return ContentService
-    .createTextOutput(JSON.stringify(summary))
-    .setMimeType(ContentService.MimeType.JSON);
+// The web app is public (access ANYONE_ANONYMOUS) and runs as the deploying account, so every
+// request must carry the caller's Firebase ID token. Pick receipts need any signed-in player;
+// everything else needs a verified commissioner (same list as firestore.rules).
+var FIREBASE_WEB_API_KEY = "AIzaSyCMEUZaBOSyQt_Bhyi4mN33_fEwMcDi4_A";
+var BOT_COMMISSIONER_EMAILS = ["michael4ts14@gmail.com", "commissioner@separatedatturf.com"];
+var BOT_WEB_ACTIONS = ["runBot", "syncEspn", "pollSubMinute", "emergencyStop"];
+
+function jsonOut_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
 }
 
-// Web App POST endpoint to dispatch pick receipts, master spreadsheet emails, and nudges
-// Web App POST endpoint to dispatch pick receipts, master spreadsheet emails, and nudges
+function escapeHtml_(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// Returns { email, verified } for a valid Firebase ID token, else null. Google checks the
+// token's signature and expiry.
+function verifyCaller_(idToken) {
+  if (!idToken) return null;
+  try {
+    var res = UrlFetchApp.fetch("https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=" + FIREBASE_WEB_API_KEY, {
+      method: "post", contentType: "application/json", payload: JSON.stringify({ idToken: String(idToken) }), muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) return null;
+    var user = (JSON.parse(res.getContentText()).users || [])[0];
+    return (user && user.email) ? { email: String(user.email).toLowerCase(), verified: user.emailVerified === true } : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function isBotCommissioner_(caller) {
+  if (!caller || !caller.verified) return false;
+  if (BOT_COMMISSIONER_EMAILS.indexOf(caller.email) !== -1) return true;
+  var roles = fetchFirestoreDoc_("pickem_v14_commissioners/roles") || {};
+  return String(roles.primaryCommissionerEmail || "").toLowerCase() === caller.email
+    || !!(roles.authorizedEmails && roles.authorizedEmails[caller.email] === true);
+}
+
+function doGet(e) {
+  return jsonOut_({ ok: false, error: "Send a POST with action and idToken." });
+}
+
+function runBotWebAction_(action, force) {
+  if (action === "emergencyStop") return emergencyStopEmailLoopAndCleanState();
+  if (action === "syncEspn") return syncEspnLiveStateToFirestore(true);
+  if (action === "pollSubMinute") return pollEspnLiveGamesSubMinute();
+  var summary = runMasterPickemEmailBot(force);
+  summary.espnLiveSync = syncEspnLiveStateToFirestore(force);
+  return summary;
+}
+
+// Public entry: checks who is calling, then hands off to handleBotAction_.
 function doPost(e) {
+  var data;
   try {
     var raw = (e && e.postData && e.postData.contents) ? e.postData.contents : "";
-    var data = raw ? JSON.parse(raw) : {};
+    data = raw ? JSON.parse(raw) : {};
+  } catch (eParse) {
+    return jsonOut_({ ok: false, error: "Bad request" });
+  }
+  var caller = verifyCaller_(data.idToken);
+  if (!caller) return jsonOut_({ ok: false, error: "Sign in to the pick'em app first." });
+  if (data.action === "sendPickReceipt") {
+    data.email = caller.email; // a receipt only ever goes to the signed-in caller
+    return handleBotAction_(data);
+  }
+  if (!isBotCommissioner_(caller)) return jsonOut_({ ok: false, error: "Commissioner only." });
+  if (BOT_WEB_ACTIONS.indexOf(data.action) !== -1) {
+    return jsonOut_(runBotWebAction_(data.action, data.force === true || data.force === "1"));
+  }
+  return handleBotAction_(data);
+}
+
+// Trusted entry: callers have already been checked (doPost) or are this script's own triggers.
+function handleBotAction_(data) {
+  try {
     var action = data.action || "";
 
     var currentCloud = fetchFirebaseNode("") || {};
@@ -103,19 +144,21 @@ function doPost(e) {
           "— Separated at Turf Pick'em";
 
         var htmlPicksRows = pSummary.split("\n").map(function(line) {
-          return "<li style='padding:4px 0;border-bottom:1px solid #e2e8f0;font-size:13px;font-family:monospace;'>" + line + "</li>";
+          return "<li style='padding:4px 0;border-bottom:1px solid #e2e8f0;font-size:13px;font-family:monospace;'>" + escapeHtml_(line) + "</li>";
         }).join("");
+        // Name, week and tiebreaker come from the request; escape them before they enter HTML.
+        var pNameH = escapeHtml_(pName), wkH = escapeHtml_(wk), tbH = escapeHtml_(tb);
 
         var htmlBody = "<div style='font-family:-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;border:1px solid #e2e8f0;border-radius:8px;background:#ffffff;'>" +
           "<div style='background:#0f172a;color:#ffffff;padding:16px 20px;border-radius:6px;margin-bottom:16px;'>" +
             "<h2 style='margin:0;font-size:18px;color:#38bdf8;'>🏈 Separated at Turf Pick'em</h2>" +
-            "<div style='font-size:14px;color:#94a3b8;margin-top:4px;'>Official " + wk + " Pick Receipt</div>" +
+            "<div style='font-size:14px;color:#94a3b8;margin-top:4px;'>Official " + wkH + " Pick Receipt</div>" +
           "</div>" +
-          "<p style='font-size:15px;color:#334155;'>Hi <strong>" + pName + "</strong>,</p>" +
-          "<p style='font-size:14px;color:#475569;'>Your 26 picks for <strong>" + wk + "</strong> have been safely recorded in the pool database.</p>" +
+          "<p style='font-size:15px;color:#334155;'>Hi <strong>" + pNameH + "</strong>,</p>" +
+          "<p style='font-size:14px;color:#475569;'>Your 26 picks for <strong>" + wkH + "</strong> have been safely recorded in the pool database.</p>" +
           "<div style='background:#f8fafc;border-left:4px solid #10b981;padding:12px 16px;margin:16px 0;'>" +
-            "<div style='font-size:13px;color:#64748b;'><strong>Contestant:</strong> " + pName + "</div>" +
-            "<div style='font-size:13px;color:#64748b;'><strong>Tie-Breaker:</strong> " + tb + "</div>" +
+            "<div style='font-size:13px;color:#64748b;'><strong>Contestant:</strong> " + pNameH + "</div>" +
+            "<div style='font-size:13px;color:#64748b;'><strong>Tie-Breaker:</strong> " + tbH + "</div>" +
             "<div style='font-size:13px;color:#059669;font-weight:700;margin-top:4px;'>🔒 Official Deadline: Friday 9:00 PM CST</div>" +
           "</div>" +
           "<h4 style='margin:16px 0 8px;font-size:14px;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;'>Your Submitted Picks</h4>" +
@@ -470,14 +513,10 @@ function checkAndDispatchScheduledOutboundEmails() {
           missingList.push(pm.name);
         }
       }
-      doPost({
-        postData: {
-          contents: JSON.stringify({
-            action: "sendWedThuNudge",
-            weekLabel: wkLabel,
-            missingPlayers: missingList
-          })
-        }
+      handleBotAction_({
+        action: "sendWedThuNudge",
+        weekLabel: wkLabel,
+        missingPlayers: missingList
       });
       cfg.lastWedThuNudgeDayKey = dayKey;
       patchFirebaseNode("", { commissionerConfig: cfg });
@@ -495,14 +534,10 @@ function checkAndDispatchScheduledOutboundEmails() {
         ? currentCloud.customGames
         : getDefaultWeek7GamesFallback();
       var csvData = generateMasterCsvFromCloud(currentCloud.poolMembers, activeGames);
-      doPost({
-        postData: {
-          contents: JSON.stringify({
-            action: "sendSaturdayMasterSheet",
-            weekLabel: wkLabel,
-            csvData: csvData
-          })
-        }
+      handleBotAction_({
+        action: "sendSaturdayMasterSheet",
+        weekLabel: wkLabel,
+        csvData: csvData
       });
       Logger.log("✓ Automated Saturday master sheet sent for " + wkLabel);
     }
