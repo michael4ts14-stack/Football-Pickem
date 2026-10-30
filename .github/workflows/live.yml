@@ -38,5 +38,5 @@ jobs:
       - name: Poll ESPN and write to Firestore
         if: github.event_name != 'pull_request'
         env:
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node tools/live/build-live.mjs --minutes ${{ inputs.minutes || '14' }}
