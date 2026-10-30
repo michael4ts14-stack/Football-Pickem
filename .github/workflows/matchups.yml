@@ -44,5 +44,5 @@ jobs:
         if: github.event_name != 'pull_request'
         env:
           # Optional. Needed once firestore.rules stop allowing open writes to live_games.
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node tools/matchups/build-matchups.mjs ${{ inputs.force && '--force' || '' }}
