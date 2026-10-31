@@ -285,7 +285,7 @@ function toggleAutoPoll(enabled) {
       // A hidden tab doesn't poll; coming back refreshes at once (below).
       if (document.visibilityState === "hidden") return;
       pollLiveSaturdayScores(false);
-    }, 15000); // 15s automatic live score updates
+    }, 30000); // 30s automatic live score updates
   }
 }
 

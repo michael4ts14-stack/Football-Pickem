@@ -188,9 +188,7 @@ async function pollLiveSaturdayScores(manual) {
     // Re-grade every participant in state.poolMembers against LIVE_SCORES
     state.liveScores = LIVE_SCORES;
     regradeAllPoolMembersLive();
-    if (state.poolMembers && state.poolMembers.length > 0 && countScoredGamesInLiveScores() > 0) {
-      pushWatchlistOrStandingsToFirebase();
-    }
+    // Live scores and standings are graded locally in memory (0 Firestore writes).
 
     var cstNow = new Date().toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "2-digit", minute: "2-digit" });
     badge.textContent = "🔴 CST Synced (" + cstNow + ")" + (unmatched.length ? " • " + unmatched.length + " unmatched" : "");
