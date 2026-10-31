@@ -980,13 +980,20 @@ function pushWatchlistOrStandingsToFirebase() {
   state.liveScores = LIVE_SCORES;
   saveLocalState();
   if (!canWriteSharedPoolState()) return;
+  var members = state.poolMembers || [];
+  var localHasPicks = members.some(function(pm) {
+    return pm && pm.picks && Object.keys(pm.picks).length > 0 && !pm.awaitingSheet;
+  });
   var payload = Object.assign({
     watchlist: state.watchlist,
     leaderboard: state.leaderboard,
-    poolMembers: state.poolMembers || [],
     liveScores: LIVE_SCORES,
     updatedAt: new Date().toISOString()
   }, sharedWeekFields());
+  // CRITICAL GUARD: Only overwrite poolMembers in cloud if local has picks or if no official sheet was synced
+  if (localHasPicks || !state.lastScrapedFile) {
+    payload.poolMembers = members;
+  }
   if (fsDb) {
     // mergeFields replaces each field whole. A deep merge kept liveScores keys deleted here
     // (last week's games) in the cloud, and they came back on every device.
@@ -999,16 +1006,23 @@ function pushCustomGamesToFirebase() {
   if (!canWriteSharedPoolState()) return Promise.resolve(false);
   if (fsDb) {
     try {
-      var job = fsDb.collection("pickem_v14").doc("shared_state").set(Object.assign({
+      var members = state.poolMembers || [];
+      var localHasPicks = members.some(function(pm) {
+        return pm && pm.picks && Object.keys(pm.picks).length > 0 && !pm.awaitingSheet;
+      });
+      var payload = Object.assign({
         customGames: GAMES,
         tiebreakerGameId: state.tiebreakerGameId || null,
         michael: state.michael,
         kinyion: state.kinyion,
         watchlist: state.watchlist,
         leaderboard: state.leaderboard,
-        poolMembers: state.poolMembers || [],
         updatedAt: new Date().toISOString()
-      }, sharedWeekFields()), { merge: true }).then(function() { return true; }, function(e) { reportCloudSaveFailure("the slate", e); return false; });
+      }, sharedWeekFields());
+      if (localHasPicks || !state.lastScrapedFile) {
+        payload.poolMembers = members;
+      }
+      var job = fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }).then(function() { return true; }, function(e) { reportCloudSaveFailure("the slate", e); return false; });
       pushKickoffLocksToFirebase();
       return job;
     } catch (e) {}

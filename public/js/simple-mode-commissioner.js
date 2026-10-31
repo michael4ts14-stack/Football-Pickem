@@ -1316,9 +1316,12 @@ async function commishPublishSelectedEspnSlate() {
   }
   GAMES = newGames;
   LIVE_SCORES = {};
+  var prevWeek = state.currentWeek;
   state.currentWeek = targetWk;
   state.weekLabel = "Week " + targetWk;
-  resetPoolPicksForNewWeek(false);
+  if (targetWk > prevWeek) {
+    resetPoolPicksForNewWeek(false);
+  }
   // Push the slate first: an ESPN failure while enriching must not leave it local-only.
   var pushed = await pushCustomGamesToFirebase();
   var enriched = await syncAllLiveTrackingData(true);

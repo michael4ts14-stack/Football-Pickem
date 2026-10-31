@@ -958,12 +958,15 @@ async function importStrictSheetText() {
     state.tiebreakerGameId = detectedTbId;
     GAMES = parsedGames;
     LIVE_SCORES = {};
+    var prevWeek = state.currentWeek;
     var wkMatch = raw.match(/week\s*(\d{1,2})/i);
     if (wkMatch) {
       state.currentWeek = parseInt(wkMatch[1], 10);
       state.weekLabel = "Week " + state.currentWeek;
     }
-    resetPoolPicksForNewWeek(false);
+    if (state.currentWeek > prevWeek) {
+      resetPoolPicksForNewWeek(false);
+    }
     var pushed = await pushCustomGamesToFirebase();
     var enriched = await syncAllLiveTrackingData(true);
     pushWatchlistOrStandingsToFirebase();

@@ -402,3 +402,23 @@ test("Firestore requests carry the owner's OAuth token; ESPN requests don't", ()
   assert.ok(fs.length > 0 && fs.every((c) => c.params.headers && c.params.headers.Authorization === "Bearer owner-token"));
   assert.ok(espn.length > 0 && espn.every((c) => !c.params.headers));
 });
+
+test("missing cloud picks triggers automatic re-scan of cached spreadsheet email", () => {
+  const email = {
+    id: "m-sheet9-cached", subject: "College Pick'em '26 - Week 9 Spreadsheet", body: "",
+    attachments: [csvAttachment("College Pick'em '26 - Week 9.csv", officialSheet())],
+  };
+  const wipedMembers = [
+    { name: "Adam L", priorPts: 120, picks: {}, awaitingSheet: true }
+  ];
+  const h = loadBot({
+    cloud: baseCloud({ customGames: sheetSlate, poolMembers: wipedMembers, officialSheetSyncedForWeek: 9 }),
+    threads: [fakeThread([email])],
+    userProps: { PROCESSED_MSG_IDS: JSON.stringify({ "m-sheet9-cached": "2026-10-31" }) },
+  });
+  h.ctx.runMasterPickemEmailBot(false);
+  const w = sharedStateWrites(h).filter((x) => x.poolMembers).pop();
+  assert.ok(w, "candidate spreadsheet email was re-scanned to self-heal missing picks");
+  const byName = Object.fromEntries(w.poolMembers.map((m) => [m.name, m]));
+  assert.strictEqual(byName["Adam L"].picks["2"], "SMU", "picks were restored");
+});

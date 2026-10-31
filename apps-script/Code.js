@@ -308,7 +308,10 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
       var subjectLow = subject.toLowerCase();
 
       var curWkTarget = (currentCloud && currentCloud.currentWeek) ? parseInt(currentCloud.currentWeek, 10) : 8;
-      var needsOfficialSheet = (!currentCloud.officialSheetSyncedForWeek || String(currentCloud.officialSheetSyncedForWeek) !== String(curWkTarget));
+      var cloudPoolHasPicks = currentCloud.poolMembers && Array.isArray(currentCloud.poolMembers) && currentCloud.poolMembers.some(function(pm) {
+        return pm && pm.picks && Object.keys(pm.picks).length > 0 && !pm.awaitingSheet;
+      });
+      var needsOfficialSheet = (!currentCloud.officialSheetSyncedForWeek || String(currentCloud.officialSheetSyncedForWeek) !== String(curWkTarget) || !cloudPoolHasPicks);
       var isCandidateSheetEmail = (subjectLow.indexOf("spreadsheet") !== -1 || attachments.length > 0);
 
       // If we are still waiting for the official sheet, NEVER skip candidate spreadsheet emails due to processed cache!

@@ -800,12 +800,24 @@ function sanitizeStateForActiveSlate() {
   }
 
   // 3. Check if state.poolMembers has stale picks from a previous week's slate
+  // SAFETY GUARD: Never wipe pool members' picks unless the slate is confirmed from the cloud,
+  // has at least 15 valid games, and it's not a live game day (Friday evening through Sunday).
+  var isLiveGameTime = false;
+  try {
+    var cNow = new Date();
+    var cDay = cNow.getUTCDay(); // 5 = Fri, 6 = Sat, 0 = Sun
+    var cHour = cNow.getUTCHours();
+    if (cDay === 6 || (cDay === 5 && cHour >= 18) || (cDay === 0 && cHour <= 14)) isLiveGameTime = true;
+  } catch (eGt) {}
+  var slateConfirmedForPool = typeof CLOUD_HYDRATED !== "undefined" && CLOUD_HYDRATED && Array.isArray(GAMES) && GAMES.length >= 15;
+
   if (state.poolMembers && Array.isArray(state.poolMembers)) {
     for (var p = 0; p < state.poolMembers.length; p++) {
       var pm = state.poolMembers[p];
       if (!pm.picks) pm.picks = {};
       var pmCounts = countMatchingPicksForSlate(pm.picks, GAMES);
-      if (pmCounts.total >= 5 && pmCounts.matched < Math.ceil(pmCounts.total * 0.5)) {
+      // Only purge stale picks from an old week if slate is fully hydrated, NOT on game days, and official sheet hasn't synced
+      if (slateConfirmedForPool && !isLiveGameTime && !state.officialSheetSyncedForWeek && pmCounts.total >= 5 && pmCounts.matched < Math.ceil(pmCounts.total * 0.5)) {
         pm.picks = {};
         pm.livePts = 0;
         pm.inProgressPts = 0;
@@ -815,7 +827,7 @@ function sanitizeStateForActiveSlate() {
         pm.won3x = 0;
         pm.awaitingSheet = true;
         cleanedAny = true;
-      } else if (pmCounts.matched === 0) {
+      } else if (pmCounts.total === 0) {
         pm.awaitingSheet = true;
         pm.livePts = 0;
         pm.inProgressPts = 0;
@@ -823,7 +835,7 @@ function sanitizeStateForActiveSlate() {
         pm.won1x = 0;
         pm.won2x = 0;
         pm.won3x = 0;
-      } else {
+      } else if (pmCounts.matched > 0 || (isLiveGameTime && pmCounts.total > 0)) {
         pm.awaitingSheet = false;
       }
     }
@@ -835,7 +847,7 @@ function sanitizeStateForActiveSlate() {
       var wl = state.watchlist[w];
       if (!wl.picks) wl.picks = {};
       var wlCounts = countMatchingPicksForSlate(wl.picks, GAMES);
-      if (wlCounts.total >= 5 && wlCounts.matched < Math.ceil(wlCounts.total * 0.5)) {
+      if (slateConfirmedForPool && !isLiveGameTime && wlCounts.total >= 5 && wlCounts.matched < Math.ceil(wlCounts.total * 0.5)) {
         wl.picks = {};
         cleanedAny = true;
       }
@@ -905,6 +917,17 @@ function sanitizeStateForActiveSlate() {
 // Callers archive the outgoing week before they replace GAMES or currentWeek; by the time this
 // runs the new slate is already in place, so archiving here would file it under the wrong week.
 function resetPoolPicksForNewWeek(syncToCloud) {
+  var isGameDayNow = false;
+  try {
+    var dNow = new Date();
+    var dayU = dNow.getUTCDay();
+    var hrU = dNow.getUTCHours();
+    if (dayU === 6 || (dayU === 5 && hrU >= 18) || (dayU === 0 && hrU <= 14)) isGameDayNow = true;
+  } catch (eGdn) {}
+  if (isGameDayNow || (typeof countScoredGamesInLiveScores === "function" && countScoredGamesInLiveScores() > 0)) {
+    console.warn("⚠️ Blocked resetPoolPicksForNewWeek: Live scoring in progress!");
+    return;
+  }
   if (state.poolMembers && Array.isArray(state.poolMembers)) {
     for (var i = 0; i < state.poolMembers.length; i++) {
       state.poolMembers[i].picks = {};
@@ -921,7 +944,7 @@ function resetPoolPicksForNewWeek(syncToCloud) {
   // "Picks cleared" flags belong to the week they were set in. update() replaces the whole map
   // (a merge set would keep the old keys).
   state.deletedPicksByMember = {};
-  if (fsDb && canWriteSharedPoolState()) {
+  if (syncToCloud && fsDb && canWriteSharedPoolState()) {
     try { fsDb.collection("pickem_v14").doc("shared_state").update({ deletedPicksByMember: {} }).catch(function() {}); } catch (eDel) {}
   }
   if (state.watchlist && Array.isArray(state.watchlist)) {
