@@ -23,6 +23,7 @@ function switchMainView(mode) {
   if (mode === "live") {
     pollLiveSaturdayScores(false);
     renderLiveScoreboardTab();
+    if (typeof toggleAutoPoll === "function" && !livePollTimer) toggleAutoPoll(true);
   } else if (mode === "condensed") {
     renderCondensedTable();
   } else if (mode === "standings") {
@@ -284,7 +285,7 @@ function toggleAutoPoll(enabled) {
       // A hidden tab doesn't poll; coming back refreshes at once (below).
       if (document.visibilityState === "hidden") return;
       pollLiveSaturdayScores(false);
-    }, 60000);
+    }, 15000); // 15s automatic live score updates
   }
 }
 
