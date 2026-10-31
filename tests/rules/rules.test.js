@@ -48,7 +48,32 @@ test("the verified commissioner can change pool fields and the week", async () =
 });
 
 test("a signed-in player can save their own profile entry", async () => {
-  await assertSucceeds(setDoc(doc(as("alice-uid", PLAYER_A), "pickem_v14/shared_state"), { u_alice: { picks: { 1: "Arizona" } }, updatedAt: "now" }, merge));
+  await assertSucceeds(setDoc(doc(as("alice-uid", PLAYER_A), "pickem_v14/shared_state"),
+    { u_alice: { picks: { 1: "Arizona" } }, lastWriterProfileKey: "u_alice", updatedAt: "now" }, merge));
+});
+
+test("a player cannot write someone else's profile entry in shared_state", async () => {
+  const db = as("bob-uid", PLAYER_B);
+  await assertFails(setDoc(doc(db, "pickem_v14/shared_state"), { u_alice: { picks: {} }, lastWriterProfileKey: "u_alice" }, merge));
+  await assertFails(setDoc(doc(db, "pickem_v14/shared_state"), { u_alice: { picks: {} }, lastWriterProfileKey: "u_bob" }, merge));
+  await assertFails(setDoc(doc(db, "pickem_v14/shared_state"), { u_alice: { picks: {} } }, merge));
+});
+
+test("account docs are private to their owner and commissioners", async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "pickem_v14_accounts/email_alice_example_com"), { uid: "alice-uid", email: "alice@example.com" });
+  });
+  const bob = as("bob-uid", PLAYER_B);
+  await assertFails(getDoc(doc(bob, "pickem_v14_accounts/email_alice_example_com")));
+  await assertFails(setDoc(doc(bob, "pickem_v14_accounts/email_alice_example_com"), { linkedMemberName: "Bob" }, merge));
+  await assertFails(getDoc(doc(anon(), "pickem_v14_accounts/email_alice_example_com")));
+  await assertSucceeds(setDoc(doc(as("alice-uid", PLAYER_A), "pickem_v14_accounts/email_alice_example_com"), { linkedMemberName: "Alice" }, merge));
+  await assertSucceeds(getDoc(doc(as("m", MICHAEL), "pickem_v14_accounts/email_alice_example_com")));
+});
+
+test("only commissioners can read the commissioner list", async () => {
+  await assertFails(getDoc(doc(as("bob-uid", PLAYER_B), "pickem_v14_commissioners/roles")));
+  await assertSucceeds(getDoc(doc(as("m", MICHAEL), "pickem_v14_commissioners/roles")));
 });
 
 test("a player's save that re-sends unchanged pool fields still works", async () => {

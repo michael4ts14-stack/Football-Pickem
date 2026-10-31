@@ -376,27 +376,33 @@ function pushProfileToFirebase(profKey) {
   // 1. Write to dedicated per-user document (`pickem_v14_users/{profKey}`) for 80+ user scalability
   if (fsDb) {
     try {
-      fsDb.collection("pickem_v14_users").doc(profKey).set({
+      var userDoc = {
         profileKey: profKey,
         displayName: meta ? meta.name : profKey,
         linkedMemberName: getLinkedMemberNameForProfile(profKey) || (meta ? meta.name : ""),
         priorPts: meta ? (parseFloat(meta.priorPts) || 0) : 0,
         rank: meta ? (meta.defaultRank || "") : "",
         color: meta ? (meta.color || "#10b981") : "#10b981",
-        ownerUid: (AUTH_SESSION && AUTH_SESSION.boundProfileKey === profKey) ? (AUTH_SESSION.uid || AUTH_SESSION.email || "") : "",
         picks: profObj.picks || {},
         tiebreaker: profObj.tiebreaker || "28-24",
         target: profObj.target || 20,
         currentWeek: state.currentWeek || 8,
         updatedAt: nowIso
-      }, { merge: true }).catch(function() {});
+      };
+      // Only the owner stamps ownerUid; a commissioner edit leaves the existing owner in place.
+      if (AUTH_SESSION && AUTH_SESSION.boundProfileKey === profKey) userDoc.ownerUid = AUTH_SESSION.uid || AUTH_SESSION.email || "";
+      fsDb.collection("pickem_v14_users").doc(profKey).set(userDoc, { merge: true }).catch(function() {
+        showAppToast("⚠️ Your picks did not save to the pool. Sign in again and re-save.");
+      });
     } catch (eUserDoc) {}
   }
 
   // 2. Also merge ONLY this profile's key into `pickem_v14/shared_state` (never touching other users' keys!)
   //    The active week is NOT written here: a pick save must never move everyone's week.
+  //    lastWriterProfileKey tells firestore.rules which single entry this save changes.
   var payload = {};
   payload[profKey] = profObj;
+  payload.lastWriterProfileKey = profKey;
   payload.updatedAt = nowIso;
 
   if (fsDb) {

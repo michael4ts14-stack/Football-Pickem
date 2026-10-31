@@ -23,20 +23,27 @@ service cloud.firestore {
       );
     }
 
-    // Pool-wide fields only the commissioner (or the bot) may change. Players may change
-    // their own profile entry, customUsers, profilePrivacy and updatedAt.
-    function touchesPoolFields() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
-        'customGames', 'commissionerConfig', 'weekArchives', 'officialSheetSyncedForWeek',
-        'poolMembers', 'leaderboard', 'liveScores', 'watchlist', 'currentWeek', 'weekLabel',
-        'tiebreakerGameId', 'fridayNightRevealOverride', 'deletedPicksByMember',
-        'lastScrapedFile', 'scrapedAt', 'standingsUpdatedAt'
-      ]);
+    // True if the signed-in user owns pickem_v14_users/{key} (ownerUid is their uid or email).
+    function ownsProfileKey(key) {
+      let path = /databases/$(database)/documents/pickem_v14_users/$(key);
+      let owner = exists(path) ? get(path).data.get('ownerUid', '') : '';
+      return owner != '' && (owner == request.auth.uid
+        || (request.auth.token.email != null && owner == request.auth.token.email));
+    }
+
+    // Players may change customUsers, profilePrivacy and updatedAt, plus at most one profile
+    // entry: the one named in lastWriterProfileKey, which they must own. Every other key
+    // (pool fields and other players' entries) is commissioner/bot only.
+    function isPlayerSharedStateWrite() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys()
+        .difference(['updatedAt', 'customUsers', 'profilePrivacy', 'lastWriterProfileKey'].toSet());
+      let key = request.resource.data.get('lastWriterProfileKey', '');
+      return changed.size() == 0 || (key != '' && changed.hasOnly([key]) && ownsProfileKey(key));
     }
 
     match /pickem_v14/shared_state {
       allow read: if true;
-      allow write: if isVerifiedCommissioner() || (request.auth != null && resource != null && !touchesPoolFields());
+      allow write: if isVerifiedCommissioner() || (request.auth != null && resource != null && isPlayerSharedStateWrite());
     }
 
     // Live scores, archives and bot status are written only by the Apps Script bot.
@@ -46,8 +53,7 @@ service cloud.firestore {
     }
 
     match /pickem_v14_commissioners/{docId} {
-      allow read: if true;
-      allow write: if isVerifiedCommissioner();
+      allow read, write: if isVerifiedCommissioner();
     }
 
     // A player's own pick document. Once a document is owned (ownerUid set to the player's
@@ -63,9 +69,11 @@ service cloud.firestore {
       allow write: if isVerifiedCommissioner() || (request.auth != null && ownsUserDoc());
     }
 
+    // A player's account binding, keyed "email_" + their email with non [a-z0-9] chars as "_"
+    // (see emailDocKey in public/js/auth.js). Only that player or a commissioner may touch it.
     match /pickem_v14_accounts/{docId} {
-      allow read: if true;
-      allow write: if request.auth != null || isVerifiedCommissioner();
+      allow read, write: if isVerifiedCommissioner() || (request.auth != null && request.auth.token.email != null
+        && docId == 'email_' + request.auth.token.email.lower().replace('[^a-z0-9]', '_'));
     }
   }
 }

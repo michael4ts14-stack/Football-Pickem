@@ -238,21 +238,22 @@ async function saveAndSendPickConfirmationReceipt() {
 
   // If Google Apps Script Web App URL is configured, also trigger automated confirmation email receipt
   if (state.gasWebAppUrl && userEmail) {
-    try {
+    getBotIdToken().then(function(idToken) {
+      if (!idToken) return;
       fetch(state.gasWebAppUrl, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
           action: "sendPickReceipt",
-          email: userEmail,
+          idToken: idToken,
           playerName: meta.name,
           weekLabel: state.weekLabel || "Week 8",
           tiebreaker: tb,
           picksSummary: summaryLines.join("\n")
         })
       }).catch(function() {});
-    } catch (e) {}
+    });
   }
 
   // Open a clean Confirmation Receipt modal with 1-click Email / Copy / Guest-to-Account upgrade
@@ -624,18 +625,20 @@ function triggerWedThuAutomatedNudge() {
   saveCommissionerConfigToCloud();
   copyMissingPlayersList();
   if (state.gasWebAppUrl) {
-    try {
+    getBotIdToken().then(function(idToken) {
+      if (!idToken) return;
       fetch(state.gasWebAppUrl, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
           action: "sendWedThuNudge",
+          idToken: idToken,
           weekLabel: state.weekLabel || "Week 8",
           missingPlayers: missing
         })
       }).catch(function() {});
-    } catch (e) {}
+    });
   }
   renderCommissionerModalBody();
   showAppToast("⏰ Automated Wed/Thu Nudge triggered for " + missing.length + " unsubmitted players (copied list + sent to Apps Script Bot)!");
@@ -649,17 +652,19 @@ function triggerSaturdayMorningMasterSheetBroadcast() {
   saveCommissionerConfigToCloud();
   exportOfficialMasterCsv();
   if (state.gasWebAppUrl) {
-    try {
+    getBotIdToken().then(function(idToken) {
+      if (!idToken) return;
       fetch(state.gasWebAppUrl, {
         method: "POST",
         mode: "no-cors",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
         body: JSON.stringify({
           action: "sendSaturdayMasterSheet",
+          idToken: idToken,
           weekLabel: state.weekLabel || "Week 8"
         })
       }).catch(function() {});
-    } catch (e) {}
+    });
   }
   renderAll();
   renderCommissionerModalBody();
