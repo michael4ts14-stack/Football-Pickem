@@ -15,6 +15,12 @@
     "code-review@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/anthropics/claude-plugins-official.git"
+      }
+    },
     "ponytail": {
       "source": {
         "source": "git",
@@ -29,8 +35,8 @@
     },
     "anthropic-agent-skills": {
       "source": {
-        "source": "github",
-        "repo": "anthropics/skills"
+        "source": "git",
+        "url": "https://github.com/anthropics/skills.git"
       }
     },
     "superpowers-marketplace": {
