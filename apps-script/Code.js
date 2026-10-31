@@ -536,9 +536,17 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             Logger.log("⏭️ Skipping " + att.getName() + ": it is for Week " + msgWeekNum + ", active week is " + curWkForSheet);
             continue;
           }
-          var sheetGrid = isXlsx ? extractGridFromXlsxAttachment(att) : Utilities.parseCsv(att.getDataAsString());
-          var poolResult = parsePoolSpreadsheetGrid(sheetGrid, activeGames, currentCloud);
-          var parsedCount = poolResult ? poolResult.poolMembers.length : 0;
+          // An .xlsx can hold several tabs (Picks, Scoreboard, Contestants); take the first that parses.
+          var sheetGrids = isXlsx ? extractGridsFromXlsxAttachment(att).map(function(sh) { return sh.grid; })
+                                  : [Utilities.parseCsv(att.getDataAsString())];
+          var poolResult = null;
+          var parsedCount = 0;
+          for (var sg = 0; sg < sheetGrids.length; sg++) {
+            var tryResult = parsePoolSpreadsheetGrid(sheetGrids[sg], activeGames, currentCloud);
+            var tryCount = tryResult ? tryResult.poolMembers.length : 0;
+            if (tryCount > parsedCount) { poolResult = tryResult; parsedCount = tryCount; }
+            if (tryCount >= 10) break;
+          }
           if (parsedCount < 10) {
             recordBotError_("Sheet " + att.getName() + " parsed only " + parsedCount + " members (need 10); not imported");
             continue;
@@ -706,27 +714,55 @@ function importPoolSheetResult_(poolResult, sheetWkNum, fileName, currentCloud) 
 // ============================================================================
 // NATIVE ZERO-CONFIG .XLSX ATTACHMENT PARSER (Unzips XML directly in memory)
 // ============================================================================
-function extractGridFromXlsxAttachment(att) {
+// Returns every worksheet of the workbook as { name, grid }, the one most likely to hold the
+// picks first: a sheet named like "Picks", then the rest by size. Sheet size alone is not a safe
+// signal (a Scoreboard tab full of formulas can outweigh the Picks tab), so callers try each
+// grid in order and keep the first that parses.
+function extractGridsFromXlsxAttachment(att) {
   try {
     var zipBlob = att.copyBlob().setContentType("application/zip");
     var files = Utilities.unzip(zipBlob);
     var sharedStringsXml = null;
+    var workbookXml = null;
+    var relsXml = null;
     var candidateSheets = [];
 
     for (var i = 0; i < files.length; i++) {
       var fname = (files[i].getName() || "").toLowerCase();
       if (fname === "xl/sharedstrings.xml") {
         sharedStringsXml = files[i].getDataAsString();
-      } else if (fname.indexOf("xl/worksheets/") === 0 && fname.indexOf(".xml") !== -1) {
+      } else if (fname === "xl/workbook.xml") {
+        workbookXml = files[i].getDataAsString();
+      } else if (fname === "xl/_rels/workbook.xml.rels") {
+        relsXml = files[i].getDataAsString();
+      } else if (fname.indexOf("xl/worksheets/") === 0 && fname.indexOf(".xml") !== -1 && fname.indexOf("_rels") === -1) {
         var str = files[i].getDataAsString();
-        candidateSheets.push({ name: files[i].getName(), xml: str, len: str.length });
+        candidateSheets.push({ file: fname, name: "", xml: str, len: str.length });
       }
     }
     if (candidateSheets.length === 0) return [];
 
-    // Sort by largest XML content so main sheet with all players & games is chosen
-    candidateSheets.sort(function(a, b) { return b.len - a.len; });
-    var sheet1Xml = candidateSheets[0].xml;
+    // Tab names: workbook.xml lists <sheet name=".." r:id=".."/>, the rels map r:id -> worksheets/sheetN.xml.
+    var targetById = {};
+    (relsXml ? relsXml.match(/<Relationship\b[^>]*>/g) || [] : []).forEach(function(tag) {
+      var id = (tag.match(/\bId="([^"]+)"/) || [])[1];
+      var target = (tag.match(/\bTarget="([^"]+)"/) || [])[1];
+      if (id && target) targetById[id] = "xl/" + target.replace(/^\/?(xl\/)?/, "").toLowerCase();
+    });
+    var nameByFile = {};
+    (workbookXml ? workbookXml.match(/<sheet\b[^>]*>/g) || [] : []).forEach(function(tag) {
+      var nm = (tag.match(/\bname="([^"]*)"/) || [])[1];
+      var rid = (tag.match(/\br:id="([^"]+)"/) || [])[1];
+      if (nm && rid && targetById[rid]) nameByFile[targetById[rid]] = decodeXmlEntities(nm);
+    });
+    candidateSheets.forEach(function(sh) { sh.name = nameByFile[sh.file] || sh.file; });
+
+    candidateSheets.sort(function(a, b) {
+      var ap = /pick/i.test(a.name) ? 1 : 0;
+      var bp = /pick/i.test(b.name) ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      return b.len - a.len;
+    });
 
     var sharedStrings = [];
     if (sharedStringsXml) {
@@ -741,39 +777,51 @@ function extractGridFromXlsxAttachment(att) {
       }
     }
 
-    var grid = [];
-    var rowMatches = sheet1Xml.match(/<row[\s>][\s\S]*?<\/row>/g) || [];
-    for (var r = 0; r < rowMatches.length; r++) {
-      var rowXml = rowMatches[r];
-      var cellMatches = rowXml.match(/<c[\s>][\s\S]*?(?:<\/c>|\/>)/g) || [];
-      var rowArr = [];
-      for (var c = 0; c < cellMatches.length; c++) {
-        var cXml = cellMatches[c];
-        var refMatch = cXml.match(/\br="([A-Z]+)\d+"/);
-        var colIdx = refMatch ? colLettersToIndex(refMatch[1]) : c;
-        var typeMatch = cXml.match(/\bt="([^"]+)"/);
-        var cType = typeMatch ? typeMatch[1] : "";
-        var vMatch = cXml.match(/<v>([\s\S]*?)<\/v>/);
-        var val = "";
-        if (cType === "s" && vMatch) {
-          var idx = parseInt(vMatch[1], 10);
-          val = sharedStrings[idx] !== undefined ? sharedStrings[idx] : "";
-        } else if (cType === "inlineStr") {
-          var isMatch = cXml.match(/<t[^>]*>([\s\S]*?)<\/t>/);
-          val = isMatch ? decodeXmlEntities(isMatch[1]) : "";
-        } else if (vMatch) {
-          val = decodeXmlEntities(vMatch[1]);
-        }
-        while (rowArr.length <= colIdx) rowArr.push("");
-        rowArr[colIdx] = String(val).trim();
-      }
-      if (rowArr.length > 0) grid.push(rowArr);
-    }
-    return grid;
+    return candidateSheets.map(function(sh) {
+      return { name: sh.name, grid: xlsxSheetXmlToGrid_(sh.xml, sharedStrings) };
+    });
   } catch (e) {
     Logger.log("XLSX unzip parse error: " + e.message);
     return [];
   }
+}
+
+// Kept for callers that want one grid: the most likely picks sheet.
+function extractGridFromXlsxAttachment(att) {
+  var sheets = extractGridsFromXlsxAttachment(att);
+  return sheets.length ? sheets[0].grid : [];
+}
+
+function xlsxSheetXmlToGrid_(sheetXml, sharedStrings) {
+  var grid = [];
+  var rowMatches = sheetXml.match(/<row[\s>][\s\S]*?<\/row>/g) || [];
+  for (var r = 0; r < rowMatches.length; r++) {
+    var rowXml = rowMatches[r];
+    var cellMatches = rowXml.match(/<c[\s>][\s\S]*?(?:<\/c>|\/>)/g) || [];
+    var rowArr = [];
+    for (var c = 0; c < cellMatches.length; c++) {
+      var cXml = cellMatches[c];
+      var refMatch = cXml.match(/\br="([A-Z]+)\d+"/);
+      var colIdx = refMatch ? colLettersToIndex(refMatch[1]) : c;
+      var typeMatch = cXml.match(/\bt="([^"]+)"/);
+      var cType = typeMatch ? typeMatch[1] : "";
+      var vMatch = cXml.match(/<v>([\s\S]*?)<\/v>/);
+      var val = "";
+      if (cType === "s" && vMatch) {
+        var idx = parseInt(vMatch[1], 10);
+        val = sharedStrings[idx] !== undefined ? sharedStrings[idx] : "";
+      } else if (cType === "inlineStr") {
+        var isMatch = cXml.match(/<t[^>]*>([\s\S]*?)<\/t>/);
+        val = isMatch ? decodeXmlEntities(isMatch[1]) : "";
+      } else if (vMatch) {
+        val = decodeXmlEntities(vMatch[1]);
+      }
+      while (rowArr.length <= colIdx) rowArr.push("");
+      rowArr[colIdx] = String(val).trim();
+    }
+    if (rowArr.length > 0) grid.push(rowArr);
+  }
+  return grid;
 }
 
 function colLettersToIndex(letters) {
