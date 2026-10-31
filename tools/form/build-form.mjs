@@ -33,7 +33,7 @@ async function findFormUrl() {
 }
 
 async function main() {
-  const authed = await initFirestoreAuth().catch(() => false);
+  const authed = await initFirestoreAuth();
   log(authed ? "Firestore: service account" : "Firestore: unauthenticated");
   const shared = await readDoc("pickem_v14/shared_state", ["currentWeek", "customGames"]);
   const week = (shared && parseInt(shared.currentWeek, 10)) || 0;

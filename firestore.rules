@@ -265,9 +265,9 @@ service cloud.firestore {
 
     // ---------- Live scores, matchups, bot status, form map ----------
     // Everyone reads; only commissioners write from the app. The GitHub Actions jobs sign in
-    // with the GOOGLE_SERVICE_ACCOUNT_JSON service account and the Apps Script bot with the
-    // owner's login, so both bypass these rules. Deploy only once that secret is set, or the
-    // jobs (which fall back to unauthenticated) can no longer write.
+    // with the FIRESTORE_SERVICE_ACCOUNT service account (needs roles/datastore.user) and the
+    // Apps Script bot with the owner's login, so both bypass these rules. Deploy only once that
+    // secret is set, or the jobs can no longer write.
     match /live_games/{docId} {
       allow read: if true;
       allow write: if isVerifiedCommissioner();

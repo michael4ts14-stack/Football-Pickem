@@ -1,7 +1,9 @@
 // Shared by the GitHub Actions jobs (tools/matchups, tools/live): fetch with retries and
 // the bits of the Firestore REST API they use. Auth: if GOOGLE_SERVICE_ACCOUNT_JSON is set,
 // calls use that service account; otherwise they are unauthenticated, which firestore.rules no
-// longer allows for live_games writes (B22).
+// longer allows for live_games writes (B22). The workflows fill GOOGLE_SERVICE_ACCOUNT_JSON from
+// the FIRESTORE_SERVICE_ACCOUNT repo secret and set FIRESTORE_AUTH_REQUIRED=true, so a missing
+// or bad secret fails the job with a clear message instead of falling back to anonymous writes.
 import { createSign } from "node:crypto";
 
 export const PROJECT = "football-pickem-46206";
@@ -25,7 +27,18 @@ export async function fetchJson(url, opts = {}, tries = 3) {
 // ---------- Firestore REST ----------
 let accessToken = null;
 export async function initFirestoreAuth() {
-  accessToken = await getAccessToken();
+  const required = process.env.FIRESTORE_AUTH_REQUIRED === "true";
+  try {
+    accessToken = await getAccessToken();
+  } catch (e) {
+    if (required) throw new Error(`Firestore service account auth failed: ${e.message}`);
+    console.log("Service account auth failed:", e.message);
+    accessToken = null;
+  }
+  if (required && !accessToken) {
+    throw new Error("FIRESTORE_AUTH_REQUIRED is set but no service account credential was loaded. " +
+      "Add the FIRESTORE_SERVICE_ACCOUNT repo secret (see BUGS.md B22).");
+  }
   return !!accessToken;
 }
 async function getAccessToken() {

@@ -8,7 +8,8 @@
 // --dry-run   fetch and build, print a summary, write nothing to Firestore
 // --force     full refresh even if one ran in the last 20 hours
 // Auth: if GOOGLE_SERVICE_ACCOUNT_JSON is set, Firestore calls use that service account;
-// otherwise they are unauthenticated (firestore.rules now rejects those writes).
+// otherwise they are unauthenticated (firestore.rules now rejects those writes). With
+// FIRESTORE_AUTH_REQUIRED=true (the workflows) a missing credential fails the run.
 import { writeFileSync } from "node:fs";
 import {
   seasonStatsFromSummary, extraStatsFromTeamFeed, computeNationalRanks, matchupEdges,
@@ -64,7 +65,7 @@ function eventIdsFromScoreboard(sb) {
 }
 
 async function main() {
-  const authed = await initFirestoreAuth().catch((e) => { log("Service account auth failed:", e.message); return false; });
+  const authed = await initFirestoreAuth();
   log(authed ? "Firestore: using service account" : "Firestore: unauthenticated");
 
   const shared = await readDoc("pickem_v14/shared_state", ["currentWeek", "customGames"]);

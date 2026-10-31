@@ -38,5 +38,7 @@ jobs:
       - name: Poll ESPN and write to Firestore
         if: github.event_name != 'pull_request'
         env:
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          # Dedicated Firestore-only service account, not the hosting-deploy key (BUGS.md B22).
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIRESTORE_SERVICE_ACCOUNT }}
+          FIRESTORE_AUTH_REQUIRED: "true"
         run: node tools/live/build-live.mjs --minutes ${{ inputs.minutes || '14' }}
