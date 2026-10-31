@@ -6,6 +6,8 @@
   "enabledPlugins": {
     "ponytail@ponytail": true,
     "ecc@ecc": true,
+    "claude-mem@thedotmack": true,
+    "obsidian@obsidian-skills": true,
     "claude-code-setup@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "security-guidance@claude-plugins-official": true,
@@ -25,6 +27,18 @@
       "source": {
         "source": "git",
         "url": "https://github.com/DietrichGebert/ponytail.git"
+      }
+    },
+    "thedotmack": {
+      "source": {
+        "source": "github",
+        "repo": "thedotmack/claude-mem"
+      }
+    },
+    "obsidian-skills": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/kepano/obsidian-skills.git"
       }
     },
     "ecc": {
