@@ -13,3 +13,10 @@ Do them in order. Do not deploy `firestore.rules` before step 4.
 - [ ] 7. Delete the downloaded JSON key from your machine.
 - [ ] 8. Confirm the Apps Script bot's owner login still writes `live_games` (it bypasses rules via IAM).
 - [ ] 9. Leave `FIREBASE_SERVICE_ACCOUNT` alone. It is for hosting deploy only now.
+
+## Week 9 sheet import fix (Oct 31)
+- [ ] Copy the new `apps-script/Code.js` into the Apps Script editor (or `cd apps-script && clasp push`), save, and redeploy the Web App if you use it.
+- [ ] Run `forceRescanLatestSpreadsheetEmail`. Log should say `Imported College Pick'em '26 - Week 9.xlsx: 89 pool members`.
+- [ ] Open the app and confirm picks show for everyone.
+
+Cause: the bot chose the workbook tab with the biggest XML. This week the Scoreboard tab outgrew the Picks tab, so it parsed zeros. It now prefers the tab named like "Picks" and tries every tab until one parses.
