@@ -917,6 +917,9 @@ function sanitizeStateForActiveSlate() {
 // Callers archive the outgoing week before they replace GAMES or currentWeek; by the time this
 // runs the new slate is already in place, so archiving here would file it under the wrong week.
 function resetPoolPicksForNewWeek(syncToCloud) {
+  if (typeof unlockPicksForNewWeek === "function") {
+    unlockPicksForNewWeek(null, state.currentWeek);
+  }
   var isGameDayNow = false;
   try {
     var dNow = new Date();

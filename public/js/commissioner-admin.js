@@ -620,7 +620,7 @@ function renderMultiBuyInEntryStrip() {
   for (var i = 0; i < entries.length; i++) {
     var en = entries[i];
     var isAct = (activeProfile === en.profileKey);
-    var isLockedEntry = state[en.profileKey] && state[en.profileKey].userLockedPicks;
+    var isLockedEntry = isCurrentProfileManuallyLocked(en.profileKey);
     pillsHtml += '<button type="button" class="entry-pill-btn' + (isAct ? ' active' : '') + '" aria-pressed="' + isAct + '" onclick="switchLinkedBuyInEntry(\'' + en.profileKey + '\')">' +
       en.memberName + (isLockedEntry ? ' (locked)' : '') +
     '</button>';
@@ -636,9 +636,18 @@ function renderMultiBuyInEntryStrip() {
 // ---------------------------------------------------------------------------
 // 5. Manual "Lock Picks" Feature in Simple View + Locked Monday Odds Enforcement
 // ---------------------------------------------------------------------------
-function isCurrentProfileManuallyLocked() {
-  if (!state[activeProfile]) return false;
-  return !!state[activeProfile].userLockedPicks;
+function isCurrentProfileManuallyLocked(profKey) {
+  var pk = profKey || activeProfile;
+  if (!state[pk]) return false;
+  if (!state[pk].userLockedPicks) return false;
+  var curWk = parseInt(state.currentWeek, 10);
+  var lockedWk = parseInt(state[pk].userLockedWeek, 10);
+  if (curWk && lockedWk && lockedWk !== curWk) {
+    state[pk].userLockedPicks = false;
+    delete state[pk].userLockedWeek;
+    return false;
+  }
+  return true;
 }
 
 function toggleManualUserPickLock(forceLockState) {
@@ -649,6 +658,7 @@ function toggleManualUserPickLock(forceLockState) {
   }
   var nextState = (typeof forceLockState === "boolean") ? forceLockState : !state[activeProfile].userLockedPicks;
   state[activeProfile].userLockedPicks = nextState;
+  state[activeProfile].userLockedWeek = nextState ? (parseInt(state.currentWeek, 10) || 0) : null;
   saveCurrentState(activeProfile, false);
   renderSimpleGuestAccountBar();
   renderAll();
@@ -700,7 +710,7 @@ pickSide = function(gameId, sideCode) {
 
 var _origPickSideForProfileV166 = pickSideForProfile;
 pickSideForProfile = function(profKey, gameId, sideCode) {
-  if (state[profKey] && state[profKey].userLockedPicks && !(AUTH_SESSION && AUTH_SESSION.adminUnlock && isVerifiedCommissioner())) {
+  if (isCurrentProfileManuallyLocked(profKey) && !(AUTH_SESSION && AUTH_SESSION.adminUnlock && isVerifiedCommissioner())) {
     showAppToast("🔒 Picks for " + getProfileDisplayMeta(profKey).name + " are locked! Unlock picks first to make changes.");
     return;
   }

@@ -964,8 +964,13 @@ async function importStrictSheetText() {
       state.currentWeek = parseInt(wkMatch[1], 10);
       state.weekLabel = "Week " + state.currentWeek;
     }
-    if (state.currentWeek > prevWeek) {
-      resetPoolPicksForNewWeek(false);
+    if (state.currentWeek !== prevWeek) {
+      if (typeof unlockPicksForNewWeek === "function") {
+        unlockPicksForNewWeek(prevWeek, state.currentWeek);
+      }
+      if (state.currentWeek > prevWeek) {
+        resetPoolPicksForNewWeek(false);
+      }
     }
     var pushed = await pushCustomGamesToFirebase();
     var enriched = await syncAllLiveTrackingData(true);

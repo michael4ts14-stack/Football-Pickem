@@ -39,7 +39,7 @@ function cmMemberInfo(pm) {
     matched: c.matched,
     hasAny: c.matched > 0 && !pm.awaitingSheet,
     complete: GAMES.length > 0 && c.matched >= GAMES.length,
-    locked: !!(prof && prof.userLockedPicks) || (cmWeekClosed() && !forceUnlocked),
+    locked: (typeof isCurrentProfileManuallyLocked === "function" ? isCurrentProfileManuallyLocked(linked ? linked.key : null) : !!(prof && prof.userLockedPicks)) || (cmWeekClosed() && !forceUnlocked),
     forceUnlocked: forceUnlocked,
     savedAt: (prof && prof.updatedAt) || pm.updatedAt || pm.submittedAt || "",
     weekPts: weekPts,

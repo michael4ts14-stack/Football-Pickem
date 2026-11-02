@@ -547,8 +547,13 @@ function applyRemoteCloudData(data, sourceLabel) {
     }
     var minValidWeek = (!isHardcodedWeek7Slate(GAMES) || localMaxPrior >= 120) ? 8 : 7;
     if (incomingWkNum >= minValidWeek && incomingWkNum >= (state.currentWeek || minValidWeek)) {
+      var prevWk = state.currentWeek;
+      var changedWk = (incomingWkNum !== prevWk);
       state.currentWeek = incomingWkNum;
       state.weekLabel = "Week " + incomingWkNum;
+      if (changedWk && typeof unlockPicksForNewWeek === "function") {
+        unlockPicksForNewWeek(prevWk, incomingWkNum);
+      }
     } else if ((data.currentWeek && parseInt(data.currentWeek, 10) < minValidWeek) || (data.weekLabel && parseWeekNumFromLabel(data.weekLabel) < minValidWeek)) {
       cloudLbStale = true;
     }

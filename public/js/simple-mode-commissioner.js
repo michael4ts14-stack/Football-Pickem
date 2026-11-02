@@ -45,7 +45,7 @@ function ensureCommissionerConfig() {
 // ---------- Pick deadline (Locks tab) ----------
 // The weekly deadline: a weekday and time in a time zone (default Friday 9:00 PM Central).
 // A pick week runs Monday to Sunday, so the deadline has passed from that moment until Monday.
-var DEADLINE_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+var DEADLINE_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 var DEADLINE_ZONES = { "America/New_York": "ET", "America/Chicago": "CT", "America/Denver": "MT", "America/Los_Angeles": "PT" };
 
 function getDeadlineConfig() {
@@ -60,6 +60,21 @@ function getDeadlineConfig() {
 function isPastPickDeadline() {
   var d = getDeadlineConfig();
   try {
+    // If the active slate consists of upcoming games that have not kicked off yet, the deadline has not passed.
+    if (typeof GAMES !== "undefined" && Array.isArray(GAMES) && GAMES.length > 0) {
+      var futureKickoffs = 0, pastOrLiveKickoffs = 0, nowMs = Date.now();
+      for (var g = 0; g < GAMES.length; g++) {
+        var gIso = GAMES[g] && GAMES[g].kickoffIso;
+        if (gIso) {
+          var gMs = new Date(gIso).getTime();
+          if (!isNaN(gMs)) {
+            if (gMs > nowMs + 12 * 3600000) futureKickoffs++;
+            else if (gMs <= nowMs) pastOrLiveKickoffs++;
+          }
+        }
+      }
+      if (futureKickoffs > 0 && pastOrLiveKickoffs === 0) return false;
+    }
     var parts = new Intl.DateTimeFormat("en-US", { timeZone: d.tz, weekday: "short", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date());
     var wkday = "", hr = 0, min = 0;
     for (var i = 0; i < parts.length; i++) {
@@ -74,6 +89,43 @@ function isPastPickDeadline() {
   } catch (e) {}
   return false;
 }
+
+// Resets manual player locks and commissioner lock overrides when advancing/swapping weeks
+function unlockPicksForNewWeek(prevWk, newWk) {
+  if (typeof state === "object" && state) {
+    for (var k in state) {
+      if (state[k] && typeof state[k] === "object" && state[k].userLockedPicks) {
+        state[k].userLockedPicks = false;
+        delete state[k].userLockedWeek;
+      }
+    }
+  }
+  var cfg = ensureCommissionerConfig();
+  if (cfg.lockMode === "global_locked") {
+    cfg.lockMode = "friday_9pm_cst";
+  }
+  cfg.gameLockOverrides = {};
+  cfg.savedReceiptsLog = {};
+
+  if (typeof saveCommissionerConfigToCloud === "function" && typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
+    saveCommissionerConfigToCloud();
+  } else if (typeof saveLocalState === "function") {
+    saveLocalState();
+  }
+  if (typeof activeProfile !== "undefined" && typeof saveCurrentState === "function") {
+    try { saveCurrentState(activeProfile, false); } catch (e) {}
+  }
+  if (typeof syncManualLockButtonUI === "function") {
+    syncManualLockButtonUI();
+  }
+  if (typeof renderSimpleGuestAccountBar === "function") {
+    renderSimpleGuestAccountBar();
+  }
+  if (typeof renderAll === "function") {
+    renderAll();
+  }
+}
+window.unlockPicksForNewWeek = unlockPicksForNewWeek;
 
 // "Fri 9:00 PM CT"
 function pickDeadlineLabel() {
@@ -1319,8 +1371,11 @@ async function commishPublishSelectedEspnSlate() {
   var prevWeek = state.currentWeek;
   state.currentWeek = targetWk;
   state.weekLabel = "Week " + targetWk;
-  if (targetWk > prevWeek) {
-    resetPoolPicksForNewWeek(false);
+  if (targetWk !== prevWeek) {
+    unlockPicksForNewWeek(prevWeek, targetWk);
+    if (targetWk > prevWeek) {
+      resetPoolPicksForNewWeek(false);
+    }
   }
   // Push the slate first: an ESPN failure while enriching must not leave it local-only.
   var pushed = await pushCustomGamesToFirebase();
