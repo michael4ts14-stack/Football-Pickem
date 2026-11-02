@@ -894,7 +894,9 @@ async function importStrictSheetText() {
         cstWin = cstWindowFromMinutes(kh * 60 + parseInt(kickTime[2], 10));
       }
 
-      var isTb = (away.toLowerCase().indexOf("florida") !== -1 && home.toLowerCase().indexOf("georgia") !== -1) ||
+      var tbPattern = /tie[\s-]*breaker|\(tb\)/i;
+      var isTb = tbPattern.test(awayLine) || tbPattern.test(homeLine) || tbPattern.test(candKick) ||
+                 (away.toLowerCase().indexOf("florida") !== -1 && home.toLowerCase().indexOf("georgia") !== -1) ||
                  (home.toLowerCase().indexOf("florida") !== -1 && away.toLowerCase().indexOf("georgia") !== -1);
 
       parsedGames.push({
@@ -940,7 +942,7 @@ async function importStrictSheetText() {
     // No Florida–Georgia game on the sheet: the commissioner picks the tiebreaker game, before
     // anything is replaced (Cancel stops the import).
     while (!detectedTbId) {
-      var tbAnswer = window.prompt("No Florida–Georgia game on this sheet. Which game # is the tiebreaker?\n\n" +
+      var tbAnswer = window.prompt("No tiebreaker game detected on this sheet. Which game # is the tiebreaker?\n\n" +
         parsedGames.map(function(pg) { return "#" + pg.id + " " + pg.away + " at " + pg.home; }).join("\n"), "");
       if (tbAnswer === null) {
         showAppToast("Import cancelled: choose a tiebreaker game to import this sheet.");

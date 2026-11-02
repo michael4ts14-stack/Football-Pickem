@@ -45,11 +45,22 @@ global.document = {
 const simpleCommishSrc = fs.readFileSync(path.join(__dirname, "../../public/js/simple-mode-commissioner.js"), "utf8");
 const commishAdminSrc = fs.readFileSync(path.join(__dirname, "../../public/js/commissioner-admin.js"), "utf8");
 const firestoreSrc = fs.readFileSync(path.join(__dirname, "../../public/js/firestore.js"), "utf8");
+const teamMatchSrc = fs.readFileSync(path.join(__dirname, "../../public/js/team-match.js"), "utf8");
+
+global.TEAM_RANKS = {};
+global.findGameById = function(id) {
+  var targetId = Number(id);
+  for (var i = 0; i < (global.GAMES || []).length; i++) {
+    if (Number(global.GAMES[i].id) === targetId) return global.GAMES[i];
+  }
+  return null;
+};
 
 // Run in current context so top-level declarations bind to global
 vm.runInThisContext(simpleCommishSrc);
 vm.runInThisContext(commishAdminSrc);
 vm.runInThisContext(firestoreSrc);
+vm.runInThisContext(teamMatchSrc);
 
 test("DEADLINE_DAYS starts on Sunday so Sunday does not falsely evaluate as past Friday deadline", () => {
   assert.strictEqual(DEADLINE_DAYS[0], "Sun");
@@ -138,4 +149,26 @@ test("withStaleClearFlagDropped strips stale userLockedPicks from incoming cloud
 
   const keptCurrent = withStaleClearFlagDropped(incomingCurrent);
   assert.strictEqual(keptCurrent.userLockedPicks, true);
+});
+
+test("resolveTiebreakerGame resolves explicit state.tiebreakerGameId (Game 19 Miami at Notre Dame)", () => {
+  global.GAMES = [
+    { id: 9, away: "Arkansas", home: "Auburn", isTiebreaker: false, tier: "Core Lock" },
+    { id: 19, away: "Miami", home: "Notre Dame", isTiebreaker: true, tier: "Lean (Tiebreaker Game)" }
+  ];
+  global.state = { tiebreakerGameId: 19 };
+  const tb = resolveTiebreakerGame();
+  assert.strictEqual(tb.id, 19);
+  assert.strictEqual(tb.away, "Miami");
+  assert.strictEqual(tb.home, "Notre Dame");
+});
+
+test("resolveTiebreakerGame falls back to isTiebreaker flag when state.tiebreakerGameId is null", () => {
+  global.GAMES = [
+    { id: 9, away: "Arkansas", home: "Auburn", isTiebreaker: false, tier: "Core Lock" },
+    { id: 19, away: "Miami", home: "Notre Dame", isTiebreaker: true, tier: "Lean (Tiebreaker Game)" }
+  ];
+  global.state = { tiebreakerGameId: null };
+  const tb = resolveTiebreakerGame();
+  assert.strictEqual(tb.id, 19);
 });
