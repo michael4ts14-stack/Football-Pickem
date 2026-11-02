@@ -50,7 +50,8 @@ function loadBrowserParser() {
     normalizeTeamKey: (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""),
   };
   const importHub = readFileSync(new URL("../../public/js/import-hub.js", import.meta.url), "utf8");
-  const helper = importHub.slice(importHub.indexOf("function isSafeClientSubstrMatch"), importHub.indexOf("\n}\n", importHub.indexOf("function isSafeClientSubstrMatch")) + 3);
+  const helperMatch = importHub.match(/function isSafeClientSubstrMatch[\s\S]*?\r?\n\}/);
+  const helper = helperMatch ? helperMatch[0] : "";
   vm.createContext(ctx);
   vm.runInContext(helper, ctx);
   vm.runInContext(readFileSync(new URL("../../public/js/render/field-tracker.js", import.meta.url), "utf8"), ctx);

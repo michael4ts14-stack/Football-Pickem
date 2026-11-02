@@ -459,7 +459,10 @@ switchCommissionerTab = function(tabName) {
 
 var _hubPrevRenderAll = renderAll;
 renderAll = function() {
-  var res = _hubPrevRenderAll.apply(this, arguments);
+  var res;
+  if (typeof _hubPrevRenderAll === "function") {
+    try { res = _hubPrevRenderAll.apply(this, arguments); } catch (e) { console.error("renderAll upstream error (commish hub):", e); }
+  }
   try { renderPreviewBanner(); } catch (e) {}
   try { renderDuesBanner(); } catch (e2) {}
   return res;

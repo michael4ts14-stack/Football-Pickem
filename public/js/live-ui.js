@@ -270,6 +270,8 @@ setInterval(updateLiveSyncAge, 5000);
 // every redraw puts the sample games back. (Wrapped here: renderAll exists once archive.js loads.)
 var _liveUiPrevRenderAll = renderAll;
 renderAll = function() {
-  applyLiveAlertDemo();
-  return _liveUiPrevRenderAll.apply(this, arguments);
+  try { applyLiveAlertDemo(); } catch (eDemo) { console.error("applyLiveAlertDemo error:", eDemo); }
+  if (typeof _liveUiPrevRenderAll === "function") {
+    try { return _liveUiPrevRenderAll.apply(this, arguments); } catch (e) { console.error("renderAll upstream error (live-ui):", e); }
+  }
 };

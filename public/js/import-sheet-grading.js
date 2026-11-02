@@ -485,6 +485,13 @@ function syncOfficialWeek7EmailSheetToFirebase() {
   document.getElementById("cloud-status-text").textContent = "🔥 Synced all 89 Week 7 Pool Entries from Gmail .xlsx Attachment to Firebase!";
 }
 
+var UPGRADED_CODE_GS_SOURCE = typeof UPGRADED_CODE_GS_SOURCE !== "undefined" ? UPGRADED_CODE_GS_SOURCE : (
+  "// Do not paste code from this app into Apps Script.\n" +
+  "// The current bot code lives in the GitHub repo: michael4ts14-stack/Football-Pickem\n" +
+  "//   apps-script/Code.js  (branch: main)\n" +
+  "// Deploy it with:  cd apps-script && clasp push\n"
+);
+
 // When the browser refuses the copy, the code is selected in #gas-code-preview to copy by hand.
 function copyUpgradedCodeGs() {
   var previewEl = document.getElementById("gas-code-preview");

@@ -92,9 +92,9 @@ function emergencyStopEmailLoopAndCleanState() {
   } catch (eW) {}
 
   props.setProperty("SAT_MASTER_CSV_SENT_WEEK_" + curWeek, new Date().toISOString());
-  props.setProperty("SAT_MASTER_CSV_SENT_WEEK_8", new Date().toISOString());
-  props.setProperty("SAT_MASTER_CSV_SENT_WEEK_7", new Date().toISOString());
-  Logger.log("✓ ScriptProperties locks set for SAT_MASTER_CSV_SENT_WEEK_" + curWeek + " & Week 8");
+  // Legacy week 8 lock removed
+  // Legacy week 7 lock removed
+  Logger.log("✓ ScriptProperties lock set for SAT_MASTER_CSV_SENT_WEEK_" + curWeek);
 
   // 3. Inspect Firestore shared_state: if lastScrapedFile was self-generated, clean it!
   try {
@@ -1294,7 +1294,7 @@ function buildGamesArrayFromLines(lines) {
       var cstWin = "11:00 AM CST Window";
       if (kickLine.indexOf("2:30") !== -1 || kickLine.indexOf("3:00") !== -1) cstWin = "2:30 PM CST Window";
       else if (kickLine.indexOf("6:00") !== -1 || kickLine.indexOf("6:30") !== -1) cstWin = "6:00 PM / 6:30 PM CST Primetime";
-      else if (kickLine.indexOf("9:") !== -1 || kickLine.indexOf("10:") !== -1) cstWin = "9:15 PM+ CST Late Night Window";
+      else if ((kickLine.indexOf("9:") !== -1 || kickLine.indexOf("10:") !== -1) && /PM/i.test(kickLine)) cstWin = "9:15 PM+ CST Late Night Window";
 
       parsedGames.push({
         id: parsedGames.length + 1,

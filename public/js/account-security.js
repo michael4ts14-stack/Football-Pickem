@@ -142,7 +142,7 @@ function onBoundAccountsChanged(prev) {
       if (AUTH_SESSION && AUTH_SESSION.boundProfileKey) showAppToast("The commissioner linked your account to " + fixDisplaySpelling(AUTH_SESSION.linkedMemberName || b.memberName || "your player") + ".");
     });
   }
-  renderAccountSecurityBits();
+  try { renderAccountSecurityBits(); } catch (e2) { console.error("renderAccountSecurityBits error:", e2); }
 }
 
 // Writes a binding only if the doc is absent, already this uid's, or still held by the owner the
@@ -322,7 +322,7 @@ function watchMyLinkRequest(uid) {
       MY_LINK_REQUEST = d && d.exists ? d.data() : null;
       if (AUTH_SESSION && !AUTH_SESSION.boundProfileKey && AUTH_SESSION.linkState) {
         if (MY_LINK_REQUEST && MY_LINK_REQUEST.status === "rejected") AUTH_SESSION.linkState.status = "rejected";
-        renderAccountSecurityBits();
+        try { renderAccountSecurityBits(); } catch (e2) { console.error("renderAccountSecurityBits error:", e2); }
       }
     }, function() {});
   } catch (e) {}
@@ -334,7 +334,7 @@ function cancelMyLinkRequest() {
     MY_LINK_REQUEST = null;
     if (AUTH_SESSION && AUTH_SESSION.linkState) AUTH_SESSION.linkState.status = "choose";
     showAppToast("Request cancelled. Choose your player again.");
-    renderAccountSecurityBits();
+    try { renderAccountSecurityBits(); } catch (e2) { console.error("renderAccountSecurityBits error:", e2); }
     openAuthModal();
   }, function() { showAppToast("Couldn't cancel the request. Try again."); });
 }
@@ -553,7 +553,7 @@ function startLinkRequestWatch() {
     fsDb.collection("pickem_v14_link_requests").onSnapshot(function(snap) {
       LINK_REQUESTS = snap.docs.map(function(d) { return Object.assign({ claimId: d.id }, d.data()); });
       LINK_REQUESTS.sort(function(a, b) { return String(b.requestedAt).localeCompare(String(a.requestedAt)); });
-      renderAccountSecurityBits();
+      try { renderAccountSecurityBits(); } catch (e2) { console.error("renderAccountSecurityBits error:", e2); }
       var bd = document.getElementById("commish-modal-backdrop");
       if (bd && bd.style.display === "flex" && (ACTIVE_COMMISH_TAB === "roster" || ACTIVE_COMMISH_TAB === "submissions")) renderCommissionerModalBody();
     }, function() { LINK_REQUESTS_WATCHING = false; });
@@ -1073,9 +1073,12 @@ function renderAccountSecurityBits() {
 
 var _acctPrevRenderAll = renderAll;
 renderAll = function() {
-  var r = _acctPrevRenderAll.apply(this, arguments);
+  var r;
+  if (typeof _acctPrevRenderAll === "function") {
+    try { r = _acctPrevRenderAll.apply(this, arguments); } catch (e) { console.error("renderAll upstream error (account security):", e); }
+  }
   if (isVerifiedCommissioner()) startLinkRequestWatch();
-  renderAccountSecurityBits();
+  try { renderAccountSecurityBits(); } catch (e2) { console.error("renderAccountSecurityBits error:", e2); }
   return r;
 };
 

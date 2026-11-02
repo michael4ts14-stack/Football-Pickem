@@ -392,6 +392,17 @@ test("real Week 9 Google Form: all 23 games, including the neutral-site 'vs.' ga
   assert.deepStrictEqual([games[0].awayCode, games[0].homeCode], ["Arizona", "TTech"]);
   assert.deepStrictEqual([games[10].away, games[10].awayCode], ["Arizona State", "ArizSt"]);
   assert.strictEqual(games[22].id, 23);
+  for (const g of games) {
+    if (/11:00\s*AM|10:00\s*AM|10:30\s*AM/i.test(g.kick)) {
+      assert.strictEqual(g.cstWindow, "11:00 AM CST Window");
+    } else if (/2:30\s*PM|3:00\s*PM/i.test(g.kick)) {
+      assert.strictEqual(g.cstWindow, "2:30 PM CST Window");
+    } else if (/6:00\s*PM|6:30\s*PM/i.test(g.kick)) {
+      assert.strictEqual(g.cstWindow, "6:00 PM / 6:30 PM CST Primetime");
+    } else if (/9:15\s*PM|10:00\s*PM/i.test(g.kick)) {
+      assert.strictEqual(g.cstWindow, "9:15 PM+ CST Late Night Window");
+    }
+  }
 });
 
 test("Firestore requests carry the owner's OAuth token; ESPN requests don't", () => {

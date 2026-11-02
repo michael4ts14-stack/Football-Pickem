@@ -77,8 +77,11 @@ window.addEventListener("resize", function() { syncRailPinnedClass(); });
 
 var _layoutPrevRenderAll = renderAll;
 renderAll = function() {
-  var res = _layoutPrevRenderAll.apply(this, arguments);
-  addRailButtonsToHeaders();
+  var res;
+  if (typeof _layoutPrevRenderAll === "function") {
+    try { res = _layoutPrevRenderAll.apply(this, arguments); } catch (e) { console.error("renderAll upstream error (rail):", e); }
+  }
+  try { addRailButtonsToHeaders(); } catch (e2) { console.error("addRailButtonsToHeaders error:", e2); }
   return res;
 };
 
@@ -130,7 +133,7 @@ function setSidebarExpanded(on) {
   on = !!on && !isSidebarPinned();
   if (on === _sidebarOpen) return;
   _sidebarOpen = on;
-  syncSidebarState();
+  try { syncSidebarState(); } catch (e2) { console.error("syncSidebarState error:", e2); }
 }
 
 function scheduleSidebar(on, ms) {
@@ -143,7 +146,7 @@ function toggleSidebarPinned() {
   safeSetStorage(SIDEBAR_PIN_KEY, isSidebarPinned() ? "0" : "1");
   // Unpinning under the pointer leaves it open until the pointer leaves.
   _sidebarOpen = !isSidebarPinned() && _sidebarPointerInside;
-  syncSidebarState();
+  try { syncSidebarState(); } catch (e2) { console.error("syncSidebarState error:", e2); }
 }
 
 (function wireSidebar() {
@@ -201,8 +204,11 @@ function toggleSidebarPinned() {
 
 var _layoutPrevRenderAllSidebar = renderAll;
 renderAll = function() {
-  var res = _layoutPrevRenderAllSidebar.apply(this, arguments);
-  syncSidebarState();
+  var res;
+  if (typeof _layoutPrevRenderAllSidebar === "function") {
+    try { res = _layoutPrevRenderAllSidebar.apply(this, arguments); } catch (e) { console.error("renderAll upstream error (sidebar):", e); }
+  }
+  try { syncSidebarState(); } catch (e2) { console.error("syncSidebarState error:", e2); }
   return res;
 };
 syncSidebarState();

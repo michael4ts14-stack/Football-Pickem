@@ -19,7 +19,7 @@ function subscribeOfficialForm() {
   try {
     _officialFormUnsub = fsDb.collection("live_games").doc("week_" + wk + "_form").onSnapshot(function(doc) {
       OFFICIAL_FORM = (doc && doc.exists) ? doc.data() : null;
-      renderOfficialFormBar();
+      try { renderOfficialFormBar(); } catch (eF2) { console.error("renderOfficialFormBar error:", eF2); }
     }, function() {});
   } catch (e) {}
 }
@@ -148,7 +148,7 @@ function recordOfficialFormOpened() {
     state[activeProfile].officialFormSent = { at: new Date().toISOString(), week: parseInt(state.currentWeek, 10) || 0, sig: officialFormPicksSignature() };
     saveCurrentState(activeProfile);
   }
-  renderOfficialFormBar();
+  try { renderOfficialFormBar(); } catch (eF2) { console.error("renderOfficialFormBar error:", eF2); }
 }
 
 // Big button in the receipt window after locking.
@@ -229,9 +229,12 @@ function officialFormCommishNoteHtml() {
 
 var _officialFormPrevRenderAll = renderAll;
 renderAll = function() {
-  var res = _officialFormPrevRenderAll.apply(this, arguments);
-  subscribeOfficialForm();
-  renderOfficialFormBar();
+  var res;
+  if (typeof _officialFormPrevRenderAll === "function") {
+    try { res = _officialFormPrevRenderAll.apply(this, arguments); } catch (e) { console.error("renderAll upstream error (official-form):", e); }
+  }
+  try { subscribeOfficialForm(); } catch (eF) { console.error("subscribeOfficialForm error:", eF); }
+  try { renderOfficialFormBar(); } catch (eF2) { console.error("renderOfficialFormBar error:", eF2); }
   return res;
 };
 

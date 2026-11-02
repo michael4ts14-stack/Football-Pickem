@@ -34,7 +34,7 @@ function setAppTheme(theme) {
   document.documentElement.setAttribute("data-theme", t);
   safeSetStorage(THEME_STORAGE_KEY, t);
   syncThemeColorMeta();
-  if (currentMainView === "more") renderMoreView();
+  try { if (currentMainView === "more") renderMoreView(); } catch (eMore) { console.error("renderMoreView error:", eMore); }
   if (isAppearanceSheetOpen()) renderAppearanceSheet();
 }
 
@@ -671,11 +671,14 @@ function ordinalSuffix(n) {
 
 var _shellOrigRenderAll = renderAll;
 renderAll = function() {
-  var result = _shellOrigRenderAll.apply(this, arguments);
+  var result;
+  if (typeof _shellOrigRenderAll === "function") {
+    try { result = _shellOrigRenderAll.apply(this, arguments); } catch (e) { console.error("renderAll upstream error (shell):", e); }
+  }
   try { renderRightRail(); } catch (e) {}
   try { renderGameDayStrips(); } catch (eGd) {}
   try { updateLiveNavBadge(); } catch (eNav) {}
-  if (currentMainView === "more") renderMoreView();
+  try { if (currentMainView === "more") renderMoreView(); } catch (eMore) { console.error("renderMoreView error:", eMore); }
   return result;
 };
 

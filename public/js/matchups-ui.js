@@ -246,6 +246,8 @@ function matchupGameInfoHtml(g) {
 // Re-subscribe when the week changes (new slate published, archive switch back).
 var _matchupsPrevRenderAll = renderAll;
 renderAll = function() {
-  subscribeMatchupsForWeek();
-  return _matchupsPrevRenderAll.apply(this, arguments);
+  try { subscribeMatchupsForWeek(); } catch (e) { console.error("subscribeMatchupsForWeek error:", e); }
+  if (typeof _matchupsPrevRenderAll === "function") {
+    try { return _matchupsPrevRenderAll.apply(this, arguments); } catch (e2) { console.error("renderAll upstream error (matchups-ui):", e2); }
+  }
 };
