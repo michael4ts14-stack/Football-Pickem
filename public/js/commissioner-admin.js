@@ -386,10 +386,8 @@ function commishAutoSelectPlayerPicks(memberName, strategy) {
     var pick = g.rec;
     if (strategy === "chalk" || strategy === "safe") {
       pick = (getTeamWinProb(g, "away") >= getTeamWinProb(g, "home")) ? g.away : g.home;
-    } else if (strategy === "dogs" || strategy === "aggressive") {
-      var dog = g.awayPts > 1 ? g.away : (g.homePts > 1 ? g.home : null);
-      var dogProb = (dog === g.away) ? getTeamWinProb(g, "away") : getTeamWinProb(g, "home");
-      pick = (dog && dogProb >= 0.25) ? dog : g.rec;
+    } else if (strategy === "dogs" || strategy === "aggressive" || strategy === "all-dogs" || strategy === "all_dogs") {
+      pick = typeof getUnderdogForGamePreset === "function" ? getUnderdogForGamePreset(g) : (g.awayPts > 1 ? g.away : (g.homePts > 1 ? g.home : g.rec));
     } else if (strategy === "random") {
       pick = (Math.random() < 0.5) ? g.away : g.home;
     } else if (strategy === "away") {
@@ -397,7 +395,7 @@ function commishAutoSelectPlayerPicks(memberName, strategy) {
     } else if (strategy === "home") {
       pick = g.home;
     } else {
-      pick = g.rec; // Optimal EV
+      pick = typeof getOptimalEvPickForGame === "function" ? getOptimalEvPickForGame(g) : g.rec; // Optimal EV
     }
     state[pKey].picks[g.id] = pick;
     state[pKey].picks[String(g.id)] = pick;

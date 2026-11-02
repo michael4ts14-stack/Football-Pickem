@@ -1084,6 +1084,54 @@ function keepLockedGamePicks(nextPicks, currentPicks) {
   }
 }
 
+function getUnderdogForGamePreset(g) {
+  if (!g) return null;
+  var aPts = g.mondayAwayPts || g.awayPts || 1;
+  var hPts = g.mondayHomePts || g.homePts || 1;
+  if (aPts > hPts) return g.away;
+  if (hPts > aPts) return g.home;
+
+  var line = String(g.mondayPoolLine || g.poolLine || "");
+  var m = line.match(/^(.*?)\s*([-+]?\d+(?:\.\d+)?)\s*$/);
+  if (m && m[1].trim() && parseFloat(m[2]) !== 0) {
+    var fav = m[1].trim();
+    if (typeof isSameTeamPick === "function") {
+      if (isSameTeamPick(fav, g.home, g)) return g.away;
+      if (isSameTeamPick(fav, g.away, g)) return g.home;
+    } else {
+      if (fav.toLowerCase() === g.home.toLowerCase()) return g.away;
+      if (fav.toLowerCase() === g.away.toLowerCase()) return g.home;
+    }
+  }
+  return (typeof getTeamWinProb === "function" && getTeamWinProb(g, "away") < getTeamWinProb(g, "home")) ? g.away : g.home;
+}
+
+function getOptimalEvPickForGame(g) {
+  if (!g) return null;
+  var aPts = g.mondayAwayPts || g.awayPts || 1;
+  var hPts = g.mondayHomePts || g.homePts || 1;
+  var aProb = typeof getTeamWinProb === "function" ? getTeamWinProb(g, "away") : (g.awayProb || 0.5);
+  var hProb = typeof getTeamWinProb === "function" ? getTeamWinProb(g, "home") : (g.homeProb || 0.5);
+  var aEV = aProb * aPts;
+  var hEV = hProb * hPts;
+
+  // Clear EV edge (difference >= 0.03 EV)
+  if (aEV - hEV >= 0.03) return g.away;
+  if (hEV - aEV >= 0.03) return g.home;
+
+  // Near EV toss-up: defer to g.rec if set and matching, else higher win prob
+  if (g.rec) {
+    if (typeof isSameTeamPick === "function") {
+      if (isSameTeamPick(g.rec, g.away, g)) return g.away;
+      if (isSameTeamPick(g.rec, g.home, g)) return g.home;
+    } else {
+      if (g.rec.toLowerCase() === g.away.toLowerCase()) return g.away;
+      if (g.rec.toLowerCase() === g.home.toLowerCase()) return g.home;
+    }
+  }
+  return aProb >= hProb ? g.away : g.home;
+}
+
 function applyPreset(type) {
   if (isWeekLockedForActiveProfile() && activeProfile !== "test") {
     showAppToast("🔒 Picks are locked for the week.");
@@ -1095,14 +1143,11 @@ function applyPreset(type) {
     var g = GAMES[i];
     if (activeProfile !== "test" && isGameLockedByCommissioner(g.id)) continue;
     if (type === "optimal") {
-      state[activeProfile].picks[g.id] = g.rec;
+      state[activeProfile].picks[g.id] = getOptimalEvPickForGame(g);
     } else if (type === "safe" || type === "chalk") {
-      state[activeProfile].picks[g.id] = getTeamWinProb(g, "away") > getTeamWinProb(g, "home") ? g.away : g.home;
-    } else if (type === "aggressive") {
-      var dog = g.awayPts > 1 ? g.away : (g.homePts > 1 ? g.home : null);
-      var dogProb = dog === g.away ? getTeamWinProb(g, "away") : getTeamWinProb(g, "home");
-      if (dog && dogProb >= 0.27) state[activeProfile].picks[g.id] = dog;
-      else state[activeProfile].picks[g.id] = g.rec;
+      state[activeProfile].picks[g.id] = (typeof getTeamWinProb === "function" && getTeamWinProb(g, "away") >= getTeamWinProb(g, "home")) ? g.away : g.home;
+    } else if (type === "aggressive" || type === "dogs" || type === "all-dogs" || type === "all_dogs") {
+      state[activeProfile].picks[g.id] = getUnderdogForGamePreset(g);
     }
   }
   saveCurrentState(activeProfile);

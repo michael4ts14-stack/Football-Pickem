@@ -9,11 +9,30 @@ var _detailSheetReturnFocus = null;
 
 // ---------- Small helpers ----------
 function parseKickParts(kick) {
-  // "Saturday, 10/31 - 11:00 AM ESPN2" -> { day: "Sat", time: "11:00 AM", net: "ESPN2" }
-  var str = String(kick || "");
-  var m = str.match(/^\s*([A-Za-z]+)[^0-9]*[\d/]*\s*-?\s*(\d{1,2}:\d{2}\s*[AP]M)\s*(.*)$/i);
-  if (!m) return { day: "", time: str, net: "" };
-  return { day: m[1].slice(0, 3), time: m[2].toUpperCase(), net: (m[3] || "").replace(/\bCST\b|\bCDT\b|\bCT\b/g, "").trim() };
+  var str = String(kick || "").trim();
+  if (!str) return { day: "", time: "", net: "" };
+
+  // 1. Extract time: e.g. "11:00 AM", "2:30 PM"
+  var timeMatch = str.match(/\b(\d{1,2}:\d{2}\s*[AP]M)\b/i);
+  var time = timeMatch ? timeMatch[1].toUpperCase() : "";
+
+  // 2. Extract day of week: e.g. "Sat", "Saturday", "Fri"
+  var dayMatch = str.match(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i);
+  var day = dayMatch ? (dayMatch[1].charAt(0).toUpperCase() + dayMatch[1].slice(1, 3).toLowerCase()) : "";
+
+  // 3. Extract network (everything after time, minus time zones, bullets, dashes)
+  var net = "";
+  if (timeMatch) {
+    var afterTime = str.slice(timeMatch.index + timeMatch[0].length);
+    net = afterTime.replace(/\b(CST|CDT|CT|EST|EDT|ET)\b/gi, "")
+                   .replace(/^[•\s\-\:\/]+/, "")
+                   .replace(/[•\s\-\:\/]+$/, "")
+                   .trim();
+  } else if (!day && str) {
+    time = str;
+  }
+
+  return { day: day, time: time || str, net: net };
 }
 
 function parseTeamRecord(rec) {
