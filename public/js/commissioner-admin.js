@@ -640,9 +640,10 @@ function isCurrentProfileManuallyLocked(profKey) {
   var pk = profKey || activeProfile;
   if (!state[pk]) return false;
   if (!state[pk].userLockedPicks) return false;
-  var curWk = parseInt(state.currentWeek, 10);
-  var lockedWk = parseInt(state[pk].userLockedWeek, 10);
-  if (curWk && lockedWk && lockedWk !== curWk) {
+  var curWk = parseInt(state.currentWeek, 10) || 0;
+  var lockedWk = parseInt(state[pk].userLockedWeek, 10) || 0;
+  // A manual user lock is only valid if it was specifically locked for the active week!
+  if (!lockedWk || !curWk || lockedWk !== curWk) {
     state[pk].userLockedPicks = false;
     delete state[pk].userLockedWeek;
     return false;

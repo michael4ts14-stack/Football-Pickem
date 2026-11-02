@@ -5,7 +5,14 @@
 // profile holding picks for this week's games was picked again after a clear, and the flag
 // is a leftover that would hide those picks on every other screen, so it's dropped.
 function withStaleClearFlagDropped(prof) {
-  if (prof && prof._picksCleared && countMatchingPicksForSlate(prof.picks || {}, GAMES).matched > 0) {
+  if (!prof || typeof prof !== "object") return prof;
+  var curWk = parseInt(state.currentWeek, 10) || 0;
+  var lockedWk = parseInt(prof.userLockedWeek, 10) || 0;
+  if (prof.userLockedPicks && (!lockedWk || !curWk || lockedWk !== curWk)) {
+    prof = Object.assign({}, prof, { userLockedPicks: false });
+    delete prof.userLockedWeek;
+  }
+  if (prof._picksCleared && countMatchingPicksForSlate(prof.picks || {}, GAMES).matched > 0) {
     prof = Object.assign({}, prof, { _picksCleared: false });
   }
   return prof;
@@ -476,13 +483,13 @@ function applyRemoteCloudData(data, sourceLabel) {
     if (data.michael && data.michael.picks && shouldAcceptProfile("michael")) {
       var mMatch = countMatchingPicksForSlate(data.michael.picks, GAMES);
       if (mMatch.total < 5 || mMatch.matched >= Math.ceil(mMatch.total * 0.5)) {
-        state.michael = data.michael;
+        state.michael = withStaleClearFlagDropped(data.michael);
       }
     }
     if (data.kinyion && data.kinyion.picks && shouldAcceptProfile("kinyion")) {
       var kMatch = countMatchingPicksForSlate(data.kinyion.picks, GAMES);
       if (kMatch.total < 5 || kMatch.matched >= Math.ceil(kMatch.total * 0.5)) {
-        state.kinyion = data.kinyion;
+        state.kinyion = withStaleClearFlagDropped(data.kinyion);
       }
     }
     if (data.customUsers && Array.isArray(data.customUsers)) {

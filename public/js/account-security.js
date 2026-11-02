@@ -539,6 +539,7 @@ function canSaveProfileToCloud(profKey) {
   if (!AUTH_SESSION || !AUTH_SESSION.boundProfileKey) return false;
   if (isVerifiedCommissioner()) return true;
   if (!ACCOUNT_SECURITY_LIVE) return true;
+  if (typeof isMyLinkedBuyInProfile === "function" && isMyLinkedBuyInProfile(profKey)) return true;
   return bindingOwnerUid(profKey) === AUTH_SESSION.uid;
 }
 

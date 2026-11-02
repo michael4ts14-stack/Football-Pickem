@@ -864,6 +864,14 @@ function sanitizeStateForActiveSlate() {
     var pk = profiles[pr];
     if (!state[pk]) state[pk] = { picks: {}, tiebreaker: "28-24", target: 20 };
     if (!state[pk].picks) state[pk].picks = {};
+    // Auto-expire user manual pick locks from previous weeks or legacy locks without a week
+    var curWkNum = parseInt(state.currentWeek, 10) || 0;
+    var lockedWkNum = parseInt(state[pk].userLockedWeek, 10) || 0;
+    if (state[pk].userLockedPicks && (!lockedWkNum || !curWkNum || lockedWkNum !== curWkNum)) {
+      state[pk].userLockedPicks = false;
+      delete state[pk].userLockedWeek;
+      cleanedAny = true;
+    }
     if (state[pk]._picksCleared) {
       state[pk].picks = {};
       continue;
