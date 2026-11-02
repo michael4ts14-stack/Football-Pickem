@@ -47,16 +47,34 @@ export function splitMatchupTitle(title) {
   return m ? { first: m[1].trim(), second: m[2].trim() } : null;
 }
 
+const BLOCKED_SUFFIXES = /(state|st|tech|am|at|oh|ohio|fl|christian|southern|northern|eastern|western|central|international|atlantic|college|elpaso|sanantonio)$/;
+
+function teamExact(text, name, code) {
+  const t = norm(text), n = norm(name), c = norm(code);
+  if (!t) return false;
+  return t === n || (c && t === c);
+}
+
 function teamMatches(text, name, code) {
   const t = norm(text), n = norm(name), c = norm(code);
   if (!t) return false;
-  return t === n || t === c || n.startsWith(t) || t.startsWith(n);
+  if (t === n || (c && t === c)) return true;
+  if (n.startsWith(t)) {
+    if (BLOCKED_SUFFIXES.test(n) && !BLOCKED_SUFFIXES.test(t)) return false;
+    return true;
+  }
+  if (t.startsWith(n)) {
+    if (BLOCKED_SUFFIXES.test(t) && !BLOCKED_SUFFIXES.test(n)) return false;
+    return true;
+  }
+  return false;
 }
 
 // "SoCar" -> "South Carolina": same first letter, every letter in order.
 function isAbbreviationOf(text, name) {
   const t = norm(text), n = norm(name);
   if (!t || !n || t[0] !== n[0]) return false;
+  if (BLOCKED_SUFFIXES.test(n) && !BLOCKED_SUFFIXES.test(t)) return false;
   let i = 0;
   for (const ch of n) if (ch === t[i]) i++;
   return i === t.length;
@@ -66,6 +84,8 @@ function isAbbreviationOf(text, name) {
 // Exact names/codes first; an in-order abbreviation only when it fits exactly one team.
 function sideForChoice(choice, g) {
   const pick = (a, h) => (a && !h ? "away" : (h && !a ? "home" : null));
+  const exact = pick(teamExact(choice, g.away, g.awayCode), teamExact(choice, g.home, g.homeCode));
+  if (exact) return exact;
   const strict = pick(teamMatches(choice, g.away, g.awayCode), teamMatches(choice, g.home, g.homeCode));
   if (strict) return strict;
   return pick(isAbbreviationOf(choice, g.away), isAbbreviationOf(choice, g.home));

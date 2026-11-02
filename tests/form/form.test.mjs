@@ -37,6 +37,28 @@ test("flags a game it can't place instead of guessing", () => {
   assert.equal(m.unmatchedGames[0].gameId, "99");
 });
 
+test("maps namesake matchups without suffix confusion (Michigan State vs Michigan)", () => {
+  const mockForm = {
+    title: "Week 10 Form",
+    settings: null,
+    questions: [
+      {
+        entry: "entry.101",
+        title: "Michigan State 2-6 at Michigan 5-3 (-12.5)",
+        type: 2,
+        choices: ["MichSt", "Mich"]
+      }
+    ]
+  };
+  const mockSlate = [
+    { id: 24, away: "Michigan State", awayCode: "MichSt", home: "Michigan", homeCode: "Mich" }
+  ];
+  const m = matchFormToSlate(mockForm, mockSlate);
+  assert.equal(m.unmatchedGames.length, 0);
+  assert.equal(m.games["24"].choices.away, "MichSt");
+  assert.equal(m.games["24"].choices.home, "Mich");
+});
+
 test("pre-filled link carries the name, every pick and the tie-breaker", () => {
   const doc = { viewformUrl: "https://docs.google.com/forms/d/e/X/viewform", ...matchFormToSlate(parseFormData(fb), slate.games) };
   const picks = {};
