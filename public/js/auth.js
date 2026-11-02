@@ -1146,7 +1146,15 @@ function applyPreset(type) {
       state[activeProfile].picks[g.id] = getOptimalEvPickForGame(g);
     } else if (type === "safe" || type === "chalk") {
       state[activeProfile].picks[g.id] = (typeof getTeamWinProb === "function" && getTeamWinProb(g, "away") >= getTeamWinProb(g, "home")) ? g.away : g.home;
-    } else if (type === "aggressive" || type === "dogs" || type === "all-dogs" || type === "all_dogs") {
+    } else if (type === "aggressive" || type === "chaser") {
+      var aPts = g.mondayAwayPts || g.awayPts || 1;
+      var hPts = g.mondayHomePts || g.homePts || 1;
+      if (aPts > 1 || hPts > 1) {
+        state[activeProfile].picks[g.id] = (aPts > hPts ? g.away : g.home);
+      } else {
+        state[activeProfile].picks[g.id] = (typeof getTeamWinProb === "function" && getTeamWinProb(g, "away") >= getTeamWinProb(g, "home")) ? g.away : g.home;
+      }
+    } else if (type === "dogs" || type === "all-dogs" || type === "all_dogs") {
       state[activeProfile].picks[g.id] = getUnderdogForGamePreset(g);
     }
   }

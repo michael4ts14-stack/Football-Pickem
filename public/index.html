@@ -323,7 +323,8 @@
             <div class="menu" id="menu-quick-picks" role="menu" hidden>
               <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('optimal')"><span>Optimal EV</span><small>Best +EV dogs plus the sharp favorites</small></button>
               <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('safe')"><span>Safe core</span><small>Max win %: the likelier winner every game</small></button>
-              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('aggressive')"><span>Underdog chaser</span><small>Live 2x / 3x dogs</small></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('aggressive')"><span>Underdog chaser</span><small>All 2x / 3x multiplier dogs + safe 1x</small></button>
+              <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('dogs')"><span>All underdogs</span><small>Every single underdog on the slate</small></button>
               <button type="button" role="menuitem" class="menu-item" onclick="closeMenus(); applyPreset('chalk')"><span>All favorites</span><small>Every sheet favorite</small></button>
               <button type="button" role="menuitem" class="menu-item adv-block" onclick="closeMenus(); copyOtherProfile()"><span>Copy compare target's picks</span><small>Advanced: copy from your head-to-head pick</small></button>
             </div>
@@ -498,9 +499,10 @@
       <div class="side-box">
         <div class="side-title">Quick Strategy Presets</div>
         <div class="preset-grid">
-          <button class="preset-btn" onclick="applyPreset('optimal')">Optimal EV (BYU 2x + Sharp 1x)</button>
+          <button class="preset-btn" onclick="applyPreset('optimal')">Optimal EV (+EV Dogs + Sharp 1x)</button>
           <button class="preset-btn" onclick="applyPreset('safe')">Safe Core (Max Win %)</button>
-          <button class="preset-btn" onclick="applyPreset('aggressive')">Chaser (BYU + GT 2x Dogs)</button>
+          <button class="preset-btn" onclick="applyPreset('aggressive')">Chaser (All 2x/3x Dogs + Safe 1x)</button>
+          <button class="preset-btn" onclick="applyPreset('dogs')">All Underdogs (Every Dog)</button>
           <button class="preset-btn" onclick="applyPreset('chalk')">All Sheet Favorites</button>
         </div>
       </div>

@@ -386,7 +386,15 @@ function commishAutoSelectPlayerPicks(memberName, strategy) {
     var pick = g.rec;
     if (strategy === "chalk" || strategy === "safe") {
       pick = (getTeamWinProb(g, "away") >= getTeamWinProb(g, "home")) ? g.away : g.home;
-    } else if (strategy === "dogs" || strategy === "aggressive" || strategy === "all-dogs" || strategy === "all_dogs") {
+    } else if (strategy === "aggressive" || strategy === "chaser") {
+      var aPts = g.mondayAwayPts || g.awayPts || 1;
+      var hPts = g.mondayHomePts || g.homePts || 1;
+      if (aPts > 1 || hPts > 1) {
+        pick = (aPts > hPts ? g.away : g.home);
+      } else {
+        pick = (typeof getTeamWinProb === "function" && getTeamWinProb(g, "away") >= getTeamWinProb(g, "home")) ? g.away : g.home;
+      }
+    } else if (strategy === "dogs" || strategy === "all-dogs" || strategy === "all_dogs") {
       pick = typeof getUnderdogForGamePreset === "function" ? getUnderdogForGamePreset(g) : (g.awayPts > 1 ? g.away : (g.homePts > 1 ? g.home : g.rec));
     } else if (strategy === "random") {
       pick = (Math.random() < 0.5) ? g.away : g.home;
@@ -459,7 +467,8 @@ function renderCommishActiveEditBar() {
       '<span style="font-size:0.7rem;color:var(--warn);font-weight:800;">⚡ Auto-Select:</span>' +
       '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:var(--border);color:var(--win);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'optimal\')">★ Optimal EV</button>' +
       '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:var(--border);color:var(--text);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'chalk\')">🔒 All Favorites</button>' +
-      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:var(--border);color:var(--warn);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'dogs\')">🚀 Underdog Chaser</button>' +
+      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:var(--border);color:var(--warn);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'aggressive\')">🚀 Underdog Chaser (2x/3x)</button>' +
+      '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;border-color:var(--border);color:var(--warn);" onclick="commishAutoSelectPlayerPicks(\'' + safeName + '\', \'dogs\')">🐶 All Underdogs</button>' +
       '<button type="button" class="btn-sm" style="padding:4px 8px;font-size:0.69rem;background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;" onclick="commishDeletePlayerPicks(\'' + safeName + '\')">🗑️ Delete Picks</button>' +
       '<button type="button" class="btn-sm" style="padding:4px 9px;font-size:0.69rem;background:var(--accent);color:var(--on-accent);border:none;font-weight:900;" onclick="exitCommissionerImpersonateMode()">✓ Done</button>' +
     '</div>';
@@ -1161,6 +1170,7 @@ function renderEvSimulatorDrawerBody() {
         '<button type="button" class="preset-btn" onclick="applyPreset(\'optimal\'); renderEvSimulatorDrawerBody();">★ Optimal EV (Best +EV Dogs + Core)</button>' +
         '<button type="button" class="preset-btn" onclick="applyPreset(\'safe\'); renderEvSimulatorDrawerBody();">🛡️ Safe Core (Max Win %)</button>' +
         '<button type="button" class="preset-btn" onclick="applyPreset(\'aggressive\'); renderEvSimulatorDrawerBody();">🚀 Chaser (Live 2x/3x Dogs)</button>' +
+        '<button type="button" class="preset-btn" onclick="applyPreset(\'dogs\'); renderEvSimulatorDrawerBody();">🐶 All Underdogs</button>' +
         '<button type="button" class="preset-btn" onclick="applyPreset(\'chalk\'); renderEvSimulatorDrawerBody();">🔒 All Sheet Favorites</button>' +
       '</div>' +
     '</div>' +

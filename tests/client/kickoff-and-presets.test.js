@@ -95,7 +95,7 @@ test("getUnderdogForGamePreset correctly identifies underdogs across all games",
   }
 });
 
-test("applyPreset('aggressive') and ('dogs') picks underdogs across all games", () => {
+test("applyPreset('dogs') picks underdogs across all games", () => {
   applyPreset("dogs");
   const picks = state.test.picks;
   let dogCount = 0;
@@ -105,6 +105,32 @@ test("applyPreset('aggressive') and ('dogs') picks underdogs across all games", 
     if (pick === dog) dogCount++;
   }
   assert.strictEqual(dogCount, GAMES.length, `Expected all ${GAMES.length} picks to be dogs, but got ${dogCount}`);
+});
+
+test("applyPreset('aggressive') picks multiplier dogs for >1x games and favorites for 1x games", () => {
+  applyPreset("aggressive");
+  const picks = state.test.picks;
+  let multDogsCount = 0;
+  let totalMultGames = 0;
+  let fav1xCount = 0;
+  let total1xGames = 0;
+  for (const g of GAMES) {
+    const aPts = g.mondayAwayPts || g.awayPts || 1;
+    const hPts = g.mondayHomePts || g.homePts || 1;
+    const pick = picks[g.id];
+    if (aPts > 1 || hPts > 1) {
+      totalMultGames++;
+      const expectedDog = aPts > hPts ? g.away : g.home;
+      if (pick === expectedDog) multDogsCount++;
+    } else {
+      total1xGames++;
+      const expectedFav = (getTeamWinProb(g, "away") >= getTeamWinProb(g, "home")) ? g.away : g.home;
+      if (pick === expectedFav) fav1xCount++;
+    }
+  }
+  assert.ok(totalMultGames > 0, "Must have multiplier games in slate");
+  assert.strictEqual(multDogsCount, totalMultGames, "All multiplier games should pick the multiplier dog");
+  assert.strictEqual(fav1xCount, total1xGames, "All 1x games should pick the favorite");
 });
 
 test("applyPreset('optimal') computes EV and picks +EV plays across all games", () => {
