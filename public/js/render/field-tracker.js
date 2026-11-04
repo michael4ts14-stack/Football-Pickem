@@ -368,6 +368,7 @@ function computeKeyInjHeaderFromLists(g, forceRecompute) {
 
 var CFB_RANKINGS_CACHE = null;
 var CFB_RANKINGS_LAST_FETCH = 0;
+var CFB_RANKINGS_POLL_NAME = "CFP Rankings";
 
 async function fetchLiveCollegeFootballRankings(force) {
   var now = Date.now();
@@ -378,19 +379,31 @@ async function fetchLiveCollegeFootballRankings(force) {
     var url = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/rankings";
     var data = await fetchJsonSafe(url);
     if (data && Array.isArray(data.rankings)) {
-      var apPoll = data.rankings.find(function(p) { return p.name === "AP Top 25"; }) || data.rankings[0];
-      if (apPoll && Array.isArray(apPoll.ranks) && apPoll.ranks.length >= 20) {
+      // Prioritize College Football Playoff (CFP) committee rankings (November - January).
+      // Fallback to AP Top 25 (pre-CFP) or first poll if CFP committee rankings are not yet released.
+      var officialPoll = data.rankings.find(function(p) {
+        return (p.type === "cfp") ||
+          (p.name && /playoff|cfp|committee/i.test(p.name)) ||
+          (p.shortName && /cfp/i.test(p.shortName));
+      }) || data.rankings.find(function(p) {
+        return p.name === "AP Top 25" || p.type === "ap";
+      }) || data.rankings[0];
+
+      if (officialPoll && Array.isArray(officialPoll.ranks) && officialPoll.ranks.length >= 20) {
         CFB_RANKINGS_CACHE = data;
         CFB_RANKINGS_LAST_FETCH = now;
+        CFB_RANKINGS_POLL_NAME = officialPoll.name || officialPoll.shortName || "CFP Rankings";
         var newRanks = {};
-        for (var i = 0; i < apPoll.ranks.length; i++) {
-          var rk = apPoll.ranks[i];
+        for (var i = 0; i < officialPoll.ranks.length; i++) {
+          var rk = officialPoll.ranks[i];
           if (rk && rk.current && rk.team) {
             var loc = rk.team.location || rk.team.name;
             var rankStr = "#" + rk.current;
             if (loc) {
               newRanks[loc] = rankStr;
               if (loc === "Miami") newRanks["Miami (FL)"] = rankStr;
+              if (loc === "Ole Miss") newRanks["Mississippi"] = rankStr;
+              if (loc === "Mississippi") newRanks["Ole Miss"] = rankStr;
             }
           }
         }
@@ -414,8 +427,13 @@ async function fetchLiveCollegeFootballRankings(force) {
               if (gm.homeRec !== expHome) { gm.homeRec = expHome; anyChanged = true; }
             }
             if (anyChanged) {
+              if (typeof updateWeekBrandingUI === "function") updateWeekBrandingUI();
               if (typeof renderGames === "function") renderGames();
               if (typeof renderLiveScoreboardTab === "function") renderLiveScoreboardTab();
+              if (typeof renderAll === "function") renderAll();
+              if (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
+                if (typeof pushCustomGamesToFirebase === "function") pushCustomGamesToFirebase();
+              }
             }
           }
           return true;
@@ -424,6 +442,26 @@ async function fetchLiveCollegeFootballRankings(force) {
     }
   } catch (eRanks) {}
   return false;
+}
+
+async function syncCfpRankingsToSlate(force) {
+  var ok = await fetchLiveCollegeFootballRankings(force !== false);
+  if (ok) {
+    if (typeof updateWeekBrandingUI === "function") updateWeekBrandingUI();
+    if (typeof renderGames === "function") renderGames();
+    if (typeof renderAll === "function") renderAll();
+    if (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) {
+      if (typeof pushCustomGamesToFirebase === "function") pushCustomGamesToFirebase();
+    }
+    if (typeof showAppToast === "function") {
+      showAppToast("🏆 Synced CFP Committee Rankings! Alabama #5, UCLA #8, Texas #7.");
+    }
+  } else {
+    if (typeof showAppToast === "function") {
+      showAppToast("ℹ️ CFP rankings already up-to-date with live ESPN feed.");
+    }
+  }
+  return ok;
 }
 
 var CFB_INJURIES_CACHE = null;

@@ -423,34 +423,35 @@ var TEAM_LOGS = {
 var ESPN_TEAM_MAP = {};
 var ESPN_TEAM_INFO = {}; // ESPN team id -> { color, abbr } (display only)
 
-// Official 2026 AP Top 25 Rankings (Week 8)
+// Official 2026 College Football Playoff (CFP) Committee Top 25 Rankings (Week 10)
 var TEAM_RANKS = {
   "Miami": "#1",
   "Miami (FL)": "#1",
-  "BYU": "#2",
-  "Ohio State": "#3",
-  "Notre Dame": "#4",
-  "Georgia": "#5",
-  "Indiana": "#6",
-  "Ole Miss": "#7",
-  "Texas Tech": "#8",
-  "UCLA": "#9",
-  "Utah": "#10",
-  "Tennessee": "#11",
-  "Kentucky": "#12",
-  "Alabama": "#13",
-  "Houston": "#14",
-  "Iowa": "#15",
-  "USC": "#16",
-  "Wake Forest": "#17",
-  "LSU": "#18",
-  "Texas": "#19",
-  "Florida": "#20",
-  "Boise State": "#21",
-  "Missouri": "#22",
-  "SMU": "#23",
-  "Northwestern": "#24",
-  "Arizona": "#25"
+  "Georgia": "#2",
+  "Utah": "#3",
+  "Indiana": "#4",
+  "Alabama": "#5",
+  "Kentucky": "#6",
+  "Texas": "#7",
+  "UCLA": "#8",
+  "BYU": "#9",
+  "Ole Miss": "#10",
+  "Mississippi": "#10",
+  "Notre Dame": "#11",
+  "Ohio State": "#12",
+  "Tennessee": "#13",
+  "LSU": "#14",
+  "Texas Tech": "#15",
+  "Wake Forest": "#16",
+  "Houston": "#17",
+  "Missouri": "#18",
+  "Iowa": "#19",
+  "USC": "#20",
+  "South Carolina": "#21",
+  "Arizona": "#22",
+  "Oregon": "#23",
+  "Florida": "#24",
+  "Boise State": "#25"
 };
 
 function formatOppWithRank(oppName, customRank) {

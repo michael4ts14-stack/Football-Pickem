@@ -1110,6 +1110,7 @@ function renderSettingsDrawerBody() {
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">' +
         '<button type="button" class="btn-sm ' + (DEMO_FIELD_PREVIEW ? 'active' : '') + '" onclick="toggleDemoFieldPreview(); renderSettingsDrawerBody();">' + (DEMO_FIELD_PREVIEW ? '🎮 Field Sim: ON' : '🏈 Field Sim: OFF') + '</button>' +
         '<button type="button" class="btn-sm" onclick="syncAllLiveTrackingData(true); closeSettingsDrawer();">🔄 Sync Live ESPN</button>' +
+        '<button type="button" class="btn-sm" style="grid-column:span 2;border-color:var(--win);color:var(--win);font-weight:800;" onclick="syncCfpRankingsToSlate(true); closeSettingsDrawer();">🏆 Sync CFP Rankings</button>' +
       '</div>' +
     '</div>' +
     commishDrawerHtml;

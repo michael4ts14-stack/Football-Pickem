@@ -1023,6 +1023,7 @@ function renderCommissionerModalBody() {
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
           '<input type="number" id="commish-espn-wk-input" class="search-input" style="width:78px;min-width:0;padding:5px 7px;font-size:0.74rem;font-weight:800;" value="' + (state.currentWeek || 8) + '" min="1" max="16" title="CFB Week Number" />' +
           '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:800;" onclick="commishFetchEspnCandidateGames()">⚡ Pull Automated ESPN Game List</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--win);color:var(--win);font-weight:800;" onclick="syncCfpRankingsToSlate(true)">🏆 Sync CFP Rankings</button>' +
           '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-weight:800;" onclick="pushCustomGamesToFirebase(); showAppToast(\'☁️ Saved active 26-game slate & swaps to Firebase!\');">💾 Save Slate to Cloud</button>' +
         '</div>' +
       '</div>' +

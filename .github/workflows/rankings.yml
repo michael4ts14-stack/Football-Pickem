@@ -1,0 +1,35 @@
+name: CFP Committee Rankings Sync (ESPN -> Firestore)
+
+# Syncs the active slate in pickem_v14/shared_state with the official College Football Playoff (CFP)
+# committee rankings (or AP Top 25 pre-November) from ESPN.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 */6 * * *"
+  pull_request:
+    paths: ["tools/rankings/**", "tools/lib/**", ".github/workflows/rankings.yml"]
+
+concurrency:
+  group: cfb-rankings
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: node --test "tests/client/cfb-rankings.test.js"
+      - name: Dry run (pull request)
+        if: github.event_name == 'pull_request'
+        run: node tools/rankings/sync-rankings.mjs --dry-run
+      - name: Sync CFP Rankings to Firestore
+        if: github.event_name != 'pull_request'
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIRESTORE_SERVICE_ACCOUNT }}
+          FIRESTORE_AUTH_REQUIRED: "true"
+        run: node tools/rankings/sync-rankings.mjs
