@@ -673,6 +673,8 @@ function saveRegistryChangesToCloud() {
   }).then(function(list) {
     CLOUD_REGISTRY.customUsers = JSON.parse(JSON.stringify(list));
     CLOUD_REGISTRY.profilePrivacy = Object.assign({}, CLOUD_REGISTRY.profilePrivacy || {}, privVals);
+    // Hiding or showing moves the picks between the public and private docs.
+    changedPriv.forEach(function(k) { if (state[k]) pushProfileToFirebase(k); });
   });
 }
 var MEMORY_STORE = {};

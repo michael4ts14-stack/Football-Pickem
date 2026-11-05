@@ -116,6 +116,20 @@ test("a receipt goes only to the caller's verified email, with picks read on the
   assert.strictEqual(logWrites(h).length, 1);
 });
 
+test("a hidden player's receipt uses their private picks", () => {
+  const h = service({
+    cloudOver: { playerKey: { picks: {}, tiebreaker: "", picksPrivate: true } },
+    docs: {
+      ["pickem_v14_accounts/email_" + PLAYER.replace(/[^a-z0-9]/g, "_")]: { uid: "uid-player", boundProfileKey: "playerKey", linkedMemberName: "Player One" },
+      "pickem_v14_private_picks/playerKey": { picks: { 1: "Texas Tech", 2: "Iowa" }, tiebreaker: "20-10" },
+    },
+  });
+  const r = post(h, { action: "sendPickReceipt", idToken: token("uid-player") });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.match(h.sentMail[0].body, /Arizona at Texas Tech: Texas Tech/);
+  assert.match(h.sentMail[0].body, /Tie-breaker: 20-10/);
+});
+
 test("a second receipt within 45s is suppressed, and the hourly limit applies", () => {
   const h = service();
   post(h, { action: "sendPickReceipt", idToken: token("uid-player") });

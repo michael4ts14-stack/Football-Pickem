@@ -236,7 +236,8 @@ function startFirebaseRealtimeListeners() {
           if (ch.type !== "added" && ch.type !== "modified") continue;
           var docId = ch.doc.id;
           var uData = ch.doc.data();
-          if (docId && uData) USER_DOC_META[docId] = { updatedAt: uData.updatedAt || "", archived: !!uData.archived };
+          if (docId && uData) USER_DOC_META[docId] = { updatedAt: uData.updatedAt || "", archived: !!uData.archived, picksPrivate: !!uData.picksPrivate };
+          if (docId && uData && uData.picks && Object.keys(uData.picks).length) PUBLIC_PICK_DOCS[docId] = uData; else delete PUBLIC_PICK_DOCS[docId];
           if (!docId || !uData || !uData.picks) continue;
           delete DEFERRED_PICK_DOCS[docId]; // this snapshot is the doc's latest state
           if (applyRemotePickDoc(docId, uData)) anyRemoteApplied = true;
@@ -244,7 +245,136 @@ function startFirebaseRealtimeListeners() {
         if (anyRemoteApplied) scheduleRemotePicksRender();
       });
     } catch (e2) {}
+
+    try {
+      listenWithRetry("kickoff_locks", function(next, err) {
+        fsDb.collection("pickem_v14").doc("kickoff_locks").onSnapshot(next, err);
+      }, onKickoffLocksSnapshot);
+    } catch (e3) {}
   }
+}
+
+// ---------- Hidden picks (rules: pickem_v14_private_picks) ----------
+// A hidden player's picks live only in their private doc. Everyone else can read those docs once
+// kickoff_locks.revealAt passes; until then this device listens only to its own.
+var PUBLIC_PICK_DOCS = {};      // doc id -> public pick doc that still holds picks
+var KICKOFF_LOCKS_DOC = null;   // null until the first snapshot
+var KICKOFF_LOCKS_SIG = "";
+var PRIVATE_WATCH_SIG = null;
+var PRIVATE_UNSUBS = [];
+var PRIVATE_MIGRATED = {};
+var revealTimer = null;
+
+function isPicksPrivate(profKey) {
+  var p = state.profilePrivacy && state.profilePrivacy[profKey];
+  return !!(p && p.hidden);
+}
+
+// Worked out on demand: the locks can arrive before this device knows the current week.
+function privateRevealMs() {
+  var d = KICKOFF_LOCKS_DOC;
+  return d && d.revealAt && String(d.week) === String(state.currentWeek) ? d.revealAt.toMillis() : null;
+}
+
+function arePrivatePicksRevealed() {
+  var at = privateRevealMs();
+  return state.fridayNightRevealOverride === true || (at !== null && Date.now() >= at);
+}
+
+// What may go in public documents for this profile.
+function publicProfileCopy(profKey) {
+  var p = state[profKey];
+  if (!p) return p;
+  return isPicksPrivate(profKey)
+    ? Object.assign({}, p, { picks: {}, tiebreaker: "", picksPrivate: true })
+    : Object.assign({}, p, { picksPrivate: false });
+}
+
+// shared_state's copy of a hidden profile holds no picks: keep what this device already has.
+function mergePrivateProfile(profKey, incoming) {
+  if (!incoming || !incoming.picksPrivate) return incoming;
+  var cur = state[profKey] || {};
+  return Object.assign({}, incoming, { picks: cur.picks || {}, tiebreaker: cur.tiebreaker || "28-24" });
+}
+
+function publicRowsWithoutHiddenPicks(rows) {
+  if (arePrivatePicksRevealed()) return rows || [];
+  return (rows || []).map(function(r) {
+    var linked = r && r.name ? getProfileLinkedToMemberName(r.name) : null;
+    return linked && isPicksPrivate(linked.key) ? Object.assign({}, r, { picks: {}, tiebreaker: "" }) : r;
+  });
+}
+
+function onPrivatePickDoc(id, data) {
+  if (!id || !data || !data.picks) return;
+  delete DEFERRED_PICK_DOCS[id];
+  if (applyRemotePickDoc(id, data)) scheduleRemotePicksRender();
+}
+
+// Safe to call often: it only re-subscribes when who this device may read has changed.
+function syncPrivatePicksWatch() {
+  if (!fsDb) return;
+  var isCommish = isVerifiedCommissioner();
+  var keys = !AUTH_SESSION ? [] : getAllUserProfiles().map(function(p) { return p.key; })
+    .filter(function(k) { return k !== "test" && isOwnEntry(k); }).sort();
+  var all = isCommish || arePrivatePicksRevealed();
+  var sig = all ? "all" : keys.join(",");
+  if (isCommish) {
+    migrateExposedHiddenPicks();
+    // A slate the bot posted has no current locks until a commissioner's device writes them.
+    if (CLOUD_HYDRATED && KICKOFF_LOCKS_DOC) pushKickoffLocksToFirebase();
+  }
+  if (sig === PRIVATE_WATCH_SIG) return;
+  PRIVATE_WATCH_SIG = sig;
+  PRIVATE_UNSUBS.forEach(function(u) { try { u(); } catch (e) {} });
+  PRIVATE_UNSUBS = [];
+  var col = fsDb.collection("pickem_v14_private_picks");
+  if (all) {
+    listenWithRetry("private_picks", function(next, err) {
+      PRIVATE_UNSUBS.push(col.onSnapshot(next, err));
+    }, function(snap) {
+      snap.docChanges().forEach(function(ch) { if (ch.type !== "removed") onPrivatePickDoc(ch.doc.id, ch.doc.data()); });
+    }, { quiet: true });
+  } else {
+    keys.forEach(function(k) {
+      listenWithRetry("private_picks_" + k, function(next, err) {
+        PRIVATE_UNSUBS.push(col.doc(k).onSnapshot(next, err));
+      }, function(d) { if (d.exists) onPrivatePickDoc(d.id, d.data()); }, { quiet: true });
+    });
+  }
+}
+
+// Hidden picks saved before private docs existed are still public: a commissioner's device moves
+// them, without overwriting a private copy that's already there.
+function migrateExposedHiddenPicks() {
+  Object.keys(PUBLIC_PICK_DOCS).forEach(function(key) {
+    if (!isPicksPrivate(key) || PRIVATE_MIGRATED[key] || !state[key]) return;
+    PRIVATE_MIGRATED[key] = true;
+    var del = firebase.firestore.FieldValue.delete();
+    var doc = PUBLIC_PICK_DOCS[key];
+    var privRef = fsDb.collection("pickem_v14_private_picks").doc(key);
+    privRef.get().then(function(existing) {
+      var batch = fsDb.batch();
+      if (!existing.exists) batch.set(privRef, doc);
+      batch.set(fsDb.collection("pickem_v14_users").doc(key), { picks: del, tiebreaker: del, picksPrivate: true }, { merge: true });
+      var mirror = {};
+      mirror[key] = publicProfileCopy(key);
+      batch.set(fsDb.collection("pickem_v14").doc("shared_state"), mirror, { mergeFields: [key] });
+      return batch.commit();
+    }).then(function() { pushWatchlistOrStandingsToFirebase(); }, function(e) { PRIVATE_MIGRATED[key] = false; reportCloudSaveFailure("hidden picks", e); });
+  });
+}
+
+function onKickoffLocksSnapshot(snap) {
+  KICKOFF_LOCKS_DOC = snap && snap.exists ? snap.data() : {};
+  KICKOFF_LOCKS_SIG = kickoffLocksSig(KICKOFF_LOCKS_DOC);
+  if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
+  var at = privateRevealMs();
+  if (at !== null && Date.now() < at) {
+    // Capped so a far-off reveal can't overflow setTimeout.
+    revealTimer = setTimeout(syncPrivatePicksWatch, Math.min(at - Date.now() + 1000, 2147483000));
+  }
+  syncPrivatePicksWatch();
 }
 
 // Pick docs that arrived while this device was editing or saving the same picks. Skipping them
@@ -481,6 +611,8 @@ function applyRemoteCloudData(data, sourceLabel) {
       return true;
     };
 
+    if (data.michael) data.michael = mergePrivateProfile("michael", data.michael);
+    if (data.kinyion) data.kinyion = mergePrivateProfile("kinyion", data.kinyion);
     if (data.michael && data.michael.picks && shouldAcceptProfile("michael")) {
       var mMatch = countMatchingPicksForSlate(data.michael.picks, GAMES);
       if (mMatch.total < 5 || mMatch.matched >= Math.ceil(mMatch.total * 0.5)) {
@@ -519,7 +651,7 @@ function applyRemoteCloudData(data, sourceLabel) {
         var cKey = state.customUsers[cuIdx].key;
         if (cKey && data[cKey] && data[cKey].picks && shouldAcceptProfile(cKey)) {
           if (!picksLookLikeAnotherWeek(data[cKey].picks, GAMES)) {
-            state[cKey] = withStaleClearFlagDropped(data[cKey]);
+            state[cKey] = withStaleClearFlagDropped(mergePrivateProfile(cKey, data[cKey]));
           }
         }
       }
@@ -638,6 +770,8 @@ function pushProfileToFirebase(profKey) {
   if (typeof canSaveProfileToCloud === "function" && !canSaveProfileToCloud(profKey)) return;
   var profObj = state[profKey];
   if (!profObj) return;
+  // Closed for the week: nothing can legitimately change, and the rules would refuse a difference.
+  if (!isVerifiedCommissioner() && isPickSheetClosedFor(profKey)) return;
   var meta = getProfileMetaByKey(profKey);
   var nowIso = new Date().toISOString();
 
@@ -664,7 +798,7 @@ function pushProfileToFirebase(profKey) {
   //    named in lastProfileWriter so the rules can check you own it. The active week is never
   //    written here: a pick save must never move everyone's week.
   var payload = {};
-  payload[profKey] = profObj;
+  payload[profKey] = publicProfileCopy(profKey);
   payload.lastProfileWriter = profKey;
   payload.updatedAt = nowIso;
 
@@ -682,6 +816,15 @@ function pushProfileToFirebase(profKey) {
   // devices showed different picks after a refresh.
   try {
     var batch = fsDb.batch();
+    var privRef = fsDb.collection("pickem_v14_private_picks").doc(profKey);
+    if (isPicksPrivate(profKey)) {
+      batch.set(privRef, userDoc, { mergeFields: Object.keys(userDoc) });
+      var del = firebase.firestore.FieldValue.delete();
+      userDoc = Object.assign({}, userDoc, { picks: del, tiebreaker: del, picksPrivate: true });
+    } else if (USER_DOC_META[profKey] && USER_DOC_META[profKey].picksPrivate) {
+      batch.delete(privRef);
+      userDoc.picksPrivate = false;
+    }
     batch.set(fsDb.collection("pickem_v14_users").doc(profKey), userDoc, { mergeFields: Object.keys(userDoc) });
     batch.set(fsDb.collection("pickem_v14").doc("shared_state"), payload, { mergeFields: Object.keys(payload) });
     batch.commit()
@@ -993,14 +1136,14 @@ function pushWatchlistOrStandingsToFirebase() {
     return pm && pm.picks && Object.keys(pm.picks).length > 0 && !pm.awaitingSheet;
   });
   var payload = Object.assign({
-    watchlist: state.watchlist,
+    watchlist: publicRowsWithoutHiddenPicks(state.watchlist),
     leaderboard: state.leaderboard,
     liveScores: LIVE_SCORES,
     updatedAt: new Date().toISOString()
   }, sharedWeekFields());
   // CRITICAL GUARD: Only overwrite poolMembers in cloud if local has picks or if no official sheet was synced
   if (localHasPicks || !state.lastScrapedFile) {
-    payload.poolMembers = members;
+    payload.poolMembers = publicRowsWithoutHiddenPicks(members);
   }
   if (fsDb) {
     // mergeFields replaces each field whole. A deep merge kept liveScores keys deleted here
@@ -1021,14 +1164,14 @@ function pushCustomGamesToFirebase() {
       var payload = Object.assign({
         customGames: GAMES,
         tiebreakerGameId: state.tiebreakerGameId || null,
-        michael: state.michael,
-        kinyion: state.kinyion,
-        watchlist: state.watchlist,
+        michael: publicProfileCopy("michael"),
+        kinyion: publicProfileCopy("kinyion"),
+        watchlist: publicRowsWithoutHiddenPicks(state.watchlist),
         leaderboard: state.leaderboard,
         updatedAt: new Date().toISOString()
       }, sharedWeekFields());
       if (localHasPicks || !state.lastScrapedFile) {
-        payload.poolMembers = members;
+        payload.poolMembers = publicRowsWithoutHiddenPicks(members);
       }
       var job = fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }).then(function() { return true; }, function(e) { reportCloudSaveFailure("the slate", e); return false; });
       pushKickoffLocksToFirebase();
@@ -1042,9 +1185,17 @@ function pushCustomGamesToFirebase() {
 // doc (game ids grouped by kickoff time, for this week) instead of the whole slate, which costs
 // too much to scan. The rules check the first 20 kickoff times; games after that, or with no
 // kickoff time, lock in the app only.
+function kickoffLocksSig(d) {
+  var ms = function(t) { return t && t.toMillis ? t.toMillis() : null; };
+  return JSON.stringify([d.week, ms(d.deadlineAt), ms(d.revealAt), d.openIds || [], d.lockedIds || [],
+    (d.windows || []).map(function(w) { return [ms(w.at), w.ids]; })]);
+}
+
 function pushKickoffLocksToFirebase() {
+  if (!fsDb || !isVerifiedCommissioner()) return;
+  if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return; // GAMES is a past week
   var week = sharedWeekFields().currentWeek;
-  if (!week || !fsDb) return;
+  if (!week) return;
   var byTime = {};
   GAMES.forEach(function(g) {
     var ms = g.kickoffIso ? new Date(g.kickoffIso).getTime() : NaN;
@@ -1054,7 +1205,24 @@ function pushKickoffLocksToFirebase() {
   var windows = Object.keys(byTime).map(Number).sort(function(a, b) { return a - b; }).map(function(ms) {
     return { at: firebase.firestore.Timestamp.fromMillis(ms), ids: byTime[ms] };
   });
-  fsDb.collection("pickem_v14").doc("kickoff_locks").set({ week: week, windows: windows, updatedAt: new Date().toISOString() })
+  var cfg = ensureCommissionerConfig();
+  var overrides = Object.keys(cfg.gameLockOverrides || {});
+  var stamp = function(v) { return v === null || v === undefined ? null : firebase.firestore.Timestamp.fromMillis(v); };
+  var kicks = slateKickoffsMs();
+  var deadlineMs = pickDeadlineMs();
+  var locks = {
+    week: week,
+    windows: windows,
+    deadlineAt: stamp(deadlineMs),
+    // Where picks stay editable until kickoff, hidden picks can only open once every game has started.
+    revealAt: stamp(cfg.lockMode === "friday_9pm_cst" || cfg.lockMode === "global_locked" ? deadlineMs : kicks[kicks.length - 1]),
+    openIds: overrides.filter(function(id) { return cfg.gameLockOverrides[id] === "open"; }),
+    lockedIds: overrides.filter(function(id) { return cfg.gameLockOverrides[id] === "locked"; })
+  };
+  var sig = kickoffLocksSig(locks);
+  if (sig === KICKOFF_LOCKS_SIG) return; // nothing changed: spare the write
+  KICKOFF_LOCKS_SIG = sig;
+  fsDb.collection("pickem_v14").doc("kickoff_locks").set(Object.assign(locks, { updatedAt: new Date().toISOString() }))
     .then(function() { setKickoffLocksStatus(true); }, function(e) {
       setKickoffLocksStatus(false, e);
       if (!(e && e.code === "permission-denied")) { reportCloudSaveFailure("the kickoff locks", e); return; }

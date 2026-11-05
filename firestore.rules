@@ -149,8 +149,8 @@ service cloud.firestore {
       let writer = request.resource.data.get('lastProfileWriter', '');
       return notBlocked() && resource != null &&
         (changed.size() == 0 || (writer != '' && changed.hasOnly([writer]) && boundToMe(writer) &&
-          noStartedPickChanged(request.resource.data.get(writer, {}).get('picks', {}),
-            resource.data.get(writer, {}).get('picks', {})))) &&
+          (emptiedForPrivate(writer, request.resource.data.get(writer, {})) ||
+            pickWriteAllowed(writer, request.resource.data.get(writer, {}), baseFor(writer, resource.data.get(writer, {})))))) &&
         ownPrivacyOnly(writer) && ownRegistryEntryAdded(writer);
     }
     function ownPrivacyOnly(writer) {
@@ -170,20 +170,45 @@ service cloud.firestore {
     // (written by the commissioner's app with the slate) lists game ids by kickoff time:
     // { week, windows: [{ at: Timestamp, ids: ['1', ...] }] }. It only counts for the week
     // shared_state is on, so a slate the bot posts never inherits last week's locks. Rules
-    // can't loop, so the first 20 kickoff times are checked.
+    // can't loop, so the first 20 kickoff times are checked. The same doc carries deadlineAt (the
+    // weekly pick deadline), revealAt (when hidden picks open to everyone), and openIds / lockedIds
+    // (the commissioner's per-game overrides).
     match /pickem_v14/kickoff_locks {
       allow read: if true;
       allow write: if isVerifiedCommissioner();
     }
-    function kickoffWindows() {
+    function currentWeek() {
+      return get(/databases/$(database)/documents/pickem_v14/shared_state).data.get('currentWeek', null);
+    }
+    function currentLocks() {
       let path = /databases/$(database)/documents/pickem_v14/kickoff_locks;
       let locks = exists(path) ? get(path).data : {};
-      let week = get(/databases/$(database)/documents/pickem_v14/shared_state).data.get('currentWeek', null);
-      return locks.get('week', null) != null && string(locks.get('week', null)) == string(week) ? locks.get('windows', []) : [];
+      return locks.get('week', null) != null && string(locks.get('week', null)) == string(currentWeek()) ? locks : {};
     }
-    function noStartedPickChanged(newPicks, oldPicks) {
+    // Commissioner let this player past the deadline: "season:week" for the current week.
+    function forceUnlocked(key) {
+      let token = poolConfig().get('forceUnlocked', {}).get(get(bindingPath(key)).data.get('memberLow', ''), '');
+      return token is string && token.matches('.*:' + string(currentWeek()));
+    }
+    function weekClosedFor(key) {
+      let mode = poolConfig().get('lockMode', 'friday_9pm_cst');
+      let deadline = currentLocks().get('deadlineAt', null);
+      return mode == 'global_locked' ||
+        (mode == 'friday_9pm_cst' && deadline != null && request.time >= deadline && !forceUnlocked(key));
+    }
+    function pickWriteAllowed(key, newDoc, oldDoc) {
+      return noStartedPickChanged(key, newDoc.get('picks', {}), oldDoc.get('picks', {})) &&
+        (!('tiebreaker' in newDoc) || newDoc.tiebreaker == oldDoc.get('tiebreaker', newDoc.tiebreaker) || !weekClosedFor(key));
+    }
+    function noStartedPickChanged(key, newPicks, oldPicks) {
       let changed = newPicks.diff(oldPicks).affectedKeys();
-      let w = changed.size() == 0 ? [] : kickoffWindows();
+      return changed.size() == 0 || (
+        !changed.hasAny(currentLocks().get('lockedIds', [])) &&
+        (changed.difference(currentLocks().get('openIds', []).toSet()).size() == 0 ||
+          (!weekClosedFor(key) && noWindowHit(changed.difference(currentLocks().get('openIds', []).toSet())))));
+    }
+    function noWindowHit(changed) {
+      let w = currentLocks().get('windows', []);
       return !(
         (w.size() > 0 && w[0].at <= request.time && changed.hasAny(w[0].ids)) ||
         (w.size() > 1 && w[1].at <= request.time && changed.hasAny(w[1].ids)) ||
@@ -212,8 +237,44 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isVerifiedCommissioner() ||
         (notBlocked() && boundToMe(profileKey) && request.resource.data.get('ownerUid', '') == request.auth.uid &&
-          noStartedPickChanged(request.resource.data.get('picks', {}), resource == null ? {} : resource.data.get('picks', {})));
+          (emptiedForPrivate(profileKey, request.resource.data) ||
+            pickWriteAllowed(profileKey, request.resource.data, baseFor(profileKey, resource == null ? {} : resource.data))));
       allow delete: if isVerifiedCommissioner();
+    }
+
+    // ---------- Hidden picks ----------
+    // A hidden player's picks live only here. The owner and commissioners read them at any time,
+    // everyone else once revealAt passes (or the commissioner's reveal override is on). While a
+    // private doc exists it is the copy locks are checked against, so moving picks in or out
+    // can't change a locked game.
+    function privatePath(key) {
+      return /databases/$(database)/documents/pickem_v14_private_picks/$(key);
+    }
+    function baseFor(key, fallback) {
+      return exists(privatePath(key)) ? get(privatePath(key)).data : fallback;
+    }
+    // The public copy may go empty only when the same batch leaves a private copy behind.
+    function emptiedForPrivate(key, publicDoc) {
+      return publicDoc.get('picks', {}).size() == 0 && existsAfter(privatePath(key));
+    }
+    function picksRevealed() {
+      let at = currentLocks().get('revealAt', null);
+      return (at != null && request.time >= at) ||
+        get(/databases/$(database)/documents/pickem_v14/shared_state).data.get('fridayNightRevealOverride', false) == true;
+    }
+    function publicPickDoc(key) {
+      let path = /databases/$(database)/documents/pickem_v14_users/$(key);
+      return exists(path) ? get(path).data : {};
+    }
+    match /pickem_v14_private_picks/{profileKey} {
+      allow get: if picksRevealed() || isVerifiedCommissioner() || (signedIn() && boundToMe(profileKey));
+      allow list: if picksRevealed() || isVerifiedCommissioner();
+      allow create, update: if isVerifiedCommissioner() ||
+        (notBlocked() && boundToMe(profileKey) && request.resource.data.get('ownerUid', '') == request.auth.uid &&
+          pickWriteAllowed(profileKey, request.resource.data, resource == null ? publicPickDoc(profileKey) : resource.data));
+      // Going public again: locked picks must land on the public doc unchanged.
+      allow delete: if isVerifiedCommissioner() || (notBlocked() && boundToMe(profileKey) &&
+        noStartedPickChanged(profileKey, getAfter(/databases/$(database)/documents/pickem_v14_users/$(profileKey)).data.get('picks', {}), resource.data.get('picks', {})));
     }
 
     // ---------- Account records (email, linked player, rivals) ----------

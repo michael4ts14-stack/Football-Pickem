@@ -27,8 +27,8 @@ syncSimpleModeTabHighlights();
 setTimeout(function() {
   if (!CLOUD_HYDRATED) { CLOUD_LOAD_TIMED_OUT = true; renderAll(); }
 }, 8000);
-setTimeout(function() {
-  if (!window._fullWeekEnrichmentRunning) {
-    syncAllLiveTrackingData(false);
-  }
-}, 450);
+// Waits for the pool's slate: syncing the built-in games first only doubled the ESPN traffic.
+(function bootEspnSync() {
+  if (!CLOUD_HYDRATED && !CLOUD_LOAD_TIMED_OUT) { setTimeout(bootEspnSync, 400); return; }
+  if (!window._fullWeekEnrichmentRunning) syncAllLiveTrackingData(false);
+})();

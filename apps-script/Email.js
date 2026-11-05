@@ -145,6 +145,12 @@ function resolveCallerPicks_(who, shared) {
   if (!profKey || profKey === "test") throw emailError_("NO_PROFILE", "Your account isn't linked to a pool entry yet.");
   var prof = (shared && shared[profKey]) || readFirestoreDoc_("pickem_v14_users/" + encodeURIComponent(profKey)) || {};
   var picks = prof.picks || {};
+  // A hidden player's picks live only in their private doc.
+  var hiddenDoc = readFirestoreDoc_("pickem_v14_private_picks/" + encodeURIComponent(profKey));
+  if (hiddenDoc && hiddenDoc.picks && Object.keys(hiddenDoc.picks).length) {
+    picks = hiddenDoc.picks;
+    prof.tiebreaker = hiddenDoc.tiebreaker;
+  }
   if (!Object.keys(picks).length) {
     var userDoc = readFirestoreDoc_("pickem_v14_users/" + encodeURIComponent(profKey)) || {};
     picks = userDoc.picks || {};

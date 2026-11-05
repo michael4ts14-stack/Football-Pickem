@@ -635,7 +635,10 @@ function hasActiveInAppPicks_(targetProfile, currentCloud, activeGames) {
     return false;
   }
   var userDoc = fetchFirestoreDoc_("pickem_v14_users/" + encodeURIComponent(targetProfile));
-  return !!(userDoc && countSlatePicks_(userDoc.picks, activeGames) >= need);
+  if (userDoc && countSlatePicks_(userDoc.picks, activeGames) >= need) return true;
+  // A hidden player's picks live only in their private doc.
+  var hiddenDoc = fetchFirestoreDoc_("pickem_v14_private_picks/" + encodeURIComponent(targetProfile));
+  return !!(hiddenDoc && countSlatePicks_(hiddenDoc.picks, activeGames) >= need);
 }
 
 // Picks that name a team in this week's game with that id.

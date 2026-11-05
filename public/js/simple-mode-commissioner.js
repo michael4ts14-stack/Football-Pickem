@@ -67,18 +67,37 @@ function deadlineWallClock(ms, tz) {
 // The deadline belongs to the Monday-Sunday week the slate is played in, so a slate posted on
 // Sunday for next week is open, and last week's slate stays closed until the new one arrives.
 // The median kickoff keeps one wrongly matched game from moving the slate to another week.
-function isPastPickDeadline() {
+function slateKickoffsMs() {
+  return (Array.isArray(GAMES) ? GAMES : []).map(function(g) { return g ? new Date(g.kickoffIso).getTime() : NaN; })
+    .filter(function(ms) { return !isNaN(ms); }).sort(function(a, b) { return a - b; });
+}
+
+// This slate's deadline as an instant, or null when no game has a kickoff time yet.
+function pickDeadlineMs() {
+  var kicks = slateKickoffsMs();
+  if (!kicks.length) return null;
   var d = getDeadlineConfig();
+  var tp = d.time.split(":");
+  var k = deadlineWallClock(kicks[Math.floor(kicks.length / 2)], d.tz);
+  var target = Date.UTC(k.y, k.mo - 1, k.d + DEADLINE_DAYS.indexOf(d.day) - k.dayIdx, parseInt(tp[0], 10), parseInt(tp[1], 10));
+  // Wall clock to instant: correct by the zone's offset, twice so a DST change settles.
+  var ms = target;
+  for (var i = 0; i < 2; i++) {
+    var w = deadlineWallClock(ms, d.tz);
+    ms += target - Date.UTC(w.y, w.mo - 1, w.d, w.hr, w.min);
+  }
+  return ms;
+}
+
+function isPastPickDeadline() {
   try {
+    var ms = pickDeadlineMs();
+    if (ms !== null) return Date.now() >= ms;
+    var d = getDeadlineConfig();
+    var now = deadlineWallClock(Date.now(), d.tz);
     var dIdx = DEADLINE_DAYS.indexOf(d.day);
     var tp = d.time.split(":");
-    var dh = parseInt(tp[0], 10), dm = parseInt(tp[1], 10);
-    var now = deadlineWallClock(Date.now(), d.tz);
-    var kicks = (Array.isArray(GAMES) ? GAMES : []).map(function(g) { return g ? new Date(g.kickoffIso).getTime() : NaN; })
-      .filter(function(ms) { return !isNaN(ms); }).sort(function(a, b) { return a - b; });
-    if (!kicks.length) return now.dayIdx > dIdx || (now.dayIdx === dIdx && now.hr * 60 + now.min >= dh * 60 + dm);
-    var k = deadlineWallClock(kicks[Math.floor(kicks.length / 2)], d.tz);
-    return Date.UTC(now.y, now.mo - 1, now.d, now.hr, now.min) >= Date.UTC(k.y, k.mo - 1, k.d + dIdx - k.dayIdx, dh, dm);
+    return now.dayIdx > dIdx || (now.dayIdx === dIdx && now.hr * 60 + now.min >= parseInt(tp[0], 10) * 60 + parseInt(tp[1], 10));
   } catch (e) {}
   return false;
 }
@@ -708,7 +727,7 @@ function saveCommissionerConfigToCloud() {
   else job = writeCommissionerConfigChanges(CLOUD_COMMISSIONER_CONFIG, state.commissionerConfig);
   // Handled here so callers that ignore the promise cause no unhandled rejection. Players hit
   // "not-commissioner" on every pick receipt, so that skip is silent.
-  job.catch(function(e) { if (!e || e.code !== "not-commissioner") reportCloudSaveFailure("commissioner settings", e); });
+  job.then(function() { pushKickoffLocksToFirebase(); }, function(e) { if (!e || e.code !== "not-commissioner") reportCloudSaveFailure("commissioner settings", e); });
   renderCommishAnnouncementBanner();
   renderSimpleGuestAccountBar();
   return job;
@@ -728,6 +747,7 @@ function commitCommissionerConfig(mutate) {
   return writeCommissionerConfigChanges(before, next).then(function() {
     state.commissionerConfig = next;
     saveLocalState();
+    pushKickoffLocksToFirebase(); // lock mode, deadline and game overrides are enforced from that doc
     return next;
   });
 }

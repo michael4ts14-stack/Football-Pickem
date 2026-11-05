@@ -21,14 +21,33 @@ function getRollingScoreboardDayStrings() {
   return out;
 }
 
+// Only today's games can change, and a poll runs every 30 seconds. Other days and the week queries
+// (about 25 requests) are reused for 10 minutes; a "Sync" clears them. Each response is stamped so
+// fresher data for a game replaces older data below.
+var SCOREBOARD_CACHE = {};
+var SCOREBOARD_CACHE_MS = 10 * 60 * 1000;
+function fetchScoreboardJson(url, reusable) {
+  var hit = SCOREBOARD_CACHE[url];
+  if (reusable && hit && Date.now() - hit._fetchedAt < SCOREBOARD_CACHE_MS) return Promise.resolve(hit);
+  return fetchJsonSafe(url).then(function(data) {
+    if (data) {
+      data._fetchedAt = Date.now();
+      SCOREBOARD_CACHE[url] = data;
+    }
+    return data;
+  });
+}
+
 async function fetchScoreboardEvents() {
   var recentDays = getRollingScoreboardDayStrings();
+  var dayMs = 86400000;
+  var liveDays = [formatYyyyMmDd(new Date(Date.now() - dayMs)), formatYyyyMmDd(new Date()), formatYyyyMmDd(new Date(Date.now() + dayMs))];
   var initUrls = [
-    fetchJsonSafe(SB_BASE + "?groups=80&limit=300"),
-    fetchJsonSafe(SB_BASE + "?limit=300")
+    fetchScoreboardJson(SB_BASE + "?groups=80&limit=300", false),
+    fetchScoreboardJson(SB_BASE + "?limit=300", false)
   ];
   for (var rd = 0; rd < recentDays.length; rd++) {
-    initUrls.push(fetchJsonSafe(SB_BASE + "?groups=80&limit=300&dates=" + recentDays[rd]));
+    initUrls.push(fetchScoreboardJson(SB_BASE + "?groups=80&limit=300&dates=" + recentDays[rd], liveDays.indexOf(recentDays[rd]) === -1));
   }
   var current = await Promise.all(initUrls);
   var weekNum = null, seasonYear = null, seasonType = null;
@@ -53,10 +72,10 @@ async function fetchScoreboardEvents() {
   var extraPromises = [];
   for (var cw = 0; cw < candidateWeeks.length; cw++) {
     var wNum = candidateWeeks[cw];
-    extraPromises.push(fetchJsonSafe(SB_BASE + "?groups=80&limit=300&seasontype=" + (seasonType || 2) + "&week=" + wNum));
-    extraPromises.push(fetchJsonSafe(SB_BASE + "?limit=300&seasontype=" + (seasonType || 2) + "&week=" + wNum));
+    extraPromises.push(fetchScoreboardJson(SB_BASE + "?groups=80&limit=300&seasontype=" + (seasonType || 2) + "&week=" + wNum, true));
+    extraPromises.push(fetchScoreboardJson(SB_BASE + "?limit=300&seasontype=" + (seasonType || 2) + "&week=" + wNum, true));
     if (seasonYear) {
-      extraPromises.push(fetchJsonSafe(SB_BASE + "?groups=80&limit=300&dates=" + seasonYear + "&seasontype=" + (seasonType || 2) + "&week=" + wNum));
+      extraPromises.push(fetchScoreboardJson(SB_BASE + "?groups=80&limit=300&dates=" + seasonYear + "&seasontype=" + (seasonType || 2) + "&week=" + wNum, true));
     }
   }
   extra = await Promise.all(extraPromises);
@@ -85,9 +104,13 @@ async function fetchScoreboardEvents() {
       var evWeek = (ev.week && ev.week.number) || respWeek || null;
       if (seen[ev.id]) {
         if (evWeek && !seen[ev.id].week) seen[ev.id].week = evWeek;
+        if ((respObj._fetchedAt || 0) > seen[ev.id].fetchedAt) {
+          seen[ev.id].ev = ev; seen[ev.id].comp = comp; seen[ev.id].away = awayComp; seen[ev.id].home = homeComp;
+          seen[ev.id].fetchedAt = respObj._fetchedAt;
+        }
         continue;
       }
-      var itemObj = { ev: ev, comp: comp, away: awayComp, home: homeComp, week: evWeek };
+      var itemObj = { ev: ev, comp: comp, away: awayComp, home: homeComp, week: evWeek, fetchedAt: respObj._fetchedAt || 0 };
       seen[ev.id] = itemObj;
       events.push(itemObj);
     }
@@ -283,13 +306,25 @@ async function syncAllLiveTrackingData(saveToCloudAfter) {
       if (hId) uniqueTeams[gmItem.home] = hId;
     }
 
-    var teamNames = Object.keys(uniqueTeams);
-    var promises = [];
-    for (var u = 0; u < teamNames.length; u++) {
-      var tName = teamNames[u];
-      promises.push(fetchAndStoreSingleTeamSchedule(tName, uniqueTeams[tName]));
+    // The slate in the cloud already holds each team's last five games. Only a commissioner (who
+    // saves them) or a slate missing them needs ESPN's 50-odd team schedules.
+    var hasRecentGames = function(l5) { return Array.isArray(l5) && l5.length > 0; };
+    var slateHasLogs = GAMES.length > 0 && GAMES.every(function(g) { return hasRecentGames(g.awayL5) && hasRecentGames(g.homeL5); });
+    if (slateHasLogs && !isVerifiedCommissioner()) {
+      var cleanRec = function(rec) { return String(rec || "").replace(/#\d+\s*•?\s*/, "").trim(); };
+      GAMES.forEach(function(g) {
+        TEAM_LOGS[g.away] = Object.assign({}, TEAM_LOGS[g.away], { rec: cleanRec(g.awayRec), l5: g.awayL5 });
+        TEAM_LOGS[g.home] = Object.assign({}, TEAM_LOGS[g.home], { rec: cleanRec(g.homeRec), l5: g.homeL5 });
+      });
+    } else {
+      var teamNames = Object.keys(uniqueTeams);
+      var promises = [];
+      for (var u = 0; u < teamNames.length; u++) {
+        var tName = teamNames[u];
+        promises.push(fetchAndStoreSingleTeamSchedule(tName, uniqueTeams[tName]));
+      }
+      await Promise.all(promises);
     }
-    await Promise.all(promises);
 
     // Rebuild dynamic 4-pillar insights immediately from scoreboard + team schedule data (zero wait)
     for (var c0 = 0; c0 < GAMES.length; c0++) {

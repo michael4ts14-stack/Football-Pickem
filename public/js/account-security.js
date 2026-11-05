@@ -864,11 +864,14 @@ async function mergeProfileInto(dupKey, targetName) {
       }
       var userDoc = { profileKey: targetKey, linkedMemberName: rosterDisplayName(targetName), updatedAt: now };
       if (uid) userDoc.ownerUid = uid;
-      if (movePicks) { userDoc.picks = state[targetKey].picks; userDoc.tiebreaker = state[targetKey].tiebreaker; userDoc.currentWeek = state.currentWeek; userDoc._picksCleared = false; }
+      var privateTarget = movePicks && isPicksPrivate(targetKey);
+      if (movePicks && !privateTarget) { userDoc.picks = state[targetKey].picks; userDoc.tiebreaker = state[targetKey].tiebreaker; }
+      if (movePicks) { userDoc.currentWeek = state.currentWeek; userDoc._picksCleared = false; }
       var jobs = [fsDb.collection("pickem_v14_users").doc(targetKey).set(userDoc, { merge: true })];
+      if (privateTarget) jobs.push(fsDb.collection("pickem_v14_private_picks").doc(targetKey).set({ picks: state[targetKey].picks, tiebreaker: state[targetKey].tiebreaker, currentWeek: state.currentWeek, updatedAt: now }, { merge: true }));
       if (movePicks) {
         var sharedPicks = { updatedAt: now };
-        sharedPicks[targetKey] = state[targetKey];
+        sharedPicks[targetKey] = publicProfileCopy(targetKey);
         jobs.push(fsDb.collection("pickem_v14").doc("shared_state").set(sharedPicks, { merge: true }));
       }
       if (uid && ACCOUNT_SECURITY_LIVE) {
@@ -1078,6 +1081,7 @@ renderAll = function() {
     try { r = _acctPrevRenderAll.apply(this, arguments); } catch (e) { console.error("renderAll upstream error (account security):", e); }
   }
   if (isVerifiedCommissioner()) startLinkRequestWatch();
+  try { syncPrivatePicksWatch(); } catch (ePriv) { console.error("syncPrivatePicksWatch error:", ePriv); }
   try { renderAccountSecurityBits(); } catch (e2) { console.error("renderAccountSecurityBits error:", e2); }
   return r;
 };

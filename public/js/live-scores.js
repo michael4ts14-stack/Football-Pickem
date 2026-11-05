@@ -3,6 +3,7 @@
 // ============================================================================
 var LIVE_POLL_FAILED = false; // last poll could not reach ESPN: live-ui.js must not stamp "Synced"
 async function pollLiveSaturdayScores(manual) {
+  if (manual) SCOREBOARD_CACHE = {};
   LIVE_POLL_FAILED = false;
   var badge = document.getElementById("live-sync-badge") || document.createElement("span");
   if (manual) badge.textContent = "↻ Fetching CST Scores & Possession...";

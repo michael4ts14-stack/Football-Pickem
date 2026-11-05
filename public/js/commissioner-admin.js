@@ -325,8 +325,8 @@ function commishDeletePlayerPicks(memberName) {
   var nowIso = new Date().toISOString();
   var sharedClearPatch = {
     deletedPicksByMember: state.deletedPicksByMember,
-    poolMembers: state.poolMembers || [],
-    watchlist: state.watchlist || [],
+    poolMembers: publicRowsWithoutHiddenPicks(state.poolMembers),
+    watchlist: publicRowsWithoutHiddenPicks(state.watchlist),
     updatedAt: nowIso
   };
 

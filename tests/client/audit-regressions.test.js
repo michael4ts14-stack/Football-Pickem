@@ -117,3 +117,31 @@ test("a lock from a newer week survives a snapshot that arrives before the week 
   const old = withStaleClearFlagDropped({ userLockedPicks: true, userLockedWeek: 8, picks: {} });
   assert.strictEqual(old.userLockedPicks, false);
 });
+
+test("pickDeadlineMs gives the instant of Friday 9 PM Central for the slate's week", () => {
+  fridayDeadline(); global.GAMES = slate(SAT_KICK);
+  assert.strictEqual(new Date(pickDeadlineMs()).toISOString(), "2026-11-07T03:00:00.000Z");
+  global.GAMES = [{ id: 1 }];
+  assert.strictEqual(pickDeadlineMs(), null);
+});
+
+test("hidden picks stay out of everything public until the reveal", () => {
+  global.getProfileLinkedToMemberName = (n) => (n === "Sam" ? { key: "u_sam" } : null);
+  global.state = { profilePrivacy: { u_sam: { hidden: true } }, u_sam: { picks: { 1: "A" }, tiebreaker: "9-7", target: 5 }, u_pat: { picks: { 1: "B" } } };
+  const pub = publicProfileCopy("u_sam");
+  assert.deepStrictEqual(pub, { picks: {}, tiebreaker: "", target: 5, picksPrivate: true });
+  assert.deepStrictEqual(state.u_sam.picks, { 1: "A" }, "the device's own copy is untouched");
+  assert.deepStrictEqual(publicProfileCopy("u_pat").picks, { 1: "B" });
+  const rows = publicRowsWithoutHiddenPicks([{ name: "Sam", picks: { 1: "A" }, tiebreaker: "9-7" }, { name: "Pat", picks: { 1: "B" } }]);
+  assert.deepStrictEqual(rows[0].picks, {});
+  assert.strictEqual(rows[0].tiebreaker, "");
+  assert.deepStrictEqual(rows[1].picks, { 1: "B" });
+  state.fridayNightRevealOverride = true;
+  assert.deepStrictEqual(publicRowsWithoutHiddenPicks([{ name: "Sam", picks: { 1: "A" } }])[0].picks, { 1: "A" });
+});
+
+test("a public copy without picks never wipes picks this device holds", () => {
+  global.state = { u_sam: { picks: { 1: "A" }, tiebreaker: "9-7" } };
+  assert.deepStrictEqual(mergePrivateProfile("u_sam", { picks: {}, tiebreaker: "", picksPrivate: true }).picks, { 1: "A" });
+  assert.deepStrictEqual(mergePrivateProfile("u_sam", { picks: { 2: "B" } }).picks, { 2: "B" });
+});
