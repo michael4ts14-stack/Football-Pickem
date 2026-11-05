@@ -1336,6 +1336,7 @@ function onAppResumed(awayMs) {
   });
 }
 
+try {
 document.addEventListener("visibilitychange", function() {
   if (document.hidden) { APP_HIDDEN_AT = Date.now(); return; }
   if (APP_HIDDEN_AT) onAppResumed(Date.now() - APP_HIDDEN_AT);
@@ -1347,4 +1348,5 @@ window.addEventListener("pageshow", function(e) {
   if (e.persisted && APP_HIDDEN_AT) onAppResumed(Date.now() - APP_HIDDEN_AT);
   if (e.persisted) APP_HIDDEN_AT = 0;
 });
+} catch (e) {}
 // ---------- End coming back ----------
