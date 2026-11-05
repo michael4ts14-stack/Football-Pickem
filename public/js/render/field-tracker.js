@@ -381,13 +381,14 @@ async function fetchLiveCollegeFootballRankings(force) {
     if (data && Array.isArray(data.rankings)) {
       // Prioritize College Football Playoff (CFP) committee rankings (November - January).
       // Fallback to AP Top 25 (pre-CFP) or first poll if CFP committee rankings are not yet released.
-      var officialPoll = data.rankings.find(function(p) {
+      var usablePolls = data.rankings.filter(function(p) { return p && Array.isArray(p.ranks) && p.ranks.length >= 20; });
+      var officialPoll = usablePolls.find(function(p) {
         return (p.type === "cfp") ||
           (p.name && /playoff|cfp|committee/i.test(p.name)) ||
           (p.shortName && /cfp/i.test(p.shortName));
-      }) || data.rankings.find(function(p) {
+      }) || usablePolls.find(function(p) {
         return p.name === "AP Top 25" || p.type === "ap";
-      }) || data.rankings[0];
+      }) || usablePolls[0];
 
       if (officialPoll && Array.isArray(officialPoll.ranks) && officialPoll.ranks.length >= 20) {
         CFB_RANKINGS_CACHE = data;
@@ -454,11 +455,11 @@ async function syncCfpRankingsToSlate(force) {
       if (typeof pushCustomGamesToFirebase === "function") pushCustomGamesToFirebase();
     }
     if (typeof showAppToast === "function") {
-      showAppToast("🏆 Synced CFP Committee Rankings! Alabama #5, UCLA #8, Texas #7.");
+      showAppToast("🏆 Synced rankings: " + CFB_RANKINGS_POLL_NAME + ".");
     }
   } else {
     if (typeof showAppToast === "function") {
-      showAppToast("ℹ️ CFP rankings already up-to-date with live ESPN feed.");
+      showAppToast("Couldn't load rankings from ESPN. Try again in a minute.");
     }
   }
   return ok;

@@ -45,7 +45,7 @@ function ensureCommissionerConfig() {
 // ---------- Pick deadline (Locks tab) ----------
 // The weekly deadline: a weekday and time in a time zone (default Friday 9:00 PM Central).
 // A pick week runs Monday to Sunday, so the deadline has passed from that moment until Monday.
-var DEADLINE_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var DEADLINE_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 var DEADLINE_ZONES = { "America/New_York": "ET", "America/Chicago": "CT", "America/Denver": "MT", "America/Los_Angeles": "PT" };
 
 function getDeadlineConfig() {
@@ -57,35 +57,28 @@ function getDeadlineConfig() {
   };
 }
 
+function deadlineWallClock(ms, tz) {
+  var parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date(ms));
+  var v = {};
+  for (var i = 0; i < parts.length; i++) v[parts[i].type] = parts[i].value;
+  return { y: +v.year, mo: +v.month, d: +v.day, hr: (+v.hour) % 24, min: +v.minute, dayIdx: DEADLINE_DAYS.indexOf(v.weekday) };
+}
+
+// The deadline belongs to the Monday-Sunday week the slate is played in, so a slate posted on
+// Sunday for next week is open, and last week's slate stays closed until the new one arrives.
+// The median kickoff keeps one wrongly matched game from moving the slate to another week.
 function isPastPickDeadline() {
   var d = getDeadlineConfig();
   try {
-    // If the active slate consists of upcoming games that have not kicked off yet, the deadline has not passed.
-    if (typeof GAMES !== "undefined" && Array.isArray(GAMES) && GAMES.length > 0) {
-      var futureKickoffs = 0, pastOrLiveKickoffs = 0, nowMs = Date.now();
-      for (var g = 0; g < GAMES.length; g++) {
-        var gIso = GAMES[g] && GAMES[g].kickoffIso;
-        if (gIso) {
-          var gMs = new Date(gIso).getTime();
-          if (!isNaN(gMs)) {
-            if (gMs > nowMs + 12 * 3600000) futureKickoffs++;
-            else if (gMs <= nowMs) pastOrLiveKickoffs++;
-          }
-        }
-      }
-      if (futureKickoffs > 0 && pastOrLiveKickoffs === 0) return false;
-    }
-    var parts = new Intl.DateTimeFormat("en-US", { timeZone: d.tz, weekday: "short", hour: "numeric", minute: "numeric", hour12: false }).formatToParts(new Date());
-    var wkday = "", hr = 0, min = 0;
-    for (var i = 0; i < parts.length; i++) {
-      if (parts[i].type === "weekday") wkday = parts[i].value;
-      if (parts[i].type === "hour") hr = parseInt(parts[i].value, 10) % 24;
-      if (parts[i].type === "minute") min = parseInt(parts[i].value, 10);
-    }
-    var nowIdx = DEADLINE_DAYS.indexOf(wkday), dIdx = DEADLINE_DAYS.indexOf(d.day);
+    var dIdx = DEADLINE_DAYS.indexOf(d.day);
     var tp = d.time.split(":");
-    var dMins = parseInt(tp[0], 10) * 60 + parseInt(tp[1], 10);
-    return nowIdx > dIdx || (nowIdx === dIdx && hr * 60 + min >= dMins);
+    var dh = parseInt(tp[0], 10), dm = parseInt(tp[1], 10);
+    var now = deadlineWallClock(Date.now(), d.tz);
+    var kicks = (Array.isArray(GAMES) ? GAMES : []).map(function(g) { return g ? new Date(g.kickoffIso).getTime() : NaN; })
+      .filter(function(ms) { return !isNaN(ms); }).sort(function(a, b) { return a - b; });
+    if (!kicks.length) return now.dayIdx > dIdx || (now.dayIdx === dIdx && now.hr * 60 + now.min >= dh * 60 + dm);
+    var k = deadlineWallClock(kicks[Math.floor(kicks.length / 2)], d.tz);
+    return Date.UTC(now.y, now.mo - 1, now.d, now.hr, now.min) >= Date.UTC(k.y, k.mo - 1, k.d + dIdx - k.dayIdx, dh, dm);
   } catch (e) {}
   return false;
 }
@@ -1024,7 +1017,7 @@ function renderCommissionerModalBody() {
           '<input type="number" id="commish-espn-wk-input" class="search-input" style="width:78px;min-width:0;padding:5px 7px;font-size:0.74rem;font-weight:800;" value="' + (state.currentWeek || 8) + '" min="1" max="16" title="CFB Week Number" />' +
           '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:800;" onclick="commishFetchEspnCandidateGames()">⚡ Pull Automated ESPN Game List</button>' +
           '<button type="button" class="btn-sm" style="border-color:var(--win);color:var(--win);font-weight:800;" onclick="syncCfpRankingsToSlate(true)">🏆 Sync CFP Rankings</button>' +
-          '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-weight:800;" onclick="pushCustomGamesToFirebase(); showAppToast(\'☁️ Saved active 26-game slate & swaps to Firebase!\');">💾 Save Slate to Cloud</button>' +
+          '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-weight:800;" onclick="pushCustomGamesToFirebase().then(function(ok) { if (ok) showAppToast(\'☁️ Saved the slate to Firebase!\'); });">💾 Save Slate to Cloud</button>' +
         '</div>' +
       '</div>' +
       candidateHtml +
@@ -1054,7 +1047,7 @@ function renderCommissionerModalBody() {
             '</label>' +
             '<label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;background:var(--panel-alt);padding:8px;border-radius:8px;border:1px solid ' + (cfg.lockMode === "global_locked" ? "#ef4444" : "var(--border-muted)") + ';">' +
               '<input type="radio" name="cm-lock-mode" ' + (cfg.lockMode === "global_locked" ? "checked" : "") + ' onchange="setCommishLockMode(\'global_locked\')" />' +
-              '<div><strong style="color:var(--loss);">🔒 Force Immediate Global Lock (Lock All 23 Now)</strong><div style="font-size:0.69rem;color:var(--muted);">Freezes all 23 games immediately for all players.</div></div>' +
+              '<div><strong style="color:var(--loss);">🔒 Force Immediate Global Lock (Lock All Games Now)</strong><div style="font-size:0.69rem;color:var(--muted);">Freezes all games immediately for all players.</div></div>' +
             '</label>' +
             '<label style="display:flex;align-items:flex-start;gap:7px;cursor:pointer;background:var(--panel-alt);padding:8px;border-radius:8px;border:1px solid ' + (cfg.lockMode === "open" ? "#facc15" : "var(--border-muted)") + ';">' +
               '<input type="radio" name="cm-lock-mode" ' + (cfg.lockMode === "open" ? "checked" : "") + ' onchange="setCommishLockMode(\'open\')" />' +
@@ -1144,7 +1137,7 @@ function renderCommissionerModalBody() {
           '<span>📝 Auto-Generated Top 5 Weekly Winners & Overall Standings Post</span>' +
           '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="copyCommishRecapPost()">📋 Copy Recap & Standings Post</button>' +
         '</div>' +
-        '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Automatically lists the <strong>Top 5 Weekly Winners</strong> (who gained the most points that week) plus the full 89-player Overall Standings table:</div>' +
+        '<div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;">Automatically lists the <strong>Top 5 Weekly Winners</strong> (who gained the most points that week) plus the full Overall Standings table:</div>' +
         '<textarea id="commish-recap-textarea" rows="12" class="search-input" style="width:100%;font-family:monospace;font-size:0.72rem;color:var(--text);">' + escapeHtml(recapText) + '</textarea>' +
       '</div>';
   }
@@ -1169,7 +1162,7 @@ function copyMissingPlayersList() {
     var c = countMatchingPicksForSlate(pMap, GAMES);
     if (c.matched === 0 || pm.awaitingSheet) missing.push(pm.name);
   }
-  var txt = "⏰ Separated at Turf — " + (state.weekLabel || "Week 8") + " Wed/Thu Picks Nudge (Deadline: " + pickDeadlineLabel() + " • " + missing.length + " Missing):\n" + (missing.join(", ") || "All 89 players have submitted!");
+  var txt = "⏰ Separated at Turf — " + (state.weekLabel || "Week 8") + " Wed/Thu Picks Nudge (Deadline: " + pickDeadlineLabel() + " • " + missing.length + " Missing):\n" + (missing.join(", ") || "All players have submitted!");
   copyTextWithToast(txt, "📧 Copied " + missing.length + " missing player names to clipboard!");
 }
 

@@ -61,7 +61,7 @@ function openUnifiedImportModal(defaultTab) {
     '<div id="hub-pane-pdf" class="hidden">' +
       '<div class="pdf-dropzone" onclick="triggerFileInputClick()">' +
         '<div style="font-size:1.1rem;font-weight:800;color:var(--legacy-accent);margin-bottom:4px;">📄 Upload Separated at Turf Weekly PDF</div>' +
-        '<div style="font-size:0.74rem;color:var(--muted);">Extracts all 23 games, spreads, and multipliers in-browser via PDF.js, crawls ESPN schedules, and saves the new week to Firebase.</div>' +
+        '<div style="font-size:0.74rem;color:var(--muted);">Extracts all games, spreads, and multipliers in-browser via PDF.js, crawls ESPN schedules, and saves the new week to Firebase.</div>' +
         '<input type="file" id="pdf-file-input" accept="application/pdf" style="display:none;" onchange="handlePdfFileSelect(this.files[0])" />' +
       '</div>' +
       '<div id="pdf-parse-status" style="font-size:0.78rem;color:var(--green);margin-bottom:8px;font-weight:700;"></div>' +

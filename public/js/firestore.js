@@ -8,7 +8,8 @@ function withStaleClearFlagDropped(prof) {
   if (!prof || typeof prof !== "object") return prof;
   var curWk = parseInt(state.currentWeek, 10) || 0;
   var lockedWk = parseInt(prof.userLockedWeek, 10) || 0;
-  if (prof.userLockedPicks && (!lockedWk || !curWk || lockedWk !== curWk)) {
+  // A lock newer than this device's week is kept: the snapshot's week is applied after the picks.
+  if (prof.userLockedPicks && (!lockedWk || !curWk || lockedWk < curWk)) {
     prof = Object.assign({}, prof, { userLockedPicks: false });
     delete prof.userLockedWeek;
   }
@@ -554,13 +555,8 @@ function applyRemoteCloudData(data, sourceLabel) {
     }
     var minValidWeek = (!isHardcodedWeek7Slate(GAMES) || localMaxPrior >= 120) ? 8 : 7;
     if (incomingWkNum >= minValidWeek && incomingWkNum >= (state.currentWeek || minValidWeek)) {
-      var prevWk = state.currentWeek;
-      var changedWk = (incomingWkNum !== prevWk);
       state.currentWeek = incomingWkNum;
       state.weekLabel = "Week " + incomingWkNum;
-      if (changedWk && typeof unlockPicksForNewWeek === "function") {
-        unlockPicksForNewWeek(prevWk, incomingWkNum);
-      }
     } else if ((data.currentWeek && parseInt(data.currentWeek, 10) < minValidWeek) || (data.weekLabel && parseWeekNumFromLabel(data.weekLabel) < minValidWeek)) {
       cloudLbStale = true;
     }

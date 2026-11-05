@@ -817,7 +817,7 @@ function sanitizeStateForActiveSlate() {
       if (!pm.picks) pm.picks = {};
       var pmCounts = countMatchingPicksForSlate(pm.picks, GAMES);
       // Only purge stale picks from an old week if slate is fully hydrated, NOT on game days, and official sheet hasn't synced
-      if (slateConfirmedForPool && !isLiveGameTime && !state.officialSheetSyncedForWeek && pmCounts.total >= 5 && pmCounts.matched < Math.ceil(pmCounts.total * 0.5)) {
+      if (slateConfirmedForPool && !isLiveGameTime && String(state.officialSheetSyncedForWeek) !== String(state.currentWeek) && pmCounts.total >= 5 && pmCounts.matched < Math.ceil(pmCounts.total * 0.5)) {
         pm.picks = {};
         pm.livePts = 0;
         pm.inProgressPts = 0;
@@ -928,14 +928,7 @@ function resetPoolPicksForNewWeek(syncToCloud) {
   if (typeof unlockPicksForNewWeek === "function") {
     unlockPicksForNewWeek(null, state.currentWeek);
   }
-  var isGameDayNow = false;
-  try {
-    var dNow = new Date();
-    var dayU = dNow.getUTCDay();
-    var hrU = dNow.getUTCHours();
-    if (dayU === 6 || (dayU === 5 && hrU >= 18) || (dayU === 0 && hrU <= 14)) isGameDayNow = true;
-  } catch (eGdn) {}
-  if (isGameDayNow || (typeof countScoredGamesInLiveScores === "function" && countScoredGamesInLiveScores() > 0)) {
+  if (typeof countScoredGamesInLiveScores === "function" && countScoredGamesInLiveScores() > 0) {
     console.warn("⚠️ Blocked resetPoolPicksForNewWeek: Live scoring in progress!");
     return;
   }
@@ -955,7 +948,9 @@ function resetPoolPicksForNewWeek(syncToCloud) {
   // "Picks cleared" flags belong to the week they were set in. update() replaces the whole map
   // (a merge set would keep the old keys).
   state.deletedPicksByMember = {};
-  if (syncToCloud && fsDb && canWriteSharedPoolState()) {
+  // The push guard keeps a sheet-synced pool from being emptied by accident; this reset is deliberate.
+  state.lastScrapedFile = "";
+  if (fsDb && canWriteSharedPoolState()) {
     try { fsDb.collection("pickem_v14").doc("shared_state").update({ deletedPicksByMember: {} }).catch(function() {}); } catch (eDel) {}
   }
   if (state.watchlist && Array.isArray(state.watchlist)) {

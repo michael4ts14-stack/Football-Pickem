@@ -160,3 +160,15 @@ test("fetchLiveCollegeFootballRankings falls back to AP Top 25 when CFP rankings
   assert.strictEqual(TEAM_RANKS["UCLA"], "#5");
   assert.strictEqual(TEAM_RANKS["Alabama"], "#9");
 });
+
+test("rankings job falls back to AP when the CFP poll has no teams yet, and refuses to strip ranks", async (t) => {
+  const { fetchOfficialCfbRankings } = await import("../../tools/rankings/sync-rankings.mjs");
+  const ranks = Array.from({ length: 25 }, (_, i) => ({ current: i + 1, team: { location: "Team" + (i + 1) } }));
+  let polls = [{ name: "College Football Playoff", type: "cfp", ranks: [] }, { name: "AP Top 25", ranks }];
+  t.mock.method(global, "fetch", async () => new Response(JSON.stringify({ rankings: polls })));
+  const got = await fetchOfficialCfbRankings();
+  assert.strictEqual(got.pollName, "AP Top 25");
+  assert.strictEqual(got.ranks.Team1, "#1");
+  polls = [{ name: "College Football Playoff", type: "cfp", ranks: [] }];
+  await assert.rejects(fetchOfficialCfbRankings());
+});

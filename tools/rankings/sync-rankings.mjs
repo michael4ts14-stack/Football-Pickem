@@ -8,15 +8,17 @@ export async function fetchOfficialCfbRankings() {
     throw new Error("Invalid rankings payload from ESPN");
   }
 
-  const officialPoll = data.rankings.find((p) =>
+  // An announced poll with no teams yet must not strip every rank from the slate.
+  const polls = data.rankings.filter((p) => p && Array.isArray(p.ranks) && p.ranks.length >= 20);
+  const officialPoll = polls.find((p) =>
     p.type === "cfp" ||
     (p.name && /playoff|cfp|committee/i.test(p.name)) ||
     (p.shortName && /cfp/i.test(p.shortName))
-  ) || data.rankings.find((p) =>
+  ) || polls.find((p) =>
     p.name === "AP Top 25" || p.type === "ap"
-  ) || data.rankings[0];
+  ) || polls[0];
 
-  if (!officialPoll || !Array.isArray(officialPoll.ranks)) {
+  if (!officialPoll) {
     throw new Error("No ranked teams found in ESPN poll");
   }
 

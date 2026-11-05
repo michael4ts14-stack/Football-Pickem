@@ -62,21 +62,6 @@ vm.runInThisContext(commishAdminSrc);
 vm.runInThisContext(firestoreSrc);
 vm.runInThisContext(teamMatchSrc);
 
-test("DEADLINE_DAYS starts on Sunday so Sunday does not falsely evaluate as past Friday deadline", () => {
-  assert.strictEqual(DEADLINE_DAYS[0], "Sun");
-  assert.strictEqual(DEADLINE_DAYS[5], "Fri");
-  assert.strictEqual(DEADLINE_DAYS.indexOf("Sun") < DEADLINE_DAYS.indexOf("Fri"), true);
-});
-
-test("isPastPickDeadline returns false when slate has upcoming future games", () => {
-  const futureMs = Date.now() + 48 * 3600000; // 2 days in the future
-  global.GAMES = [
-    { id: 101, away: "Georgia", home: "Texas", kickoffIso: new Date(futureMs).toISOString() },
-    { id: 102, away: "Ohio State", home: "Penn State", kickoffIso: new Date(futureMs + 3600000).toISOString() }
-  ];
-  assert.strictEqual(isPastPickDeadline(), false);
-});
-
 test("unlockPicksForNewWeek unlocks all profiles, clears game overrides, and resets global lock", () => {
   global.state = {
     currentWeek: 9,
