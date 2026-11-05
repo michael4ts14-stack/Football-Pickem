@@ -441,6 +441,14 @@ test("deadline: force unlock, other lock modes, other weeks and per-game overrid
   await assertFails(setDoc(USERJ(db(J)), myDoc({ 1: "Iowa", 2: "Texas" }), { merge: true }));
   await setup({ locks: { lockedIds: ["1"] } });
   await assertFails(setDoc(USERJ(db(J)), myDoc({ 1: "Iowa" }), { merge: true }));
+  // "Unlock all picks" lifts the deadline and kickoffs, for this week only.
+  const closed = { deadlineAt: minsAgo(1), windows: [{ at: minsAgo(1), ids: ["1"] }] };
+  await setup({ locks: closed, config: { forceOpenWeek: 9 } });
+  await assertSucceeds(setDoc(USERJ(db(J)), myDoc({ 1: "Iowa" }), { merge: true }));
+  await setup({ locks: closed, config: { lockMode: "open" } });
+  await assertSucceeds(setDoc(USERJ(db(J)), myDoc({ 1: "Iowa" }), { merge: true }));
+  await setup({ locks: closed, config: { forceOpenWeek: 8 } });
+  await assertFails(setDoc(USERJ(db(J)), myDoc({ 1: "Iowa" }), { merge: true }));
 });
 
 test("hidden picks: only the owner and commissioners read them before the reveal", async () => {
@@ -460,8 +468,11 @@ test("hidden picks: everyone reads them after the reveal or the override, not on
   await assertSucceeds(getDocs(collection(guest(), "pickem_v14_private_picks")));
   await setup({ priv: { 1: "Arizona" }, locks: { revealAt: minsAgo(1), week: 8 } });
   await assertFails(getDoc(PRIV(guest())));
-  await setup({ priv: { 1: "Arizona" }, shared: { fridayNightRevealOverride: true } });
+  await setup({ priv: { 1: "Arizona" }, shared: { forceRevealWeek: 9 } });
   await assertSucceeds(getDocs(collection(db(O), "pickem_v14_private_picks")));
+  await setup({ priv: { 1: "Arizona" }, shared: { forceRevealWeek: 8 } }); // last week's reveal
+  await assertFails(getDocs(collection(db(O), "pickem_v14_private_picks")));
+  await assertFails(setDoc(SS(db(O)), { forceRevealWeek: 9 }, { merge: true })); // players can't turn it on
 });
 
 test("hidden picks: moving to private keeps picks of started games, and can't change them", async () => {
@@ -505,4 +516,22 @@ test("hidden picks: going public must carry the same picks across", async () => 
   await assertFails(deleteDoc(PRIV(db(O))));
   await setup({ priv: { 1: "Arizona" }, user: {} });
   await assertSucceeds(unhide({ 1: "Iowa" })); // nothing locked yet
+});
+
+test("limit: a hidden player's full save (3 docs, 30 games, 20 windows, deadline, 90 players) fits", async () => {
+  const ids = Array.from({ length: 30 }, (_, i) => String(i + 1));
+  const windows = Array.from({ length: 20 }, (_, w) => ({ at: minsAgo(w === 19 ? 5 : -60 - w), ids: w < 10 ? ids.slice(w * 2, w * 2 + 2) : [ids[w + 10]] }));
+  const old = Object.fromEntries(ids.map((id) => [id, "A"]));
+  await setup({ locks: { windows, deadlineAt: minsAgo(-60), revealAt: minsAgo(-60), openIds: [], lockedIds: [] }, user: {}, priv: old,
+    shared: Object.fromEntries(Array.from({ length: 90 }, (_, i) => ["u_p" + i, { picks: old }])) });
+  const save = (p) => {
+    const d = db(J), b = writeBatch(d), del = deleteField();
+    b.set(PRIV(d), myDoc(p, { tiebreaker: "28-24" }));
+    b.set(USERJ(d), { ownerUid: J.uid, picks: del, tiebreaker: del, picksPrivate: true }, { mergeFields: ["ownerUid", "picks", "tiebreaker", "picksPrivate"] });
+    b.set(SS(d), { u_justinc: { picks: {}, tiebreaker: "", picksPrivate: true }, lastProfileWriter: "u_justinc", updatedAt: "t" }, { mergeFields: ["u_justinc", "lastProfileWriter", "updatedAt"] });
+    return b.commit();
+  };
+  const open = Object.assign({}, old, Object.fromEntries(ids.slice(0, 29).map((id) => [id, "B"])));
+  await assertSucceeds(save(open));
+  await assertFails(save(Object.assign({}, open, { 30: "B" }))); // window 20 has started
 });

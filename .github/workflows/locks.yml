@@ -1,0 +1,35 @@
+name: Pick locks for bot-posted slates
+
+# Bot-posted slates have no kickoff times, so firestore.rules can't enforce their locks until a
+# commissioner's device writes them. This hourly job does it first. Exits at once if they exist.
+on:
+  schedule:
+    - cron: "37 * * * *"
+  workflow_dispatch:
+  pull_request:
+    paths: ["tools/locks/**", "tools/lib/**", "tests/locks/**", ".github/workflows/locks.yml"]
+
+concurrency:
+  group: pick-locks
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: node --test "tests/locks/*.test.mjs"
+      - name: Dry run (pull request)
+        if: github.event_name == 'pull_request'
+        run: node tools/locks/sync-locks.mjs --dry-run
+      - name: Write locks to Firestore
+        if: github.event_name != 'pull_request'
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIRESTORE_SERVICE_ACCOUNT }}
+          FIRESTORE_AUTH_REQUIRED: "true"
+        run: node tools/locks/sync-locks.mjs

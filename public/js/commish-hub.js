@@ -183,6 +183,55 @@ function setDeadlineConfig(field, value) {
   renderAll();
 }
 
+// ---------- Admin overrides: don't wait for the clock ----------
+// Each one applies to the current week only and ends by itself when the week changes.
+function setForceRevealWeek(on) {
+  state.forceRevealWeek = on ? (parseInt(state.currentWeek, 10) || null) : null;
+  syncPrivatePicksWatch();
+  if (!fsDb) return Promise.resolve();
+  return fsDb.collection("pickem_v14").doc("shared_state").update({ forceRevealWeek: state.forceRevealWeek })
+    .catch(function(e) { reportCloudSaveFailure("the pick reveal", e); });
+}
+
+function commishForceRevealAll(on) {
+  if (!assertCommissionerRole("Show All Picks")) return;
+  if (on && !window.confirm("Show every player's hidden picks to everyone now?\n\nAnyone who can still edit could see other picks first. Turn this off to hide them again.")) return;
+  setForceRevealWeek(on);
+  logCommissionerOverride("All players", on ? "Forced all picks visible" : "Turned off forced pick reveal", "");
+  renderCommissionerModalBody();
+  renderAll();
+  showAppToast(on ? "👁️ All picks are now visible to everyone." : "Hidden picks are hidden again until the normal reveal.");
+}
+
+function commishForceUnlockAll(on) {
+  if (!assertCommissionerRole("Unlock All Picks")) return;
+  if (on && !window.confirm("Unlock picks for everyone now?\n\nThis ignores the deadline AND kickoffs, so players could change games already started or finished. Use the per-game lock on the Slate tab to reopen just one game.")) return;
+  var cfg = ensureCommissionerConfig();
+  if (on) cfg.forceOpenWeek = parseInt(state.currentWeek, 10) || null;
+  else delete cfg.forceOpenWeek;
+  saveCommissionerConfigToCloud();
+  logCommissionerOverride("All players", on ? "Forced all picks unlocked" : "Turned off forced unlock", "");
+  renderCommissionerModalBody();
+  renderAll();
+  showAppToast(on ? "🔓 Picks are unlocked for everyone this week." : "🔒 Normal pick locks are back on.");
+}
+
+function adminForceControlsHtml() {
+  var open = isForceOpenThisWeek(), shown = isForceRevealOn();
+  var row = function(title, now, sub, btn) {
+    return '<div class="sheet-meta" style="display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:8px;">' +
+      '<span><strong>' + title + ':</strong> ' + now + '<br>' + sub + '</span>' + btn + '</div>';
+  };
+  return '<section class="console-section">' +
+    '<h3 class="console-h">Admin overrides</h3>' +
+    '<p class="sheet-meta">Act now instead of waiting for a deadline. These last for this week only.</p>' +
+    row("Pick locks", open ? "<strong>unlocked for everyone</strong>" : "normal", "Ignores the deadline and kickoffs. To reopen one player or one game, use Submissions or Slate.",
+      '<button type="button" class="btn-sm" onclick="commishForceUnlockAll(' + !open + ')">' + (open ? "🔒 Restore locks" : "🔓 Unlock all picks") + '</button>') +
+    row("Hidden picks", shown ? "<strong>visible to everyone</strong>" : "normal", "Shows every hidden pick and tiebreaker to all players.",
+      '<button type="button" class="btn-sm" onclick="commishForceRevealAll(' + !shown + ')">' + (shown ? "🙈 Hide again" : "👁️ Show all picks") + '</button>') +
+  '</section>';
+}
+
 function deadlineSettingsHtml() {
   var d = getDeadlineConfig();
   var dayOpts = DEADLINE_DAYS.map(function(x) { return '<option' + (x === d.day ? ' selected' : '') + '>' + x + '</option>'; }).join("");
@@ -437,7 +486,10 @@ renderCommissionerModalBody = function() {
   var res = _hubPrevCommishBody.apply(this, arguments);
   var body = document.getElementById("commish-modal-body");
   if (!body || !isVerifiedCommissioner()) return res;
-  if (ACTIVE_COMMISH_TAB === "locks") body.insertAdjacentHTML("beforeend", deadlineSettingsHtml());
+  if (ACTIVE_COMMISH_TAB === "locks") {
+    body.insertAdjacentHTML("afterbegin", adminForceControlsHtml());
+    body.insertAdjacentHTML("beforeend", deadlineSettingsHtml());
+  }
   if (ACTIVE_COMMISH_TAB === "slate") body.insertAdjacentHTML("beforeend", dangerZoneHtml());
   if (ACTIVE_COMMISH_TAB === "roster") body.insertAdjacentHTML("beforeend", paymentSettingsHtml());
   return res;

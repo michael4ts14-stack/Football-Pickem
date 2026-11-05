@@ -433,3 +433,13 @@ test("missing cloud picks triggers automatic re-scan of cached spreadsheet email
   const byName = Object.fromEntries(w.poolMembers.map((m) => [m.name, m]));
   assert.strictEqual(byName["Adam L"].picks["2"], "SMU", "picks were restored");
 });
+
+test("a sheet with no points column can't wipe the standings; one real 0 goes through", () => {
+  const { ctx } = loadBot({ cloud: {} });
+  const real = [{ name: "A", priorPts: 40 }, { name: "B", priorPts: 12 }];
+  const blank = [{ name: "A", priorPts: 0 }, { name: "B", priorPts: 0 }];
+  const corrected = [{ name: "A", priorPts: 40 }, { name: "B", priorPts: 0 }];
+  assert.strictEqual(ctx.keepRealLeaderboard_(blank, real), real);
+  assert.strictEqual(ctx.keepRealLeaderboard_(corrected, real), corrected);
+  assert.strictEqual(ctx.keepRealLeaderboard_(blank, []), blank);
+});

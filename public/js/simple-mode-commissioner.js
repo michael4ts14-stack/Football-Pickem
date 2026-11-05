@@ -156,6 +156,7 @@ function isPastFriday9PmCST() {
 // other modes picks stay editable until kickoff, so each game reveals at its own kickoff.
 function isPickSheetClosedFor(profKey) {
   var cfg = ensureCommissionerConfig();
+  if (isForceOpenThisWeek()) return false;
   if (cfg.lockMode === "global_locked") return true;
   return cfg.lockMode === "friday_9pm_cst" && isPastPickDeadline() && !isProfileForceUnlocked(profKey);
 }
@@ -599,10 +600,17 @@ function isProfileForceUnlocked(profKey) {
   return forceUnlockFlagIsCurrent(wk);
 }
 
+// The commissioner's "unlock all picks now". Tied to one week, so it can't leak into the next.
+function isForceOpenThisWeek() {
+  var wk = ensureCommissionerConfig().forceOpenWeek;
+  return !!wk && String(wk) === String(state.currentWeek);
+}
+
 // The whole week is closed for the active player (as opposed to single games locking at kickoff).
 function isWeekLockedForActiveProfile() {
   var cfg = ensureCommissionerConfig();
   if (AUTH_SESSION && AUTH_SESSION.adminUnlock) return false;
+  if (isForceOpenThisWeek()) return false;
   if (cfg.lockMode === "global_locked") return true;
   if (cfg.lockMode === "friday_9pm_cst") return isPastPickDeadline() && !isProfileForceUnlocked(activeProfile);
   return false;
@@ -635,7 +643,7 @@ function isGameLockedByCommissioner(gameId) {
   // Per-game override from the Slate tab (e.g. lock a Thursday game early, reopen a delayed one).
   var gameOverride = cfg.gameLockOverrides[String(gameId)];
   if (gameOverride === "locked") return true;
-  if (gameOverride === "open") return false;
+  if (gameOverride === "open" || isForceOpenThisWeek()) return false;
   if (cfg.lockMode === "global_locked") return true;
   if (cfg.lockMode === "friday_9pm_cst") {
     // A force-unlocked player can still change games that haven't kicked off.
@@ -895,8 +903,7 @@ function triggerWedThuAutomatedNudge() {
 function triggerSaturdayMorningMasterSheetBroadcast() {
   var cfg = ensureCommissionerConfig();
   var nowStr = new Date().toLocaleString("en-US", { timeZone: "America/Chicago", weekday: "short", hour: "numeric", minute: "2-digit" }) + " CST";
-  state.fridayNightRevealOverride = true;
-  saveCommissionerConfigToCloud();
+  setForceRevealWeek(true);
   exportOfficialMasterCsv();
   renderAll();
   showAppToast("Picks revealed. Emailing the master sheet…");
@@ -1444,6 +1451,8 @@ function commishAdjustPlayerPriorPts(memberName, newPts) {
   if (pm) pm.priorPts = val;
   var lb = findLeaderboardEntryByName(memberName);
   if (lb) lb.priorPts = val;
+  var linked = getProfileLinkedToMemberName(memberName);
+  (state.customUsers || []).forEach(function(cu) { if (linked && cu.key === linked.key) cu.priorPts = val; });
   regradeAllPoolMembersLive();
   pushWatchlistOrStandingsToFirebase();
   renderAll();

@@ -190,8 +190,13 @@ service cloud.firestore {
       let token = poolConfig().get('forceUnlocked', {}).get(get(bindingPath(key)).data.get('memberLow', ''), '');
       return token is string && token.matches('.*:' + string(currentWeek()));
     }
+    // The commissioner lifted the locks: "Force Open" mode, or "unlock all picks" for this week.
+    function locksLifted() {
+      return poolConfig().get('lockMode', '') == 'open' ||
+        string(poolConfig().get('forceOpenWeek', '')) == string(currentWeek());
+    }
     function weekClosedFor(key) {
-      let mode = poolConfig().get('lockMode', 'friday_9pm_cst');
+      let mode = locksLifted() ? 'open' : poolConfig().get('lockMode', 'friday_9pm_cst');
       let deadline = currentLocks().get('deadlineAt', null);
       return mode == 'global_locked' ||
         (mode == 'friday_9pm_cst' && deadline != null && request.time >= deadline && !forceUnlocked(key));
@@ -202,13 +207,15 @@ service cloud.firestore {
     }
     function noStartedPickChanged(key, newPicks, oldPicks) {
       let changed = newPicks.diff(oldPicks).affectedKeys();
-      return changed.size() == 0 || (
-        !changed.hasAny(currentLocks().get('lockedIds', [])) &&
-        (changed.difference(currentLocks().get('openIds', []).toSet()).size() == 0 ||
-          (!weekClosedFor(key) && noWindowHit(changed.difference(currentLocks().get('openIds', []).toSet())))));
+      return changed.size() == 0 || locksAllow(key, changed, currentLocks());
     }
-    function noWindowHit(changed) {
-      let w = currentLocks().get('windows', []);
+    // Takes the locks as an argument: rules have an evaluation limit, and a 30-game slate is close.
+    function locksAllow(key, changed, locks) {
+      let closing = changed.difference(locks.get('openIds', []).toSet());
+      return !changed.hasAny(locks.get('lockedIds', [])) &&
+        (closing.size() == 0 || locksLifted() || (!weekClosedFor(key) && noWindowHit(closing, locks.get('windows', []))));
+    }
+    function noWindowHit(changed, w) {
       return !(
         (w.size() > 0 && w[0].at <= request.time && changed.hasAny(w[0].ids)) ||
         (w.size() > 1 && w[1].at <= request.time && changed.hasAny(w[1].ids)) ||
@@ -244,7 +251,7 @@ service cloud.firestore {
 
     // ---------- Hidden picks ----------
     // A hidden player's picks live only here. The owner and commissioners read them at any time,
-    // everyone else once revealAt passes (or the commissioner's reveal override is on). While a
+    // everyone else once revealAt passes (or the commissioner forces a reveal for this week). While a
     // private doc exists it is the copy locks are checked against, so moving picks in or out
     // can't change a locked game.
     function privatePath(key) {
@@ -260,7 +267,7 @@ service cloud.firestore {
     function picksRevealed() {
       let at = currentLocks().get('revealAt', null);
       return (at != null && request.time >= at) ||
-        get(/databases/$(database)/documents/pickem_v14/shared_state).data.get('fridayNightRevealOverride', false) == true;
+        string(get(/databases/$(database)/documents/pickem_v14/shared_state).data.get('forceRevealWeek', '')) == string(currentWeek());
     }
     function publicPickDoc(key) {
       let path = /databases/$(database)/documents/pickem_v14_users/$(key);

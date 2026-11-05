@@ -17,7 +17,7 @@ jobs:
           node-version: 22
 
       - name: Unit tests
-        run: node --test "tests/apps-script/*.test.js" "tests/client/*.test.js" "tests/form/*.test.mjs" "tests/live/*.test.mjs" "tests/matchups/*.test.mjs"
+        run: node --test "tests/apps-script/*.test.js" "tests/client/*.test.js" "tests/form/*.test.mjs" "tests/live/*.test.mjs" "tests/matchups/*.test.mjs" "tests/locks/*.test.mjs"
 
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0

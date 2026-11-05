@@ -136,7 +136,10 @@ test("hidden picks stay out of everything public until the reveal", () => {
   assert.deepStrictEqual(rows[0].picks, {});
   assert.strictEqual(rows[0].tiebreaker, "");
   assert.deepStrictEqual(rows[1].picks, { 1: "B" });
-  state.fridayNightRevealOverride = true;
+  state.currentWeek = 10;
+  state.forceRevealWeek = 9; // last week's reveal has expired
+  assert.deepStrictEqual(publicRowsWithoutHiddenPicks([{ name: "Sam", picks: { 1: "A" } }])[0].picks, {});
+  state.forceRevealWeek = 10;
   assert.deepStrictEqual(publicRowsWithoutHiddenPicks([{ name: "Sam", picks: { 1: "A" } }])[0].picks, { 1: "A" });
 });
 

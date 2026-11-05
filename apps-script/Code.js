@@ -641,6 +641,15 @@ function hasActiveInAppPicks_(targetProfile, currentCloud, activeGames) {
   return !!(hiddenDoc && countSlatePicks_(hiddenDoc.picks, activeGames) >= need);
 }
 
+// A sheet with no points column parses as everyone on 0, which must not wipe the standings. One
+// player on 0 among real totals is a genuine correction and goes through.
+function keepRealLeaderboard_(incoming, current) {
+  var hasPoints = function(rows) {
+    return (rows || []).some(function(r) { return r && parseFloat(r.priorPts) > 0; });
+  };
+  return !hasPoints(incoming) && hasPoints(current) ? current : incoming;
+}
+
 // Picks that name a team in this week's game with that id.
 function countSlatePicks_(picks, activeGames) {
   if (!picks || !activeGames) return 0;
@@ -696,7 +705,7 @@ function importPoolSheetResult_(poolResult, sheetWkNum, fileName, currentCloud) 
   var nowIso = new Date().toISOString();
   var ok = patchFirebaseNode("", {
     poolMembers: existing,
-    leaderboard: poolResult.leaderboard,
+    leaderboard: keepRealLeaderboard_(poolResult.leaderboard, currentCloud && currentCloud.leaderboard),
     michael: poolResult.michael,
     kinyion: poolResult.kinyion,
     watchlist: poolResult.watchlist,

@@ -276,9 +276,14 @@ function privateRevealMs() {
   return d && d.revealAt && String(d.week) === String(state.currentWeek) ? d.revealAt.toMillis() : null;
 }
 
+// The commissioner's "show all picks now". Tied to one week, so it can't leak into the next.
+function isForceRevealOn() {
+  return !!state.forceRevealWeek && String(state.forceRevealWeek) === String(state.currentWeek);
+}
+
 function arePrivatePicksRevealed() {
   var at = privateRevealMs();
-  return state.fridayNightRevealOverride === true || (at !== null && Date.now() >= at);
+  return isForceRevealOn() || (at !== null && Date.now() >= at);
 }
 
 // What may go in public documents for this profile.
@@ -656,6 +661,7 @@ function applyRemoteCloudData(data, sourceLabel) {
         }
       }
     }
+    if ("forceRevealWeek" in data) state.forceRevealWeek = data.forceRevealWeek;
     if (data.profilePrivacy && typeof data.profilePrivacy === "object") {
       CLOUD_REGISTRY.profilePrivacy = JSON.parse(JSON.stringify(data.profilePrivacy));
       for (var ppk in data.profilePrivacy) {

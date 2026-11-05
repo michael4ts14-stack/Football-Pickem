@@ -281,8 +281,8 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
     var isUserProf = !!linkedProfMeta;
     if (onlyUserProfiles && !isUserProf) continue;
 
-    // Always sync priorPts from state.leaderboard if present and > 0
-    if (priorLookup[lowName] !== undefined && priorLookup[lowName] > 0) {
+    // The leaderboard is the source of truth, including a correction down to 0.
+    if (priorLookup[lowName] !== undefined) {
       pm.priorPts = priorLookup[lowName]; // leaderboard is the source of truth (B14)
     } else if (pm.priorPts === undefined || pm.priorPts === null) {
       pm.priorPts = 0;
@@ -384,9 +384,8 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
           break;
         }
       }
-      var cuPrior = (existingPm && parseFloat(existingPm.priorPts) > 0)
-        ? parseFloat(existingPm.priorPts)
-        : (priorLookup[targetLow] !== undefined ? priorLookup[targetLow] : (parseFloat(cu.priorPts) || 0));
+      var cuPrior = priorLookup[targetLow] !== undefined ? priorLookup[targetLow]
+        : ((existingPm && parseFloat(existingPm.priorPts) > 0) ? parseFloat(existingPm.priorPts) : (parseFloat(cu.priorPts) || 0));
       if (existingPm && !hasSubmittedCu && !isCuDeleted) {
         // No picks in the app this week: the row keeps (and was graded on) its sheet picks.
         existingPm.priorPts = cuPrior;

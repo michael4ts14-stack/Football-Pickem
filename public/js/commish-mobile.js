@@ -19,6 +19,7 @@ function isCommishMobile() {
 // The week is closed for everyone who isn't force unlocked.
 function cmWeekClosed() {
   var cfg = ensureCommissionerConfig();
+  if (isForceOpenThisWeek()) return false;
   return cfg.lockMode === "global_locked" || (cfg.lockMode === "friday_9pm_cst" && isPastPickDeadline());
 }
 

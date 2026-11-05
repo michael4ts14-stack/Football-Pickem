@@ -7,7 +7,7 @@ var state = {
   test: { picks: {}, tiebreaker: "28-24", target: 20, linkedMemberName: "" },
   customUsers: [],
   compareTargetKey: "", // nobody is compared until the person picks someone
-  fridayNightRevealOverride: false,
+  forceRevealWeek: null,
   profilePrivacy: {
     michael: { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: true, autoUnhideFridayNight: true },
     kinyion: { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: true, autoUnhideFridayNight: true },
@@ -212,8 +212,8 @@ function getAutoUnhideReason(profKey, gameId) {
   if (gameId && priv.revealAtKickoff !== false && isGameStartedOrFinal(gameId)) {
     return "Kickoff";
   }
-  if (state.fridayNightRevealOverride === true) {
-    return "Friday Reveal ON";
+  if (isForceRevealOn()) {
+    return "Commissioner reveal";
   }
   if (!priv.manualLockOverride) {
     if (priv.autoUnhideOnSheet === true && hasLinkedSpreadsheetPicksArrived(profKey)) {
@@ -236,7 +236,7 @@ function syncLinkedProfilesWithLeaderboard() {
     if (!pf.isBuiltIn && state.customUsers) {
       for (var c = 0; c < state.customUsers.length; c++) {
         if (state.customUsers[c].key === pf.key) {
-          if (latestPts > 0) state.customUsers[c].priorPts = latestPts;
+          if (lb || latestPts > 0) state.customUsers[c].priorPts = latestPts;
           if (latestRank) state.customUsers[c].rank = latestRank;
           break;
         }
@@ -572,13 +572,6 @@ function toggleQuickLockActiveProfile() {
     : ("👁️ Your picks (" + meta.name + ") are now PUBLIC to other users."));
 }
 
-function toggleFridayNightRevealOverride() {
-  state.fridayNightRevealOverride = !state.fridayNightRevealOverride;
-  pushMultiUserAndPrivacyToFirebase();
-  renderAll();
-  refreshUserModalIfOpen();
-}
-
 function toggleBlindMode() {
   BLIND_MODE = !BLIND_MODE;
   var topBtn = document.getElementById("btn-blind-mode");
@@ -659,14 +652,12 @@ function saveRegistryChangesToCloud() {
       var now = new Date().toISOString();
       if (!snap.exists) {
         var doc = { customUsers: list, profilePrivacy: privVals, updatedAt: now };
-        if (isCommish) doc.fridayNightRevealOverride = !!state.fridayNightRevealOverride;
         tx.set(ref, doc, { merge: true });
         return list;
       }
       var args = [ref, "customUsers", list, "updatedAt", now];
       changedPriv.forEach(function(k) { args.push(new firebase.firestore.FieldPath("profilePrivacy", k), privVals[k]); });
-      if (isCommish) args.push("fridayNightRevealOverride", !!state.fridayNightRevealOverride);
-      else args.push("lastProfileWriter", writer);
+      if (!isCommish) args.push("lastProfileWriter", writer);
       tx.update.apply(tx, args);
       return list;
     });

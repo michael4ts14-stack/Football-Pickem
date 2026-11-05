@@ -231,6 +231,42 @@ function serve() {
   check("commissioner overrides are logged; game locks, tab guard and read-only preview work",
     r13.tb === "31-24" && r13.unlocked && r13.logged === 2 && r13.gameLocked && r13.tab === "submissions" && r13.readOnly && r13.banner, r13);
 
+  // 13b. Admin overrides on the Locks tab: buttons render, unlock lifts a past deadline, reveal
+  // shows hidden picks, and neither survives into another week.
+  const r13b = await page.evaluate(() => {
+    const realVerify = isVerifiedCommissioner, realAssert = assertCommissionerRole, realConfirm = window.confirm, realDeadline = isPastPickDeadline, realWeek = state.currentWeek;
+    isVerifiedCommissioner = () => true; assertCommissionerRole = () => true; window.confirm = () => true; isPastPickDeadline = () => true;
+    const cfg = ensureCommissionerConfig(), mode = cfg.lockMode;
+    cfg.lockMode = "friday_9pm_cst";
+    const out = {};
+    const click = (text) => { const b = [...document.querySelectorAll("#commish-modal-body button")].find((x) => x.textContent.includes(text)); if (b) b.click(); return !!b; };
+    try {
+      openCommissionerModal("locks");
+      out.lockedBefore = isWeekLockedForActiveProfile();
+      out.unlockBtn = click("Unlock all picks");
+      out.unlockedNow = !isWeekLockedForActiveProfile() && !isGameLockedByCommissioner(GAMES[0].id);
+      out.restoreBtn = !!click("Restore locks");
+      out.lockedAgain = isWeekLockedForActiveProfile();
+      click("Unlock all picks");
+      out.revealBtn = click("Show all picks");
+      out.revealed = isForceRevealOn() && arePrivatePicksRevealed();
+      state.currentWeek = realWeek + 1;
+      out.unlockExpired = !isForceOpenThisWeek();
+      out.revealExpired = !isForceRevealOn();
+      state.currentWeek = realWeek;
+      click("Restore locks");
+      click("Hide again");
+      out.cleared = !isForceOpenThisWeek() && !isForceRevealOn();
+      closeCommissionerModal();
+    } finally {
+      isVerifiedCommissioner = realVerify; assertCommissionerRole = realAssert; window.confirm = realConfirm; isPastPickDeadline = realDeadline;
+      state.currentWeek = realWeek; cfg.lockMode = mode;
+    }
+    return out;
+  });
+  check("admin overrides: unlock and reveal work now, then expire with the week",
+    Object.values(r13b).every(Boolean) && Object.keys(r13b).length === 10, r13b);
+
   // 14. Pick status line, "Next unpicked", and the review sheet before locking.
   const r14 = await page.evaluate(async () => {
     const line = (document.querySelector(".pick-status-line") || {}).textContent || "";
