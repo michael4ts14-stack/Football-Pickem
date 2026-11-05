@@ -574,8 +574,11 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             if (hasActiveInAppPicks_(targetProfile, currentCloud, activeGames)) {
               Logger.log("ℹ️ Skipping confirmation email for " + targetProfile + ": player already has active in-app picks in Firestore.");
             } else {
-              savePicksToTargetProfile(targetProfile, pickResult, currentCloud);
-              Logger.log("✓ Imported " + pickResult.matchedCount + " picks for " + targetProfile);
+              if (savePicksToTargetProfile(targetProfile, pickResult, currentCloud) === false) {
+                keepUnprocessed = true; // retried next run; these picks exist nowhere else
+              } else {
+                Logger.log("✓ Imported " + pickResult.matchedCount + " picks for " + targetProfile);
+              }
             }
           } else {
             Logger.log("ℹ️ Skipping pick confirmation email from " + msg.getFrom() + " (could not resolve to specific contestant; Michael A protected)");
@@ -608,14 +611,17 @@ function saveProcessedIds_(props, processedIds) {
 
 // Reads one document by path (e.g. "pickem_v14_users/michael"). Returns null if
 // missing or unreadable.
-function fetchFirestoreDoc_(docPath) {
+// ifUnreadable: returned when the read failed, so a caller can tell that from a doc that isn't there.
+function fetchFirestoreDoc_(docPath, ifUnreadable) {
+  var failed = ifUnreadable === undefined ? null : ifUnreadable;
   try {
     var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/" + docPath, { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
-    if (res.getResponseCode() !== 200) return null;
+    if (res.getResponseCode() === 404) return null;
+    if (res.getResponseCode() !== 200) return failed;
     var json = JSON.parse(res.getContentText());
     return json && json.fields ? fromFirestoreValue({ mapValue: { fields: json.fields } }) : null;
   } catch (e) {
-    return null;
+    return failed;
   }
 }
 
@@ -624,6 +630,13 @@ function fetchFirestoreDoc_(docPath) {
 // count: leftover keys from older weeks used to block every confirmation.
 function hasActiveInAppPicks_(targetProfile, currentCloud, activeGames) {
   var need = Math.min(15, (activeGames || []).length) || 15;
+  var hiddenKey = hiddenProfileForTarget_(targetProfile, currentCloud);
+  if (hiddenKey) {
+    // The private doc is the only copy of these picks: if it can't be read, assume they're there.
+    var hiddenDoc = fetchFirestoreDoc_("pickem_v14_private_picks/" + encodeURIComponent(hiddenKey), { unreadable: true });
+    if (hiddenDoc && hiddenDoc.unreadable) return true;
+    return !!(hiddenDoc && countSlatePicks_(hiddenDoc.picks, activeGames) >= need);
+  }
   if (targetProfile.indexOf("pm:") === 0) {
     var nameLow = standardizeBotParticipantName(targetProfile.slice(3)).toLowerCase();
     var pms = (currentCloud && Array.isArray(currentCloud.poolMembers)) ? currentCloud.poolMembers : [];
@@ -635,10 +648,7 @@ function hasActiveInAppPicks_(targetProfile, currentCloud, activeGames) {
     return false;
   }
   var userDoc = fetchFirestoreDoc_("pickem_v14_users/" + encodeURIComponent(targetProfile));
-  if (userDoc && countSlatePicks_(userDoc.picks, activeGames) >= need) return true;
-  // A hidden player's picks live only in their private doc.
-  var hiddenDoc = fetchFirestoreDoc_("pickem_v14_private_picks/" + encodeURIComponent(targetProfile));
-  return !!(hiddenDoc && countSlatePicks_(hiddenDoc.picks, activeGames) >= need);
+  return !!(userDoc && countSlatePicks_(userDoc.picks, activeGames) >= need);
 }
 
 // A sheet with no points column parses as everyone on 0, which must not wipe the standings. One
@@ -1431,10 +1441,27 @@ function detectProfileOwner(subject, body, sender, currentCloud) {
   return null;
 }
 
+// The profile key when target ("pm:Name" or a key) is a player with hidden picks, else null. A
+// hidden player's public pool row holds no picks, so they must be read and saved by profile.
+function hiddenProfileForTarget_(target, currentCloud) {
+  var privacy = (currentCloud && currentCloud.profilePrivacy) || {};
+  var isHidden = function(k) { return !!(privacy[k] && privacy[k].hidden); };
+  if (target.indexOf("pm:") !== 0) return isHidden(target) ? target : null;
+  var low = standardizeBotParticipantName(target.slice(3)).toLowerCase();
+  var people = [{ key: "michael", name: "Michael A" }, { key: "kinyion", name: "Kinyion C" }].concat((currentCloud && currentCloud.customUsers) || []);
+  for (var i = 0; i < people.length; i++) {
+    var p = people[i];
+    if (p && isHidden(p.key) && standardizeBotParticipantName(p.linkedMemberName || p.name).toLowerCase() === low) return p.key;
+  }
+  return null;
+}
+
 function savePicksToTargetProfile(target, pickResult, currentCloud) {
   if (!target) return;
   var curWk = (currentCloud && currentCloud.currentWeek) || 8;
   var nowIso = new Date().toISOString();
+  var hiddenKey = hiddenProfileForTarget_(target, currentCloud);
+  if (hiddenKey) target = hiddenKey;
 
   if (target === "michael" || target === "kinyion" || target.indexOf("u_") === 0) {
     var existing = (currentCloud && currentCloud[target]) ? currentCloud[target] : { picks: {}, tiebreaker: "28-24", target: 20 };
@@ -1443,8 +1470,7 @@ function savePicksToTargetProfile(target, pickResult, currentCloud) {
     existing.manualEditsWeek = curWk;
     existing.updatedAt = nowIso;
     existing._picksCleared = false; // new picks replace an earlier clear
-    patchFirebaseNode("/" + target, existing);
-    patchFirestoreUserDoc(target, {
+    var pickDoc = {
       profileKey: target,
       picks: existing.picks,
       _picksCleared: false,
@@ -1452,7 +1478,18 @@ function savePicksToTargetProfile(target, pickResult, currentCloud) {
       manualEditsWeek: curWk,
       currentWeek: curWk,
       updatedAt: nowIso
-    });
+    };
+    if (hiddenKey) {
+      // Same shape as the app's save: picks only in the private doc. An undefined field stays in
+      // the update mask, which deletes it from the public doc.
+      if (!pickResult.tiebreaker) delete pickDoc.tiebreaker; // keep the one already in the private doc
+      if (!patchFirestoreDocUrl(FIRESTORE_BASE_URL + "/pickem_v14_private_picks/" + encodeURIComponent(target), pickDoc)) return false;
+      patchFirebaseNode("/" + target, Object.assign({}, existing, { picks: {}, tiebreaker: "", picksPrivate: true }));
+      patchFirestoreUserDoc(target, Object.assign({}, pickDoc, { picks: undefined, tiebreaker: undefined, picksPrivate: true }));
+    } else {
+      patchFirebaseNode("/" + target, existing);
+      patchFirestoreUserDoc(target, pickDoc);
+    }
     var linkedName = existing.linkedMemberName || (target === "michael" ? "Michael A" : (target === "kinyion" ? "Kinyion C" : ""));
     ((currentCloud && currentCloud.customUsers) || []).forEach(function(cu) {
       if (!linkedName && cu && cu.key === target) linkedName = cu.linkedMemberName || cu.name || "";
@@ -1464,6 +1501,15 @@ function savePicksToTargetProfile(target, pickResult, currentCloud) {
       dropClearedFlag_(delMapP, linkedName);
       currentCloud.deletedPicksByMember = delMapP;
       patchFirebaseNode("", { deletedPicksByMember: delMapP });
+    }
+    // A hidden player's row never gets picks, but a leftover flag would make the app hide the new ones.
+    var hiddenRows = hiddenKey && currentCloud && Array.isArray(currentCloud.poolMembers) ? currentCloud.poolMembers : [];
+    var staleRow = hiddenRows.filter(function(r) {
+      return r && r._picksCleared && standardizeBotParticipantName(r.name).toLowerCase() === linkedLow;
+    })[0];
+    if (staleRow) {
+      delete staleRow._picksCleared;
+      patchFirebaseNode("", { poolMembers: hiddenRows });
     }
   } else if (target.indexOf("pm:") === 0) {
     var mName = target.slice(3);

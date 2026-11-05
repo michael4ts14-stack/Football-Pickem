@@ -257,7 +257,9 @@ async function syncAllLiveTrackingData(saveToCloudAfter) {
 
   try {
     if (Object.keys(ESPN_TEAM_MAP).length === 0) {
-      var dirData = await fetchJsonSafe("https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams?limit=400");
+      // ESPN's /teams sends no CORS header, so browsers can't read it. Saved copy of its FBS list:
+      // shortcut: refresh by hand if FBS membership changes (filter teams?limit=1000 to the core API's groups/80 teams).
+      var dirData = await fetchJsonSafe("/js/data/espn-teams.json");
       if (dirData && dirData.sports && dirData.sports[0] && dirData.sports[0].leagues && dirData.sports[0].leagues[0]) {
         var teamsList = dirData.sports[0].leagues[0].teams || [];
         for (var d = 0; d < teamsList.length; d++) {

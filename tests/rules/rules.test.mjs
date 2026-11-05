@@ -424,6 +424,17 @@ test("deadline: the tiebreaker closes with it", async () => {
   await assertSucceeds(setDoc(USERJ(db(J)), myDoc({ 1: "Arizona" }, { tiebreaker: "1-0" }), { merge: true }));
 });
 
+test("deadline: the tiebreaker can't be changed by deleting it first", async () => {
+  await setup({ locks: { deadlineAt: minsAgo(1) } });
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(USERJ(c.firestore()), { ownerUid: J.uid, picks: { 1: "Arizona" }, tiebreaker: "9-7" });
+  });
+  await assertFails(updateDoc(USERJ(db(J)), { tiebreaker: deleteField() }));
+  await assertSucceeds(setDoc(USERJ(db(J)), myDoc({ 1: "Arizona" }, { tiebreaker: "9-7" }), { merge: true })); // unchanged
+  await setup({ locks: { deadlineAt: minsAgo(-60) } });
+  await assertSucceeds(updateDoc(USERJ(db(J)), { tiebreaker: deleteField() })); // open: anything goes
+});
+
 test("deadline: force unlock, other lock modes, other weeks and per-game overrides", async () => {
   const late = { deadlineAt: minsAgo(1) };
   await setup({ locks: late, config: { forceUnlocked: { "justin c": "2026:9" } } });

@@ -734,7 +734,8 @@ async function archiveProfile(profKey, reason) {
 
   var remaining = (state.customUsers || []).filter(function(c) { return c.key !== profKey; });
   var shared = { customUsers: remaining, updatedAt: now };
-  if (hadRow) shared.poolMembers = state.poolMembers.filter(function(pm) { return !dropRow(pm); });
+  var remainingRows = hadRow ? state.poolMembers.filter(function(pm) { return !dropRow(pm); }) : null;
+  if (hadRow) shared.poolMembers = publicRowsWithoutHiddenPicks(remainingRows);
   var jobs = [
     fsDb.collection("pickem_v14").doc("shared_state").set(shared, { merge: true }),
     // ownerUid cleared: the old owner value would let that account re-link itself.
@@ -745,7 +746,7 @@ async function archiveProfile(profKey, reason) {
 
   // Confirmed: now this device.
   state.customUsers = remaining;
-  if (hadRow) state.poolMembers = shared.poolMembers;
+  if (hadRow) state.poolMembers = remainingRows;
   delete BOUND_ACCOUNTS[profKey];
   if (activeProfile === profKey) activeProfile = getMyInstanceProfileKey();
   if (state.compareTargetKey === profKey) state.compareTargetKey = "";

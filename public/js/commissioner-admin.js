@@ -337,17 +337,22 @@ function commishDeletePlayerPicks(memberName) {
     state[pk]._picksCleared = true;
     state[pk]._manualEditsThisWeek = true;
     state[pk].userLockedPicks = false;
-    sharedClearPatch[pk] = state[pk];
+    sharedClearPatch[pk] = publicProfileCopy(pk);
     if (fsDb) {
-      try {
-        fsDb.collection("pickem_v14_users").doc(pk).set({
-          picks: {},
-          _picksCleared: true,
-          currentWeek: state.currentWeek,
-          deletedByCommissionerAt: nowIso,
-          updatedAt: nowIso
-        }, { merge: true }).catch(function(e) { reportCloudSaveFailure("the deleted picks", e); });
-      } catch (e) {}
+      // A hidden player's picks live in the private doc: clear that too, or they'd come back.
+      var cols = ["pickem_v14_users"];
+      if (isPicksPrivate(pk) || (USER_DOC_META[pk] && USER_DOC_META[pk].picksPrivate)) cols.push("pickem_v14_private_picks");
+      cols.forEach(function(col) {
+        try {
+          fsDb.collection(col).doc(pk).set({
+            picks: {},
+            _picksCleared: true,
+            currentWeek: state.currentWeek,
+            deletedByCommissionerAt: nowIso,
+            updatedAt: nowIso
+          }, { merge: true }).catch(function(e) { reportCloudSaveFailure("the deleted picks", e); });
+        } catch (e) {}
+      });
     }
   }
 

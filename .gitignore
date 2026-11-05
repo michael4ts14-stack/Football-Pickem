@@ -1,3 +1,6 @@
+# Smoke test output
+tests/client/report.json
+
 # Logs
 logs
 *.log

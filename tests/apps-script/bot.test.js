@@ -328,6 +328,81 @@ test("a confirmation email clears a leftover picks-cleared flag", () => {
   assert.strictEqual(Object.keys(w.poolMembers[0].picks).length, 23);
 });
 
+test("a hidden player's form picks go only to their private doc", () => {
+  const games = slate(23);
+  const picks = {}; games.forEach((g) => { picks[g.id] = g.away; });
+  const cloud = baseCloud({ profilePrivacy: { u_sam: { hidden: true } }, u_sam: { picks: {}, tiebreaker: "", target: 20, picksPrivate: true } });
+  const h = loadBot({ cloud });
+  h.ctx.savePicksToTargetProfile("u_sam", { picks, tiebreaker: "20-10", matchedCount: 23 }, cloud);
+  const priv = h.patches().find((c) => c.url.indexOf("/pickem_v14_private_picks/u_sam") !== -1);
+  assert.strictEqual(Object.keys(h.patchBody(priv).picks).length, 23);
+  assert.strictEqual(h.patchBody(priv).tiebreaker, "20-10");
+  const pub = h.patches().find((c) => c.url.indexOf("/pickem_v14_users/u_sam") !== -1);
+  assert.strictEqual(h.patchBody(pub).picks, undefined);
+  assert.strictEqual(h.patchBody(pub).tiebreaker, undefined);
+  assert.ok(pub.url.indexOf("updateMask.fieldPaths=picks") !== -1, "the mask deletes any public picks");
+  const mirror = sharedStateWrites(h).pop().u_sam;
+  assert.strictEqual(Object.keys(mirror.picks || {}).length, 0);
+  assert.strictEqual(mirror.tiebreaker, "");
+  assert.strictEqual(mirror.picksPrivate, true);
+});
+
+test("a form email matched by name still goes to a hidden player's private doc", () => {
+  const games = slate(23);
+  const picks = {}; games.forEach((g) => { picks[g.id] = g.away; });
+  const cloud = baseCloud({
+    profilePrivacy: { u_sam: { hidden: true } },
+    customUsers: [{ key: "u_sam", name: "Sam B", linkedMemberName: "Sam B" }],
+    poolMembers: [{ name: "Sam B", picks: {} }],
+  });
+  const h = loadBot({ cloud });
+  h.ctx.savePicksToTargetProfile("pm:Sam B", { picks, matchedCount: 23 }, cloud);
+  assert.ok(h.patches().some((c) => c.url.indexOf("/pickem_v14_private_picks/u_sam") !== -1));
+  assert.ok(!sharedStateWrites(h).some((w) => w.poolMembers), "the public row isn't touched");
+});
+
+test("in-app picks of a hidden player matched by name aren't overwritten by a form email", () => {
+  const games = slate(23);
+  const picks = {}; games.forEach((g) => { picks[g.id] = g.away; });
+  const cloud = baseCloud({
+    profilePrivacy: { u_sam: { hidden: true } },
+    customUsers: [{ key: "u_sam", name: "Sam B", linkedMemberName: "Sam B" }],
+    poolMembers: [{ name: "Sam B", picks: {} }],
+  });
+  const h = loadBot({ cloud });
+  h.ctx.fetchFirestoreDoc_ = (p) => (p === "pickem_v14_private_picks/u_sam" ? { picks } : null);
+  assert.strictEqual(h.ctx.hasActiveInAppPicks_("pm:Sam B", cloud, games), true);
+});
+
+test("if a hidden player's private doc can't be written, the public copies stay and the email is retried", () => {
+  const cloud = baseCloud({ profilePrivacy: { u_sam: { hidden: true } }, u_sam: { picks: {}, tiebreaker: "", target: 20 } });
+  const h = loadBot({ cloud });
+  const before = h.patches().length;
+  h.ctx.patchFirestoreDocUrl = () => false;
+  assert.strictEqual(h.ctx.savePicksToTargetProfile("u_sam", { picks: { 1: "x" }, matchedCount: 1 }, cloud), false);
+  assert.strictEqual(h.patches().length, before);
+});
+
+test("a form email clears the stale picks-cleared flag on a hidden player's row", () => {
+  const cloud = baseCloud({
+    profilePrivacy: { u_sam: { hidden: true } },
+    customUsers: [{ key: "u_sam", name: "Sam B", linkedMemberName: "Sam B" }],
+    poolMembers: [{ name: "Sam B", picks: {}, _picksCleared: true }],
+  });
+  const h = loadBot({ cloud });
+  h.ctx.savePicksToTargetProfile("pm:Sam B", { picks: { 1: "x" }, matchedCount: 1 }, cloud);
+  const row = sharedStateWrites(h).filter((w) => w.poolMembers).pop().poolMembers[0];
+  assert.strictEqual(row._picksCleared, undefined);
+  assert.strictEqual(Object.keys(row.picks || {}).length, 0);
+});
+
+test("an unreadable private doc counts as having picks, so a form email can't overwrite them", () => {
+  const cloud = baseCloud({ profilePrivacy: { u_sam: { hidden: true } } });
+  const h = loadBot({ cloud });
+  h.ctx.fetchFirestoreDoc_ = (p, ifUnreadable) => ifUnreadable;
+  assert.strictEqual(h.ctx.hasActiveInAppPicks_("u_sam", cloud, slate(23)), true);
+});
+
 test("processed email IDs are saved as each message finishes", () => {
   const ok = { id: "m-ok", subject: "Separated at Turf hello", body: "nothing" };
   const boom = { id: "m-boom", subject: "Separated at Turf boom", body: "x" };

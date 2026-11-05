@@ -6,7 +6,7 @@ College football pick'em web app (Firebase project `football-pickem-46206`) plus
 | Path | What | Deploy |
 |---|---|---|
 | `public/` | Web app. `index.html` is markup; `public/css/`, `public/js/` loaded by plain `<script>` tags in order | Merge into `main` runs `.github/workflows/deploy.yml` |
-| `apps-script/Code.js` | The bot (source of truth) | `cd apps-script && clasp push` |
+| `apps-script/Code.js` | The bot (source of truth) | `cd apps-script && clasp push`; the web app (receipts, commissioner actions) is pinned to a version, so also `clasp deploy -i <id from clasp deployments> -d "..."` |
 | `firestore.rules` | Security rules | `firebase deploy --only firestore:rules` |
 | `tests/` | Offline tests | not deployed |
 

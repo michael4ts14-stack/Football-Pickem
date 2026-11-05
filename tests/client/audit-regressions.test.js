@@ -139,12 +139,28 @@ test("hidden picks stay out of everything public until the reveal", () => {
   state.currentWeek = 10;
   state.forceRevealWeek = 9; // last week's reveal has expired
   assert.deepStrictEqual(publicRowsWithoutHiddenPicks([{ name: "Sam", picks: { 1: "A" } }])[0].picks, {});
-  state.forceRevealWeek = 10;
-  assert.deepStrictEqual(publicRowsWithoutHiddenPicks([{ name: "Sam", picks: { 1: "A" } }])[0].picks, { 1: "A" });
+  state.forceRevealWeek = 10; // a forced reveal can be undone, so it never reaches public rows
+  assert.deepStrictEqual(publicRowsWithoutHiddenPicks([{ name: "Sam", picks: { 1: "A" } }])[0].picks, {});
 });
 
 test("a public copy without picks never wipes picks this device holds", () => {
   global.state = { u_sam: { picks: { 1: "A" }, tiebreaker: "9-7" } };
   assert.deepStrictEqual(mergePrivateProfile("u_sam", { picks: {}, tiebreaker: "", picksPrivate: true }).picks, { 1: "A" });
   assert.deepStrictEqual(mergePrivateProfile("u_sam", { picks: { 2: "B" } }).picks, { 2: "B" });
+});
+
+test("removing a player and deleting picks go through the hidden-picks filter", () => {
+  const read = (f) => fs.readFileSync(path.join(__dirname, "../../public/js", f), "utf8");
+  assert.match(read("account-security.js"), /shared\.poolMembers = publicRowsWithoutHiddenPicks\(/);
+  const del = read("commissioner-admin.js");
+  assert.match(del, /sharedClearPatch\[pk\] = publicProfileCopy\(pk\)/);
+  assert.match(del, /pickem_v14_private_picks/);
+});
+
+test("the team directory is loaded from this site: ESPN's /teams endpoint has no CORS header", () => {
+  const espn = fs.readFileSync(path.join(__dirname, "../../public/js/espn.js"), "utf8");
+  assert.doesNotMatch(espn, /college-football\/teams\?limit/);
+  const dir = JSON.parse(fs.readFileSync(path.join(__dirname, "../../public/js/data/espn-teams.json"), "utf8"));
+  const names = dir.sports[0].leagues[0].teams.map((t) => t.team.location);
+  assert.ok(names.length >= 120 && names.length < 150 && names.includes("Alabama") && names.includes("Wyoming"));
 });

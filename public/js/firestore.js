@@ -263,6 +263,7 @@ var KICKOFF_LOCKS_SIG = "";
 var PRIVATE_WATCH_SIG = null;
 var PRIVATE_UNSUBS = [];
 var PRIVATE_MIGRATED = {};
+var PRIVATE_DOC_LOADED = {};    // doc id -> this device has seen the private doc (or that there is none)
 var revealTimer = null;
 
 function isPicksPrivate(profKey) {
@@ -302,8 +303,11 @@ function mergePrivateProfile(profKey, incoming) {
   return Object.assign({}, incoming, { picks: cur.picks || {}, tiebreaker: cur.tiebreaker || "28-24" });
 }
 
+// Only the timed reveal copies picks into public rows. A forced reveal can be turned off again, and
+// viewers read the private docs during it, so it must leave nothing behind.
 function publicRowsWithoutHiddenPicks(rows) {
-  if (arePrivatePicksRevealed()) return rows || [];
+  var at = privateRevealMs();
+  if (at !== null && Date.now() >= at) return rows || [];
   return (rows || []).map(function(r) {
     var linked = r && r.name ? getProfileLinkedToMemberName(r.name) : null;
     return linked && isPicksPrivate(linked.key) ? Object.assign({}, r, { picks: {}, tiebreaker: "" }) : r;
@@ -311,9 +315,11 @@ function publicRowsWithoutHiddenPicks(rows) {
 }
 
 function onPrivatePickDoc(id, data) {
-  if (!id || !data || !data.picks) return;
+  if (!id || !data || !data.picks) { if (id) PRIVATE_DOC_LOADED[id] = true; return; }
   delete DEFERRED_PICK_DOCS[id];
   if (applyRemotePickDoc(id, data)) scheduleRemotePicksRender();
+  // A deferred doc isn't on this device yet, so a save must still read it first.
+  if (!DEFERRED_PICK_DOCS[id]) PRIVATE_DOC_LOADED[id] = true;
 }
 
 // Safe to call often: it only re-subscribes when who this device may read has changed.
@@ -344,13 +350,14 @@ function syncPrivatePicksWatch() {
     keys.forEach(function(k) {
       listenWithRetry("private_picks_" + k, function(next, err) {
         PRIVATE_UNSUBS.push(col.doc(k).onSnapshot(next, err));
-      }, function(d) { if (d.exists) onPrivatePickDoc(d.id, d.data()); }, { quiet: true });
+      }, function(d) { if (d.exists) onPrivatePickDoc(d.id, d.data()); else PRIVATE_DOC_LOADED[d.id] = true; }, { quiet: true });
     });
   }
 }
 
 // Hidden picks saved before private docs existed are still public: a commissioner's device moves
-// them, without overwriting a private copy that's already there.
+// them. A private copy that's already there is kept unless the public one is newer (it can be last
+// week's, with this week's picks submitted by form).
 function migrateExposedHiddenPicks() {
   Object.keys(PUBLIC_PICK_DOCS).forEach(function(key) {
     if (!isPicksPrivate(key) || PRIVATE_MIGRATED[key] || !state[key]) return;
@@ -360,7 +367,7 @@ function migrateExposedHiddenPicks() {
     var privRef = fsDb.collection("pickem_v14_private_picks").doc(key);
     privRef.get().then(function(existing) {
       var batch = fsDb.batch();
-      if (!existing.exists) batch.set(privRef, doc);
+      if (!existing.exists || String(doc.updatedAt || "") > String(existing.data().updatedAt || "")) batch.set(privRef, doc);
       batch.set(fsDb.collection("pickem_v14_users").doc(key), { picks: del, tiebreaker: del, picksPrivate: true }, { merge: true });
       var mirror = {};
       mirror[key] = publicProfileCopy(key);
@@ -777,7 +784,30 @@ function pushProfileToFirebase(profKey) {
   var profObj = state[profKey];
   if (!profObj) return;
   // Closed for the week: nothing can legitimately change, and the rules would refuse a difference.
-  if (!isVerifiedCommissioner() && isPickSheetClosedFor(profKey)) return;
+  // Exceptions: a game the commissioner reopened, and a new profile's first doc.
+  var overrides = ensureCommissionerConfig().gameLockOverrides || {};
+  var reopened = Object.keys(overrides).some(function(id) { return overrides[id] === "open"; });
+  if (!isVerifiedCommissioner() && isPickSheetClosedFor(profKey) && !reopened && USER_DOC_META[profKey]) return;
+  if (!fsDb) return;
+  // This device's copy of hidden picks can be empty or old until it has read the private doc, and
+  // saving that copy would erase them. Read first; then save only if the read changed nothing here.
+  // shortcut: a change made in that moment is replaced by the saved picks (the toast says so), since
+  // one tap can't be told apart from an old copy; track tapped games if players ever hit this.
+  if ((isPicksPrivate(profKey) || (USER_DOC_META[profKey] && USER_DOC_META[profKey].picksPrivate)) && !PRIVATE_DOC_LOADED[profKey]) {
+    fsDb.collection("pickem_v14_private_picks").doc(profKey).get().then(function(d) {
+      if (d.exists && applyRemotePickDoc(profKey, d.data())) {
+        PRIVATE_DOC_LOADED[profKey] = true;
+        scheduleRemotePicksRender();
+        if (Date.now() - lastLocalPickTs < 60000) showAppToast("Loaded your saved picks. Please re-check your last change.");
+      } else if (DEFERRED_PICK_DOCS[profKey]) {
+        setTimeout(function() { pushProfileToFirebase(profKey); }, 4500); // after the deferred doc lands
+      } else {
+        PRIVATE_DOC_LOADED[profKey] = true;
+        pushProfileToFirebase(profKey);
+      }
+    }, function(e) { reportCloudSaveFailure(profKey.toUpperCase() + "'s picks", e); });
+    return;
+  }
   var meta = getProfileMetaByKey(profKey);
   var nowIso = new Date().toISOString();
 
@@ -808,7 +838,6 @@ function pushProfileToFirebase(profKey) {
   payload.lastProfileWriter = profKey;
   payload.updatedAt = nowIso;
 
-  if (!fsDb) return;
   var setStatus = function(ok) {
     var el = document.getElementById("cloud-status-text");
     if (!el) return;
@@ -1211,17 +1240,23 @@ function pushKickoffLocksToFirebase() {
   var windows = Object.keys(byTime).map(Number).sort(function(a, b) { return a - b; }).map(function(ms) {
     return { at: firebase.firestore.Timestamp.fromMillis(ms), ids: byTime[ms] };
   });
+  // Kickoff times can be missing here (a bot-posted slate before the first ESPN poll). Don't wipe
+  // the deadline and reveal the hourly job wrote; same "half the games" test as tools/locks.
+  var known = windows.reduce(function(n, w) { return n + w.ids.length; }, 0);
+  var thin = known < Math.ceil(GAMES.length / 2);
+  var cur = KICKOFF_LOCKS_DOC && String(KICKOFF_LOCKS_DOC.week) === String(week) ? KICKOFF_LOCKS_DOC : {};
   var cfg = ensureCommissionerConfig();
   var overrides = Object.keys(cfg.gameLockOverrides || {});
+  if (thin && !cur.week && !overrides.length) return; // nothing worth writing yet
   var stamp = function(v) { return v === null || v === undefined ? null : firebase.firestore.Timestamp.fromMillis(v); };
   var kicks = slateKickoffsMs();
   var deadlineMs = pickDeadlineMs();
   var locks = {
     week: week,
-    windows: windows,
-    deadlineAt: stamp(deadlineMs),
+    windows: thin ? (cur.windows || []) : windows,
+    deadlineAt: thin ? (cur.deadlineAt || null) : stamp(deadlineMs),
     // Where picks stay editable until kickoff, hidden picks can only open once every game has started.
-    revealAt: stamp(cfg.lockMode === "friday_9pm_cst" || cfg.lockMode === "global_locked" ? deadlineMs : kicks[kicks.length - 1]),
+    revealAt: thin ? (cur.revealAt || null) : stamp(cfg.lockMode === "friday_9pm_cst" || cfg.lockMode === "global_locked" ? deadlineMs : kicks[kicks.length - 1]),
     openIds: overrides.filter(function(id) { return cfg.gameLockOverrides[id] === "open"; }),
     lockedIds: overrides.filter(function(id) { return cfg.gameLockOverrides[id] === "locked"; })
   };
@@ -1231,7 +1266,7 @@ function pushKickoffLocksToFirebase() {
   fsDb.collection("pickem_v14").doc("kickoff_locks").set(Object.assign(locks, { updatedAt: new Date().toISOString() }))
     .then(function() { setKickoffLocksStatus(true); }, function(e) {
       setKickoffLocksStatus(false, e);
-      if (!(e && e.code === "permission-denied")) { reportCloudSaveFailure("the kickoff locks", e); return; }
+      if (!(e && e.code === "permission-denied")) { KICKOFF_LOCKS_SIG = ""; reportCloudSaveFailure("the kickoff locks", e); return; }
       // A refusal can be old rules (no kickoff_locks yet) or a commissioner whose verification
       // lapsed. Either way the server isn't enforcing kickoff locks, which the commissioner
       // (the only one who saves this) needs to know, but a slate save runs on every reload, so

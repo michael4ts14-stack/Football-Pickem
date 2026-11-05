@@ -201,9 +201,11 @@ service cloud.firestore {
       return mode == 'global_locked' ||
         (mode == 'friday_9pm_cst' && deadline != null && request.time >= deadline && !forceUnlocked(key));
     }
+    // Deleting a tiebreaker counts as changing it, so a delete then a set can't get past the lock.
     function pickWriteAllowed(key, newDoc, oldDoc) {
+      let tb = newDoc.get('tiebreaker', null);
       return noStartedPickChanged(key, newDoc.get('picks', {}), oldDoc.get('picks', {})) &&
-        (!('tiebreaker' in newDoc) || newDoc.tiebreaker == oldDoc.get('tiebreaker', newDoc.tiebreaker) || !weekClosedFor(key));
+        (tb == oldDoc.get('tiebreaker', tb) || !weekClosedFor(key));
     }
     function noStartedPickChanged(key, newPicks, oldPicks) {
       let changed = newPicks.diff(oldPicks).affectedKeys();
