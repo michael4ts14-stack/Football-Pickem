@@ -1314,3 +1314,37 @@ function pullFromFirebaseCloud() {
   }
 }
 
+// ---------- Coming back to the app ----------
+// A phone can suspend the page for days. Its connection may not recover by itself, and nothing else
+// asks the cloud again, so the screen could keep showing an old week until a manual refresh.
+var RESUME_RESYNC_AFTER_MS = 60 * 1000;
+var ARCHIVE_VIEW_EXPIRES_MS = 30 * 60 * 1000; // someone returning this late didn't mean to stay on a past week
+var APP_HIDDEN_AT = 0;
+
+function onAppResumed(awayMs) {
+  if (awayMs < RESUME_RESYNC_AFTER_MS || !fsDb) return Promise.resolve(null);
+  if (VIEWING_ARCHIVE_KEY && awayMs >= ARCHIVE_VIEW_EXPIRES_MS) returnToLiveWeek();
+  // Restarting the network re-subscribes every listener; saves still waiting are kept and sent.
+  return fsDb.disableNetwork().then(function() { return fsDb.enableNetwork(); }).then(function() {
+    return fsDb.collection("pickem_v14").doc("shared_state").get({ source: "server" });
+  }).then(function(doc) {
+    if (doc.exists) applyRemoteCloudData(doc.data(), "Cloud Firestore");
+    return true;
+  }).catch(function() {
+    showAppToast("Couldn't reach the server. This may be old data: check your connection and refresh.");
+    return false;
+  });
+}
+
+document.addEventListener("visibilitychange", function() {
+  if (document.hidden) { APP_HIDDEN_AT = Date.now(); return; }
+  if (APP_HIDDEN_AT) onAppResumed(Date.now() - APP_HIDDEN_AT);
+  APP_HIDDEN_AT = 0;
+});
+// Restored from the browser's back/forward memory: the page's clocks and connections are old.
+window.addEventListener("pagehide", function() { APP_HIDDEN_AT = Date.now(); });
+window.addEventListener("pageshow", function(e) {
+  if (e.persisted && APP_HIDDEN_AT) onAppResumed(Date.now() - APP_HIDDEN_AT);
+  if (e.persisted) APP_HIDDEN_AT = 0;
+});
+// ---------- End coming back ----------
