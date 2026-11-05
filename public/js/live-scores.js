@@ -618,7 +618,7 @@ function renderStandingsAndGradingView() {
       '<div class="grading-card" style="border-color:var(--amber);">' +
         '<div style="font-size:0.74rem;font-weight:800;color:var(--amber);text-transform:uppercase;">⚔️ ' + escapeHtml(actMeta.shortName) + ' vs. ' + escapeHtml(cmpShort) + ' — Weekly Swing Summary</div>' +
         '<div style="font-size:1.22rem;font-weight:900;color:var(--text);margin:4px 0;">' + h2hLeadHeadline + '</div>' +
-        '<div style="font-size:0.74rem;color:var(--muted);">Final Graded Margin: <strong>' + (mNetDiff >= 0 ? '+' + mNetDiff : mNetDiff) + ' pts</strong> • Swing Pts Won: <strong>' + actMeta.shortName + ' ' + swingCompletedWinsM + 'p vs ' + cmpShort + ' ' + swingCompletedWinsK + 'p</strong></div>' +
+        '<div style="font-size:0.74rem;color:var(--muted);">Final Graded Margin: <strong>' + (mNetDiff >= 0 ? '+' + mNetDiff : mNetDiff) + ' pts</strong> • Swing Pts Won: <strong>' + escapeHtml(actMeta.shortName) + ' ' + swingCompletedWinsM + 'p vs ' + cmpShort + ' ' + swingCompletedWinsK + 'p</strong></div>' +
         '<div style="margin-top:6px;font-size:0.73rem;color:var(--warn);">⚡ <strong>' + ((actHiddenGlobal || cmpHiddenGlobal) ? '🔒' : swingRemainingCount) + '</strong> H2H disagreement game(s) still pending/in-progress.</div>' +
       '</div>';
   }
@@ -708,7 +708,7 @@ function renderStandingsAndGradingView() {
     }
     var cmpTargetVal = linkedRowProf ? linkedRowProf.key : ("pm:" + safeRwName);
     var cmpQuickBtn = (!isLinkedToActive)
-      ? '<button type="button" class="btn-sm" style="padding:2px 7px;font-size:0.64rem;margin-left:6px;border-color:var(--border);color:var(--text);" onclick="setCompareTarget(\'' + cmpTargetVal + '\'); switchMainView(\'condensed\');" title="Compare your picks side-by-side against ' + rw.name + ' (Read-Only)">⚔️ Compare H2H</button>'
+      ? '<button type="button" class="btn-sm" style="padding:2px 7px;font-size:0.64rem;margin-left:6px;border-color:var(--border);color:var(--text);" onclick="setCompareTarget(\'' + cmpTargetVal + '\'); switchMainView(\'condensed\');" title="Compare your picks side-by-side against ' + escapeHtml(rw.name) + ' (Read-Only)">⚔️ Compare H2H</button>'
       : "";
 
     lbHtml += '<tr class="' + rowClass + '">' +

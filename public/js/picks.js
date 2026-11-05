@@ -86,7 +86,7 @@ function buildTeamPickPillsHtml(g, teamName) {
       if (cmp && cmp.isPoolMember && standardizeParticipantName(cmp.name).toLowerCase() === standardizeParticipantName(rv.name).toLowerCase()) continue;
       var rvPick = getResolvedPickForGame(rv.picks, g, false);
       if (isSameTeamPick(rvPick, teamName, g)) {
-        html += '<span class="p-tag p-tag-w">👀 ' + rv.name.slice(0, 7) + '</span>';
+        html += '<span class="p-tag p-tag-w">👀 ' + escapeHtml(rv.name.slice(0, 7)) + '</span>';
       }
     }
   }

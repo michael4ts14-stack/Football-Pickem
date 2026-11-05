@@ -327,7 +327,7 @@ function renderMonteCarloSimulatorBox() {
     var rCls = c.isAct ? "row-highlight-michael" : (c.isCmp ? "row-highlight-kinyion" : "");
     topRowsHtml += '<tr class="' + rCls + '">' +
       '<td><strong>#' + (i + 1) + '</strong></td>' +
-      '<td><strong style="color:' + (c.isAct ? actMeta.color : (c.isCmp && cmpDesc ? cmpDesc.color : '#fff')) + ';">' + c.name + (c.isAct ? ' (You)' : (c.isCmp ? ' (H2H)' : '')) + '</strong></td>' +
+      '<td><strong style="color:' + (c.isAct ? actMeta.color : (c.isCmp && cmpDesc ? cmpDesc.color : '#fff')) + ';">' + escapeHtml(c.name) + (c.isAct ? ' (You)' : (c.isCmp ? ' (H2H)' : '')) + '</strong></td>' +
       '<td>' + c.avgScore + ' pts</td>' +
       '<td><strong>#' + c.avgRank + '</strong></td>' +
       '<td style="color:var(--gold);font-weight:800;">' + c.win1stPct + '%</td>' +

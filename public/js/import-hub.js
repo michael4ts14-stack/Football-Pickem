@@ -80,9 +80,9 @@ function openUnifiedImportModal(defaultTab) {
           getAllUserProfiles().map(function(pf) {
             return '<option value="' + pf.key + '"' + (pf.key === activeProfile ? ' selected' : '') + '>' + pf.icon + ' ' + escapeHtml(pf.name) + '</option>';
           }).join('') +
-          '<option value="w0">👀 Watchlist #1 (' + state.watchlist[0].name + ')</option>' +
-          '<option value="w1">👀 Watchlist #2 (' + state.watchlist[1].name + ')</option>' +
-          '<option value="w2">👀 Watchlist #3 (' + state.watchlist[2].name + ')</option>' +
+          '<option value="w0">👀 Watchlist #1 (' + escapeHtml(state.watchlist[0].name) + ')</option>' +
+          '<option value="w1">👀 Watchlist #2 (' + escapeHtml(state.watchlist[1].name) + ')</option>' +
+          '<option value="w2">👀 Watchlist #3 (' + escapeHtml(state.watchlist[2].name) + ')</option>' +
         '</select>' +
       '</div>' +
       '<textarea id="email-automation-text" rows="7" class="search-input" style="width:100%;margin-bottom:10px;font-family:monospace;font-size:0.73rem;" placeholder="Paste confirmation email picks (e.g. Ohio State, Texas, LSU...) OR standings lines (e.g. 58. Michael A - 96 pts)..."></textarea>' +

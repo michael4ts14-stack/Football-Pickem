@@ -72,7 +72,7 @@ function renderCondensedTable() {
     for (var pIdx = 0; pIdx < displayProfs.length; pIdx++) {
       var pf = displayProfs[pIdx];
       var isLockedHdr = isProfileHiddenFromViewer(pf.key, null);
-      thHtml += '<th>' + pf.shortName + (isLockedHdr ? ' (hidden)' : '') + '</th>';
+      thHtml += '<th>' + escapeHtml(pf.shortName) + (isLockedHdr ? ' (hidden)' : '') + '</th>';
     }
     if (cmpTarget && cmpTarget.isPoolMember) {
       thHtml += '<th>' + escapeHtml(cmpTarget.shortName) + ' (compare)</th>';
@@ -118,7 +118,7 @@ function renderCondensedTable() {
       var rPick = getResolvedPickForGame(rv.picks, g, false);
       var rCode = rPick ? (isSameTeamPick(rPick, g.away, g) ? g.awayCode : g.homeCode) : "—";
       var btnCls = rPick ? "cond-btn w-active" : "cond-btn";
-      wlBtns += '<button type="button" class="' + btnCls + '" title="Tap to cycle ' + rv.name + '\'s pick (Away → Home → Clear)" onclick="toggleWatchlistPick(' + w + ', ' + g.id + ')">' +
+      wlBtns += '<button type="button" class="' + btnCls + '" title="Tap to cycle ' + escapeHtml(rv.name) + '\'s pick (Away → Home → Clear)" onclick="toggleWatchlistPick(' + w + ', ' + g.id + ')">' +
         rv.name.slice(0, 6) + ': ' + rCode +
       '</button>';
     }
@@ -136,8 +136,8 @@ function renderCondensedTable() {
       if (winner && !anyPairHidden && kPick) {
         var mWon = isSameTeamPick(mPick, winner, g);
         var kWon = isSameTeamPick(kPick, winner, g);
-        statusHtml += ' <span class="badge ' + (mWon ? 'badge-ev' : 'badge-3x') + '">' + actMeta.shortName.slice(0, 2) + ':' + (mWon ? '+' + mPts : '0') + '</span>' +
-                      ' <span class="badge ' + (kWon ? 'badge-ev' : 'badge-3x') + '">' + cmpTarget.shortName.slice(0, 2) + ':' + (kWon ? '+' + kPts : '0') + '</span>';
+        statusHtml += ' <span class="badge ' + (mWon ? 'badge-ev' : 'badge-3x') + '">' + escapeHtml(actMeta.shortName.slice(0, 2)) + ':' + (mWon ? '+' + mPts : '0') + '</span>' +
+                      ' <span class="badge ' + (kWon ? 'badge-ev' : 'badge-3x') + '">' + escapeHtml(cmpTarget.shortName.slice(0, 2)) + ':' + (kWon ? '+' + kPts : '0') + '</span>';
       }
     }
 
@@ -152,7 +152,7 @@ function renderCondensedTable() {
       var uCode = uPick ? (isSameTeamPick(uPick, g.away, g) ? g.awayCode : g.homeCode) : "—";
 
       if (uHidden) {
-        profTdsHtml += '<td><span class="cond-locked-pill" style="cursor:default;opacity:0.85;" title="Hidden on ' + uMeta.name + '\'s account until kickoff">Hidden until kickoff</span></td>';
+        profTdsHtml += '<td><span class="cond-locked-pill" style="cursor:default;opacity:0.85;" title="Hidden on ' + escapeHtml(uMeta.name) + '\'s account until kickoff">Hidden until kickoff</span></td>';
         profMobileBoxesHtml += '<div class="cond-m-prof-box">' +
           '<div class="cond-m-prof-label"><span>' + escapeHtml(uMeta.shortName) + '</span></div>' +
           '<div class="cond-m-value is-muted">Hidden until kickoff</div>' +

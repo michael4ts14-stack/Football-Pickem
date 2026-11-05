@@ -494,7 +494,7 @@ function compareTargetOptionsHtml() {
     if (pf.key === myKey || pf.isSandbox) continue;
     var isHidden = isProfileHiddenFromViewer(pf.key, null);
     var sel = (curTarget === pf.key) ? " selected" : "";
-    opts += '<option value="' + pf.key + '"' + sel + '>' + pf.name + (isHidden ? ' (hidden until kickoff)' : '') + '</option>';
+    opts += '<option value="' + pf.key + '"' + sel + '>' + escapeHtml(pf.name) + (isHidden ? ' (hidden until kickoff)' : '') + '</option>';
   }
   opts += '</optgroup>';
 

@@ -811,7 +811,7 @@ function openAuthModal() {
         '<button type="button" class="btn-sm" style="background:var(--raised);border-color:var(--border);color:var(--loss);font-weight:800;padding:8px 14px;" onclick="signOutAccountInstance()">🚪 Sign Out of Instance</button>' +
         '<div style="display:flex;gap:6px;">' +
           '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--warn);font-weight:800;padding:8px 12px;" onclick="switchProfile(\'test\'); closeAuthModal();">🧪 My Sandbox Sim</button>' +
-          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;padding:8px 16px;" onclick="switchProfile(\'' + AUTH_SESSION.boundProfileKey + '\'); closeAuthModal();">🏈 Go to My Picks (' + boundMeta.shortName + ')</button>' +
+          '<button type="button" class="btn-sm" style="background:var(--accent);color:var(--on-accent);border:none;font-weight:900;padding:8px 16px;" onclick="switchProfile(\'' + AUTH_SESSION.boundProfileKey + '\'); closeAuthModal();">🏈 Go to My Picks (' + escapeHtml(boundMeta.shortName) + ')</button>' +
         '</div>' +
       '</div>';
   } else {

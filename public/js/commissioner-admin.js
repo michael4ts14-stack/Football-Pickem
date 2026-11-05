@@ -629,7 +629,7 @@ function renderMultiBuyInEntryStrip() {
     var isAct = (activeProfile === en.profileKey);
     var isLockedEntry = isCurrentProfileManuallyLocked(en.profileKey);
     pillsHtml += '<button type="button" class="entry-pill-btn' + (isAct ? ' active' : '') + '" aria-pressed="' + isAct + '" onclick="switchLinkedBuyInEntry(\'' + en.profileKey + '\')">' +
-      en.memberName + (isLockedEntry ? ' (locked)' : '') +
+      escapeHtml(en.memberName) + (isLockedEntry ? ' (locked)' : '') +
     '</button>';
   }
   pillsHtml +=
@@ -1070,7 +1070,7 @@ function renderSettingsDrawerBody() {
   body.innerHTML =
     '<div class="drawer-section">' +
       '<div class="drawer-section-title"><span>👤 Account & Multi-Buy-In Entries</span><span class="badge ' + (AUTH_SESSION ? 'badge-ev' : 'badge-2x') + '">' + (AUTH_SESSION ? 'Signed In' : 'Guest / Local') + '</span></div>' +
-      '<div style="font-size:0.76rem;color:var(--text);">Active Entry: <strong style="color:var(--text);">' + escapeHtml(getProfileDisplayMeta(activeProfile).name) + '</strong> ' + (AUTH_SESSION && AUTH_SESSION.email ? ('<span style="color:var(--muted);">(' + AUTH_SESSION.email + ')</span>') : '') + '</div>' +
+      '<div style="font-size:0.76rem;color:var(--text);">Active Entry: <strong style="color:var(--text);">' + escapeHtml(getProfileDisplayMeta(activeProfile).name) + '</strong> ' + (AUTH_SESSION && AUTH_SESSION.email ? ('<span style="color:var(--muted);">(' + escapeHtml(AUTH_SESSION.email) + ')</span>') : '') + '</div>' +
       (AUTH_SESSION ? (
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin:4px 0;">' + entriesHtml +
           '<button type="button" class="entry-pill-btn' + (activeProfile === "test" ? ' active' : '') + '" onclick="switchProfile(\'test\'); renderSettingsDrawerBody();">🧪 Sandbox Sim</button>' +
