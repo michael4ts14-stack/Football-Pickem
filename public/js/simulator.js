@@ -78,7 +78,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
     seenNames[lowKey] = true;
 
     var linkedPf = getProfileLinkedToMemberName(stdName);
-    var pMap = (linkedPf && state[linkedPf.key] && state[linkedPf.key].picks) ? state[linkedPf.key].picks : (pm.picks || {});
+    var pMap = memberPicksSource(pm).picks;
     var encoded = encodePicksBitmask(pMap, !!linkedPf);
     var rawPrior = parseFloat(pm.priorPts) || 0;
     var basePrior = (isWk7Now && rawPrior >= 80 && pm.wk7PriorPts !== undefined && rawPrior > pm.wk7PriorPts) ? pm.wk7PriorPts : rawPrior;

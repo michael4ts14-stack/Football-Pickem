@@ -1233,7 +1233,7 @@ renderCommissionerModalBody = function() {
     for (var i = 0; i < pmList.length; i++) {
       var pm = pmList[i];
       var linkedPf = getProfileLinkedToMemberName(pm.name);
-      var picksMap = (linkedPf && state[linkedPf.key] && state[linkedPf.key].picks) ? state[linkedPf.key].picks : (pm.picks || {});
+      var picksMap = memberPicksSource(pm).picks;
       var cStats = countMatchingPicksForSlate(picksMap, GAMES);
       var isComplete = (cStats.matched >= GAMES.length);
       var hasAny = (cStats.matched > 0 && !pm.awaitingSheet);
@@ -1242,14 +1242,14 @@ renderCommissionerModalBody = function() {
       if (COMMISH_SUBMISSION_FILTER === "submitted" && !hasAny) continue;
       if (COMMISH_SUBMISSION_FILTER === "missing" && hasAny) continue;
 
-      var tbVal = (linkedPf && state[linkedPf.key] && state[linkedPf.key].tiebreaker) ? state[linkedPf.key].tiebreaker : (pm.tiebreaker || "—");
+      var tbVal = memberPicksSource(pm).tiebreaker || "—";
       var statusBadge = isComplete
         ? '<span class="badge badge-ev">✅ ' + cStats.matched + '/' + GAMES.length + ' Saved</span>'
         : (hasAny ? '<span class="badge badge-2x">⚠️ Partial (' + cStats.matched + '/' + GAMES.length + ')</span>' : '<span class="badge badge-3x">⏳ Missing (0/' + GAMES.length + ')</span>');
 
       var safeName = jsArgAttr(pm.name);
       rowsHtml += '<tr>' +
-        '<td><strong>' + escapeHtml(pm.name) + '</strong>' + (linkedPf ? ' <span class="linked-lb-pill">App Account</span>' : '') + '</td>' +
+        '<td><strong>' + escapeHtml(pm.name) + '</strong>' + (linkedPf && bindingOwnerUid(linkedPf.key) ? ' <span class="linked-lb-pill">App Account</span>' : '') + '</td>' +
         '<td>' + (pm.priorPts || 0) + ' pts</td>' +
         '<td>' + statusBadge + '</td>' +
         '<td><strong>' + escapeHtml(tbVal) + '</strong></td>' +

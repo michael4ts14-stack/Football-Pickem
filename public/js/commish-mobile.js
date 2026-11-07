@@ -24,17 +24,18 @@ function cmWeekClosed() {
 }
 
 function cmMemberInfo(pm) {
-  var linked = getProfileLinkedToMemberName(pm.name);
+  var src = memberPicksSource(pm);
+  var linked = src.linked;
   var prof = linked ? state[linked.key] : null;
-  var picks = (prof && prof.picks) ? prof.picks : (pm.picks || {});
-  var tb = (prof && prof.tiebreaker) ? prof.tiebreaker : (pm.tiebreaker || "");
+  var picks = src.picks;
+  var tb = src.tiebreaker;
   var c = countMatchingPicksForSlate(picks, GAMES);
   var forceUnlocked = typeof isMemberForceUnlocked === "function" && isMemberForceUnlocked(pm.name);
   var weekPts = pm.awaitingSheet ? 0 : Math.max(pm.livePts || 0, pm.finalPts || 0);
   return {
     pm: pm,
     name: pm.name,
-    linked: !!linked,
+    linked: !!(linked && typeof bindingOwnerUid === "function" && bindingOwnerUid(linked.key)), // an account, not just a profile
     picks: pm.awaitingSheet ? {} : picks,
     tb: tb === "—" ? "" : String(tb),
     matched: c.matched,

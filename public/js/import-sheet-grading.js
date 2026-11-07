@@ -212,6 +212,20 @@ function gradePickMap(picksMap, allowFallbackToRec, computeDp) {
   };
 }
 
+// The picks a pool row counts this week: its linked app profile's only when they're for this
+// slate (the rule regradeAllPoolMembersLive grades by), otherwise the sheet's. Every screen and
+// export uses this, so none can show an app profile's old picks in place of the sheet's.
+function memberPicksSource(pm) {
+  var linked = pm && pm.name ? getProfileLinkedToMemberName(pm.name) : null;
+  var prof = linked && state[linked.key];
+  var useApp = !!(prof && hasSubmittedPicksForCurrentSlate(prof.picks, GAMES));
+  return {
+    linked: linked,
+    picks: useApp ? prof.picks : ((pm && pm.picks) || {}),
+    tiebreaker: (useApp && prof.tiebreaker) || (pm && pm.tiebreaker) || ""
+  };
+}
+
 function regradeAllPoolMembersLive(onlyUserProfiles) {
   ensureWatchlistDefaults();
   if (!state.poolMembers || !Array.isArray(state.poolMembers)) return;

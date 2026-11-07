@@ -82,7 +82,7 @@ function overrideTiebreaker(memberName) {
   var stdName = standardizeParticipantName(memberName);
   var pm = findPoolMemberByName(stdName);
   var linked = getProfileLinkedToMemberName(stdName);
-  var current = (linked && state[linked.key] && state[linked.key].tiebreaker) || (pm && pm.tiebreaker) || "";
+  var current = pm ? memberPicksSource(pm).tiebreaker : ((linked && state[linked.key] && state[linked.key].tiebreaker) || "");
   var val = window.prompt("Tiebreaker for " + stdName + " (higher score first, e.g. 31-24):", current === "—" ? "" : current);
   if (val === null) return;
   val = String(val).trim();
@@ -427,9 +427,8 @@ function startPlayerPreview(memberName) {
   var stdName = standardizeParticipantName(memberName);
   var pm = findPoolMemberByName(stdName);
   var linked = getProfileLinkedToMemberName(stdName);
-  var appPicks = linked && state[linked.key] && state[linked.key].picks;
-  var picks = (appPicks && hasSubmittedPicksForCurrentSlate(appPicks, GAMES)) ? appPicks : ((pm && pm.picks) || {});
-  PLAYER_PREVIEW = { name: stdName, picks: Object.assign({}, picks), tiebreaker: (linked && state[linked.key] && state[linked.key].tiebreaker) || (pm && pm.tiebreaker) || "—" };
+  var shown = pm ? memberPicksSource(pm) : { picks: (linked && state[linked.key] && state[linked.key].picks) || {}, tiebreaker: "" };
+  PLAYER_PREVIEW = { name: stdName, picks: Object.assign({}, shown.picks), tiebreaker: shown.tiebreaker || "—" };
   closeCommissionerModal();
   switchMainView("cards");
   renderAll();
