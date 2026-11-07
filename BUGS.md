@@ -80,5 +80,6 @@ Static read of `public/js`, `public/css`, `firestore.rules` and `sw.js` on `clau
 | B74 ✅ | P2 | Locks | `firestore.rules` | The tiebreaker lock could be passed by deleting the field, then setting it. | A delete counts as a change. |
 | B75 ✅ | P2 | Picks | `public/js/firestore.js` | After the deadline, picks on a game the commissioner reopened never saved. | Skip the save only when no game is reopened. |
 | B76 ✅ | P3 | Live tracker | `public/js/espn.js` | The team directory request could never work: ESPN's `/teams` sends no CORS header. | Serve a saved FBS list from `public/js/data/espn-teams.json`. |
+| B77 ✅ | P1 | Accounts | `public/js/account-security.js` `loadBoundAccounts` | With no connection, Firestore reports an empty local cache as the bindings list. The link check then saw a bound account as unlinked, filed a link request and dropped it to the sandbox. | Ignore cache-only results; wait for the server's list. |
 
 Known limit: in `rolling_kickoff` mode (not used in production) hidden picks stay hidden until the last game, the server doesn't lock the tiebreaker at its kickoff (the app does), and an imported sheet can put hidden picks in public rows before the reveal.

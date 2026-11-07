@@ -102,8 +102,11 @@ function loadBoundAccounts() {
     try {
       // quiet: older rules have no bindings collection, so this failure is expected there.
       listenWithRetry("account links", function(ok, err) {
-        fsDb.collection("pickem_v14_bindings").onSnapshot(ok, err);
+        // includeMetadataChanges: an unchanged list still reports when the server confirms it.
+        fsDb.collection("pickem_v14_bindings").onSnapshot({ includeMetadataChanges: true }, ok, err);
       }, function(snap) {
+        // Offline, Firestore reports its empty local cache; that doesn't mean nobody is linked.
+        if (snap.metadata && snap.metadata.fromCache) return;
         var next = {};
         snap.forEach(function(d) { next[d.id] = d.data() || {}; });
         var prev = BOUND_ACCOUNTS;

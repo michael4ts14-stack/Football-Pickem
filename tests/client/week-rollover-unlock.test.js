@@ -22,6 +22,7 @@ global.renderAll = () => {};
 global.syncManualLockButtonUI = () => {};
 global.getProfileDisplayMeta = (p) => ({ name: p });
 global.getProfileLinkedToMemberName = () => null;
+global.getLinkedMemberNameForProfile = () => "";
 global.standardizeParticipantName = (s) => String(s || "").trim();
 global.forceUnlockFlagIsCurrent = () => false;
 global.getAutoUnhideReason = () => "";
