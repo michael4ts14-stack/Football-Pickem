@@ -141,8 +141,11 @@ function findAccountByUid_(uid) {
 
 function resolveCallerPicks_(who, shared) {
   var acct = readFirestoreDoc_("pickem_v14_accounts/" + accountDocKey_(who.email)) || findAccountByUid_(who.uid);
-  var profKey = acct && acct.boundProfileKey;
-  if (!profKey || profKey === "test") throw emailError_("NO_PROFILE", "Your account isn't linked to a pool entry yet.");
+  // Players can write their own account doc, so the bindings decide who they play; the doc only
+  // picks between entries. Otherwise anyone could have another player's hidden picks emailed.
+  var owned = listFirestoreDocs_("pickem_v14_bindings").filter(function(d) { return d.fields.uid === who.uid; }).map(function(d) { return d.id; });
+  var profKey = acct && owned.indexOf(acct.boundProfileKey) !== -1 ? acct.boundProfileKey : owned[0];
+  if (!profKey) throw emailError_("NO_PROFILE", "Your account isn't linked to a pool entry yet.");
   var prof = (shared && shared[profKey]) || readFirestoreDoc_("pickem_v14_users/" + encodeURIComponent(profKey)) || {};
   var picks = prof.picks || {};
   // A hidden player's picks live only in their private doc.
@@ -356,10 +359,28 @@ function requireBroadcastsAllowed_(data) {
   var isTest = Array.isArray(data.testRecipients) && data.testRecipients.length;
   if (!broadcastsEnabled_() && !isTest) throw emailError_("BROADCASTS_OFF", "Pool emails are switched off. A commissioner can turn them on in Console › Banner & Recap.");
 }
+// memberLow -> email from the commissioner-only pickem_v14_registered collection.
+// shortcut: also reads the old public map, until a commissioner's app has run the migration.
+function registeredPlayerEmails_(shared) {
+  var map = Object.assign({}, ((shared && shared.commissionerConfig) || {}).playerEmailsMap);
+  listFirestoreDocs_("pickem_v14_registered").forEach(function(d) {
+    (d.fields.memberLows || []).forEach(function(low) { map[low] = d.id; });
+  });
+  return map;
+}
+
+// Every doc in a collection as { id, fields }, read as the script owner. [] if it can't be read.
+function listFirestoreDocs_(collection) {
+  var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/" + collection + "?pageSize=300", { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
+  if (res.getResponseCode() !== 200) return [];
+  return ((JSON.parse(res.getContentText()) || {}).documents || []).map(function(d) {
+    return { id: decodeURIComponent(String(d.name || "").split("/").pop()), fields: fromFirestoreValue({ mapValue: { fields: d.fields || {} } }) || {} };
+  });
+}
+
 function poolEmailRecipients_(shared) {
-  var cfg = shared.commissionerConfig || {};
   var recMap = {};
-  var map = cfg.playerEmailsMap || {};
+  var map = registeredPlayerEmails_(shared);
   for (var k in map) if (map[k] && String(map[k]).indexOf("@") !== -1) recMap[String(map[k]).toLowerCase()] = true;
   (shared.poolMembers || []).forEach(function(pm) { if (pm.linkedAuthEmail && pm.linkedAuthEmail.indexOf("@") !== -1) recMap[pm.linkedAuthEmail.toLowerCase()] = true; });
   return Object.keys(recMap);
@@ -418,11 +439,7 @@ function sendWedThuNudge_(who, shared, data) {
 
 // App accounts (email, linked pool player, bound profile), read as the script owner.
 function listAccounts_() {
-  var res = UrlFetchApp.fetch(FIRESTORE_BASE_URL + "/pickem_v14_accounts?pageSize=300", { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
-  if (res.getResponseCode() !== 200) return [];
-  return ((JSON.parse(res.getContentText()) || {}).documents || []).map(function(d) {
-    return fromFirestoreValue({ mapValue: { fields: d.fields || {} } }) || {};
-  });
+  return listFirestoreDocs_("pickem_v14_accounts").map(function(d) { return d.fields; });
 }
 
 // Players without picks this week (neither the imported sheet nor the app), and the email
@@ -436,10 +453,13 @@ function missingPickers_(shared, cfg) {
     return ids.filter(function(id) { return picks[id]; }).length >= Math.ceil(ids.length / 2);
   };
   var byMember = {};
+  // Players write their own account doc: it speaks for a player only if the binding agrees.
+  var ownerOf = {};
+  listFirestoreDocs_("pickem_v14_bindings").forEach(function(d) { ownerOf[d.id] = d.fields.uid; });
   listAccounts_().forEach(function(a) {
-    if (a.linkedMemberName && a.email) byMember[standardizeBotParticipantName(a.linkedMemberName).toLowerCase()] = a;
+    if (a.linkedMemberName && a.email && a.uid && ownerOf[a.boundProfileKey] === a.uid) byMember[standardizeBotParticipantName(a.linkedMemberName).toLowerCase()] = a;
   });
-  var emailsMap = cfg.playerEmailsMap || {};
+  var emailsMap = registeredPlayerEmails_(shared);
   var seen = {}, emails = [], missingCount = 0, noEmail = 0;
   (shared.poolMembers || []).forEach(function(pm) {
     var low = standardizeBotParticipantName(pm.name).toLowerCase();

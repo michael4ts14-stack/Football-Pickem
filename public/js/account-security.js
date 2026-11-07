@@ -3,7 +3,7 @@
 // Who may play which pool player:
 // - pickem_v14_bindings/{profileKey}: the one account (uid) bound to a player. firestore.rules
 //   only let that account (or a commissioner) change the player's picks.
-// - An email the commissioner registered for a roster player (playerEmailsMap) links at once.
+// - An email the commissioner registered for a roster player (pickem_v14_registered) links at once.
 // - Anything else is a link request (pickem_v14_link_requests/{uid}) the commissioner approves.
 // - commissionerConfig.securityConfig.registrationMode: "midseason_protected" (default),
 //   "invite_code_required" (league invite code, new players may add themselves) or
@@ -111,6 +111,7 @@ function loadBoundAccounts() {
         snap.forEach(function(d) { next[d.id] = d.data() || {}; });
         var prev = BOUND_ACCOUNTS;
         BOUND_ACCOUNTS = next;
+        attachBindingEmails();
         ACCOUNT_SECURITY_LIVE = true;
         if (first) { first = false; resolve(true); return; }
         onBoundAccountsChanged(prev);
@@ -122,6 +123,253 @@ function loadBoundAccounts() {
     } catch (e) { resolve(false); }
   });
   return BOUND_ACCOUNTS_READY;
+}
+
+// ---------- Private emails: what to move ----------
+// Player and commissioner emails never go in anything anyone can read without signing in. They
+// live in pickem_v14_registered/{email} and pickem_v14_commissioners/roles; this device holds
+// the copy it may see in PRIVATE_CONFIG, so code keeps reading them from commissionerConfig.
+var PRIVATE_CONFIG_KEYS = ["playerEmailsMap", "authorizedCommissioners", "primaryCommissionerEmail"];
+var EMAIL_FIELDS = ["email", "ownerEmail"];
+
+function publicConfigOf(cfg) {
+  var out = Object.assign({}, cfg);
+  PRIVATE_CONFIG_KEYS.forEach(function(k) { delete out[k]; });
+  return out;
+}
+
+// memberLow -> lower-case email. A name with dots ("F.F.F") was once saved as a nested path.
+function flattenEmailMap(map, prefix) {
+  var out = {};
+  Object.keys(map || {}).forEach(function(k) {
+    var name = prefix ? prefix + "." + k : k;
+    var v = map[k];
+    if (v && typeof v === "object") Object.assign(out, flattenEmailMap(v, name));
+    else if (v) out[name] = String(v).trim().toLowerCase();
+  });
+  return out;
+}
+
+// A deep copy without email fields, and whether there were any.
+function scrubEmailFields(x) {
+  var changed = false;
+  var walk = function(v) {
+    if (Array.isArray(v)) return v.map(walk);
+    if (!v || typeof v !== "object" || typeof v.toDate === "function") return v;
+    var out = {};
+    Object.keys(v).forEach(function(k) {
+      if (EMAIL_FIELDS.indexOf(k) !== -1) changed = true;
+      else out[k] = walk(v[k]);
+    });
+    return out;
+  };
+  var value = walk(x);
+  return { value: value, changed: changed };
+}
+
+// What must change in shared_state: registered emails to keep, field paths to delete, and the
+// player list without emails (null when it has none).
+function buildEmailMigration(shared) {
+  var cfg = shared.commissionerConfig || {};
+  var registered = {}, deletePaths = [];
+  var flat = flattenEmailMap(cfg.playerEmailsMap);
+  Object.keys(flat).forEach(function(low) {
+    var e = flat[low];
+    if (!registered[e]) registered[e] = { memberLows: [] };
+    registered[e].memberLows.push(low);
+  });
+  PRIVATE_CONFIG_KEYS.forEach(function(k) { if (cfg[k] !== undefined) deletePaths.push(["commissionerConfig", k]); });
+  Object.keys(cfg.archivedProfiles || {}).forEach(function(k) {
+    var e = cfg.archivedProfiles[k] || {}, base = ["commissionerConfig", "archivedProfiles", k];
+    if (e.email !== undefined) deletePaths.push(base.concat("email"));
+    if (e.archivedBy !== undefined) deletePaths.push(base.concat("archivedBy"));
+    if (e.record && e.record.email !== undefined) deletePaths.push(base.concat("record", "email"));
+  });
+  ["savedReceiptsLog", "blockedUsers"].forEach(function(field) {
+    Object.keys(cfg[field] || {}).forEach(function(k) {
+      if (cfg[field][k] && cfg[field][k].email !== undefined) deletePaths.push(["commissionerConfig", field, k, "email"]);
+    });
+  });
+  Object.keys(shared).forEach(function(k) {
+    var v = shared[k];
+    if (k === "commissionerConfig" || k === "customUsers" || !v || typeof v !== "object" || Array.isArray(v)) return;
+    EMAIL_FIELDS.forEach(function(f) { if (v[f] !== undefined) deletePaths.push([k, f]); });
+  });
+  var scrubbed = scrubEmailFields(shared.customUsers || []);
+  return { registered: registered, deletePaths: deletePaths, customUsers: scrubbed.changed ? scrubbed.value : null };
+}
+// ---------- Private emails: end of what to move ----------
+
+var PRIVATE_CONFIG = {};           // the private fields this device may see
+var PRIVATE_LOAD = { uid: "", promise: null };
+var REGISTERED_CLOUD = null;       // commissioner: email -> memberLow as last read
+var REGISTERED_UNSUB = null;
+var ACCOUNT_EMAIL_BY_UID = {};     // commissioner: bindings hold no email, so the screen looks it up
+var EMAIL_MIGRATION_STARTED = false;
+
+function applyPrivateConfig(cfg) {
+  PRIVATE_CONFIG_KEYS.forEach(function(k) { if (PRIVATE_CONFIG[k] !== undefined) cfg[k] = PRIVATE_CONFIG[k]; });
+}
+
+function attachBindingEmails() {
+  Object.keys(BOUND_ACCOUNTS).forEach(function(k) {
+    var email = ACCOUNT_EMAIL_BY_UID[BOUND_ACCOUNTS[k].uid];
+    if (email) BOUND_ACCOUNTS[k].email = email;
+  });
+}
+
+// Signing out or changing account: this device forgets what the last account could see.
+function resetPrivateConfig() {
+  if (REGISTERED_UNSUB) { try { REGISTERED_UNSUB(); } catch (e) {} }
+  REGISTERED_UNSUB = null;
+  REGISTERED_CLOUD = null;
+  PRIVATE_CONFIG = {};
+  ACCOUNT_EMAIL_BY_UID = {};
+  PRIVATE_LOAD = { uid: "", promise: null };
+  EMAIL_MIGRATION_STARTED = false;
+  if (state && state.commissionerConfig) PRIVATE_CONFIG_KEYS.forEach(function(k) { delete state.commissionerConfig[k]; });
+}
+
+// Being able to read the roles doc is what makes this a commissioner's device (firestore.rules).
+// Everyone else reads only the registration for their own confirmed address.
+function loadPrivateConfig() {
+  var user = (typeof fbAuth !== "undefined" && fbAuth) ? fbAuth.currentUser : null;
+  if (!user || !fsDb) return Promise.resolve(false);
+  if (PRIVATE_LOAD.uid === user.uid && PRIVATE_LOAD.promise) return PRIVATE_LOAD.promise;
+  if (PRIVATE_LOAD.uid && PRIVATE_LOAD.uid !== user.uid) resetPrivateConfig();
+  PRIVATE_LOAD.uid = user.uid;
+  PRIVATE_LOAD.promise = fsDb.collection("pickem_v14_commissioners").doc("roles").get().then(function(roles) {
+    return loadCommissionerPrivateConfig(roles.exists ? roles.data() : {});
+  }, function(e) {
+    if (e && e.code === "permission-denied") return loadOwnRegistration(user);
+    PRIVATE_LOAD.promise = null; // offline: try again next time
+    return false;
+  }).then(function(r) {
+    ensureCommissionerConfig();
+    return r;
+  });
+  return PRIVATE_LOAD.promise;
+}
+
+function loadOwnRegistration(user) {
+  // Not memoized: the rules let it read this only once the address is confirmed.
+  if (!user.emailVerified || !user.email) { PRIVATE_LOAD.promise = null; return false; }
+  var email = String(user.email).toLowerCase();
+  return fsDb.collection("pickem_v14_registered").doc(email).get().then(function(d) {
+    if (d.exists) {
+      PRIVATE_CONFIG.playerEmailsMap = {};
+      (d.data().memberLows || []).forEach(function(low) { PRIVATE_CONFIG.playerEmailsMap[low] = email; });
+    }
+    return true;
+  }, function() {
+    PRIVATE_LOAD.promise = null;
+    return false;
+  });
+}
+
+function loadCommissionerPrivateConfig(roles) {
+  if (roles.authorizedCommissioners) PRIVATE_CONFIG.authorizedCommissioners = roles.authorizedCommissioners;
+  if (roles.primaryCommissionerEmail) PRIVATE_CONFIG.primaryCommissionerEmail = roles.primaryCommissionerEmail;
+  fsDb.collection("pickem_v14_accounts").get().then(function(snap) {
+    snap.forEach(function(d) {
+      var a = d.data() || {};
+      if (a.uid && a.email) ACCOUNT_EMAIL_BY_UID[a.uid] = String(a.email).toLowerCase();
+    });
+    attachBindingEmails();
+  }, function() {});
+  return new Promise(function(resolve) {
+    var first = true;
+    listenWithRetry("registered emails", function(ok, err) {
+      REGISTERED_UNSUB = fsDb.collection("pickem_v14_registered").onSnapshot({ includeMetadataChanges: true }, ok, err);
+    }, function(snap) {
+      if (snap.metadata && snap.metadata.fromCache) return;
+      var map = {}, cloud = {};
+      snap.forEach(function(d) {
+        var lows = (d.data() || {}).memberLows || [];
+        lows.forEach(function(low) { map[low] = d.id; });
+        cloud[d.id] = lows.slice().sort().join("|");
+      });
+      PRIVATE_CONFIG.playerEmailsMap = map;
+      REGISTERED_CLOUD = cloud;
+      ensureCommissionerConfig();
+      if (first) { first = false; resolve(true); migratePublicEmails(); }
+    }, { quiet: true });
+  }).then(function(r) {
+    syncCommissionerVisibilityDOM();
+    return r;
+  });
+}
+
+// Commissioner: saves what changed in the registered-emails list.
+function syncRegisteredEmails() {
+  if (!REGISTERED_CLOUD || !PRIVATE_CONFIG.playerEmailsMap) return Promise.resolve();
+  var want = {};
+  var flat = flattenEmailMap(PRIVATE_CONFIG.playerEmailsMap);
+  Object.keys(flat).forEach(function(low) { (want[flat[low]] = want[flat[low]] || []).push(low); });
+  var col = fsDb.collection("pickem_v14_registered"), batch = fsDb.batch(), n = 0, next = {};
+  Object.keys(want).forEach(function(email) {
+    next[email] = want[email].slice().sort().join("|");
+    if (REGISTERED_CLOUD[email] !== next[email]) { batch.set(col.doc(email), { memberLows: want[email] }); n++; }
+  });
+  Object.keys(REGISTERED_CLOUD).forEach(function(email) {
+    if (!want[email]) { batch.delete(col.doc(email)); n++; }
+  });
+  if (!n) return Promise.resolve();
+  return batch.commit().then(function() { REGISTERED_CLOUD = next; }, function(e) { reportCloudSaveFailure("registered emails", e); });
+}
+
+// Commissioner: moves emails out of the public docs. Safe to run again; a tab still on old code
+// can only put them back until its next reload, and the next commissioner load removes them.
+async function migratePublicEmails() {
+  if (EMAIL_MIGRATION_STARTED || !REGISTERED_CLOUD || !fsDb || !isVerifiedCommissioner()) return;
+  EMAIL_MIGRATION_STARTED = true;
+  // The public list is about to go, so the private one must really be there.
+  if (!PRIVATE_CONFIG.authorizedCommissioners || !PRIVATE_CONFIG.primaryCommissionerEmail) {
+    reportCloudSaveFailure("the email cleanup", { code: "commissioner-roles-incomplete" });
+    return;
+  }
+  try {
+    var ref = fsDb.collection("pickem_v14").doc("shared_state");
+    var del = firebase.firestore.FieldValue.delete();
+    var first = await ref.get({ source: "server" });
+    var plan = buildEmailMigration(first.exists ? first.data() : {});
+    var col = fsDb.collection("pickem_v14_registered"), regBatch = fsDb.batch(), regCount = 0;
+    Object.keys(plan.registered).forEach(function(email) {
+      if (!REGISTERED_CLOUD[email]) { regBatch.set(col.doc(email), plan.registered[email]); regCount++; }
+    });
+    if (regCount) await regBatch.commit();
+    // Registered first: if this stops here the public copy is still there to try again from.
+    await fsDb.runTransaction(function(tx) {
+      return tx.get(ref).then(function(snap) {
+        var m = buildEmailMigration(snap.exists ? snap.data() : {});
+        if (!m.deletePaths.length && !m.customUsers) return;
+        var args = [ref, "updatedAt", new Date().toISOString()];
+        m.deletePaths.forEach(function(p) { args.push(Reflect.construct(firebase.firestore.FieldPath, p), del); });
+        if (m.customUsers) args.push("customUsers", m.customUsers);
+        tx.update.apply(tx, args);
+      });
+    });
+    var jobs = [];
+    var dropTopLevelEmails = function(snap) {
+      snap.forEach(function(d) {
+        var data = d.data() || {}, patch = {};
+        EMAIL_FIELDS.forEach(function(f) { if (data[f] !== undefined) patch[f] = del; });
+        if (data.archivedBy !== undefined) patch.archivedBy = del;
+        if (Object.keys(patch).length) jobs.push(d.ref.update(patch));
+      });
+    };
+    dropTopLevelEmails(await fsDb.collection("pickem_v14_bindings").get());
+    dropTopLevelEmails(await fsDb.collection("pickem_v14_users").get());
+    (await fsDb.collection("pickem_v14_archives").get()).forEach(function(d) {
+      var r = scrubEmailFields(d.data());
+      if (r.changed) jobs.push(d.ref.set(r.value));
+    });
+    var svc = await fsDb.collection("pickem_v14_commissioners").doc("email_service").get();
+    if (svc.exists && svc.data().updatedBy !== undefined) jobs.push(svc.ref.update({ updatedBy: del }));
+    await Promise.all(jobs);
+  } catch (e) {
+    reportCloudSaveFailure("the email cleanup", e); // tried again on the next commissioner load
+  }
 }
 
 // A binding appeared for this unlinked account (the commissioner approved it): link now.
@@ -168,7 +416,7 @@ function setBindingGuarded(profKey, data, expectedUid) {
 async function recordAccountBinding(profKey, memberName, verifiedBy, who) {
   if (!ACCOUNT_SECURITY_LIVE || !fsDb || !profKey || bindingOwnerUid(profKey)) return true;
   var b = {
-    uid: who.uid, email: String(who.email || "").toLowerCase(), displayName: who.displayName || memberName,
+    uid: who.uid, displayName: who.displayName || memberName,
     memberName: memberName, memberLow: memberLowOf(memberName), boundAt: new Date().toISOString(), verifiedBy: verifiedBy
   };
   try {
@@ -199,6 +447,7 @@ function isMineOwnerValue(owner, uid, email) {
 // { ok: false, status, memberName, message } to leave the account signed in but unlinked.
 async function gateAccountLink(who, targetMember, explicitChoice) {
   await loadBoundAccounts();
+  await loadPrivateConfig();
   var uid = who.uid, email = String(who.email || "").toLowerCase();
   // A removed (archived) player stays removed until a commissioner restores it.
   if (targetMember && isProfileArchived(profileKeyForMember(targetMember)) && !isCommissionerAccountEmail(email, who.emailVerified)) {
@@ -252,7 +501,9 @@ async function gateAccountLink(who, targetMember, explicitChoice) {
     }
     return { ok: true, memberName: ownedMember, checked: true };
   }
-  // 4. Not linked to anyone yet.
+  // 4. Not linked to anyone yet. An unconfirmed address can't see its registration (firestore.rules),
+  //    and shouldn't ask for a player either: confirm it first, then this runs again.
+  if (!who.emailVerified) return { ok: false, status: "verify_email", memberName: targetMember };
   if (mode === "whitelist_strict") return { ok: false, status: "whitelist", memberName: targetMember };
   if (mode === "invite_code_required" && !(await ensureInvitePass(uid))) {
     return { ok: false, status: "needs_invite", memberName: targetMember };
@@ -476,7 +727,7 @@ function unlinkedAccountModalHtml() {
   } else if (status === "claimed") {
     html = card("🔒 Already claimed", '<strong>' + player + '</strong> is already linked to another account. If that\'s you, ask the commissioner to move it to <strong>' + who + '</strong>.') + chooser;
   } else if (status === "verify_email") {
-    html = card("Confirm your email", 'This email is registered for <strong>' + player + '</strong>. Open the verification link we emailed to <strong>' + who + '</strong>, then tap Done.') +
+    html = card("Confirm your email", 'To play as <strong>' + player + '</strong>, confirm your address first. Open the verification link we emailed to <strong>' + who + '</strong>, then tap Done.') +
       '<div class="acct-link-row"><button type="button" class="btn-sm" onclick="recheckEmailVerification()">Done, I verified</button><button type="button" class="btn-sm" onclick="resendVerificationEmail()">Send it again</button></div>';
   } else if (status === "needs_invite") {
     html = card("League invite code", 'This pool needs the invite code from the commissioner before <strong>' + who + '</strong> can join.') +
@@ -534,6 +785,7 @@ var _acctPrevSignOut = signOutAccountInstance;
 signOutAccountInstance = function() {
   if (MY_LINK_REQUEST_WATCH) { try { MY_LINK_REQUEST_WATCH(); } catch (e) {} MY_LINK_REQUEST_WATCH = null; }
   MY_LINK_REQUEST = null;
+  resetPrivateConfig();
   return _acctPrevSignOut.apply(this, arguments);
 };
 
@@ -588,9 +840,10 @@ async function approveLinkRequest(uid) {
   }
   try {
     await setBindingGuarded(key, {
-      uid: r.uid, email: r.authEmail, displayName: r.authDisplayName || r.requestedMember, memberName: r.requestedMember,
+      uid: r.uid, displayName: r.authDisplayName || r.requestedMember, memberName: r.requestedMember,
       memberLow: r.requestedMemberLow || memberLowOf(r.requestedMember), boundAt: new Date().toISOString(), verifiedBy: "commish_approved"
     }, "");
+    if (r.authEmail) ACCOUNT_EMAIL_BY_UID[r.uid] = String(r.authEmail).toLowerCase();
     await fsDb.collection("pickem_v14_link_requests").doc(uid).delete();
   } catch (e) {
     showAppToast("Couldn't approve (" + ((e && e.code) || "error") + "). Are the latest Firestore rules published?");
@@ -611,7 +864,7 @@ function rejectLinkRequest(uid, block) {
   var go = function() {
     fsDb.collection("pickem_v14_link_requests").doc(uid).set({ status: "rejected", decidedAt: new Date().toISOString() }, { merge: true }).then(function() {
       if (block) {
-        ensureCommissionerConfig().blockedUsers[uid] = { email: r.authEmail || "", name: r.authDisplayName || "", blockedAt: new Date().toISOString(), requestedMember: r.requestedMember || "" };
+        ensureCommissionerConfig().blockedUsers[uid] = { name: r.authDisplayName || "", blockedAt: new Date().toISOString(), requestedMember: r.requestedMember || "" };
         saveCommissionerConfigToCloud();
       }
       showAppToast(block ? "Rejected and blocked " + (r.authEmail || "that account") + "." : "Rejected the request from " + (r.authEmail || "that account") + ".");
@@ -635,7 +888,8 @@ function unlinkPlayerAccount(profKey) {
     ]).then(function() {
       var map = ensureCommissionerConfig().playerEmailsMap;
       var low = b.memberLow || memberLowOf(b.memberName);
-      if (low && String(map[low] || "").toLowerCase() === String(b.email || "").toLowerCase()) { delete map[low]; saveCommissionerConfigToCloud(); }
+      // With no account email on hand, clear it anyway: a registration left behind links them right back.
+      if (low && map[low] && (!b.email || String(map[low]).toLowerCase() === String(b.email).toLowerCase())) { delete map[low]; saveCommissionerConfigToCloud(); }
       showAppToast("Unlinked " + name + ".");
       renderCommissionerModalBody();
     }, function(e) { showAppToast("Couldn't unlink (" + ((e && e.code) || "error") + ")."); });
@@ -722,15 +976,15 @@ async function archiveProfile(profKey, reason) {
   // Only the empty row the app added for this player goes; a row with sheet history stays.
   var dropRow = function(pm) { return pm && pm.name === rowName && pm.awaitingSheet && !findLeaderboardEntryByName(pm.name) && !hasSubmittedPicksForCurrentSlate(pm.picks || {}, GAMES); };
   var hadRow = Array.isArray(state.poolMembers) && state.poolMembers.some(dropRow);
-  var who = commishEmailForLog();
 
+  // Who did it goes in the commissioner log below; this record is public.
   await commitCommissionerConfig(function(cfg) {
     if (!cfg.archivedProfiles) cfg.archivedProfiles = {};
     cfg.archivedProfiles[profKey] = {
-      record: JSON.parse(JSON.stringify(cu)),
+      record: scrubEmailFields(cu).value,
       privacy: (state.profilePrivacy && state.profilePrivacy[profKey]) || null,
-      name: cu.name, email: (binding && binding.email) || cu.email || "", uid: (binding && binding.uid) || "",
-      archivedAt: now, archivedBy: who, reason: reason || ""
+      name: cu.name, uid: (binding && binding.uid) || "",
+      archivedAt: now, reason: reason || ""
     };
   });
   logCommishAction("Removed (archived) player " + cu.name, cu.name, reason || "");
@@ -742,7 +996,7 @@ async function archiveProfile(profKey, reason) {
   var jobs = [
     fsDb.collection("pickem_v14").doc("shared_state").set(shared, { merge: true }),
     // ownerUid cleared: the old owner value would let that account re-link itself.
-    fsDb.collection("pickem_v14_users").doc(profKey).set({ archived: true, archivedAt: now, archivedBy: who, ownerUid: "" }, { merge: true })
+    fsDb.collection("pickem_v14_users").doc(profKey).set({ archived: true, archivedAt: now, ownerUid: "" }, { merge: true })
   ];
   if (binding) jobs.push(fsDb.collection("pickem_v14_bindings").doc(profKey).delete());
   await Promise.all(jobs);
@@ -834,7 +1088,7 @@ async function mergeProfileInto(dupKey, targetName) {
   try { var ds = await fsDb.collection("pickem_v14_users").doc(dupKey).get(); dupDoc = ds && ds.exists ? ds.data() : {}; } catch (e) {}
   var uid = (dupBinding && dupBinding.uid) || cu.ownerUid || dupDoc.ownerUid || "";
   if (/^email_/.test(uid)) uid = ""; // old-style owner value, not an account id
-  var email = String((dupBinding && dupBinding.email) || cu.email || "").toLowerCase();
+  var email = String((dupBinding && dupBinding.email) || ACCOUNT_EMAIL_BY_UID[uid] || "").toLowerCase();
   var targetOwner = bindingOwnerUid(targetKey);
   if (targetOwner && uid && targetOwner !== uid) { showAppToast(shownTarget + " is linked to a different account. Unlink it first."); return; }
 
@@ -880,7 +1134,7 @@ async function mergeProfileInto(dupKey, targetName) {
       }
       if (uid && ACCOUNT_SECURITY_LIVE) {
         jobs.push(setBindingGuarded(targetKey, {
-          uid: uid, email: email, displayName: (dupBinding && dupBinding.displayName) || cu.name, memberName: rosterDisplayName(targetName),
+          uid: uid, displayName: (dupBinding && dupBinding.displayName) || cu.name, memberName: rosterDisplayName(targetName),
           memberLow: targetLow, boundAt: now, verifiedBy: "commish_approved"
         }, bindingOwnerUid(targetKey)));
       }

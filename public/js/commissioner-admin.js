@@ -58,6 +58,7 @@ function ensureMondayLockedOddsOnGames(forceRefreshAll) {
 var _origEnsureCommissionerConfigV166 = ensureCommissionerConfig;
 ensureCommissionerConfig = function() {
   var cfg = _origEnsureCommissionerConfigV166();
+  if (typeof applyPrivateConfig === "function") applyPrivateConfig(cfg);
   if (!cfg.primaryCommissionerEmail) {
     cfg.primaryCommissionerEmail = "commissioner@separatedatturf.com";
   }
@@ -130,6 +131,8 @@ function syncCommissionerVisibilityDOM() {
 
 function syncCommissionerRolesToFirestore() {
   if (!isVerifiedCommissioner()) return;
+  // Until the real list has loaded this device only has built-in defaults, and this replaces the doc.
+  if (!PRIVATE_CONFIG.authorizedCommissioners) { showAppToast("Commissioner roles are still loading. Try again in a moment."); return; }
   var cfg = ensureCommissionerConfig();
   saveCommissionerConfigToCloud();
   if (fsDb) {
@@ -162,6 +165,7 @@ function commishUpdatePrimaryEmail() {
     return;
   }
   var cfg = ensureCommissionerConfig();
+  PRIVATE_CONFIG.primaryCommissionerEmail = newEmail;
   cfg.primaryCommissionerEmail = newEmail;
   cfg.authorizedCommissioners[newEmail] = {
     role: "primary",
@@ -551,7 +555,7 @@ function addLinkedBuyInEntryFromInput(inputId) {
     rawName = (AUTH_SESSION.linkedMemberName || AUTH_SESSION.displayName || "Player") + " #" + (entries.length + 1);
   }
   var stdName = standardizeParticipantName(rawName);
-  var resolved = resolveOrCreateProfileForMember(stdName, stdName, AUTH_SESSION.uid || "", AUTH_SESSION.email || "");
+  var resolved = resolveOrCreateProfileForMember(stdName, stdName, AUTH_SESSION.uid || "");
 
   // Ensure the new buy-in entry is also on the pool roster if not already there
   if (!findPoolMemberByName(stdName)) {
@@ -571,7 +575,7 @@ function addLinkedBuyInEntryFromInput(inputId) {
       rank: String(state.leaderboard.length + 1),
       name: stdName,
       priorPts: 0,
-      note: "Linked Buy-In (" + (AUTH_SESSION.email || "Multi-Entry") + ")"
+      note: "Linked Buy-In"
     });
   }
 

@@ -310,7 +310,6 @@ async function saveAndSendPickConfirmationReceipt() {
   // If user is in Guest Mode and hasn't created an account yet, prompt them to enter an email or create an account while keeping their picks!
   var meta = getProfileDisplayMeta(activeProfile);
   var shownName = fixDisplaySpelling(meta.name); // Kinyion C -> Kinyon Cooper
-  var userEmail = (AUTH_SESSION && AUTH_SESSION.email) || cfg.playerEmailsMap[standardizeParticipantName(meta.name).toLowerCase()] || "";
 
   saveCurrentState(activeProfile, false);
   var nowTime = new Date().toLocaleTimeString("en-US", { timeZone: "America/Chicago", hour: "numeric", minute: "2-digit" }) + " CST";
@@ -331,7 +330,6 @@ async function saveAndSendPickConfirmationReceipt() {
 
   cfg.savedReceiptsLog[activeProfile] = {
     player: meta.name,
-    email: userEmail || "Saved in Cloud Firestore",
     sentAt: nowTime,
     tiebreaker: tb,
     editableUntil: pickDeadlineLabel()
@@ -694,6 +692,9 @@ function applyCommissionerConfigChanges(cfg, changes) {
 // doc hasn't been read yet) the whole config is written. Only commissioners can write it
 // (firestore.rules). Resolves once saved; the cloud copy then includes these changes.
 function writeCommissionerConfigChanges(base, next) {
+  // Private fields never go to this public doc (account-security.js keeps them elsewhere).
+  base = base ? publicConfigOf(base) : base;
+  next = publicConfigOf(next);
   var ref = fsDb.collection("pickem_v14").doc("shared_state");
   var now = new Date().toISOString();
   var whole = function() { return ref.set({ commissionerConfig: next, updatedAt: now }, { merge: true }); };
@@ -732,7 +733,7 @@ function saveCommissionerConfigToCloud() {
   if (!(typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner())) job = Promise.reject({ code: "not-commissioner" });
   else if (!fsDb) job = Promise.reject({ code: "offline" });
   else if (isApplyingRemoteUpdate) job = Promise.reject({ code: "remote-update-in-progress" });
-  else job = writeCommissionerConfigChanges(CLOUD_COMMISSIONER_CONFIG, state.commissionerConfig);
+  else job = Promise.all([writeCommissionerConfigChanges(CLOUD_COMMISSIONER_CONFIG, state.commissionerConfig), syncRegisteredEmails()]);
   // Handled here so callers that ignore the promise cause no unhandled rejection. Players hit
   // "not-commissioner" on every pick receipt, so that skip is silent.
   job.then(function() { pushKickoffLocksToFirebase(); }, function(e) { if (!e || e.code !== "not-commissioner") reportCloudSaveFailure("commissioner settings", e); });

@@ -63,12 +63,14 @@ Hosting/Actions use service accounts, so none of them are limited by these rules
 |---|---|---|
 | `pickem_v14/shared_state` (pool) | everyone | commissioner: anything. Signed-in, unblocked player: the profile registry, privacy settings, and the one profile named in `lastProfileWriter`, only if that profile is bound to them |
 | `pickem_v14_users/{profile}` (a player's picks) | everyone | the account bound to that profile, or a commissioner |
-| `pickem_v14_bindings/{profile}` (which account plays a player) | everyone | commissioner (approve, unlink). A player creates their own only when: the commissioner registered their Google-verified email for that roster player (`playerEmailsMap`), the pick doc already named them as `ownerUid`, or (invite-code season) they're a new player with an invite pass |
+| `pickem_v14_bindings/{profile}` (which account plays a player; no email) | everyone | commissioner (approve, unlink). A player creates their own only when: the commissioner registered their Google-verified email for that roster player (`pickem_v14_registered`), the pick doc already named them as `ownerUid`, or (invite-code season) they're a new player with an invite pass |
 | `pickem_v14_link_requests/{uid}` | that account, commissioner | that account files/cancels it (status `pending` only); commissioner decides |
 | `pickem_v14_security/invite` (league invite code, `expiresAtTs`, `revoked`) | commissioner | commissioner |
 | `pickem_v14_invite_passes/{uid}` | that account, commissioner | that account, only with the current code of a live link (not revoked, not past `expiresAtTs`) |
 | `pickem_v14_accounts/{email_…}` (email, linked player, rivals) | owner, commissioner | owner, commissioner; no password hashes |
-| `pickem_v14_commissioners/*` | everyone | commissioner |
+| `pickem_v14_registered/{email}` (`memberLows`: the players this address may claim) | that confirmed address, commissioner | commissioner |
+| `pickem_v14_commissioners/roles` (commissioner emails) | commissioner | commissioner |
+| `pickem_v14_commissioners/email_service` | everyone | commissioner |
 | `pickem_v14_email_log` | commissioner | nobody (Apps Script only) |
 | `pickem_v14_commish_log` (commissioner action log) | commissioner | commissioner: add entries under their own email; no edits or deletes |
 | `live_games/*` | everyone | commissioners from the app; the GitHub jobs write as the `FIRESTORE_SERVICE_ACCOUNT` service account |

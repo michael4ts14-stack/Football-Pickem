@@ -97,6 +97,16 @@ test("losing the connection later doesn't unlink the account", async () => {
   assert.deepStrictEqual(log, []);
 });
 
+test("an unconfirmed address is asked to confirm before any link request is filed", async () => {
+  const { ctx, log } = load();
+  ctx.loadBoundAccounts();
+  ctx.emit(snap({}, false));
+  const res = await ctx.gateAccountLink({ uid: UID, email: "k@example.com", emailVerified: false, displayName: "Kinyon" }, "Kinyion C", false);
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.status, "verify_email");
+  assert.deepStrictEqual(log, []);
+});
+
 test("the commissioner really removing the link still unlinks the account", async () => {
   const { ctx, log } = load();
   ctx.loadBoundAccounts();

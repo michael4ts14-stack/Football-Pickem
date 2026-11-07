@@ -332,6 +332,7 @@ function syncPrivatePicksWatch() {
   var sig = all ? "all" : keys.join(",");
   if (isCommish) {
     migrateExposedHiddenPicks();
+    if (typeof migratePublicEmails === "function") migratePublicEmails();
     // A slate the bot posted has no current locks until a commissioner's device writes them.
     if (CLOUD_HYDRATED && KICKOFF_LOCKS_DOC) pushKickoffLocksToFirebase();
   }
@@ -451,7 +452,7 @@ function applyRemotePickDoc(docId, uData) {
     for (var c = 0; c < state.customUsers.length; c++) {
       if (state.customUsers[c].key === docId) {
         existsCu = true;
-        if (uData.linkedMemberName) state.customUsers[c].linkedMemberName = uData.linkedMemberName;
+        if (uData.linkedMemberName) state.customUsers[c].linkedMemberName = boundMemberName(docId) || uData.linkedMemberName;
         if (uData.displayName) state.customUsers[c].name = uData.displayName;
         invalidateDuesRosterCache();
         break;
@@ -461,10 +462,10 @@ function applyRemotePickDoc(docId, uData) {
       state.customUsers.push({
         key: docId,
         name: uData.displayName || uData.linkedMemberName,
-        linkedMemberName: uData.linkedMemberName || uData.displayName,
+        linkedMemberName: pickDocMemberName(docId, uData),
         priorPts: parseFloat(uData.priorPts) || 0,
         rank: uData.rank || "Linked",
-        color: uData.color || "#10b981",
+        color: safeProfileColor(uData.color),
         ownerUid: uData.ownerUid || ""
       });
     }
@@ -477,9 +478,9 @@ function applyRemotePickDoc(docId, uData) {
   var liveWeek = parseInt(viewingArchive ? LIVE_WEEK_SNAPSHOT.currentWeek : state.currentWeek, 10) || 0;
   var hasLivePicks = hasSubmittedPicksForCurrentSlate(uData.picks, liveGames);
   var isClearedDoc = !!(uData._picksCleared && !hasLivePicks && liveWeek && parseInt(uData.currentWeek, 10) === liveWeek);
-  var linkedLow = standardizeParticipantName(uData.linkedMemberName || uData.displayName || "").toLowerCase();
+  var linkedLow = standardizeParticipantName(pickDocMemberName(docId, uData)).toLowerCase();
   // A duplicate profile's state says nothing about the player's real picks.
-  if (isDuplicateProfileKey(docId, uData.linkedMemberName || uData.displayName || "")) linkedLow = "";
+  if (isDuplicateProfileKey(docId, pickDocMemberName(docId, uData))) linkedLow = "";
   if (isClearedDoc) {
     if (!state.deletedPicksByMember) state.deletedPicksByMember = {};
     if (linkedLow) state.deletedPicksByMember[linkedLow] = true;

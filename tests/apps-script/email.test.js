@@ -45,6 +45,7 @@ function service(opts) {
     cloud: cloud(opts.cloudOver),
     docs: Object.assign({
       ["pickem_v14_accounts/email_" + PLAYER.replace(/[^a-z0-9]/g, "_")]: { uid: "uid-player", boundProfileKey: "playerKey", linkedMemberName: "Player One" },
+      "pickem_v14_bindings/playerKey": { uid: "uid-player", memberName: "Player One" },
     }, opts.docs || {}),
     extraFetch: (url, params) => {
       if (url.indexOf("identitytoolkit.googleapis.com") !== -1) {
@@ -121,6 +122,7 @@ test("a hidden player's receipt uses their private picks", () => {
     cloudOver: { playerKey: { picks: {}, tiebreaker: "", picksPrivate: true } },
     docs: {
       ["pickem_v14_accounts/email_" + PLAYER.replace(/[^a-z0-9]/g, "_")]: { uid: "uid-player", boundProfileKey: "playerKey", linkedMemberName: "Player One" },
+      "pickem_v14_bindings/playerKey": { uid: "uid-player", memberName: "Player One" },
       "pickem_v14_private_picks/playerKey": { picks: { 1: "Texas Tech", 2: "Iowa" }, tiebreaker: "20-10" },
     },
   });
@@ -251,7 +253,7 @@ test("Kinyon Cooper's name is shown right in emails", () => {
 });
 
 test("nudge: emails app accounts of players missing picks, skips players who picked in the app", () => {
-  const acctDoc = (email, member, key) => ({ fields: { email: { stringValue: email }, linkedMemberName: { stringValue: member }, boundProfileKey: { stringValue: key } } });
+  const acctDoc = (email, member, key) => ({ fields: { uid: { stringValue: "uid-" + key }, email: { stringValue: email }, linkedMemberName: { stringValue: member }, boundProfileKey: { stringValue: key } } });
   const h = service({
     scriptProps: { BROADCASTS_ENABLED: "true" },
     cloudOver: {
@@ -271,6 +273,10 @@ test("nudge: emails app accounts of players missing picks, skips players who pic
       if (url.indexOf("/pickem_v14_accounts?pageSize") !== -1) {
         return makeResponse(200, { documents: [acctDoc(PLAYER, "Player One", "noPicksKey"), acctDoc("picker@example.com", "App Picker", "appPickerKey")] });
       }
+      if (url.indexOf("/pickem_v14_bindings?pageSize") !== -1) {
+        const bound = (key) => ({ name: "x/pickem_v14_bindings/" + key, fields: { uid: { stringValue: "uid-" + key } } });
+        return makeResponse(200, { documents: [bound("noPicksKey"), bound("appPickerKey")] });
+      }
       return null;
     },
   });
@@ -287,4 +293,91 @@ test("nudge: nobody reachable is an error, and today's nudge isn't marked as sen
   assert.match(r.error, /None of the 1 players/);
   assert.strictEqual(h.sentMail.length, 0);
   assert.ok(!Object.keys(h.scriptProps.store).some((k) => k.indexOf("WED_THU_NUDGE_SENT_") === 0));
+});
+
+// ---------- A receipt only ever holds the caller's own picks ----------
+const HIDDEN = { picks: { 1: "Texas Tech", 2: "Ohio State" }, tiebreaker: "10-7", ownerUid: "uid-victim" };
+
+test("receipt: naming someone else's player in your own account doc gets you nothing", () => {
+  const h = service({ docs: {
+    ["pickem_v14_accounts/email_" + PLAYER.replace(/[^a-z0-9]/g, "_")]: { uid: "uid-player", boundProfileKey: "victimKey", linkedMemberName: "Victim" },
+    "pickem_v14_bindings/victimKey": { uid: "uid-victim", memberName: "Victim" },
+    "pickem_v14_private_picks/victimKey": HIDDEN,
+  } });
+  const r = post(h, { action: "sendPickReceipt", idToken: token("uid-player") });
+  assert.strictEqual(r.code, "NO_PROFILE");
+  assert.strictEqual(h.sentMail.length, 0);
+});
+
+test("receipt: a player nobody is bound to can't be claimed from an account doc", () => {
+  const h = service({ docs: {
+    ["pickem_v14_accounts/email_" + PLAYER.replace(/[^a-z0-9]/g, "_")]: { uid: "uid-player", boundProfileKey: "freeKey" },
+    "pickem_v14_private_picks/freeKey": HIDDEN,
+  } });
+  assert.strictEqual(post(h, { action: "sendPickReceipt", idToken: token("uid-player") }).code, "NO_PROFILE");
+  assert.strictEqual(h.sentMail.length, 0);
+});
+
+test("receipt: a stale key in your account doc still gets you your own picks", () => {
+  const h = service({ docs: {
+    ["pickem_v14_accounts/email_" + PLAYER.replace(/[^a-z0-9]/g, "_")]: { uid: "uid-player", boundProfileKey: "u_buyin", linkedMemberName: "Player One" },
+    "pickem_v14_bindings/playerKey": { uid: "uid-player", memberName: "Player One" },
+    "pickem_v14_private_picks/u_buyin": HIDDEN,
+  } });
+  const r = post(h, { action: "sendPickReceipt", idToken: token("uid-player") });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.match(h.sentMail[0].body, /Arizona/);
+  assert.doesNotMatch(h.sentMail[0].body, /10-7/);
+});
+
+test("receipt: your own hidden picks still arrive", () => {
+  const h = service({ docs: {
+    ["pickem_v14_accounts/email_" + PLAYER.replace(/[^a-z0-9]/g, "_")]: { uid: "uid-player", boundProfileKey: "playerKey", linkedMemberName: "Player One" },
+    "pickem_v14_bindings/playerKey": { uid: "uid-player", memberName: "Player One" },
+    "pickem_v14_private_picks/playerKey": { picks: { 1: "Texas Tech", 2: "Ohio State" }, tiebreaker: "10-7" },
+  } });
+  const r = post(h, { action: "sendPickReceipt", idToken: token("uid-player") });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.match(h.sentMail[0].body, /Texas Tech/);
+});
+
+test("nudge: an account doc naming a player it isn't bound to neither gets their email nor hides them", () => {
+  const acctDoc = (uid, email, member, key) => ({ fields: { uid: { stringValue: uid }, email: { stringValue: email }, linkedMemberName: { stringValue: member }, boundProfileKey: { stringValue: key } } });
+  const h = service({
+    scriptProps: { BROADCASTS_ENABLED: "true" },
+    cloudOver: { poolMembers: [{ name: "Victim", picks: {}, awaitingSheet: true }], playerKey: { picks: { 1: "Arizona", 2: "Iowa" } } },
+    extraFetch: (url, params) => {
+      if (url.indexOf("identitytoolkit") !== -1) {
+        const claims = JSON.parse(Buffer.from(JSON.parse(params.payload).idToken.split(".")[1], "base64").toString());
+        return makeResponse(200, { users: [USERS[claims.user_id]] });
+      }
+      if (url.indexOf("/pickem_v14_accounts?pageSize") !== -1) return makeResponse(200, { documents: [acctDoc("uid-player", "spam-target@example.com", "Victim", "noPicks")] });
+      if (url.indexOf("/pickem_v14_bindings?pageSize") !== -1) return makeResponse(200, { documents: [] });
+      return null;
+    },
+  });
+  const r = post(h, { action: "sendWedThuNudge", idToken: token("uid-commish") });
+  assert.strictEqual(r.code, "NO_RECIPIENTS");
+  assert.strictEqual(h.sentMail.length, 0);
+});
+
+// ---------- Registered player emails live in a private collection ----------
+test("nudge: a registered email from the private collection reaches a player missing picks", () => {
+  const h = service({
+    scriptProps: { BROADCASTS_ENABLED: "true" },
+    cloudOver: { poolMembers: [{ name: "Steve M", picks: {}, awaitingSheet: true }] },
+    extraFetch: (url, params) => {
+      if (url.indexOf("identitytoolkit") !== -1) {
+        const claims = JSON.parse(Buffer.from(JSON.parse(params.payload).idToken.split(".")[1], "base64").toString());
+        return makeResponse(200, { users: [USERS[claims.user_id]] });
+      }
+      if (url.indexOf("/pickem_v14_registered?pageSize") !== -1) {
+        return makeResponse(200, { documents: [{ name: "projects/p/databases/(default)/documents/pickem_v14_registered/steve@example.com", fields: { memberLows: { arrayValue: { values: [{ stringValue: "steve m" }] } } } }] });
+      }
+      return null;
+    },
+  });
+  const r = post(h, { action: "sendWedThuNudge", idToken: token("uid-commish") });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(h.sentMail.map((m) => m.to), ["steve@example.com"]);
 });

@@ -98,7 +98,9 @@ function emergencyStopEmailLoopAndCleanState() {
 
   // 3. Inspect Firestore shared_state: if lastScrapedFile was self-generated, clean it!
   try {
-    var cloud = fetchFirebaseNode("") || {};
+    var cloud = fetchFirebaseNode("");
+    // Saving a config built from a failed read would replace all the commissioner's settings.
+    if (!cloud) throw new Error("couldn't read the pool, so the settings were left unchanged");
     var lastFile = String(cloud.lastScrapedFile || "").toLowerCase();
     var cfg = cloud.commissionerConfig || {};
     cfg.lastSatSheetSentWeek = curWeek;
@@ -273,7 +275,23 @@ function runMasterPickemEmailBot(forceRescan) {
   }
 }
 
+var BOT_OFFICIAL_SENDER = "separatedatturf@gmail.com";
+var BOT_FORMS_SENDER = "forms-receipts-noreply@google.com";
+
+// "Any Text <addr>" or a bare addr -> addr, lower-cased.
+function senderAddress_(from) {
+  var s = String(from || "").trim();
+  var m = s.match(/<([^<>]*)>\s*$/);
+  return (m ? m[1] : s).trim().toLowerCase();
+}
+
 function runMasterPickemEmailBotLocked_(forceRescan) {
+  // A failed read must stop the run: working from an empty pool would replace the real one.
+  var currentCloud = fetchFirebaseNode("");
+  if (!currentCloud) {
+    recordBotError_("Couldn't read the pool; nothing imported this run");
+    return { ok: false, skipped: true, reason: "Couldn't read the pool", updatedAt: new Date().toISOString() };
+  }
   var props = PropertiesService.getUserProperties();
   var processedIds = forceRescan ? {} : JSON.parse(props.getProperty("PROCESSED_MSG_IDS") || "{}");
   // Quota protection: prune old keys so UserProperties value never exceeds the 9KB limit
@@ -288,7 +306,6 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
   var query = '(from:separatedatturf@gmail.com OR subject:"College Pick\'em" OR "Separated at Turf") -from:me -in:sent -in:drafts -subject:"Official Master" -subject:"Master Pick\'em Spreadsheet" -subject:"Confirmation Receipt" -subject:"Picks Nudge" newer_than:10d';
   var threads = GmailApp.search(query, 0, 20);
 
-  var currentCloud = fetchFirebaseNode("") || {};
   var activeGames = (currentCloud && currentCloud.customGames && currentCloud.customGames.length)
     ? currentCloud.customGames
     : getDefaultWeek7GamesFallback();
@@ -337,7 +354,10 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
       // TARGET OFFICIAL LEAGUE SPREADSHEET: "College Pick'em '26 - Week 8 Spreadsheet"
       var isOfficialSpreadsheetSubject = (subjectLow.indexOf("college pick'em") !== -1 && subjectLow.indexOf("spreadsheet") !== -1) ||
                                          (subjectLow.indexOf("separated at turf") !== -1 && subjectLow.indexOf("spreadsheet") !== -1);
-      var isFromOfficialOrg = (senderRaw.indexOf("separatedatturf@gmail.com") !== -1) || isOfficialSpreadsheetSubject;
+      // The address only: a subject line or display name can say anything, and this bot writes
+      // past the security rules.
+      var senderAddr = senderAddress_(msg.getFrom());
+      var isFromOfficialOrg = senderAddr === BOT_OFFICIAL_SENDER;
 
       if (isOfficialSpreadsheetSubject) {
         Logger.log("🎯 FOUND TARGET SPREADSHEET EMAIL: " + subject + " from " + senderRaw + " (" + attachments.length + " attachments)");
@@ -564,7 +584,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
       // ----------------------------------------------------------------------
       // PIPELINE 4: Check for Individual Pick Confirmation Emails
       // ----------------------------------------------------------------------
-      var isReceiptSender = senderRaw.indexOf("forms-receipts-noreply@google.com") !== -1 || isFromOfficialOrg;
+      var isReceiptSender = senderAddr === BOT_FORMS_SENDER || isFromOfficialOrg;
       if (isReceiptSender && activeGames && activeGames.length > 0 && attachments.length === 0) {
         var pickResult = parsePicksFromEmailText(plainBody, activeGames);
         if (pickResult.matchedCount >= 15) {
@@ -1429,7 +1449,7 @@ function detectProfileOwner(subject, body, sender, currentCloud) {
   }
 
   // Match against playerEmailsMap in commissionerConfig
-  var emMap = (currentCloud && currentCloud.commissionerConfig && currentCloud.commissionerConfig.playerEmailsMap) || {};
+  var emMap = registeredPlayerEmails_(currentCloud);
   for (var nameKey in emMap) {
     var regEmail = String(emMap[nameKey] || "").toLowerCase();
     if (regEmail && senderLow.indexOf(regEmail) !== -1) {

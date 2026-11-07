@@ -518,3 +518,88 @@ test("a sheet with no points column can't wipe the standings; one real 0 goes th
   assert.strictEqual(ctx.keepRealLeaderboard_(corrected, real), corrected);
   assert.strictEqual(ctx.keepRealLeaderboard_(blank, []), blank);
 });
+
+// ---------- Who the bot believes (it writes with the owner's login, past the security rules) ----------
+const FORGED = '"separatedatturf@gmail.com" <attacker@example.com>';
+
+test("senderAddress_ reads the address itself, whatever the display text says", () => {
+  const h = loadBot({ cloud: baseCloud() });
+  assert.strictEqual(h.ctx.senderAddress_("Separated At Turf <SeparatedAtTurf@gmail.com>"), "separatedatturf@gmail.com");
+  assert.strictEqual(h.ctx.senderAddress_("separatedatturf@gmail.com"), "separatedatturf@gmail.com");
+  assert.strictEqual(h.ctx.senderAddress_(FORGED), "attacker@example.com");
+});
+
+test("a sheet with the official subject from a stranger is not imported", () => {
+  const email = {
+    id: "m-evil-1", from: "Stranger <attacker@example.com>", subject: "College Pick'em '26 - Week 9 Spreadsheet", body: "",
+    attachments: [csvAttachment("College Pick'em '26 - Week 9.csv", officialSheet())],
+  };
+  const h = loadBot({ cloud: baseCloud({ customGames: sheetSlate, officialSheetSyncedForWeek: 8 }), threads: [fakeThread([email])] });
+  h.ctx.runMasterPickemEmailBot(false);
+  assert.strictEqual(sharedStateWrites(h).filter((w) => w.poolMembers).length, 0);
+});
+
+test("the official address in a forged display name is not trusted", () => {
+  const sheet = {
+    id: "m-evil-2", from: FORGED, subject: "College Pick'em '26 - Week 9 Spreadsheet", body: "",
+    attachments: [csvAttachment("College Pick'em '26 - Week 9.csv", officialSheet())],
+  };
+  const standings = {
+    id: "m-evil-3", from: FORGED, subject: "Separated at Turf Week 9 Standings",
+    body: "Overall Standings\n1. Adam L 120\n2. Bob K 118\n3. Cat M 117\n4. Dee N 110\n5. Eve O 100\n6. Fay P 99",
+  };
+  const h = loadBot({ cloud: baseCloud({ customGames: sheetSlate, officialSheetSyncedForWeek: 8 }), threads: [fakeThread([sheet, standings])] });
+  h.ctx.runMasterPickemEmailBot(false);
+  assert.deepStrictEqual(sharedStateWrites(h).filter((w) => w.poolMembers || w.leaderboard), []);
+});
+
+test("a forged form email can't start a new week", () => {
+  const email = { id: "m-evil-4", from: FORGED, subject: "Separated at Turf Week 10 Pick'em Form Is Live", body: "Week 10 https://docs.google.com/forms/d/e/abc123/viewform" };
+  const h = loadBot({ cloud: baseCloud(), threads: [fakeThread([email])] });
+  h.ctx.runMasterPickemEmailBot(false);
+  assert.deepStrictEqual(sharedStateWrites(h).filter((w) => w.currentWeek), []);
+});
+
+test("a forged Google Forms receipt can't change anyone's picks", () => {
+  const games = slate(23);
+  const body = "Michael A\n" + games.map((g) => g.away + " at " + g.home + ": " + g.away).join("\n");
+  const email = { id: "m-evil-5", from: '"forms-receipts-noreply@google.com" <attacker@example.com>', subject: "Your picks", body };
+  const h = loadBot({ cloud: baseCloud({ customGames: games }), threads: [fakeThread([email])] });
+  h.ctx.runMasterPickemEmailBot(false);
+  assert.deepStrictEqual(h.patches().filter((c) => /pickem_v14_users|private_picks/.test(c.url)), []);
+});
+
+test("the real sheet from the official address still imports", () => {
+  const email = {
+    id: "m-real-1", subject: "College Pick'em '26 - Week 9 Spreadsheet", body: "",
+    attachments: [csvAttachment("College Pick'em '26 - Week 9.csv", officialSheet())],
+  };
+  const h = loadBot({ cloud: baseCloud({ customGames: sheetSlate, officialSheetSyncedForWeek: 8 }), threads: [fakeThread([email])] });
+  h.ctx.runMasterPickemEmailBot(false);
+  assert.strictEqual(sharedStateWrites(h).filter((w) => w.poolMembers).length, 1);
+});
+
+// ---------- A failed read must never look like an empty pool ----------
+function failingRead() {
+  return (url, params) => (url.indexOf("pickem_v14/shared_state") !== -1 && (params.method || "get").toLowerCase() === "get")
+    ? { getResponseCode: () => 503, getContentText: () => "unavailable" } : null;
+}
+
+test("the Gmail bot writes nothing when the pool can't be read", () => {
+  const email = {
+    id: "m-503", subject: "College Pick'em '26 - Week 9 Spreadsheet", body: "Overall Standings\n1. Adam L 120\n2. Bob K 118\n3. Cat M 117\n4. Dee N 110\n5. Eve O 100\n6. Fay P 99",
+    attachments: [csvAttachment("College Pick'em '26 - Week 9.csv", officialSheet())],
+  };
+  const h = loadBot({ cloud: baseCloud(), threads: [fakeThread([email])], extraFetch: failingRead() });
+  const out = h.ctx.runMasterPickemEmailBot(false);
+  assert.strictEqual(out.ok, false);
+  assert.deepStrictEqual(sharedStateWrites(h), []);
+  assert.deepStrictEqual(h.patches().filter((c) => c.url.indexOf("bot_status") === -1), []);
+  assert.strictEqual(h.userProps.getProperty("PROCESSED_MSG_IDS"), null);
+});
+
+test("the emergency stop doesn't replace the settings when the pool can't be read", () => {
+  const h = loadBot({ cloud: baseCloud(), extraFetch: failingRead() });
+  h.ctx.emergencyStopEmailLoopAndCleanState();
+  assert.deepStrictEqual(sharedStateWrites(h).filter((w) => w.commissionerConfig), []);
+});

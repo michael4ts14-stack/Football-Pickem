@@ -41,8 +41,7 @@ function saveEmailServiceUrl(url) {
   if (url === EMAIL_SERVICE.url && EMAIL_SERVICE.fromFirestore) return Promise.resolve("");
   return fsDb.collection(EMAIL_SERVICE_DOC_PATH[0]).doc(EMAIL_SERVICE_DOC_PATH[1]).set({
     webAppUrl: url,
-    updatedAt: new Date().toISOString(),
-    updatedBy: (AUTH_SESSION && AUTH_SESSION.email) || ""
+    updatedAt: new Date().toISOString()
   }, { merge: true }).then(function() { applyEmailServiceUrl(url, true); return "Saved for everyone."; },
     function(err) { return "Couldn't save: " + ((err && err.message) || err); });
 }

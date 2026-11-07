@@ -23,6 +23,23 @@ var BLIND_MODE = false;
 var SESSION_UNLOCKED_PROFILES = { michael: true, kinyion: true, test: true };
 var EXPLICITLY_VIEW_UNLOCKED_PROFILES = {};
 
+// ---------- Who a profile plays ----------
+// Players write their own pick doc and registry entry, so once a profile has a binding, the
+// binding decides. Otherwise a player could put their picks on another player's row.
+function boundMemberName(profKey) {
+  var b = typeof BOUND_ACCOUNTS !== "undefined" && BOUND_ACCOUNTS[profKey];
+  return (b && b.memberName) || "";
+}
+
+function pickDocMemberName(docId, uData) {
+  return boundMemberName(docId) || uData.linkedMemberName || uData.displayName || "";
+}
+
+// Stored colors go into style attributes, so only a plain hex value gets through.
+function safeProfileColor(c) {
+  return /^#[0-9a-fA-F]{3,8}$/.test(String(c || "")) ? c : "#10b981";
+}
+
 function getProfileLinkedToMemberName(memberName) {
   if (!memberName) return null;
   var target = standardizeParticipantName(memberName).toLowerCase();
@@ -33,7 +50,7 @@ function getProfileLinkedToMemberName(memberName) {
     if (linked && standardizeParticipantName(linked).toLowerCase() === target) {
       return pf;
     }
-    if (!pf.isBuiltIn && standardizeParticipantName(pf.name).toLowerCase() === target) {
+    if (!pf.isBuiltIn && !boundMemberName(pf.key) && standardizeParticipantName(pf.name).toLowerCase() === target) {
       return pf;
     }
   }
@@ -95,6 +112,7 @@ function findLeaderboardEntryByName(memberName) {
 }
 
 function getLinkedMemberNameForProfile(profKey) {
+  if (boundMemberName(profKey)) return boundMemberName(profKey);
   if (profKey === "michael") {
     return (state.michael && state.michael.linkedMemberName !== undefined) ? state.michael.linkedMemberName : "Michael A";
   }
@@ -287,8 +305,8 @@ function isProfileArchived(key, cfgOverride) {
 }
 
 function getAllUserProfiles() {
-  var mLinked = (state.michael && state.michael.linkedMemberName !== undefined) ? state.michael.linkedMemberName : "Michael A";
-  var kLinked = (state.kinyion && state.kinyion.linkedMemberName !== undefined) ? state.kinyion.linkedMemberName : "Kinyon C";
+  var mLinked = boundMemberName("michael") || ((state.michael && state.michael.linkedMemberName !== undefined) ? state.michael.linkedMemberName : "Michael A");
+  var kLinked = boundMemberName("kinyion") || ((state.kinyion && state.kinyion.linkedMemberName !== undefined) ? state.kinyion.linkedMemberName : "Kinyon C");
   var tLinked = (state.test && state.test.linkedMemberName) ? state.test.linkedMemberName : "";
 
   var mLb = findLeaderboardEntryByName(mLinked || "Michael A");
@@ -303,20 +321,20 @@ function getAllUserProfiles() {
     for (var i = 0; i < state.customUsers.length; i++) {
       var cu = state.customUsers[i];
       if (!cu || !cu.key || !cu.name) continue;
-      var cuLinked = cu.linkedMemberName !== undefined ? cu.linkedMemberName : cu.name;
+      var cuLinked = boundMemberName(cu.key) || (cu.linkedMemberName !== undefined ? cu.linkedMemberName : cu.name);
       var cuLb = cuLinked ? findLeaderboardEntryByName(cuLinked) : null;
       list.push({
         key: cu.key,
         name: cu.name,
         shortName: cu.name.slice(0, 8),
         icon: "👤",
-        color: cu.color || "#10b981",
+        color: safeProfileColor(cu.color),
         tabClass: "active-custom",
         btnClass: "c-active",
         selClass: "selected-custom",
         tagClass: "p-tag-custom",
         priorPts: cuLb ? (parseFloat(cuLb.priorPts) || parseFloat(cu.priorPts) || 0) : (parseFloat(cu.priorPts) || 0),
-        defaultRank: (cuLb && cuLb.rank) ? cuLb.rank : (cu.rank || "Linked"),
+        defaultRank: (cuLb && cuLb.rank) ? cuLb.rank : String(cu.rank || "Linked").replace(/[<>"'&]/g, ""),
         linkedMemberName: cuLinked,
         isBuiltIn: false
       });
@@ -627,7 +645,15 @@ function saveRegistryChangesToCloud() {
     if (!cu || !cu.key) return false;
     if (baseCu[cu.key]) return isCommish && !same(baseCu[cu.key], cu);
     return mayWrite(cu.key);
-  }).map(function(cu) { return JSON.parse(JSON.stringify(cu)); });
+  }).map(function(cu) {
+    // The form firestore.rules accept for a new entry.
+    var clean = JSON.parse(JSON.stringify(cu));
+    delete clean.email;
+    delete clean.ownerEmail;
+    if (boundMemberName(clean.key)) clean.linkedMemberName = boundMemberName(clean.key);
+    clean.color = safeProfileColor(clean.color);
+    return clean;
+  });
   // Privacy is only ever set for this device's own profiles (the defaults filled in for everyone
   // else would otherwise look like changes).
   var changedPriv = Object.keys(state.profilePrivacy || {}).filter(function(k) {

@@ -31,11 +31,12 @@ async function seed() {
   await env.withSecurityRulesDisabled(async (c) => {
     const d = c.firestore();
     await setDoc(SS(d), { currentWeek: 9, customGames: [{ id: 1 }], poolMembers: [], customUsers: [],
-      commissionerConfig: { x: 1, playerEmailsMap: { "steve m": "steve@example.com", "kinyion c": "kin@example.com" },
-        blockedUsers: { [B.uid]: { email: B.email } }, securityConfig: { registrationMode: "midseason_protected" } },
+      commissionerConfig: { x: 1, blockedUsers: { [B.uid]: { name: "Spam" } }, securityConfig: { registrationMode: "midseason_protected" } },
       profilePrivacy: {}, u_justinc: { picks: {} }, michael: { picks: {} }, u_legacy: { picks: {} }, u_old: { picks: {} } });
-    await setDoc(doc(d, "pickem_v14_bindings/u_justinc"), { uid: J.uid, email: J.email, verifiedBy: "commish_approved" });
-    await setDoc(doc(d, "pickem_v14_bindings/michael"), { uid: M.uid, email: M.email, verifiedBy: "commish_approved" });
+    await setDoc(doc(d, "pickem_v14_registered/steve@example.com"), { memberLows: ["steve m"] });
+    await setDoc(doc(d, "pickem_v14_registered/kin@example.com"), { memberLows: ["kinyion c", "kinyion two"] });
+    await setDoc(doc(d, "pickem_v14_bindings/u_justinc"), { uid: J.uid, memberName: "Justin C", verifiedBy: "commish_approved" });
+    await setDoc(doc(d, "pickem_v14_bindings/michael"), { uid: M.uid, memberName: "Michael A", verifiedBy: "commish_approved" });
     await setDoc(doc(d, "pickem_v14_security/invite"), { code: "TURF2026" });
     await setDoc(doc(d, "pickem_v14_users/u_justinc"), { ownerUid: J.uid, picks: {} });
     await setDoc(doc(d, "pickem_v14_users/michael"), { ownerUid: M.uid, picks: {} });
@@ -133,15 +134,68 @@ test("pick docs: only the bound account or a commissioner writes", async () => {
   await assertSucceeds(setDoc(U(db(M), "u_brandnew"), { picks }));
 });
 
-const bind = (who, memberName, verifiedBy) => ({ uid: who.uid, email: who.email, displayName: memberName, memberName,
+const bind = (who, memberName, verifiedBy) => ({ uid: who.uid, displayName: memberName, memberName,
   memberLow: memberName.toLowerCase(), boundAt: "t", verifiedBy });
 const BD = (d, k) => doc(d, "pickem_v14_bindings/" + k);
+
+test("private emails: a player reads only their own registration; guests read none", async () => {
+  await seed();
+  const R = (d, id) => doc(d, "pickem_v14_registered/" + id);
+  await assertFails(getDoc(R(guest(), "steve@example.com")));
+  await assertSucceeds(getDoc(R(db(S), "steve@example.com")));
+  await assertFails(getDoc(R(db(S, false), "steve@example.com")));          // unconfirmed address
+  await assertFails(getDoc(R(db(O), "steve@example.com")));
+  await assertFails(getDocs(collection(db(S), "pickem_v14_registered")));
+  await assertFails(setDoc(R(db(S), "steve@example.com"), { memberLows: ["justin c"] }));
+  await assertSucceeds(getDocs(collection(db(M), "pickem_v14_registered")));
+  await assertSucceeds(setDoc(R(db(M), "new@example.com"), { memberLows: ["new guy"] }));
+});
+
+test("private emails: the commissioner list is commissioner-only; the email service URL stays public", async () => {
+  await seed();
+  const roles = (d) => doc(d, "pickem_v14_commissioners/roles");
+  await assertFails(getDoc(roles(guest())));
+  await assertFails(getDoc(roles(db(J))));
+  await assertSucceeds(getDoc(roles(db(M))));
+  await assertSucceeds(getDoc(doc(guest(), "pickem_v14_commissioners/email_service")));
+  await assertSucceeds(setDoc(roles(db(M)), { authorizedEmails: { "michael4ts14@gmail.com": true } }));
+});
+
+test("private emails: bindings hold no email, and an old public map no longer links anyone", async () => {
+  await seed();
+  await assertFails(setDoc(BD(db(S), "u_stevem"), Object.assign(bind(S, "Steve M", "email_match"), { email: S.email })));
+  await env.withSecurityRulesDisabled((c) => setDoc(SS(c.firestore()), { commissionerConfig: { playerEmailsMap: { "new guy": O.email } } }, { merge: true }));
+  await assertFails(setDoc(BD(db(O), "u_newguy"), bind(O, "New Guy", "email_match")));
+});
+
+test("player identity: a pick doc can't claim another player's name or carry a bad color", async () => {
+  await seed();
+  const me = (d) => doc(d, "pickem_v14_users/u_justinc");
+  await assertFails(setDoc(me(db(J)), { picks, ownerUid: J.uid, linkedMemberName: "Steve M" }, { merge: true }));
+  await assertSucceeds(setDoc(me(db(J)), { picks, ownerUid: J.uid, linkedMemberName: "Justin C" }, { merge: true }));
+  await assertFails(setDoc(me(db(J)), { picks, ownerUid: J.uid, color: '"><img src=x onerror=alert(1)>' }, { merge: true }));
+  await assertSucceeds(setDoc(me(db(J)), { picks, ownerUid: J.uid, color: "#10b981" }, { merge: true }));
+  // A doc that already says something else may keep saying it (older spellings, like "Kinyon C").
+  await env.withSecurityRulesDisabled((c) => setDoc(me(c.firestore()), { linkedMemberName: "Justin Coffin" }, { merge: true }));
+  await assertSucceeds(setDoc(me(db(J)), { picks: { 1: "Iowa" }, ownerUid: J.uid, linkedMemberName: "Justin Coffin" }, { merge: true }));
+  await assertSucceeds(setDoc(me(db(M)), { linkedMemberName: "Anything" }, { merge: true }));     // commissioner
+});
+
+test("player identity: a new registry entry can't claim another name, carry a bad color or an email", async () => {
+  await seed();
+  const add = (entry) => setDoc(SS(db(J)), { customUsers: [Object.assign({ key: "u_justinc", name: "Justin C" }, entry)], lastProfileWriter: "u_justinc", updatedAt: "t" }, { merge: true });
+  await assertFails(add({ linkedMemberName: "Steve M" }));
+  await assertFails(add({ color: "red;}<script>" }));
+  await assertFails(add({ email: J.email }));
+  await assertSucceeds(add({ linkedMemberName: "Justin C", color: "#10b981" }));
+});
 
 test("bindings: a pre-registered, Google-verified email links itself; nothing else does", async () => {
   await seed();
   await assertSucceeds(getDoc(BD(guest(), "u_justinc")));
   await assertSucceeds(setDoc(BD(db(S), "u_stevem"), bind(S, "Steve M", "email_match")));
   await assertSucceeds(setDoc(BD(db(K), "kinyion"), bind(K, "Kinyion C", "email_match")));
+  await assertSucceeds(setDoc(BD(db(K), "u_kinyiontwo"), bind(K, "Kinyion Two", "email_match"))); // one person, two entries
   await seed();
   await assertFails(setDoc(BD(db(S, false), "u_stevem"), bind(S, "Steve M", "email_match")));   // unverified email
   await assertFails(setDoc(BD(db(O), "u_stevem"), bind(O, "Steve M", "email_match")));          // not their email

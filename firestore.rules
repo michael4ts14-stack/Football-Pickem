@@ -83,11 +83,11 @@ service cloud.firestore {
     function selfBinding(key) {
       let b = request.resource.data;
       let low = b.get('memberLow', '');
-      return b.keys().hasOnly(['uid', 'email', 'displayName', 'memberName', 'memberLow', 'boundAt', 'verifiedBy']) &&
-        b.uid == request.auth.uid && b.get('email', '') == myEmail() && (
+      return b.keys().hasOnly(['uid', 'displayName', 'memberName', 'memberLow', 'boundAt', 'verifiedBy']) &&
+        b.uid == request.auth.uid && (
           // The commissioner registered this (Google-verified) email for this roster player.
           (b.verifiedBy == 'email_match' && hasVerifiedEmail() && low != '' && key == keyForMember(low) &&
-            poolConfig().get('playerEmailsMap', {}).get(low, '').lower() == myEmail()) ||
+            low in registeredMemberLows()) ||
           // The pick doc already named this account as its owner (before bindings existed).
           (b.verifiedBy == 'legacy_owner' && legacyOwner(key)) ||
           // Invite-code season: a brand-new player (no pick doc yet) adds themselves.
@@ -95,6 +95,37 @@ service cloud.firestore {
             low != '' && key == keyForMember(low) &&
             !exists(/databases/$(database)/documents/pickem_v14_users/$(key)))
         );
+    }
+
+    // ---------- Registered player emails ----------
+    // One doc per address (doc id = the lower-case email): { memberLows: [...] }, since one person
+    // can play two entries. Private: a player reads only the one for their own confirmed address.
+    function registeredMemberLows() {
+      let path = /databases/$(database)/documents/pickem_v14_registered/$(myEmail());
+      return exists(path) ? get(path).data.get('memberLows', []) : [];
+    }
+    match /pickem_v14_registered/{email} {
+      allow get: if isVerifiedCommissioner() || (hasVerifiedEmail() && email == myEmail());
+      allow list, write: if isVerifiedCommissioner();
+    }
+
+    // ---------- What a player may say about themselves ----------
+    // Every device believes these, so a player can't name someone else or put markup in a color.
+    function validColor(c) {
+      return c is string && c.matches('#[0-9a-fA-F]{3,8}');
+    }
+    function boundMemberNameOf(key) {
+      return get(bindingPath(key)).data.get('memberName', '');
+    }
+    function ownIdentityOk(key, newDoc, oldDoc) {
+      let name = newDoc.get('linkedMemberName', '');
+      return (name == '' || name == oldDoc.get('linkedMemberName', '') || name == boundMemberNameOf(key)) &&
+        validColor(newDoc.get('color', '#000'));
+    }
+    function newRegistryEntryOk(entry, key) {
+      return !('email' in entry) && !('ownerEmail' in entry) &&
+        entry.get('linkedMemberName', boundMemberNameOf(key)) == boundMemberNameOf(key) &&
+        validColor(entry.get('color', '#000'));
     }
 
     // ---------- Requests to link an account to a player (commissioner approves) ----------
@@ -162,7 +193,8 @@ service cloud.firestore {
       let before = resource.data.get('customUsers', []);
       let after = request.resource.data.get('customUsers', []);
       return after == before || (writer != '' && boundToMe(writer) &&
-        after.size() == before.size() + 1 && after.hasAll(before) && after[after.size() - 1].get('key', '') == writer);
+        after.size() == before.size() + 1 && after.hasAll(before) && after[after.size() - 1].get('key', '') == writer &&
+        newRegistryEntryOk(after[after.size() - 1], writer));
     }
 
     // ---------- Kickoff locks ----------
@@ -246,6 +278,7 @@ service cloud.firestore {
       allow read: if true;
       allow create, update: if isVerifiedCommissioner() ||
         (notBlocked() && boundToMe(profileKey) && request.resource.data.get('ownerUid', '') == request.auth.uid &&
+          ownIdentityOk(profileKey, request.resource.data, resource == null ? {} : resource.data) &&
           (emptiedForPrivate(profileKey, request.resource.data) ||
             pickWriteAllowed(profileKey, request.resource.data, baseFor(profileKey, resource == null ? {} : resource.data))));
       allow delete: if isVerifiedCommissioner();
@@ -304,8 +337,10 @@ service cloud.firestore {
     }
 
     // ---------- Commissioner settings (email-service URL, roles) ----------
+    // The roles doc lists commissioners' emails; a device learns it's a commissioner's by being
+    // able to read it. These rules read it regardless.
     match /pickem_v14_commissioners/{docId} {
-      allow read: if true;
+      allow read: if docId != 'roles' || isVerifiedCommissioner();
       allow write: if isVerifiedCommissioner();
     }
 

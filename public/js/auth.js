@@ -76,7 +76,7 @@ async function sha256Hex(str) {
   return "fnv_" + (h >>> 0).toString(16);
 }
 
-function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerUid, emailStr) {
+function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerUid) {
   ensureMultiUserAndPrivacyState();
   var cleanMember = standardizeParticipantName(memberName || displayNameFallback || "Player");
   var lowMember = cleanMember.toLowerCase();
@@ -127,7 +127,6 @@ function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerU
       state.customUsers[c].linkedMemberName = cleanMember;
       invalidateDuesRosterCache();
       if (ownerUid) state.customUsers[c].ownerUid = ownerUid;
-      if (emailStr) state.customUsers[c].email = emailStr;
       break;
     }
   }
@@ -139,8 +138,7 @@ function resolveOrCreateProfileForMember(memberName, displayNameFallback, ownerU
       priorPts: priorPts,
       rank: rankStr,
       color: colorPick,
-      ownerUid: ownerUid || "",
-      email: emailStr || ""
+      ownerUid: ownerUid || ""
     });
   }
 
@@ -228,6 +226,7 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
   // An email the commissioner registered for a roster player needs no name matching or chooser.
   if (!targetMember && typeof memberForRegisteredEmail === "function") {
     if (typeof loadBoundAccounts === "function") await loadBoundAccounts();
+    await loadPrivateConfig();
     targetMember = memberForRegisteredEmail(email);
   }
   if (!targetMember) {
@@ -266,7 +265,7 @@ async function bindAuthenticatedAccountToProfile(authUser, chosenMemberName) {
     }
   }
 
-  var resolved = resolveOrCreateProfileForMember(targetMember, dispName, uid, email);
+  var resolved = resolveOrCreateProfileForMember(targetMember, dispName, uid);
   var bKey = resolved.profileKey;
   if (gate.needsBinding && typeof recordAccountBinding === "function") {
     await recordAccountBinding(bKey, resolved.linkedMemberName, gate.needsBinding, { uid: uid, email: email, displayName: resolved.displayName });
@@ -634,7 +633,7 @@ function signOutAccountInstance() {
 function commissionerSwitchToMember(memberName) {
   if (!AUTH_SESSION || !AUTH_SESSION.adminUnlock || !memberName) return;
   if (!assertCommissionerRole("editing another player's picks")) return;
-  var resolved = resolveOrCreateProfileForMember(memberName, memberName, "", "");
+  var resolved = resolveOrCreateProfileForMember(memberName, memberName, "");
   if (resolved && resolved.profileKey) {
     SESSION_UNLOCKED_PROFILES[resolved.profileKey] = true;
     activeProfile = resolved.profileKey;

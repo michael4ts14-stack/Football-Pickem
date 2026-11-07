@@ -40,6 +40,10 @@ function loadBot(opts) {
     if (url.indexOf("firestore.googleapis.com") !== -1) {
       if (method === "get") {
         const docPath = url.split("/documents/")[1].split("?")[0];
+        if (docPath.indexOf("/") === -1) {
+          const prefix = docPath + "/";
+          return makeResponse(200, { documents: Object.keys(opts.docs || {}).filter((k) => k.indexOf(prefix) === 0).map((k) => ({ name: "projects/p/databases/(default)/documents/" + k, fields: ctx.toFirestoreValue(opts.docs[k]).mapValue.fields })) });
+        }
         const doc = (opts.docs || {})[docPath] || (docPath === "pickem_v14/shared_state" ? opts.cloud : null);
         if (!doc) return makeResponse(404, { error: { code: 404, status: "NOT_FOUND" } });
         return makeResponse(200, { fields: ctx.toFirestoreValue(doc).mapValue.fields });
