@@ -204,6 +204,9 @@ test("bindings: a pre-registered, Google-verified email links itself; nothing el
   await assertFails(setDoc(BD(db(S), "u_stevem"), bind(S, "Steve M", "commish_approved")));     // can't self-approve
   await assertFails(setDoc(BD(db(O), "u_justinc"), bind(O, "Justin C", "legacy_owner")));       // already bound
   await assertFails(setDoc(BD(db(O), "u_old"), bind(O, "Old", "legacy_owner")));                // pick doc has no owner
+  // Signed up with the legacy owner's address but never confirmed it: not the owner.
+  const fakeL = { uid: "uid-fake", email: L.email };
+  await assertFails(setDoc(BD(db(fakeL, false), "u_legacy"), bind(fakeL, "Legacy", "legacy_owner")));
   await assertFails(setDoc(BD(db(O), "u_newguy"), bind(O, "New Guy", "self_new")));             // midseason: no self-adds
   await assertSucceeds(setDoc(BD(db(M), "u_old"), bind(O, "Old", "commish_approved")));          // commissioner approves
   await assertFails(setDoc(BD(db(O), "u_old"), bind(O, "Old", "commish_approved"), { merge: true })); // only commish edits
@@ -225,6 +228,7 @@ test("link requests: filed by the account itself, approved only by a commissione
   const R = (d, uid) => doc(d, "pickem_v14_link_requests/" + uid);
   const req = (who, status = "pending") => ({ uid: who.uid, authEmail: who.email, authDisplayName: "x", requestedMember: "Old",
     requestedMemberLow: "old", requestedPlayerKey: "u_old", requestedAt: "t", status });
+  await assertFails(setDoc(R(db(O, false), O.uid), req(O)));          // unconfirmed address
   await assertSucceeds(setDoc(R(db(O), O.uid), req(O)));
   await assertSucceeds(getDoc(R(db(O), O.uid)));
   await assertFails(getDoc(R(db(J), O.uid)));                         // someone else's
@@ -487,6 +491,15 @@ test("deadline: the tiebreaker can't be changed by deleting it first", async () 
   await assertSucceeds(setDoc(USERJ(db(J)), myDoc({ 1: "Arizona" }, { tiebreaker: "9-7" }), { merge: true })); // unchanged
   await setup({ locks: { deadlineAt: minsAgo(-60) } });
   await assertSucceeds(updateDoc(USERJ(db(J)), { tiebreaker: deleteField() })); // open: anything goes
+});
+
+test("deadline: a tiebreaker left out before it can't be filled in after it", async () => {
+  await setup({ locks: { deadlineAt: minsAgo(1) } });
+  await env.withSecurityRulesDisabled(async (c) => {
+    await setDoc(USERJ(c.firestore()), { ownerUid: J.uid, picks: { 1: "Arizona" } });
+  });
+  await assertFails(setDoc(USERJ(db(J)), myDoc({ 1: "Arizona" }, { tiebreaker: "31-17" }), { merge: true }));
+  await assertSucceeds(setDoc(USERJ(db(J)), myDoc({ 1: "Arizona" }, { tiebreaker: "28-24" }), { merge: true })); // the app's placeholder
 });
 
 test("deadline: force unlock, other lock modes, other weeks and per-game overrides", async () => {

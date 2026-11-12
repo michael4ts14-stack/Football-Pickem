@@ -67,8 +67,10 @@ service cloud.firestore {
     }
     // Older pick docs recorded their owner as ownerUid (or the email / account doc id); that
     // owner can turn it into a binding once.
+    // Anyone can sign up with an address they don't own, so an email only counts once confirmed.
     function isMine(ownerValue) {
-      return signedIn() && ownerValue in [request.auth.uid, myAccountId(), request.auth.token.email];
+      return signedIn() && (ownerValue == request.auth.uid ||
+        (hasVerifiedEmail() && ownerValue in [myAccountId(), request.auth.token.email]));
     }
     function legacyOwner(key) {
       let path = /databases/$(database)/documents/pickem_v14_users/$(key);
@@ -135,7 +137,8 @@ service cloud.firestore {
       allow read: if isVerifiedCommissioner() || (signedIn() && request.auth.uid == uid);
       allow create, update: if isVerifiedCommissioner() || (notBlocked() && request.auth.uid == uid &&
         request.resource.data.uid == uid && request.resource.data.status == 'pending' &&
-        request.resource.data.get('authEmail', '') == myEmail() &&
+        // Confirmed address only: the commissioner approves on the strength of this email.
+        hasVerifiedEmail() && request.resource.data.get('authEmail', '') == myEmail() &&
         registrationMode() != 'whitelist_strict' &&
         (registrationMode() != 'invite_code_required' || hasInvitePass()) &&
         (resource == null || resource.data.status in ['pending', 'rejected']));
@@ -234,10 +237,14 @@ service cloud.firestore {
         (mode == 'friday_9pm_cst' && deadline != null && request.time >= deadline && !forceUnlocked(key));
     }
     // Deleting a tiebreaker counts as changing it, so a delete then a set can't get past the lock.
+    // A doc with no tiebreaker can't get a real one after the deadline either (leave it out, wait
+    // for the game, fill in the score); only the app's placeholder "28-24" still saves.
     function pickWriteAllowed(key, newDoc, oldDoc) {
       let tb = newDoc.get('tiebreaker', null);
+      let old = oldDoc.get('tiebreaker', null);
       return noStartedPickChanged(key, newDoc.get('picks', {}), oldDoc.get('picks', {})) &&
-        (tb == oldDoc.get('tiebreaker', tb) || !weekClosedFor(key));
+        (tb == old || !weekClosedFor(key) ||
+          ((old == null || old == '') && (tb == null || tb == '' || tb == '28-24')));
     }
     function noStartedPickChanged(key, newPicks, oldPicks) {
       let changed = newPicks.diff(oldPicks).affectedKeys();
