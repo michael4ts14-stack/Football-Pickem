@@ -603,3 +603,26 @@ test("the emergency stop doesn't replace the settings when the pool can't be rea
   h.ctx.emergencyStopEmailLoopAndCleanState();
   assert.deepStrictEqual(sharedStateWrites(h).filter((w) => w.commissionerConfig), []);
 });
+
+test("a pick receipt that arrives after the deadline changes nothing", () => {
+  const locks = { week: 9, deadlineAt: "2026-11-06T03:00:00Z" };
+  const h = loadBot({ cloud: baseCloud(), docs: { "pickem_v14/kickoff_locks": locks } });
+  assert.strictEqual(h.ctx.receiptIsLate_(new Date("2026-11-07T18:00:00Z"), baseCloud()), true);
+  assert.strictEqual(h.ctx.receiptIsLate_(new Date("2026-11-05T18:00:00Z"), baseCloud()), false);
+  assert.strictEqual(h.ctx.receiptIsLate_(new Date("2026-11-07T18:00:00Z"), baseCloud({ currentWeek: 10 })), false, "last week's deadline");
+  assert.strictEqual(loadBot({ cloud: baseCloud() }).ctx.receiptIsLate_(new Date(), baseCloud()), false, "no locks yet");
+
+  const games = slate(23);
+  const body = ["Michael A"].concat(games.map((g) => g.home)).join("\n");
+  const email = { id: "m-late", from: "Google Forms <forms-receipts-noreply@google.com>", subject: "College Pick'em", body, date: new Date("2026-11-07T18:00:00Z") };
+  const late = loadBot({ cloud: baseCloud(), docs: { "pickem_v14/kickoff_locks": locks }, threads: [fakeThread([email])] });
+  late.ctx.runMasterPickemEmailBot(false);
+  assert.strictEqual(late.patches().filter((c) => /pickem_v14_users|shared_state/.test(c.url)).length, 0);
+  const early = loadBot({ cloud: baseCloud(), docs: { "pickem_v14/kickoff_locks": locks }, threads: [fakeThread([Object.assign({}, email, { date: new Date("2026-11-05T18:00:00Z") })])] });
+  early.ctx.runMasterPickemEmailBot(false);
+  assert.ok(early.patches().some((c) => c.url.indexOf("pickem_v14_users/michael") !== -1), "an on-time receipt still imports");
+});
+
+test("the dead scheduled-email job is gone (it could save empty settings)", () => {
+  assert.strictEqual(typeof loadBot({ cloud: baseCloud() }).ctx.checkAndDispatchScheduledOutboundEmails, "undefined");
+});

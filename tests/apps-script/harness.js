@@ -133,6 +133,7 @@ function fakeMessage(m) {
     getBody: () => m.html || m.body || "",
     getAttachments: () => m.attachments || [],
     getFrom: () => m.from || "Separated At Turf <separatedatturf@gmail.com>",
+    getDate: () => m.date || new Date(),
   };
 }
 function fakeThread(msgs) { return { getMessages: () => msgs.map(fakeMessage) }; }

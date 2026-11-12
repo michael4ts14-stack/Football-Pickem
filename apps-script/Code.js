@@ -146,79 +146,6 @@ function autoScrapeWeeklyPickemToFirebase() {
   return runMasterPickemEmailBot(false);
 }
 
-// Scheduled automated outbound email dispatcher:
-// 1. Wed/Thu Reminder Email: checks if day is Wed/Thu >= 10:00 AM CST and sends if not already sent today
-// 2. Sat Morning Master Spreadsheet Email: checks if day is Sat >= 8:00 AM CST (or sheet synced) and emails master CSV
-function checkAndDispatchScheduledOutboundEmails() {
-  // 1. EMERGENCY KILL-SWITCH CHECK (MANDATORY FIX 1)
-  if (!broadcastsEnabled_()) {
-    Logger.log("Scheduled outbound email check suppressed: pool emails are switched off (BROADCASTS_ENABLED).");
-    return { ok: false, skipped: true, reason: "Pool emails are switched off (BROADCASTS_ENABLED)" };
-  }
-  var now = new Date();
-  var cstDayStr = Utilities.formatDate(now, "America/Chicago", "u"); // 1=Mon .. 7=Sun (ISO)
-  var cstDay = parseInt(cstDayStr, 10);
-  var cstHour = parseInt(Utilities.formatDate(now, "America/Chicago", "H"), 10); // 0..23
-
-  var currentCloud = fetchFirebaseNode("") || {};
-  var curWeek = (currentCloud && currentCloud.currentWeek) || 8;
-  var wkLabel = (currentCloud && currentCloud.weekLabel) || ("Week " + curWeek);
-  var cfg = (currentCloud && currentCloud.commissionerConfig) ? currentCloud.commissionerConfig : {};
-  if (!cfg.playerEmailsMap) cfg.playerEmailsMap = {};
-
-  // CHECK 1: Wednesday & Thursday Pick Reminders (ISO days: 3=Wednesday, 4=Thursday)
-  if ((cstDay === 3 || cstDay === 4) && cstHour >= 10 && cfg.autoWedThuNudgeEnabled !== false) {
-    var dayKey = curWeek + "_" + cstDay;
-    if (cfg.lastWedThuNudgeDayKey !== dayKey) {
-      Logger.log("Triggering automated Wed/Thu reminder email for " + wkLabel + " (Day " + cstDay + ")...");
-      var missingList = [];
-      var pms = currentCloud.poolMembers || [];
-      for (var p = 0; p < pms.length; p++) {
-        var pm = pms[p];
-        var pMap = pm.picks || {};
-        if (Object.keys(pMap).length === 0 || pm.awaitingSheet) {
-          missingList.push(pm.name);
-        }
-      }
-      doPost({
-        postData: {
-          contents: JSON.stringify({
-            action: "sendWedThuNudge",
-            weekLabel: wkLabel,
-            missingPlayers: missingList
-          })
-        }
-      });
-      cfg.lastWedThuNudgeDayKey = dayKey;
-      patchFirebaseNode("", { commissionerConfig: cfg });
-      Logger.log("✓ Automated Wed/Thu reminder finished for " + wkLabel);
-    }
-  }
-
-  // CHECK 2: Saturday Morning Master Spreadsheet Email & Reveal (ISO day: 6=Saturday)
-  var isSatMorning = (cstDay === 6 && cstHour >= 8);
-  var isSheetSyncedForWeek = (currentCloud.officialSheetSyncedForWeek && String(currentCloud.officialSheetSyncedForWeek) === String(curWeek));
-  if ((isSatMorning || isSheetSyncedForWeek) && cfg.autoSatMorningSheetEmail !== false) {
-    if (cfg.lastSatSheetSentWeek !== curWeek) {
-      Logger.log("Triggering automated Saturday morning master sheet email for " + wkLabel + "...");
-      var activeGames = (currentCloud && currentCloud.customGames && currentCloud.customGames.length)
-        ? currentCloud.customGames
-        : getDefaultWeek7GamesFallback();
-      var csvData = generateMasterCsvFromCloud(currentCloud.poolMembers, activeGames);
-      doPost({
-        postData: {
-          contents: JSON.stringify({
-            action: "sendSaturdayMasterSheet",
-            weekLabel: wkLabel,
-            csvData: csvData
-          })
-        }
-      });
-      Logger.log("✓ Automated Saturday master sheet sent for " + wkLabel);
-    }
-  }
-}
-
 function generateMasterCsvFromCloud(poolMembers, activeGames) {
   if (!poolMembers || !Array.isArray(poolMembers) || !activeGames || !Array.isArray(activeGames)) return "";
   var headers = ["Contestant"];
@@ -589,7 +516,11 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
         var pickResult = parsePicksFromEmailText(plainBody, activeGames);
         if (pickResult.matchedCount >= 15) {
           var targetProfile = detectProfileOwner(subject, plainBody, msg.getFrom(), currentCloud);
-          if (targetProfile) {
+          if (targetProfile && receiptIsLate_(msg.getDate(), currentCloud)) {
+            // Anyone can make a Google Form that mails a "receipt" here, so one can't move picks
+            // once the players themselves are locked.
+            Logger.log("⏭️ Skipping pick receipt for " + targetProfile + ": it arrived after the deadline.");
+          } else if (targetProfile) {
             // Guard: Never overwrite in-app picks if player already has active saved picks in Firestore!
             if (hasActiveInAppPicks_(targetProfile, currentCloud, activeGames)) {
               Logger.log("ℹ️ Skipping confirmation email for " + targetProfile + ": player already has active in-app picks in Firestore.");
@@ -643,6 +574,16 @@ function fetchFirestoreDoc_(docPath, ifUnreadable) {
   } catch (e) {
     return failed;
   }
+}
+
+// True if an email dated `when` came after this week's pick deadline (the one the app's rules
+// enforce, in pickem_v14/kickoff_locks). No deadline for this week yet means not late.
+function receiptIsLate_(when, currentCloud) {
+  var locks = fetchFirestoreDoc_("pickem_v14/kickoff_locks", { unreadable: true });
+  if (!locks) return false;
+  if (locks.unreadable) return true; // can't tell: don't let it through
+  if (String(locks.week) !== String(currentCloud && currentCloud.currentWeek) || !locks.deadlineAt) return false;
+  return new Date(when).getTime() >= new Date(locks.deadlineAt).getTime();
 }
 
 // True if this player already saved picks in the app this week, in which case a

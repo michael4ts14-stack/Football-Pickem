@@ -381,3 +381,17 @@ test("nudge: a registered email from the private collection reaches a player mis
   assert.strictEqual(r.ok, true, JSON.stringify(r));
   assert.deepStrictEqual(h.sentMail.map((m) => m.to), ["steve@example.com"]);
 });
+
+test("nudge: a player whose picks are hidden is not told they're missing", () => {
+  const h = service({
+    scriptProps: { BROADCASTS_ENABLED: "true" },
+    cloudOver: { poolMembers: [{ name: "Player One", picks: {}, awaitingSheet: true }], playerKey: { picks: {}, picksPrivate: true } },
+    docs: {
+      "pickem_v14_accounts/a1": { uid: "uid-player", email: PLAYER, linkedMemberName: "Player One", boundProfileKey: "playerKey" },
+      "pickem_v14_private_picks/playerKey": { picks: { 1: "Texas Tech", 2: "Iowa" } },
+    },
+  });
+  const r = post(h, { action: "sendWedThuNudge", idToken: token("uid-commish") });
+  assert.strictEqual(r.code, "NO_RECIPIENTS", JSON.stringify(r));
+  assert.strictEqual(h.sentMail.length, 0);
+});

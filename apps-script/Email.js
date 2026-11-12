@@ -460,12 +460,15 @@ function missingPickers_(shared, cfg) {
     if (a.linkedMemberName && a.email && a.uid && ownerOf[a.boundProfileKey] === a.uid) byMember[standardizeBotParticipantName(a.linkedMemberName).toLowerCase()] = a;
   });
   var emailsMap = registeredPlayerEmails_(shared);
+  // Hidden players' picks are only in their private docs.
+  var hiddenPicks = {};
+  listFirestoreDocs_("pickem_v14_private_picks").forEach(function(d) { hiddenPicks[d.id] = d.fields.picks; });
   var seen = {}, emails = [], missingCount = 0, noEmail = 0;
   (shared.poolMembers || []).forEach(function(pm) {
     var low = standardizeBotParticipantName(pm.name).toLowerCase();
     var acct = byMember[low];
     var sheetPicks = !pm.awaitingSheet && hasSlatePicks(pm.picks);
-    var appPicks = acct && acct.boundProfileKey && shared[acct.boundProfileKey] && hasSlatePicks(shared[acct.boundProfileKey].picks);
+    var appPicks = acct && acct.boundProfileKey && (hasSlatePicks((shared[acct.boundProfileKey] || {}).picks) || hasSlatePicks(hiddenPicks[acct.boundProfileKey]));
     if (sheetPicks || appPicks) return;
     missingCount++;
     var em = String((acct && acct.email) || emailsMap[low] || pm.linkedAuthEmail || "").trim().toLowerCase();
