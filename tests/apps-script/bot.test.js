@@ -614,13 +614,20 @@ test("a pick receipt that arrives after the deadline changes nothing", () => {
 
   const games = slate(23);
   const body = ["Michael A"].concat(games.map((g) => g.home)).join("\n");
-  const email = { id: "m-late", from: "Google Forms <forms-receipts-noreply@google.com>", subject: "College Pick'em", body, date: new Date("2026-11-07T18:00:00Z") };
+  const email = { id: "m-late", from: "Separated At Turf <separatedatturf@gmail.com>", subject: "College Pick'em", body, date: new Date("2026-11-07T18:00:00Z") };
   const late = loadBot({ cloud: baseCloud(), docs: { "pickem_v14/kickoff_locks": locks }, threads: [fakeThread([email])] });
   late.ctx.runMasterPickemEmailBot(false);
   assert.strictEqual(late.patches().filter((c) => /pickem_v14_users|shared_state/.test(c.url)).length, 0);
   const early = loadBot({ cloud: baseCloud(), docs: { "pickem_v14/kickoff_locks": locks }, threads: [fakeThread([Object.assign({}, email, { date: new Date("2026-11-05T18:00:00Z") })])] });
   early.ctx.runMasterPickemEmailBot(false);
   assert.ok(early.patches().some((c) => c.url.indexOf("pickem_v14_users/michael") !== -1), "an on-time receipt still imports");
+});
+
+test("a Google Forms receipt sets nobody's picks (anyone can make a form that mails one here)", () => {
+  const body = ["Michael A"].concat(slate(23).map((g) => g.home)).join("\n");
+  const h = loadBot({ cloud: baseCloud(), threads: [fakeThread([{ id: "m-form", from: "Google Forms <forms-receipts-noreply@google.com>", subject: "College Pick'em", body }])] });
+  h.ctx.runMasterPickemEmailBot(false);
+  assert.strictEqual(h.patches().filter((c) => /pickem_v14_users|shared_state/.test(c.url)).length, 0);
 });
 
 test("the dead scheduled-email job is gone (it could save empty settings)", () => {

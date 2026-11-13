@@ -205,7 +205,6 @@ function runMasterPickemEmailBot(forceRescan) {
 }
 
 var BOT_OFFICIAL_SENDER = "separatedatturf@gmail.com";
-var BOT_FORMS_SENDER = "forms-receipts-noreply@google.com";
 
 // "Any Text <addr>" or a bare addr -> addr, lower-cased.
 function senderAddress_(from) {
@@ -513,7 +512,9 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
       // ----------------------------------------------------------------------
       // PIPELINE 4: Check for Individual Pick Confirmation Emails
       // ----------------------------------------------------------------------
-      var isReceiptSender = senderAddr === BOT_FORMS_SENDER || isFromOfficialOrg;
+      // Only the pool's own address. Google Forms receipts used to count too, but anyone can
+      // build a form that mails a "receipt" here, and the real form never sends one.
+      var isReceiptSender = isFromOfficialOrg;
       if (isReceiptSender && activeGames && activeGames.length > 0 && attachments.length === 0) {
         var pickResult = parsePicksFromEmailText(plainBody, activeGames);
         if (pickResult.matchedCount >= 15) {
