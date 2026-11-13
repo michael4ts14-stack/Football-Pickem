@@ -141,9 +141,11 @@ function setupLiveEspnAndEmailTriggers() {
 }
 
 function autoScrapeWeeklyPickemToFirebase() {
-  // STRICT INBOUND SCRAPER ONLY: Scrapes inbound emails from separatedatturf@gmail.com
-  // NEVER DISPATCHES OUTBOUND EMAILS! (MANDATORY FIX 1)
-  return runMasterPickemEmailBot(false);
+  // The scrape itself never sends email. The only outbound mail from this trigger is the
+  // Wed/Thu reminder, behind the pool-emails kill switch (autoNudgeIfDue_ in Email.js).
+  var out = runMasterPickemEmailBot(false);
+  try { autoNudgeIfDue_(); } catch (eNudge) { Logger.log("Auto nudge failed: " + eNudge.message); }
+  return out;
 }
 
 function generateMasterCsvFromCloud(poolMembers, activeGames) {

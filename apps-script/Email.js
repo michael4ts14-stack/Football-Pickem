@@ -423,6 +423,8 @@ function sendWedThuNudge_(who, shared, data) {
     var props = PropertiesService.getScriptProperties();
     var isTest = Array.isArray(data.testRecipients) && data.testRecipients.length;
     if (!isTest && props.getProperty("WED_THU_NUDGE_SENT_V2_" + dayKey)) throw emailError_("ALREADY_SENT", "Today's nudge was already sent.");
+    var due = nudgeDeadline_(curWeek);
+    if (due.passed && !isTest) throw emailError_("TOO_LATE", "The " + wk + " deadline has passed, so a reminder would be wrong. Nothing was sent.");
     var m = missingPickers_(shared, cfg);
     var recipients = chooseRecipients_(data, m.emails);
     if (!recipients.length) {
@@ -432,7 +434,7 @@ function sendWedThuNudge_(who, shared, data) {
     }
     requireQuotaFor_(recipients.length);
     if (!isTest) props.setProperty("WED_THU_NUDGE_SENT_V2_" + dayKey, new Date().toISOString());
-    var r = sendEach_(recipients, function() { return buildNudgeEmail_(wk); });
+    var r = sendEach_(recipients, function() { return buildNudgeEmail_(wk, due.label); });
     return { ok: true, action: "sendWedThuNudge", recipients: recipients.length, sent: r.sent, failed: r.failed, skipped: isTest ? 0 : m.noEmail, test: !!isTest };
   } finally { lock.releaseLock(); }
 }
@@ -462,7 +464,10 @@ function missingPickers_(shared, cfg) {
   var emailsMap = registeredPlayerEmails_(shared);
   // Hidden players' picks are only in their private docs.
   var hiddenPicks = {};
-  listFirestoreDocs_("pickem_v14_private_picks").forEach(function(d) { hiddenPicks[d.id] = d.fields.picks; });
+  // Game ids repeat every week, so a doc stamped with another week is last week's picks.
+  listFirestoreDocs_("pickem_v14_private_picks").forEach(function(d) {
+    if (d.fields.currentWeek === undefined || String(d.fields.currentWeek) === String(shared.currentWeek)) hiddenPicks[d.id] = d.fields.picks;
+  });
   var seen = {}, emails = [], missingCount = 0, noEmail = 0;
   (shared.poolMembers || []).forEach(function(pm) {
     var low = standardizeBotParticipantName(pm.name).toLowerCase();
@@ -478,13 +483,45 @@ function missingPickers_(shared, cfg) {
   return { emails: emails, missingCount: missingCount, noEmail: noEmail };
 }
 
-function buildNudgeEmail_(wk) {
-  var html = emailLayout_(wk + " picks are due Friday",
+// This week's deadline from the lock doc the app enforces; the usual Friday text if there is none.
+function nudgeDeadline_(week) {
+  var locks = readFirestoreDoc_("pickem_v14/kickoff_locks");
+  var at = (locks && String(locks.week) === String(week) && locks.deadlineAt) ? new Date(locks.deadlineAt) : null;
+  if (!at || isNaN(at.getTime())) return { passed: false, label: "Friday at 9:00 PM CT" };
+  return { passed: Date.now() >= at.getTime(), label: Utilities.formatDate(at, "America/Chicago", "EEEE 'at' h:mm a") + " CT" };
+}
+
+function buildNudgeEmail_(wk, due) {
+  var html = emailLayout_(wk + " picks are due " + due,
     emailPara_("Friendly reminder: we don't have your picks for <strong>" + esc_(wk) + "</strong> yet.") +
-    emailPara_("Picks lock <strong>Friday at 9:00 PM CT</strong>. You can change them as often as you like until then."),
+    emailPara_("Picks lock <strong>" + esc_(due) + "</strong>. You can change them as often as you like until then."),
     { url: APP_URL, label: "Make my picks" });
-  var text = "Friendly reminder: we don't have your picks for " + wk + " yet.\nPicks lock Friday at 9:00 PM CT.\n\nMake your picks: " + APP_URL + "\n— Separated at Turf Pick'em";
-  return { subject: "Separated at Turf — " + wk + " picks due Friday 9:00 PM CT", text: text, html: html };
+  var text = "Friendly reminder: we don't have your picks for " + wk + " yet.\nPicks lock " + due + ".\n\nMake your picks: " + APP_URL + "\n— Separated at Turf Pick'em";
+  return { subject: "Separated at Turf — " + wk + " picks due " + due, text: text, html: html };
+}
+
+// The automatic reminder: Wednesday and Thursday from 10 AM CT, one try a day, run by the
+// bot's 5-minute trigger. Needs pool emails switched on and the commissioner's auto-nudge
+// setting. Same send, same once-a-day guard and same log as the Send nudge button.
+function autoNudgeIfDue_() {
+  if (!broadcastsEnabled_()) return;
+  var now = new Date();
+  var day = Utilities.formatDate(now, "America/Chicago", "u");
+  if ((day !== "3" && day !== "4") || parseInt(Utilities.formatDate(now, "America/Chicago", "H"), 10) < 10) return;
+  var props = PropertiesService.getScriptProperties();
+  var today = Utilities.formatDate(now, "America/Chicago", "yyyyMMdd");
+  if (props.getProperty("WED_THU_NUDGE_AUTO_TRIED") === today) return;
+  var shared = fetchFirebaseNode("");
+  if (!shared) return; // couldn't read the pool: try again on the next run
+  props.setProperty("WED_THU_NUDGE_AUTO_TRIED", today);
+  if ((shared.commissionerConfig || {}).autoWedThuNudgeEnabled === false) return;
+  var who = { email: "automatic" }, result;
+  try { result = sendWedThuNudge_(who, shared, {}); }
+  catch (err) {
+    if (err.emailCode === "ALREADY_SENT") return; // a commissioner sent it by hand today
+    result = Object.assign({ ok: false, code: err.emailCode || "SERVER_ERROR", error: String(err.message || err) }, err.extra || {});
+  }
+  writeEmailLog_(logEntryFor_("sendWedThuNudge", who, result));
 }
 
 function sendMasterSheet_(who, shared, data) {

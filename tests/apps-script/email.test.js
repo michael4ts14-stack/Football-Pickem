@@ -395,3 +395,68 @@ test("nudge: a player whose picks are hidden is not told they're missing", () =>
   assert.strictEqual(r.code, "NO_RECIPIENTS", JSON.stringify(r));
   assert.strictEqual(h.sentMail.length, 0);
 });
+
+// ---------- Nudge: deadline, stale hidden picks, the automatic Wed/Thu send ----------
+const ON = { BROADCASTS_ENABLED: "true" };
+const locksDoc = (deadlineAt) => ({ "pickem_v14/kickoff_locks": { week: 9, deadlineAt } });
+
+test("nudge: refused once the week's deadline has passed", () => {
+  const h = service({ scriptProps: ON, docs: locksDoc("2020-01-01T00:00:00Z") });
+  const r = post(h, { action: "sendWedThuNudge", idToken: token("uid-commish") });
+  assert.strictEqual(r.code, "TOO_LATE", JSON.stringify(r));
+  assert.strictEqual(h.sentMail.length, 0);
+});
+
+test("nudge: the email names the real deadline, not a fixed Friday 9 PM", () => {
+  const h = service({ scriptProps: ON, docs: locksDoc("2099-01-01T03:00:00.000Z") });
+  const r = post(h, { action: "sendWedThuNudge", idToken: token("uid-commish") });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.ok(h.sentMail[0].body.indexOf("2099-01-01T03:00:00.000Z") !== -1, h.sentMail[0].body);
+  assert.ok(h.sentMail[0].subject.indexOf("Friday") === -1, h.sentMail[0].subject);
+});
+
+test("nudge: hidden picks left over from an older week don't count as picked", () => {
+  const h = service({
+    scriptProps: ON,
+    cloudOver: { poolMembers: [{ name: "Player One", linkedAuthEmail: PLAYER, picks: {}, awaitingSheet: true }], playerKey: { picks: {}, picksPrivate: true } },
+    docs: {
+      "pickem_v14_accounts/a1": { uid: "uid-player", email: PLAYER, linkedMemberName: "Player One", boundProfileKey: "playerKey" },
+      "pickem_v14_private_picks/playerKey": { picks: { 1: "Texas Tech", 2: "Iowa" }, currentWeek: 8 },
+    },
+  });
+  const r = post(h, { action: "sendWedThuNudge", idToken: token("uid-commish") });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.deepStrictEqual(h.sentMail.map((m) => m.to), [PLAYER]);
+});
+
+test("auto nudge: sends once on Wednesday when pool emails and the setting are on", () => {
+  const h = service({ scriptProps: ON, isoDay: 3, hour: 12 });
+  h.ctx.autoNudgeIfDue_();
+  assert.deepStrictEqual(h.sentMail.map((m) => m.to), [PLAYER]);
+  assert.strictEqual(logWrites(h).length, 1);
+  h.ctx.autoNudgeIfDue_();
+  assert.strictEqual(h.sentMail.length, 1);
+});
+
+test("auto nudge: nothing on other days, before 10 AM, with pool emails off, or with the setting off", () => {
+  const cases = [
+    { scriptProps: ON, isoDay: 2, hour: 12 },
+    { scriptProps: ON, isoDay: 4, hour: 9 },
+    { isoDay: 3, hour: 12 },
+    { scriptProps: ON, isoDay: 3, hour: 12, cloudOver: { commissionerConfig: { autoWedThuNudgeEnabled: false } } },
+  ];
+  for (const c of cases) {
+    const h = service(c);
+    h.ctx.autoNudgeIfDue_();
+    assert.strictEqual(h.sentMail.length, 0, JSON.stringify(c));
+  }
+});
+
+test("auto nudge: with everyone picked it checks once a day, not every bot run", () => {
+  const h = service({ scriptProps: ON, isoDay: 3, hour: 12, cloudOver: { poolMembers: [{ name: "Done", picks: { 1: "Arizona", 2: "Iowa" } }] } });
+  h.ctx.autoNudgeIfDue_();
+  const reads = h.calls.length;
+  h.ctx.autoNudgeIfDue_();
+  assert.strictEqual(h.sentMail.length, 0);
+  assert.strictEqual(h.calls.length, reads);
+});
