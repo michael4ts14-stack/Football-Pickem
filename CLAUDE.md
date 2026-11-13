@@ -16,7 +16,7 @@ Never edit the bot in the Apps Script web editor, never `firebase deploy` from a
 - Bot: `node --test "tests/apps-script/*.test.js"`
 - Units: `node --test "tests/client/*.test.js" "tests/form/*.test.mjs" "tests/live/*.test.mjs" "tests/matchups/*.test.mjs" "tests/locks/*.test.mjs"` (also run by the deploy workflow)
 - Web app: `cd tests/client && npm install`, then `node smoke.js report.json` and `node scenarios.js` (headless Edge, writes blocked)
-- Rules: `cd tests/rules && npm install && cd ../..` then `firebase emulators:exec --config tests/rules/firebase.json --only firestore --project demo-pickem "node --test tests/rules/rules.test.mjs"` (needs Java 21)
+- Rules: `cd tests/rules && npm install && cd ../..` then `firebase emulators:exec --config tests/rules/firebase.json --only firestore --project demo-pickem "node --test tests/rules/rules.test.mjs"` (needs Java 21); also run by the deploy workflow
 - Production smoke: `SMOKE_URL=https://football-pickem-46206.web.app/ node tests/client/smoke.js live.json`
 
 ## Safety

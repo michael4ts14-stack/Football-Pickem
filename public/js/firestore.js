@@ -164,6 +164,24 @@ function showListenerState() {
   el.textContent = "⚠️ " + parts.join(" ");
 }
 
+// Apps Script bot heartbeat (written by Code.js every run): drives the commissioner's status
+// pill. Commissioners only: every rewrite is a billed read for each listener, and the bot
+// rewrites it up to once a minute (the Spark plan allows 50,000 reads a day).
+var BOT_STATUS_LISTENING = false;
+function startBotStatusListener() {
+  if (BOT_STATUS_LISTENING || !fsDb) return;
+  BOT_STATUS_LISTENING = true;
+  try {
+    listenWithRetry("bot status", function(next, err) {
+      fsDb.collection("live_games").doc("bot_status").onSnapshot(next, err);
+    }, function(doc) {
+      BOT_STATUS = (doc && doc.exists) ? doc.data() : null;
+      renderBotSyncPill();
+    }, { quiet: true });
+    setInterval(renderBotSyncPill, 60000);
+  } catch (eBot) {}
+}
+
 function startFirebaseRealtimeListeners() {
   if (fsDb) {
     try {
@@ -187,16 +205,7 @@ function startFirebaseRealtimeListeners() {
       });
     } catch (e) {}
 
-    // Apps Script bot heartbeat (written by Code.js every run): drives the 🤖 status pill.
-    try {
-      listenWithRetry("bot status", function(next, err) {
-        fsDb.collection("live_games").doc("bot_status").onSnapshot(next, err);
-      }, function(doc) {
-        BOT_STATUS = (doc && doc.exists) ? doc.data() : null;
-        renderBotSyncPill();
-      }, { quiet: true });
-      setInterval(renderBotSyncPill, 60000);
-    } catch (eBot) {}
+    if (typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner()) startBotStatusListener();
 
     // Season history: one doc per archived week (`pickem_v14_archives/week_N`). Until rules that
     // allow this collection are published, archives stay in shared_state.weekArchives.

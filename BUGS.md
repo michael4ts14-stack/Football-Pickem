@@ -95,5 +95,12 @@ Static read of `public/js`, `public/css`, `firestore.rules` and `sw.js` on `clau
 | B89 ✅ | P1 | Security | `apps-script/Code.js` `receiptIsLate_` | Anyone could mail a Google Forms "receipt" to the bot's inbox and change a sheet-only player's picks, even on Saturday. | Receipts that arrive after the deadline are ignored. |
 | B90 ✅ | P2 | Email | `apps-script/Email.js` `missingPickers_` | Players with hidden picks got the "we don't have your picks" reminder. | Count private pick docs too. |
 | B91 ✅ | P2 | Data loss | `apps-script/Code.js` | The unused scheduled-email job saved near-empty commissioner settings if run after a failed read. | Deleted. |
+| B92 ✅ | P2 | Email | `apps-script/Email.js` `autoNudgeIfDue_` | The "Automated Wed/Thu nudge" setting did nothing: no job sent it. | The bot's 5-minute trigger sends it Wed and Thu from 10 AM CT, once a day, only with pool emails on. |
+| B93 ✅ | P2 | Email | `apps-script/Email.js` `sendWedThuNudge_` | A nudge could go out after the deadline, and always said "Friday 9:00 PM CT" even with another deadline set. | Refused after the deadline; the text uses the real deadline. |
+| B94 ✅ | P3 | Email | `apps-script/Email.js` `missingPickers_` | Last week's hidden picks counted as this week's, so that player was never reminded. | Private pick docs from another week are ignored. |
+| B95 ✅ | P1 | Security | `apps-script/Code.js` pipeline 4 | Anyone could build a Google Form that mails a "receipt" to the bot and set a sheet-only player's picks. | Receipts count only from the pool's own address. |
+| B96 ✅ | P2 | Security | `firestore.rules` `newRegistryEntryOk`, `public/js/state.js`, `firestore.js` | A new player could add themselves with any starting points. | Rules refuse a self-added entry with points; the app ignores points in a player's own doc. |
+| B97 ✅ | P2 | Cost (Spark) | `public/js/firestore.js` `startBotStatusListener` | Every open browser re-read the bot status on every bot run (up to once a minute) for a pill only commissioners see. | Only commissioners listen. |
+| B98 ✅ | P3 | Security | `firebase.json`, `.github/workflows/deploy.yml` | The site could be framed by another site; rules tests didn't gate deploys. | `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`; the deploy workflow runs the rules tests. |
 
 Known limit: in `rolling_kickoff` mode (not used in production) hidden picks stay hidden until the last game, the server doesn't lock the tiebreaker at its kickoff (the app does), and an imported sheet can put hidden picks in public rows before the reveal.

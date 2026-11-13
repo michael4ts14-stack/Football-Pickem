@@ -19,6 +19,17 @@ jobs:
       - name: Unit tests
         run: node --test "tests/apps-script/*.test.js" "tests/client/*.test.js" "tests/form/*.test.mjs" "tests/live/*.test.mjs" "tests/matchups/*.test.mjs" "tests/locks/*.test.mjs"
 
+      # Same command as CLAUDE.md "Rules" (the Firestore emulator needs Java 21).
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Security rules tests
+        run: |
+          npm ci --prefix tests/rules
+          npx --yes firebase-tools@15 emulators:exec --config tests/rules/firebase.json --only firestore --project demo-pickem "node --test tests/rules/rules.test.mjs"
+
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:

@@ -110,6 +110,7 @@ function syncCommissionerVisibilityDOM() {
 
   var botPill = document.getElementById("bot-sync-pill");
   if (botPill) botPill.classList.toggle("commish-only-hidden", !isCommish);
+  if (isCommish && typeof startBotStatusListener === "function") startBotStatusListener();
 
   var archRow = document.getElementById("drawer-commish-archive-row");
   if (archRow) archRow.classList.toggle("commish-only-hidden", !isCommish);

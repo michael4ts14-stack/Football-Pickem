@@ -192,8 +192,12 @@ function serve() {
   });
   check("roster chooser returns the chosen name, or new when closed", r11.name && r11.chosen === r11.name && r11.dismissed === "", r11);
 
-  // 5. Commissioner bot-status pill reads live_games/bot_status.
-  const pill = await page.evaluate(() => { const el = document.getElementById("bot-sync-pill"); return el ? { text: el.textContent, title: el.title } : null; });
+  // 5. Commissioner bot-status pill reads live_games/bot_status. Players don't listen to it
+  // (each bot run would cost every open browser a read), so start it the way a commissioner does.
+  check("players don't listen to the bot status", (await page.evaluate(() => BOT_STATUS_LISTENING)) === false);
+  await page.evaluate(() => startBotStatusListener());
+  await page.waitForFunction(() => !!BOT_STATUS, { timeout: 15000 }).catch(() => {});
+  const pill =await page.evaluate(() => { const el = document.getElementById("bot-sync-pill"); return el ? { text: el.textContent, title: el.title } : null; });
   check("bot status pill shows the last clean bot run", pill && /^Bot (ok|errors) · (\d+[mhd] ago|never)$/.test(pill.text) && /Gmail bot/.test(pill.title), pill);
 
   // 13. Commissioner hub (role check stubbed; writes are blocked at the network): overrides are
