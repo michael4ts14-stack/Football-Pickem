@@ -650,6 +650,7 @@ function saveRegistryChangesToCloud() {
     var clean = JSON.parse(JSON.stringify(cu));
     delete clean.email;
     delete clean.ownerEmail;
+    if (!isCommish) clean.priorPts = 0; // starting points come from the leaderboard / pool row or a commissioner
     if (boundMemberName(clean.key)) clean.linkedMemberName = boundMemberName(clean.key);
     clean.color = safeProfileColor(clean.color);
     return clean;

@@ -127,6 +127,8 @@ service cloud.firestore {
     function newRegistryEntryOk(entry, key) {
       return !('email' in entry) && !('ownerEmail' in entry) &&
         entry.get('linkedMemberName', boundMemberNameOf(key)) == boundMemberNameOf(key) &&
+        // Starting points come from the leaderboard or a commissioner, never from the player.
+        entry.get('priorPts', 0) == 0 &&
         validColor(entry.get('color', '#000'));
     }
 

@@ -463,7 +463,7 @@ function applyRemotePickDoc(docId, uData) {
         key: docId,
         name: uData.displayName || uData.linkedMemberName,
         linkedMemberName: pickDocMemberName(docId, uData),
-        priorPts: parseFloat(uData.priorPts) || 0,
+        priorPts: 0, // the player writes this doc, so its points aren't trusted (leaderboard / pool row supplies them)
         rank: uData.rank || "Linked",
         color: safeProfileColor(uData.color),
         ownerUid: uData.ownerUid || ""

@@ -100,6 +100,8 @@ test("pool state: players change only their own privacy and registry entry", asy
   await assertFails(reg(J, { customUsers: [{ key: "u_stevem", name: "Steve", priorPts: 99 }], lastProfileWriter: "u_justinc" }));
   await assertFails(reg(J, { customUsers: [mine, steve], lastProfileWriter: "u_justinc" }));
   await assertFails(reg(J, { customUsers: [steve, { key: "u_x" }], lastProfileWriter: "u_justinc" }));
+  // Starting points are the commissioner's to set: a player can't add themselves with some.
+  await assertFails(reg(J, { customUsers: [steve, { key: "u_justinc", name: "Justin C", priorPts: 99 }], lastProfileWriter: "u_justinc" }));
   await assertFails(reg(J, { customUsers: [steve, mine, mine], lastProfileWriter: "u_justinc" }));
   await assertFails(reg(O, { customUsers: [steve, { key: "u_other" }], lastProfileWriter: "u_other" }));
   // The app's own write (saveRegistryChangesToCloud): the whole list plus field-path privacy.
