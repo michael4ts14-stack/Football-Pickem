@@ -172,3 +172,33 @@ test("rankings job falls back to AP when the CFP poll has no teams yet, and refu
   polls = [{ name: "College Football Playoff", type: "cfp", ranks: [] }];
   await assert.rejects(fetchOfficialCfbRankings());
 });
+
+// Between a weekend's games and Tuesday's CFP release, ESPN's site feed lists only AP and Coaches.
+// The app must keep the latest CFP rankings (ESPN core poll 21), not drop back to AP.
+test("with no CFP in the current feed, the latest CFP rankings still win over AP", async () => {
+  const names = ["Georgia", "Ohio State", "Alabama", "Oregon", "Indiana", "Iowa", "Texas", "Miami", "LSU", "Utah",
+    "BYU", "Ole Miss", "Notre Dame", "Tennessee", "Texas Tech", "USC", "Missouri", "Houston", "Kentucky", "UCLA"];
+  const ap = names.map((n, i) => ({ current: i + 1, team: { location: n } }));
+  ap[2] = { current: 3, team: { location: "Oregon" } }; ap[3] = { current: 4, team: { location: "Indiana" } };
+  ap[5] = { current: 6, team: { location: "Alabama" } };
+  const coreIndex = { items: [
+    { $ref: "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks/12/rankings/21?lang=en" },
+    { $ref: "http://sports.core.api.espn.com/v2/sports/football/leagues/college-football/seasons/2026/types/2/weeks/13/rankings/1?lang=en" },
+  ] };
+  const cfp = { name: "Playoff Committee Rankings", ranks: names.map((n, i) => ({ current: i + 1, team: { $ref: "http://x/seasons/2026/teams/" + (100 + i) + "?lang=en" } })) };
+  const teams = { sports: [{ leagues: [{ teams: names.map((n, i) => ({ team: { id: String(100 + i), location: n } })) }] }] };
+  const seen = [];
+  global.fetchJsonSafe = async (url) => {
+    seen.push(url);
+    if (/site\.api\.espn\.com.*\/rankings/.test(url)) return { rankings: [{ name: "AP Top 25", type: "ap", ranks: ap }] };
+    if (/core\.api\.espn\.com.*\/college-football\/rankings$/.test(url)) return coreIndex;
+    if (/rankings\/21/.test(url)) return cfp;
+    if (/\/teams\?/.test(url)) return teams;
+    return null;
+  };
+  global.GAMES = [];
+  await fetchLiveCollegeFootballRankings(true);
+  assert.strictEqual(TEAM_RANKS["Alabama"], "#3", "CFP #3, not AP #6");
+  assert.strictEqual(CFB_RANKINGS_POLL_NAME, "Playoff Committee Rankings");
+  assert.ok(seen.some((u) => /^https:/.test(u) && /rankings\/21/.test(u)), "core poll fetched over https");
+});

@@ -2,6 +2,24 @@ import { initFirestoreAuth, readDoc, patchDoc, fetchJson } from "../lib/firestor
 
 const ESPN_RANKINGS_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/rankings";
 
+// Same as fetchLatestCfpPoll in public/js/render/field-tracker.js.
+export async function fetchLatestCfpPoll(now = new Date()) {
+  const season = now.getMonth() < 6 ? now.getFullYear() - 1 : now.getFullYear();
+  const idx = await fetchJson("https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/rankings");
+  const item = (idx?.items || []).find((it) => it?.$ref?.includes(`/seasons/${season}/`) && /\/rankings\/21(\?|$)/.test(it.$ref));
+  if (!item) return null;
+  const poll = await fetchJson(item.$ref.replace(/^http:/, "https:"));
+  if (!Array.isArray(poll?.ranks) || poll.ranks.length < 20) return null;
+  const teams = await fetchJson("https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams?limit=1000&groups=80");
+  const byId = {};
+  for (const t of teams?.sports?.[0]?.leagues?.[0]?.teams || []) if (t?.team) byId[t.team.id] = t.team.location || t.team.name;
+  const ranks = poll.ranks.map((r) => {
+    const m = r?.team?.$ref?.match(/teams\/(\d+)/);
+    return { current: r.current, team: { location: m ? byId[m[1]] : null } };
+  }).filter((r) => r.team.location);
+  return ranks.length >= 20 ? { name: poll.name || "Playoff Committee Rankings", type: "cfp", ranks } : null;
+}
+
 export async function fetchOfficialCfbRankings() {
   const data = await fetchJson(ESPN_RANKINGS_URL);
   if (!data || !Array.isArray(data.rankings)) {
@@ -10,6 +28,12 @@ export async function fetchOfficialCfbRankings() {
 
   // An announced poll with no teams yet must not strip every rank from the slate.
   const polls = data.rankings.filter((p) => p && Array.isArray(p.ranks) && p.ranks.length >= 20);
+  // The site feed drops CFP between a weekend's games and the next Tuesday release; the latest CFP
+  // poll (ESPN core poll 21) still wins over AP then.
+  if (!polls.some((p) => p.type === "cfp" || /playoff|cfp|committee/i.test(p.name || ""))) {
+    const cfp = await fetchLatestCfpPoll().catch(() => null);
+    if (cfp) polls.unshift(cfp);
+  }
   const officialPoll = polls.find((p) =>
     p.type === "cfp" ||
     (p.name && /playoff|cfp|committee/i.test(p.name)) ||

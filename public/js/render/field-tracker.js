@@ -370,6 +370,30 @@ var CFB_RANKINGS_CACHE = null;
 var CFB_RANKINGS_LAST_FETCH = 0;
 var CFB_RANKINGS_POLL_NAME = "CFP Rankings";
 
+// Latest CFP committee rankings from ESPN's core feed (poll 21), in the site feed's shape, or null.
+// ESPN's site rankings feed drops CFP between a weekend's games and the next Tuesday release, and
+// the app then showed AP ranks (Alabama AP #6 vs CFP #3). Once CFP is out it is the only ranking.
+async function fetchLatestCfpPoll() {
+  var now = new Date();
+  var season = now.getMonth() < 6 ? now.getFullYear() - 1 : now.getFullYear(); // January bowls belong to last season
+  var idx = await fetchJsonSafe("https://sports.core.api.espn.com/v2/sports/football/leagues/college-football/rankings");
+  var item = idx && Array.isArray(idx.items) && idx.items.find(function(it) {
+    return it && it.$ref && it.$ref.indexOf("/seasons/" + season + "/") !== -1 && /\/rankings\/21(\?|$)/.test(it.$ref);
+  });
+  if (!item) return null;
+  var poll = await fetchJsonSafe(item.$ref.replace(/^http:/, "https:"));
+  if (!poll || !Array.isArray(poll.ranks) || poll.ranks.length < 20) return null;
+  var teams = await fetchJsonSafe("https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams?limit=1000&groups=80");
+  var byId = {};
+  var league = (((teams || {}).sports || [])[0] || {}).leagues;
+  ((league && league[0] && league[0].teams) || []).forEach(function(t) { if (t && t.team) byId[t.team.id] = t.team.location || t.team.name; });
+  var ranks = poll.ranks.map(function(r) {
+    var m = r && r.team && r.team.$ref && r.team.$ref.match(/teams\/(\d+)/);
+    return { current: r.current, team: { location: m ? byId[m[1]] : null } };
+  }).filter(function(r) { return r.team.location; });
+  return ranks.length >= 20 ? { name: poll.name || "Playoff Committee Rankings", type: "cfp", ranks: ranks } : null;
+}
+
 async function fetchLiveCollegeFootballRankings(force) {
   var now = Date.now();
   if (!force && CFB_RANKINGS_CACHE && (now - CFB_RANKINGS_LAST_FETCH < 300000)) {
@@ -382,6 +406,10 @@ async function fetchLiveCollegeFootballRankings(force) {
       // Prioritize College Football Playoff (CFP) committee rankings (November - January).
       // Fallback to AP Top 25 (pre-CFP) or first poll if CFP committee rankings are not yet released.
       var usablePolls = data.rankings.filter(function(p) { return p && Array.isArray(p.ranks) && p.ranks.length >= 20; });
+      var isCfp = function(p) { return p.type === "cfp" || (p.name && /playoff|cfp|committee/i.test(p.name)) || (p.shortName && /cfp/i.test(p.shortName)); };
+      if (!usablePolls.some(isCfp)) {
+        try { var lastCfp = await fetchLatestCfpPoll(); if (lastCfp) usablePolls.unshift(lastCfp); } catch (eCfp) {}
+      }
       var officialPoll = usablePolls.find(function(p) {
         return (p.type === "cfp") ||
           (p.name && /playoff|cfp|committee/i.test(p.name)) ||
