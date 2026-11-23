@@ -938,7 +938,24 @@ function renderBotSyncPill() {
   ];
   if (gmail.errors && gmail.errors.length) lines.push("Errors: " + gmail.errors.join(" | "));
   if (espn) lines.push("ESPN poller: " + (espn.ok ? "ok" : "failing") + (espn.errors && espn.errors.length ? " — " + espn.errors[0] : ""));
-  el.title = lines.join("\n");
+  el.title = lines.join("\n") + "\n(click for the full log)";
+}
+
+// Commissioner log: what the bot (Code.js) printed on its last run of each job.
+function openBotLog() {
+  var dlg = document.getElementById("bot-log-dialog");
+  if (!dlg) return;
+  var parts = [];
+  ["gmail", "espn"].forEach(function(job) {
+    var j = BOT_STATUS && BOT_STATUS[job];
+    if (!j) return;
+    parts.push("== " + (job === "gmail" ? "Gmail bot" : "ESPN poller") + " · last run " + (j.lastRunAt ? new Date(j.lastRunAt).toLocaleString() : "never") + (j.ok === false ? " · ERRORS" : ""));
+    (j.errors || []).forEach(function(e) { parts.push("ERROR: " + e); });
+    parts = parts.concat(j.log && j.log.length ? j.log : ["(no log saved yet: the bot saves one from its next run)"]);
+    parts.push("");
+  });
+  document.getElementById("bot-log-text").textContent = parts.length ? parts.join("\n") : "No bot runs recorded yet.";
+  dlg.showModal();
 }
 
 // Highest currentWeek seen in any shared_state snapshot this session.

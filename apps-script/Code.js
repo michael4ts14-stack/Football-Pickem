@@ -43,10 +43,10 @@ function doPost(e) {
 // Run this function in the Apps Script editor to grant MailApp sending permissions and verify your inbox:
 function authorizeAndTestEmailService() {
   var remaining = MailApp.getRemainingDailyQuota();
-  Logger.log("MailApp is active! Daily emails remaining: " + remaining);
+  botLog_("MailApp is active! Daily emails remaining: " + remaining);
   var myEmail = Session.getActiveUser().getEmail();
   MailApp.sendEmail(myEmail, "✅ Pick'em Email Bot Verified!", "Your Google Apps Script Pick'em Bot is now fully authorized to send emails!\n\nDaily email quota remaining: " + remaining);
-  Logger.log("✓ Sent test verification email to: " + myEmail);
+  botLog_("✓ Sent test verification email to: " + myEmail);
 }
 
 // Run this in the Apps Script editor if the bot or the send log reports "insufficient
@@ -55,7 +55,7 @@ function authorizeAndTestEmailService() {
 function authorizeFirestoreAccess() {
   if (ScriptApp.requireScopes) ScriptApp.requireScopes(ScriptApp.AuthMode.FULL, ["https://www.googleapis.com/auth/datastore"]);
   var res = UrlFetchApp.fetch(FIRESTORE_DOC_URL, { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
-  Logger.log("Firestore as the script owner: HTTP " + res.getResponseCode() + (res.getResponseCode() === 200 ? " (OK)" : " " + String(res.getContentText()).slice(0, 300)));
+  botLog_("Firestore as the script owner: HTTP " + res.getResponseCode() + (res.getResponseCode() === 200 ? " (OK)" : " " + String(res.getContentText()).slice(0, 300)));
 }
 
 // Run this function ONCE in the Apps Script editor to install automated triggers:
@@ -66,7 +66,7 @@ function authorizeFirestoreAccess() {
 // Run this function in the Apps Script Editor, or Console › Import / Bot (commissioners)
 // ============================================================================
 function emergencyStopEmailLoopAndCleanState() {
-  Logger.log("🚨 INITIATING EMERGENCY STOP FOR OUTBOUND EMAIL LOOP & CLEANING STATE...");
+  botLog_("🚨 INITIATING EMERGENCY STOP FOR OUTBOUND EMAIL LOOP & CLEANING STATE...");
 
   // 1. Delete rogue time-based triggers calling outbound emails
   var triggers = ScriptApp.getProjectTriggers();
@@ -81,7 +81,7 @@ function emergencyStopEmailLoopAndCleanState() {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
-  Logger.log("✓ Deleted rogue outbound email triggers: " + (deletedTriggers.length ? deletedTriggers.join(", ") : "none found"));
+  botLog_("✓ Deleted rogue outbound email triggers: " + (deletedTriggers.length ? deletedTriggers.join(", ") : "none found"));
 
   // 2. Set permanent ScriptProperties locks for current week and Week 8
   var props = PropertiesService.getScriptProperties();
@@ -94,7 +94,7 @@ function emergencyStopEmailLoopAndCleanState() {
   props.setProperty("SAT_MASTER_CSV_SENT_WEEK_" + curWeek, new Date().toISOString());
   // Legacy week 8 lock removed
   // Legacy week 7 lock removed
-  Logger.log("✓ ScriptProperties lock set for SAT_MASTER_CSV_SENT_WEEK_" + curWeek);
+  botLog_("✓ ScriptProperties lock set for SAT_MASTER_CSV_SENT_WEEK_" + curWeek);
 
   // 3. Inspect Firestore shared_state: if lastScrapedFile was self-generated, clean it!
   try {
@@ -109,23 +109,23 @@ function emergencyStopEmailLoopAndCleanState() {
 
     var cleanPatch = { commissionerConfig: cfg };
     if (lastFile.indexOf("college_pickem_26_") !== -1 || lastFile.indexOf("_master.csv") !== -1 || lastFile.indexOf("master_grid") !== -1) {
-      Logger.log("⚠️ Detected that lastScrapedFile (" + cloud.lastScrapedFile + ") was a self-generated CSV. Resetting officialSheetSyncedForWeek to null!");
+      botLog_("⚠️ Detected that lastScrapedFile (" + cloud.lastScrapedFile + ") was a self-generated CSV. Resetting officialSheetSyncedForWeek to null!");
       cleanPatch.officialSheetSyncedForWeek = null;
       cleanPatch.lastScrapedFile = "waiting_for_official_separatedatturf_sheet";
     }
     patchFirebaseNode("", cleanPatch);
-    Logger.log("✓ Firestore updated: autoSatMorningSheetEmail disabled, lastSatSheetSentWeek locked to " + curWeek);
+    botLog_("✓ Firestore updated: autoSatMorningSheetEmail disabled, lastSatSheetSentWeek locked to " + curWeek);
   } catch (eF) {
-    Logger.log("Error updating Firestore: " + eF.message);
+    botLog_("Error updating Firestore: " + eF.message);
   }
 
-  Logger.log("✅ EMERGENCY STOP COMPLETE: Outbound emails are completely halted and locked.");
+  botLog_("✅ EMERGENCY STOP COMPLETE: Outbound emails are completely halted and locked.");
   return { ok: true, deletedTriggers: deletedTriggers, weekLocked: curWeek };
 }
 
 function setupLiveEspnAndEmailTriggers() {
   var quota = MailApp.getRemainingDailyQuota();
-  Logger.log("MailApp sending quota available: " + quota);
+  botLog_("MailApp sending quota available: " + quota);
   var existing = ScriptApp.getProjectTriggers();
   for (var i = 0; i < existing.length; i++) {
     var fn = existing[i].getHandlerFunction();
@@ -137,14 +137,14 @@ function setupLiveEspnAndEmailTriggers() {
   }
   ScriptApp.newTrigger("pollEspnLiveGamesSubMinute").timeBased().everyMinutes(1).create();
   ScriptApp.newTrigger("autoScrapeWeeklyPickemToFirebase").timeBased().everyMinutes(5).create();
-  Logger.log("✓ Installed 1-minute ESPN Live Score trigger + 5-minute Gmail Bot trigger (Outbound mass email trigger deleted/disabled).");
+  botLog_("✓ Installed 1-minute ESPN Live Score trigger + 5-minute Gmail Bot trigger (Outbound mass email trigger deleted/disabled).");
 }
 
 function autoScrapeWeeklyPickemToFirebase() {
   // The scrape itself never sends email. The only outbound mail from this trigger is the
   // Wed/Thu reminder, behind the pool-emails kill switch (autoNudgeIfDue_ in Email.js).
   var out = runMasterPickemEmailBot(false);
-  try { autoNudgeIfDue_(); } catch (eNudge) { Logger.log("Auto nudge failed: " + eNudge.message); }
+  try { autoNudgeIfDue_(); } catch (eNudge) { botLog_("Auto nudge failed: " + eNudge.message); }
   return out;
 }
 
@@ -188,11 +188,12 @@ function forceRescanLatestSpreadsheetEmail() {
 
 function runMasterPickemEmailBot(forceRescan) {
   if (!acquireRunLease_("gmail", 360)) {
-    Logger.log("⏭️ Gmail bot already running; skipping this run.");
+    botLog_("⏭️ Gmail bot already running; skipping this run.");
     return { ok: false, skipped: true, reason: "Gmail bot already running" };
   }
   try {
     var stats = runMasterPickemEmailBotLocked_(forceRescan);
+    stats.errors = BOT_RUN_ERRORS.slice(0, 10); // shown by the commissioner's manual run button
     writeBotStatus_("gmail", stats);
     return stats;
   } catch (e) {
@@ -275,7 +276,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           senderRaw.indexOf("commissioner@separatedatturf.com") !== -1 ||
           subjectLow.indexOf("official master") !== -1 ||
           subjectLow.indexOf("master pick'em spreadsheet") !== -1) {
-        Logger.log("⏭️ Skipping app-generated / self-sent email: " + subject + " from " + senderRaw);
+        botLog_("⏭️ Skipping app-generated / self-sent email: " + subject + " from " + senderRaw);
         continue;
       }
 
@@ -288,9 +289,9 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
       var isFromOfficialOrg = senderAddr === BOT_OFFICIAL_SENDER;
 
       if (isOfficialSpreadsheetSubject) {
-        Logger.log("🎯 FOUND TARGET SPREADSHEET EMAIL: " + subject + " from " + senderRaw + " (" + attachments.length + " attachments)");
+        botLog_("🎯 FOUND TARGET SPREADSHEET EMAIL: " + subject + " from " + senderRaw + " (" + attachments.length + " attachments)");
       } else {
-        Logger.log("Inspecting email: " + subject + " from " + senderRaw + " (" + attachments.length + " attachments)");
+        botLog_("Inspecting email: " + subject + " from " + senderRaw + " (" + attachments.length + " attachments)");
       }
 
       var wkMatchMsg = (subject + " " + plainBody.slice(0, 400)).match(/week\s*(\d{1,2})/i);
@@ -346,7 +347,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
         // (only a new slate rollover or the commissioner does).
         patchFirebaseNode("", stPatch);
         stats.importedStandings = standingsRows.length;
-        Logger.log("✓ Pushed " + standingsRows.length + " standings rows & updated poolMembers priorPts in Firebase!");
+        botLog_("✓ Pushed " + standingsRows.length + " standings rows & updated poolMembers priorPts in Firebase!");
       }
 
       // ----------------------------------------------------------------------
@@ -409,7 +410,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             games: finalOutgoingScores,
             archivedAt: new Date().toISOString()
           });
-          Logger.log("✓ Archived outgoing Week " + prevWkNum + " final ESPN scores & drives before resetting for " + newWkLabel);
+          botLog_("✓ Archived outgoing Week " + prevWkNum + " final ESPN scores & drives before resetting for " + newWkLabel);
 
           // STEP 3: Reset pool picks & initialize `live_games/week_state` for the new week
           var resetMembers = (currentCloud && currentCloud.poolMembers && Array.isArray(currentCloud.poolMembers)) ? currentCloud.poolMembers : [];
@@ -454,12 +455,18 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           // Immediately seed `live_games/week_state` with the new week's ESPN schedule & initial state
           syncEspnLiveStateToFirestore(true, scrapedGames, newWkNum);
           stats.importedGames = scrapedGames.length;
-          Logger.log("✓ Pushed " + scrapedGames.length + " new weekly games (" + newWkLabel + "), archived outgoing week, & initialized live_games/week_state!");
+          botLog_("✓ Pushed " + scrapedGames.length + " new weekly games (" + newWkLabel + "), archived outgoing week, & initialized live_games/week_state!");
           }
           } else {
-            Logger.log("ℹ️ Skipping slate reset: Week " + newWkNum + " is not greater than active Week " + curWkNum);
+            botLog_("ℹ️ Skipping slate reset: Week " + newWkNum + " is not greater than active Week " + curWkNum);
           }
+        } else {
+          // Used to fail silently, so a changed form layout left the old week up with no sign why.
+          recordBotError_("Slate email \"" + subject + "\": read " + (scrapedGames ? scrapedGames.length : 0) + " games from its form (need 15); week not reset, will retry");
+          keepUnprocessed = true;
         }
+      } else if (isFromOfficialOrg && /pick sheet|form/i.test(subject)) {
+        botLog_("ℹ️ Not treated as a new slate: " + (isSatOrFriNight ? "slates aren't read on Fri/Sat" : (hasSpreadsheetAtt || isSpreadsheetSubject ? "it looks like a spreadsheet email" : "no Google Form link found")) + " (" + subject + ")");
       }
 
       // ----------------------------------------------------------------------
@@ -474,7 +481,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
 
           // Reject any self-generated app master CSV export (MANDATORY FIX 3)
           if (attName.indexOf("college_pickem_26_") !== -1 || attName.indexOf("_master.csv") !== -1 || attName.indexOf("master_grid") !== -1) {
-            Logger.log("⏭️ Skipping app self-generated master CSV attachment: " + att.getName());
+            botLog_("⏭️ Skipping app self-generated master CSV attachment: " + att.getName());
             continue;
           }
 
@@ -484,7 +491,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           var curWkForSheet = parseInt(currentCloud.currentWeek, 10) || 0;
           if (msgWeekNum && curWkForSheet && msgWeekNum !== curWkForSheet) {
             // A sheet for another week must never be parsed against this week's slate.
-            Logger.log("⏭️ Skipping " + att.getName() + ": it is for Week " + msgWeekNum + ", active week is " + curWkForSheet);
+            botLog_("⏭️ Skipping " + att.getName() + ": it is for Week " + msgWeekNum + ", active week is " + curWkForSheet);
             continue;
           }
           // An .xlsx can hold several tabs (Picks, Scoreboard, Contestants); take the first that parses.
@@ -504,7 +511,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           }
           if (importPoolSheetResult_(poolResult, curWkForSheet || msgWeekNum, att.getName(), currentCloud)) {
             stats.importedPoolMembers = parsedCount;
-            Logger.log("✓ Imported " + att.getName() + ": " + parsedCount + " pool members merged into Firebase");
+            botLog_("✓ Imported " + att.getName() + ": " + parsedCount + " pool members merged into Firebase");
           }
         }
       }
@@ -522,20 +529,20 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           if (targetProfile && receiptIsLate_(msg.getDate(), currentCloud)) {
             // Anyone can make a Google Form that mails a "receipt" here, so one can't move picks
             // once the players themselves are locked.
-            Logger.log("⏭️ Skipping pick receipt for " + targetProfile + ": it arrived after the deadline.");
+            botLog_("⏭️ Skipping pick receipt for " + targetProfile + ": it arrived after the deadline.");
           } else if (targetProfile) {
             // Guard: Never overwrite in-app picks if player already has active saved picks in Firestore!
             if (hasActiveInAppPicks_(targetProfile, currentCloud, activeGames)) {
-              Logger.log("ℹ️ Skipping confirmation email for " + targetProfile + ": player already has active in-app picks in Firestore.");
+              botLog_("ℹ️ Skipping confirmation email for " + targetProfile + ": player already has active in-app picks in Firestore.");
             } else {
               if (savePicksToTargetProfile(targetProfile, pickResult, currentCloud) === false) {
                 keepUnprocessed = true; // retried next run; these picks exist nowhere else
               } else {
-                Logger.log("✓ Imported " + pickResult.matchedCount + " picks for " + targetProfile);
+                botLog_("✓ Imported " + pickResult.matchedCount + " picks for " + targetProfile);
               }
             }
           } else {
-            Logger.log("ℹ️ Skipping pick confirmation email from " + msg.getFrom() + " (could not resolve to specific contestant; Michael A protected)");
+            botLog_("ℹ️ Skipping pick confirmation email from " + msg.getFrom() + " (could not resolve to specific contestant; Michael A protected)");
           }
         }
       }
@@ -770,7 +777,7 @@ function extractGridsFromXlsxAttachment(att) {
       return { name: sh.name, grid: xlsxSheetXmlToGrid_(sh.xml, sharedStrings) };
     });
   } catch (e) {
-    Logger.log("XLSX unzip parse error: " + e.message);
+    botLog_("XLSX unzip parse error: " + e.message);
     return [];
   }
 }
@@ -1225,6 +1232,14 @@ function scrapeGoogleFormGames(formUrl) {
       var titleLines = qTitle.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(Boolean);
       if (titleLines.length < 2) continue;
       var parsed = buildGamesArrayFromLines(titleLines);
+      var choices = (questions[i][4] && questions[i][4][0] && questions[i][4][0][1]) || [];
+      if (parsed.length !== 1 && choices.length === 2) { // a game question always has two team choices
+        // Newer layout: "[Rivalry name]\n(7-4) Away\n(9-2) #13 Home (-5.5)", kickoff in the description
+        var pair = titleLines.slice(-2);
+        if (!/^(?:at|vs\.?)\s+/i.test(pair[1])) pair[1] = "at " + pair[1];
+        var desc = questions[i][2] ? String(questions[i][2]).trim() : "";
+        parsed = buildGamesArrayFromLines(desc ? pair.concat([desc]) : pair);
+      }
       if (parsed.length !== 1) continue;
       var game = parsed[0];
       game.id = games.length + 1;
@@ -1238,7 +1253,7 @@ function scrapeGoogleFormGames(formUrl) {
     }
     return games;
   } catch (e) {
-    Logger.log("Form scrape error: " + e.message);
+    botLog_("Form scrape error: " + e.message);
     return [];
   }
 }
@@ -1653,7 +1668,7 @@ function fetchFirebaseNode(subPath) {
     }
     return fullDoc;
   } catch (e) {
-    Logger.log("Firestore fetch error: " + e.message);
+    botLog_("Firestore fetch error: " + e.message);
     return null;
   }
 }
@@ -1676,7 +1691,7 @@ function patchFirestoreUserDoc(profKey, userObj) {
 function resetProcessedEmailHistory() {
   PropertiesService.getUserProperties().deleteProperty("PROCESSED_MSG_IDS");
   PropertiesService.getScriptProperties().deleteProperty("LAST_LIVE_STATE_HASH");
-  Logger.log("Cleared processed email & live state cache!");
+  botLog_("Cleared processed email & live state cache!");
 }
 
 // ============================================================================
@@ -1923,7 +1938,7 @@ function parseBotSingleDrive(drv, g, awayTeamId, homeTeamId, awayAbbr, homeAbbr,
 // when live games are in progress so the SVG field graphics & play-by-play move on ESPN's exact cadence!
 function pollEspnLiveGamesSubMinute() {
   if (!acquireRunLease_("espn", 360)) {
-    Logger.log("⏭️ ESPN poller already running; skipping this run.");
+    botLog_("⏭️ ESPN poller already running; skipping this run.");
     return { ok: false, skipped: true, reason: "ESPN poller already running" };
   }
   try {
@@ -2217,7 +2232,7 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
         }
       }
     } catch (eSum) {
-      Logger.log("ESPN summary play-by-play fetch warning: " + eSum.message);
+      botLog_("ESPN summary play-by-play fetch warning: " + eSum.message);
     }
   }
 
@@ -2268,7 +2283,7 @@ function syncEspnLiveStateToFirestore(forceWrite, gamesOverride, weekNumOverride
     if (wroteToFirestore) {
       scriptProps.setProperty("LAST_LIVE_STATE_HASH", newHash);
       if (curWeek > highestWeek) scriptProps.setProperty("LIVE_STATE_HIGHEST_WEEK", String(curWeek));
-      Logger.log("✓ Pushed live_games/week_state (" + sortedKeys.length + " games, " + inProgressCount + " live, " + completedCount + " final)");
+      botLog_("✓ Pushed live_games/week_state (" + sortedKeys.length + " games, " + inProgressCount + " live, " + completedCount + " final)");
     }
   }
 
@@ -2327,8 +2342,15 @@ function patchFirestoreDocUrl(docUrl, dataObj) {
 var BOT_RUN_ERRORS = [];
 
 function recordBotError_(msg) {
-  Logger.log("❌ " + msg);
+  botLog_("❌ " + msg);
   BOT_RUN_ERRORS.push(String(msg).slice(0, 300));
+}
+
+// Every Logger.log line of this run, saved to bot_status so commissioners can read it in the app.
+var BOT_RUN_LOG = [];
+function botLog_(m) {
+  BOT_RUN_LOG.push(new Date().toISOString().slice(11, 19) + " " + String(m).slice(0, 300));
+  Logger.log(m);
 }
 
 // One run at a time per job. Triggers can overlap (a 1-minute trigger whose run takes
@@ -2365,6 +2387,7 @@ function writeBotStatus_(job, summary) {
     lastSuccessAt: props.getProperty("LAST_SUCCESS_AT_" + job) || null,
     ok: ok,
     errors: BOT_RUN_ERRORS.slice(0, 10),
+    log: BOT_RUN_LOG.slice(-60),
     summary: summary || {}
   };
   var payload = {};

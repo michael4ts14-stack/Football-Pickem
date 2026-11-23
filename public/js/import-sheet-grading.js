@@ -564,7 +564,9 @@ async function triggerAppsScriptGmailScraper() {
     var stdCnt = (typeof data.importedStandings === "number") ? data.importedStandings : 0;
     var gCnt = (typeof data.importedGames === "number") ? data.importedGames : 0;
     var fileStr = data.latestFileName ? (" from " + data.latestFileName) : "";
-    if (stEl) {
+    if (stEl && data.errors && data.errors.length) {
+      stEl.textContent = "⚠️ Bot ran with problems: " + data.errors.join(" | ") + " (click the Bot pill for the full log)";
+    } else if (stEl) {
       if (memCnt > 0) {
         stEl.textContent = "✅ Apps Script scraped Gmail! Imported " + memCnt + " pool entries" + (wkStr ? " for " + wkStr : "") + fileStr + " & synced to Firebase.";
       } else if (stdCnt > 0) {

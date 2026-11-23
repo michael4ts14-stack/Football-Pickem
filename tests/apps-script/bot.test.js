@@ -633,3 +633,39 @@ test("a Google Forms receipt sets nobody's picks (anyone can make a form that ma
 test("the dead scheduled-email job is gone (it could save empty settings)", () => {
   assert.strictEqual(typeof loadBot({ cloud: baseCloud() }).ctx.checkAndDispatchScheduledOutboundEmails, "undefined");
 });
+
+// Week 13 form layout (2026-11-23): optional rivalry line, record before the team, no "at",
+// kickoff in the question description. The old parser read 0 games and the week never reset.
+function formHtml(titles) {
+  const qs = [[1, "NAME (First   Last)", "Ex: John Doe", 0, null]].concat(titles.map((t, i) => [i + 2, t, "Friday, 11/27 - 2:30 ABC", 2, [[i, [["A" + i, null, null, null, 0], ["H" + i, null, null, null, 0]]]]]));
+  return "<script>var FB_PUBLIC_LOAD_DATA_ = " + JSON.stringify([null, ["desc", qs]]) + ";</script>";
+}
+const NEW_TITLES = ["(7-4) Nebraska\n(9-2) #13 Iowa (-5.5)", "Egg Bowl\n(5-6) Mississippi State\n(7-4) #23 Ole Miss (-18.5)", "(10-1) #3 Notre Dame (-24.5)\n(5-6)   Syracuse"];
+
+test("form questions in the new layout (no 'at', record first, rivalry line) are read", () => {
+  const titles = [];
+  for (let i = 0; i < 20; i++) titles.push(NEW_TITLES[i % 3]);
+  const h = loadBot({ cloud: baseCloud(), extraFetch: (u) => (u.indexOf("docs.google.com/forms") !== -1 ? require("./harness").makeResponse(200, formHtml(titles)) : null) });
+  const games = h.ctx.scrapeGoogleFormGames("https://docs.google.com/forms/d/e/x/viewform?embedded=true");
+  assert.strictEqual(games.length, 20);
+  assert.strictEqual(games[0].away, "Nebraska");
+  assert.strictEqual(games[0].home, "Iowa");
+  assert.strictEqual(games[0].poolLine, "Iowa -5.5");
+  assert.strictEqual(games[1].away, "Mississippi State");
+  assert.strictEqual(games[1].home, "Ole Miss");
+  assert.strictEqual(games[2].poolLine, "Notre Dame -24.5");
+  assert.strictEqual(games[0].kick, "Friday, 11/27 - 2:30 ABC");
+  assert.strictEqual(games[0].awayCode, "A0");
+});
+
+test("a slate email whose form can't be read is reported, logged, and retried", () => {
+  const email = { id: "m-slate-13", subject: "College Pick'em '26 - Week 13 Pick Sheet", body: "Week 13 https://docs.google.com/forms/d/e/abc/viewform" };
+  const h = loadBot({ cloud: baseCloud(), threads: [fakeThread([email])] });
+  h.ctx.scrapeGoogleFormGames = () => [];
+  h.ctx.runMasterPickemEmailBot(false);
+  const status = botStatusWrites(h).pop().gmail;
+  assert.strictEqual(status.ok, false);
+  assert.ok(status.errors.some((e) => /Week 13/.test(e) && /0 games/.test(e)), status.errors.join());
+  assert.ok(status.log.some((l) => /Week 13 Pick Sheet/.test(l)), "the run's log is saved for the commissioner");
+  assert.ok(!JSON.parse(h.ctx.PropertiesService.getUserProperties().getProperty("PROCESSED_MSG_IDS") || "{}")["m-slate-13"], "kept for the next run");
+});
