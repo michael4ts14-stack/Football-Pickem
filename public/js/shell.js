@@ -722,7 +722,8 @@ function syncOverlayScrollLock() {
   // body in place and put the scroll position back when the last overlay closes.
   var b = document.body;
   if (any) {
-    overlayLockScrollY = window.pageYOffset || 0;
+    // The other lock (dialogs-ui.js) may have pinned the page already, which reads as 0 here.
+    overlayLockScrollY = (typeof PAGE_SCROLL_LOCK !== "undefined" && PAGE_SCROLL_LOCK) ? PAGE_SCROLL_LOCK.y : (window.pageYOffset || 0);
     b.style.top = "-" + overlayLockScrollY + "px";
     b.classList.add("modal-open");
   } else {

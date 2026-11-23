@@ -204,7 +204,9 @@ function syncPageScrollLock() {
   var open = anyOverlayOpen();
   var body = document.body;
   if (open && !PAGE_SCROLL_LOCK) {
-    var y = window.scrollY || window.pageYOffset || 0;
+    // shell.js locks first for most sheets; the pinned page reads as 0, which sent closing a game
+    // back to the top of the page. Use the position it saved.
+    var y = (body.classList.contains("modal-open") && typeof overlayLockScrollY === "number") ? overlayLockScrollY : (window.scrollY || window.pageYOffset || 0);
     PAGE_SCROLL_LOCK = { y: y };
     body.style.top = (-y) + "px";
     body.classList.add("page-scroll-locked");

@@ -344,6 +344,18 @@ function serve() {
   await page.evaluate(() => { resetCustomThemeColors(); setScreenPreset("standard"); setAppTheme("dark"); });
   check("appearance settings persist across reloads", r12.theme === "turf" && r12.accent === "#3b82f6" && r12.onAccent === "#0e0f11" && r12.preset === "compact-grid", r12);
 
+  // Closing a game's detail sheet used to jump to the top of the page (two scroll locks).
+  // A small shift is fine (live data can still be rendering above); the bug sent it to 0.
+  const rScroll = await page.evaluate(async () => {
+    const w = (ms) => new Promise((r) => setTimeout(r, ms));
+    window.scrollTo(0, 1200); await w(300);
+    const before = window.scrollY;
+    openGameDetail(GAMES[Math.min(10, GAMES.length - 1)].id); await w(800);
+    closeGameDetail(); await w(800);
+    return { before, after: window.scrollY };
+  });
+  check("closing a game detail keeps your place on the page", rScroll.before > 0 && Math.abs(rScroll.after - rScroll.before) < 100, rScroll);
+
   check("no page errors", pageErrors.length === 0, pageErrors);
 
   let failed = 0;
