@@ -1188,6 +1188,25 @@ function sharedWeekFields() {
   return { currentWeek: wk, weekLabel: "Week " + wk };
 }
 
+// Saves pool-wide fields only if the cloud is not already on a newer week. A commissioner tab
+// still on last week used to save its old slate and pool over the bot's rollover (B100).
+// Resolves true when saved; false when skipped (the newer cloud copy is then applied here).
+function setSharedIfNotStale(payload, opts) {
+  var ref = fsDb.collection("pickem_v14").doc("shared_state");
+  var newer = null;
+  return fsDb.runTransaction(function(tx) {
+    return tx.get(ref).then(function(d) {
+      var cloud = d.exists ? d.data() : {};
+      if ((parseInt(cloud.currentWeek, 10) || 0) > (parseInt(state.currentWeek, 10) || 0)) { newer = cloud; return; }
+      tx.set(ref, payload, opts);
+    });
+  }).then(function() {
+    if (!newer) return true;
+    if (typeof applyRemoteCloudData === "function") applyRemoteCloudData(newer, "newer week");
+    return false;
+  });
+}
+
 function pushWatchlistOrStandingsToFirebase() {
   if (isApplyingRemoteUpdate) return;
   state.liveScores = LIVE_SCORES;
@@ -1210,7 +1229,7 @@ function pushWatchlistOrStandingsToFirebase() {
   if (fsDb) {
     // mergeFields replaces each field whole. A deep merge kept liveScores keys deleted here
     // (last week's games) in the cloud, and they came back on every device.
-    try { fsDb.collection("pickem_v14").doc("shared_state").set(payload, { mergeFields: Object.keys(payload) }).catch(function(e) { reportCloudSaveFailure("standings", e); }); } catch (e) {}
+    try { setSharedIfNotStale(payload, { mergeFields: Object.keys(payload) }).catch(function(e) { reportCloudSaveFailure("standings", e); }); } catch (e) {}
   }
 }
 
@@ -1235,7 +1254,7 @@ function pushCustomGamesToFirebase() {
       if (localHasPicks || !state.lastScrapedFile) {
         payload.poolMembers = publicRowsWithoutHiddenPicks(members);
       }
-      var job = fsDb.collection("pickem_v14").doc("shared_state").set(payload, { merge: true }).then(function() { return true; }, function(e) { reportCloudSaveFailure("the slate", e); return false; });
+      var job = setSharedIfNotStale(payload, { merge: true }).then(null, function(e) { reportCloudSaveFailure("the slate", e); return false; });
       pushKickoffLocksToFirebase();
       return job;
     } catch (e) {}

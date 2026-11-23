@@ -783,3 +783,27 @@ function parseAndStoreMasterPoolCsv() {
   }
 }
 
+
+// Slate "Sync slate" button (commissioners): runs the Gmail bot now (new week, standings,
+// sheets), reloads the pool, and says plainly what happened.
+async function syncSlateNow() {
+  var btn = document.getElementById("btn-slate-sync");
+  var st = document.getElementById("slate-sync-status");
+  var say = function(t) { if (st) st.textContent = t; };
+  if (btn) btn.disabled = true;
+  say("Syncing… the bot can take up to a minute.");
+  try {
+    var reply = await callEmailService("runGmailBot");
+    if (reply && reply.ok === false && !reply.summary) { say("Couldn't run the bot: " + (reply.error || reply.code || "no answer")); return; }
+    var s = (reply && reply.summary) || {};
+    if (typeof pullFromFirebaseCloud === "function") pullFromFirebaseCloud();
+    if (s.skipped) say("The bot is already running. Try again in a minute. (" + (s.reason || "") + ")");
+    else if (s.errors && s.errors.length) say("Problem: " + s.errors.join(" | ") + " (click the Bot pill for the log)");
+    else if (s.importedGames) say("Loaded " + s.importedGames + " games for the new week.");
+    else say("Done. Checked " + (s.scannedMessages || 0) + " emails; nothing new to load. On " + (state.weekLabel || "the current week") + ".");
+  } catch (e) {
+    say("Couldn't run the bot: " + (e && e.message ? e.message : e));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}

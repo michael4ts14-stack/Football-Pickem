@@ -360,6 +360,10 @@
         <button type="button" class="icon-btn" onclick="clearSearch(); togglePicksSearch(false)" aria-label="Clear search"><i data-lucide="x"></i></button>
       </div>
 
+      <div class="commish-only-hidden" id="slate-sync-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0">
+        <button type="button" class="btn-sm" id="btn-slate-sync" onclick="syncSlateNow()">Sync slate</button>
+        <span id="slate-sync-status" role="status" style="font-size:12px;opacity:.85"></span>
+      </div>
       <div class="games-list" id="games-container"></div>
 
       <section class="tb-card" aria-labelledby="tb-card-title">
