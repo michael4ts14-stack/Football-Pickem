@@ -604,6 +604,20 @@ function filterStale2024InjuryList(injList) {
   return out;
 }
 
+// Injury reports the bot saves from RotoWire (live_games/injuries): { teams: { "Iowa": { list, updatedAt } }, source }.
+var INJURY_REPORTS = null;
+function injuryTeamKey(name) {
+  return String(name || "").toLowerCase().replace(/&/g, "and").replace(/\(([^)]*)\)/g, "$1").replace(/[^a-z0-9]/g, "").replace(/state$/, "st");
+}
+function injuryReportFor(team) {
+  var teams = INJURY_REPORTS && INJURY_REPORTS.teams;
+  if (!teams) return null;
+  if (teams[team]) return teams[team];
+  var k = injuryTeamKey(team);
+  for (var t in teams) if (injuryTeamKey(t) === k) return teams[t];
+  return null;
+}
+
 function enrichGameInjuries(g) {
   if (!g) return false;
   var updated = false;
@@ -628,6 +642,14 @@ function enrichGameInjuries(g) {
     if (!Array.isArray(g[k])) return;
     var real = g[k].filter(function(it) { return it && it.p && !isPlaceholderText(it.p) && !isPlaceholderText(it.note); });
     if (real.length !== g[k].length) { g[k] = real; updated = true; }
+  });
+  // This week's reports (RotoWire via the bot) replace whatever the slate carried.
+  [["awayInj", g.away], ["homeInj", g.home]].forEach(function(pair) {
+    var rep = injuryReportFor(pair[1]);
+    if (rep && Array.isArray(rep.list) && JSON.stringify(rep.list) !== JSON.stringify(g[pair[0]])) {
+      g[pair[0]] = JSON.parse(JSON.stringify(rep.list));
+      updated = true;
+    }
   });
   var compHdr = computeKeyInjHeaderFromLists(g, true);
   if (compHdr !== (g.keyInjHeader || "")) {

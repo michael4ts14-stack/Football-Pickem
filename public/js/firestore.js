@@ -167,6 +167,20 @@ function showListenerState() {
 // Apps Script bot heartbeat (written by Code.js every run): drives the commissioner's status
 // pill. Commissioners only: every rewrite is a billed read for each listener, and the bot
 // rewrites it up to once a minute (the Spark plan allows 50,000 reads a day).
+// Injury reports: read once and again at most every 10 minutes (a listener would bill a read per
+// device every time the bot saves).
+var INJURY_REPORTS_AT = 0;
+function loadInjuryReports(force) {
+  if (!fsDb || (!force && Date.now() - INJURY_REPORTS_AT < 600000)) return;
+  INJURY_REPORTS_AT = Date.now();
+  fsDb.collection("live_games").doc("injuries").get().then(function(d) {
+    INJURY_REPORTS = d && d.exists ? d.data() : null;
+    if (!INJURY_REPORTS || !Array.isArray(GAMES)) return;
+    GAMES.forEach(function(g) { enrichGameInjuries(g); });
+    if (typeof DETAIL_SHEET_GAME_ID !== "undefined" && DETAIL_SHEET_GAME_ID !== null && typeof renderGameDetailSheet === "function") renderGameDetailSheet();
+  }).catch(function() { INJURY_REPORTS_AT = 0; });
+}
+
 var BOT_STATUS_LISTENING = false;
 function startBotStatusListener() {
   if (BOT_STATUS_LISTENING || !fsDb) return;
@@ -184,6 +198,7 @@ function startBotStatusListener() {
 
 function startFirebaseRealtimeListeners() {
   if (fsDb) {
+    loadInjuryReports(true);
     try {
       // includeMetadataChanges: a snapshot skipped below is followed by one more when the
       // server confirms the write. Without it, a remote change that arrived together with our

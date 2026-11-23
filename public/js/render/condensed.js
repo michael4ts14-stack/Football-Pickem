@@ -379,7 +379,7 @@ function renderInjColumn(teamName, list) {
     }
   }
   if (!items) {
-    items = '<div style="font-size:0.75rem;color:var(--muted);padding:4px 0;">No injury report. ESPN doesn&#39;t publish college injury reports; check the team&#39;s availability report.</div>';
+    items = '<div style="font-size:0.75rem;color:var(--muted);padding:4px 0;">Nothing reported yet.</div>';
   }
   return '<div><div class="sub-col-title"><span>🚑 ' + (typeof escapeShellHtml === "function" ? escapeShellHtml(teamName) : teamName) + ' Availability</span></div>' + items + '</div>';
 }

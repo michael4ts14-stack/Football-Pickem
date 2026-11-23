@@ -147,7 +147,71 @@ function autoScrapeWeeklyPickemToFirebase() {
   // Wed/Thu reminder, behind the pool-emails kill switch (autoNudgeIfDue_ in Email.js).
   var out = runMasterPickemEmailBot(false);
   try { autoNudgeIfDue_(); } catch (eNudge) { botLog_("Auto nudge failed: " + eNudge.message); }
+  try { syncInjuryReportsIfDue_(); } catch (eInj) { botLog_("Injury sync failed: " + eInj.message); }
   return out;
+}
+
+// ============================================================================
+// INJURY REPORTS (live_games/injuries)
+// ESPN has no college injury data. RotoWire's injury feed lists reports for the next games on the
+// schedule, so teams appear through the week as their games approach. Each team's latest report is
+// kept until a day after its game; the app shows it in the game's Injuries section.
+// ============================================================================
+var INJURY_FEED_URL = "https://www.rotowire.com/cfootball/tables/injury-report.php?team=ALL&pos=ALL";
+var FIRESTORE_INJURIES_URL = FIRESTORE_BASE_URL + "/live_games/injuries";
+
+function syncInjuryReportsIfDue_() {
+  var props = PropertiesService.getScriptProperties();
+  var last = parseInt(props.getProperty("INJURIES_LAST_SYNC") || "0", 10);
+  if (Date.now() - last < 30 * 60 * 1000) return null;
+  props.setProperty("INJURIES_LAST_SYNC", String(Date.now()));
+  return syncInjuryReports_();
+}
+
+// RotoWire rows -> { "Iowa": { list: [{ p, pos, st, note }], gameAt } }
+function injuryTeamsFromFeed_(rows) {
+  var teams = {};
+  (rows || []).forEach(function(r) {
+    var team = String((r && (r.RotoSchoolName || r.team)) || "").trim();
+    var player = String((r && (r.player || ((r.firstname || "") + " " + (r.lastname || "")))) || "").trim();
+    if (!team || !player) return;
+    var ir = String(r.IR || "").trim();
+    var st = /season/i.test(ir) ? "OUT" : (ir.toUpperCase() || "QUESTIONABLE");
+    var note = [r.injury_type, /season/i.test(ir) ? "out for season" : "", r.ReturnDate ? "return " + r.ReturnDate : ""].filter(Boolean).join(" · ");
+    if (!teams[team]) teams[team] = { list: [], gameAt: r.game_datetime ? String(r.game_datetime) : "" };
+    teams[team].list.push({ p: player, pos: String(r.position || ""), st: st, note: note });
+  });
+  return teams;
+}
+
+function syncInjuryReports_() {
+  var res = UrlFetchApp.fetch(INJURY_FEED_URL, { muteHttpExceptions: true, headers: { "Referer": "https://www.rotowire.com/cfootball/injury-report.php" } });
+  if (res.getResponseCode() !== 200) { botLog_("Injury feed HTTP " + res.getResponseCode()); return null; }
+  var rows;
+  try { rows = JSON.parse(res.getContentText()); } catch (e) { botLog_("Injury feed was not JSON"); return null; }
+  if (!Array.isArray(rows)) return null;
+  var fresh = injuryTeamsFromFeed_(rows);
+  var saved = {};
+  var cur = UrlFetchApp.fetch(FIRESTORE_INJURIES_URL, { muteHttpExceptions: true, headers: firestoreAuthHeaders_() });
+  if (cur.getResponseCode() === 200) {
+    var doc = JSON.parse(cur.getContentText());
+    saved = (doc.fields ? (fromFirestoreValue({ mapValue: { fields: doc.fields } }) || {}).teams : null) || {};
+  } else if (cur.getResponseCode() !== 404) {
+    botLog_("Injury doc read HTTP " + cur.getResponseCode() + "; not saving");
+    return null;
+  }
+  var nowIso = new Date().toISOString();
+  var dayAgo = Date.now() - 24 * 3600 * 1000;
+  var merged = {};
+  Object.keys(saved).forEach(function(t) {
+    var g = Date.parse(String(saved[t].gameAt || "").replace(" ", "T") + "Z");
+    if (isNaN(g) || g > dayAgo) merged[t] = saved[t];
+  });
+  Object.keys(fresh).forEach(function(t) { fresh[t].updatedAt = nowIso; merged[t] = fresh[t]; });
+  if (JSON.stringify(Object.keys(merged).sort()) === JSON.stringify(Object.keys(saved).sort()) && !Object.keys(fresh).length) return { teams: Object.keys(merged).length, changed: false };
+  patchFirestoreDocUrl(FIRESTORE_INJURIES_URL, { teams: merged, source: "RotoWire", fetchedAt: nowIso });
+  botLog_("✓ Injury reports: " + Object.keys(fresh).length + " teams updated, " + Object.keys(merged).length + " kept");
+  return { teams: Object.keys(merged).length, changed: true };
 }
 
 function generateMasterCsvFromCloud(poolMembers, activeGames) {

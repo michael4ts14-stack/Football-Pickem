@@ -721,3 +721,23 @@ test("the standings email's Week Top 5 and comment become the weekly recap", () 
   assert.strictEqual(r.note, "Mike W wins on a tiebreaker!! Tennessee beat LSU 27-13.");
   assert.strictEqual(h.ctx.parseWeekRecap_("Overall Standings\n1 Steve M 209"), null);
 });
+
+test("injury feed rows become per-team reports; old games are dropped, new teams merged", () => {
+  const feed = [
+    { player: "Hank Brown", position: "QB", IR: "Out", injury_type: "Shoulder", ReturnDate: "", RotoSchoolName: "Iowa", game_datetime: "2026-11-27 17:00:00" },
+    { player: "Rae Jones", position: "WR", IR: "Out For Season", injury_type: "Knee", RotoSchoolName: "Iowa", game_datetime: "2026-11-27 17:00:00" },
+    { player: "Ty Rule", position: "RB", IR: "Questionable", injury_type: "Ankle", RotoSchoolName: "Nebraska", game_datetime: "2026-11-27 17:00:00" },
+  ];
+  const old = { teams: { "Kent State": { list: [{ p: "X", st: "OUT" }], gameAt: "2020-01-01 00:00:00" }, "Ohio State": { list: [{ p: "Y", st: "OUT" }], gameAt: "2099-01-01 00:00:00" } } };
+  const h = loadBot({ cloud: baseCloud(), docs: { "live_games/injuries": old }, extraFetch: (u) => (u.indexOf("rotowire.com") !== -1 ? require("./harness").makeResponse(200, feed) : null) });
+  const t = h.ctx.injuryTeamsFromFeed_(feed);
+  assert.strictEqual(t.Iowa.list.length, 2);
+  assert.strictEqual(t.Iowa.list[1].st, "OUT");
+  assert.ok(/season/.test(t.Iowa.list[1].note));
+  assert.strictEqual(t.Nebraska.list[0].st, "QUESTIONABLE");
+  const r = h.ctx.syncInjuryReports_();
+  assert.strictEqual(r.changed, true);
+  const w = h.patches().filter((c) => /live_games\/injuries/.test(c.url)).map((c) => h.patchBody(c)).pop();
+  assert.deepStrictEqual(Object.keys(w.teams).sort(), ["Iowa", "Nebraska", "Ohio State"], "Kent State's old game dropped, Ohio State kept");
+  assert.strictEqual(w.source, "RotoWire");
+});

@@ -446,6 +446,8 @@ function openGameDetail(gameId) {
   var bd = document.getElementById("detail-sheet-backdrop");
   if (!g || !bd) return;
   DETAIL_SHEET_GAME_ID = g.id;
+  if (typeof loadInjuryReports === "function") loadInjuryReports(false);
+  enrichGameInjuries(g);
   _detailSheetReturnFocus = document.activeElement;
   renderGameDetailSheet();
   // The body is reused for every game: start at the top, not where the last game was scrolled.
@@ -454,6 +456,14 @@ function openGameDetail(gameId) {
   bd.hidden = false;
   var closeBtn = document.getElementById("detail-sheet-close");
   if (closeBtn) closeBtn.focus();
+}
+
+// "Source: RotoWire · updated 2h ago" under a game's injuries, when there's a report for either team.
+function injurySourceHtml(g) {
+  var a = injuryReportFor(g.away), h = injuryReportFor(g.home);
+  var at = [a && a.updatedAt, h && h.updatedAt].filter(Boolean).sort().pop();
+  if (!at) return "";
+  return '<p class="sheet-meta" style="margin-top:6px;">Source: ' + escapeShellHtml((INJURY_REPORTS && INJURY_REPORTS.source) || "injury report") + ' · updated ' + escapeShellHtml(formatAgo(at)) + '. Teams post reports through the week; a team with none listed has nothing reported yet.</p>';
 }
 
 function closeGameDetail() {
@@ -542,7 +552,7 @@ function renderGameDetailSheet() {
     '<div class="pick-card-teams sheet-teams">' + teamPickButtonHtml(g, true, myPick, locked, sheetOwn) + teamPickButtonHtml(g, false, myPick, locked, sheetOwn) + '</div>' +
     (ls && ls.inProgress ? '<section class="sheet-section"><h3 class="sheet-h">Live</h3>' + gamecastHtml + '</section>' : '') +
     (typeof matchupSheetSectionsHtml === "function" ? matchupSheetSectionsHtml(g) : '') +
-    '<section class="sheet-section"><h3 class="sheet-h">Injuries and outs</h3><div class="dual-panel">' + renderInjColumn(g.away, g.awayInj) + renderInjColumn(g.home, g.homeInj) + '</div></section>' +
+    '<section class="sheet-section"><h3 class="sheet-h">Injuries and outs</h3><div class="dual-panel">' + renderInjColumn(g.away, g.awayInj) + renderInjColumn(g.home, g.homeInj) + '</div>' + injurySourceHtml(g) + '</section>' +
     '<section class="sheet-section"><h3 class="sheet-h">Last 5</h3>' + ((typeof matchupLastFiveHtml === "function" && matchupLastFiveHtml(g)) || ('<div class="dual-panel">' + renderL5Column(g.away, g.awayRec, commonMap) + renderL5Column(g.home, g.homeRec, commonMap) + '</div>')) + '</section>' +
     (gameInfoHtml ? '<section class="sheet-section"><h3 class="sheet-h">Game info</h3>' + gameInfoHtml + '</section>' : '') +
     '<section class="sheet-section"><h3 class="sheet-h">Pool</h3>' + (h2hHtml || '') + ownHtml + upsetHtml + recordHtml + '</section>' +
