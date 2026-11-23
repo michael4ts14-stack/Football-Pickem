@@ -1682,6 +1682,10 @@ function patchFirebaseNode(subPath, dataObj) {
     payloadObj = {};
     payloadObj[key] = dataObj;
   }
+  // Version stamp for the pool rows: an app tab holding an older copy won't save it back (B103).
+  if (payloadObj && (payloadObj.poolMembers || payloadObj.leaderboard)) {
+    payloadObj = Object.assign({}, payloadObj, { poolUpdatedAt: new Date().toISOString() });
+  }
   return patchFirestoreDocUrl(FIRESTORE_DOC_URL, payloadObj);
 }
 

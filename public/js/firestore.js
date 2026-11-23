@@ -699,6 +699,7 @@ function applyRemoteCloudData(data, sourceLabel) {
     var cloudLbStale = false;
     // The cloud standings are the source of truth, even when their points are lower than this
     // device's (a new season, or a commissioner's correction).
+    LAST_SEEN_POOL_VERSION = data.poolUpdatedAt || null;
     if (data.leaderboard && Array.isArray(data.leaderboard) && data.leaderboard.length > 0) {
       state.leaderboard = data.leaderboard;
     }
@@ -1191,16 +1192,33 @@ function sharedWeekFields() {
 // Saves pool-wide fields only if the cloud is not already on a newer week. A commissioner tab
 // still on last week used to save its old slate and pool over the bot's rollover (B100).
 // Resolves true when saved; false when skipped (the newer cloud copy is then applied here).
+// The pool rows (standings, members) also carry a version, poolUpdatedAt: if the bot or another
+// tab saved newer rows since this tab last heard, this tab's copy is left out of the save (B103).
+var LAST_SEEN_POOL_VERSION = null;
 function setSharedIfNotStale(payload, opts) {
   var ref = fsDb.collection("pickem_v14").doc("shared_state");
   var newer = null;
+  var sentPool = null;
   return fsDb.runTransaction(function(tx) {
     return tx.get(ref).then(function(d) {
       var cloud = d.exists ? d.data() : {};
+      newer = null;
       if ((parseInt(cloud.currentWeek, 10) || 0) > (parseInt(state.currentWeek, 10) || 0)) { newer = cloud; return; }
-      tx.set(ref, payload, opts);
+      var out = Object.assign({}, payload);
+      var hasPool = ("poolMembers" in out) || ("leaderboard" in out);
+      if (hasPool && cloud.poolUpdatedAt && cloud.poolUpdatedAt !== LAST_SEEN_POOL_VERSION) {
+        delete out.poolMembers;
+        delete out.leaderboard;
+        newer = cloud;
+      } else if (hasPool) {
+        out.poolUpdatedAt = sentPool = new Date().toISOString();
+      }
+      var o = opts;
+      if (opts && opts.mergeFields) o = { mergeFields: Object.keys(out) };
+      if (Object.keys(out).some(function(k) { return k !== "updatedAt" && k !== "poolUpdatedAt"; })) tx.set(ref, out, o);
     });
   }).then(function() {
+    if (sentPool && !newer) LAST_SEEN_POOL_VERSION = sentPool;
     if (!newer) return true;
     if (typeof applyRemoteCloudData === "function") applyRemoteCloudData(newer, "newer week");
     return false;

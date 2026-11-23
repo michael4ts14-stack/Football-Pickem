@@ -80,3 +80,29 @@ test("a tab on the current week still saves", async () => {
   assert.strictEqual(await setSharedIfNotStale({ leaderboard: [] }, { merge: true }), true);
   assert.strictEqual(db.sets.length, 1);
 });
+
+// B103: a tab holding older standings must not save them over the bot's newer ones.
+test("older standings are left out of a save when the cloud has newer pool rows", async () => {
+  const db = txDb({ currentWeek: 13, poolUpdatedAt: "2026-11-23T16:13:57Z", leaderboard: [{ name: "Steve M", priorPts: 209 }] });
+  fsDb = db;
+  state = { currentWeek: 13 };
+  LAST_SEEN_POOL_VERSION = "2026-11-20T00:00:00Z";
+  let applied = null;
+  applyRemoteCloudData = (d) => { applied = d; };
+  await setSharedIfNotStale({ customGames: [{ id: 1 }], leaderboard: [{ name: "Steve M", priorPts: 188 }], poolMembers: [] }, { merge: true });
+  assert.strictEqual(db.sets.length, 1);
+  assert.ok(!("leaderboard" in db.sets[0].data) && !("poolMembers" in db.sets[0].data), "standings dropped");
+  assert.ok("customGames" in db.sets[0].data, "the rest still saves");
+  assert.strictEqual(applied.leaderboard[0].priorPts, 209, "the tab takes the newer standings");
+});
+
+test("a tab with the latest pool rows saves them and stamps a new version", async () => {
+  const db = txDb({ currentWeek: 13, poolUpdatedAt: "v1" });
+  fsDb = db;
+  state = { currentWeek: 13 };
+  LAST_SEEN_POOL_VERSION = "v1";
+  assert.strictEqual(await setSharedIfNotStale({ leaderboard: [] }, { mergeFields: ["leaderboard"] }), true);
+  assert.ok(db.sets[0].data.poolUpdatedAt && db.sets[0].data.poolUpdatedAt !== "v1");
+  assert.deepStrictEqual(db.sets[0].opts.mergeFields.sort(), ["leaderboard", "poolUpdatedAt"]);
+  assert.strictEqual(LAST_SEEN_POOL_VERSION, db.sets[0].data.poolUpdatedAt);
+});

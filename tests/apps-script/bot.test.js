@@ -675,3 +675,12 @@ test("the bot calls the ESPN host that still answers Apps Script", () => {
   assert.ok(h.ctx.ESPN_SB_BASE_URL.startsWith("https://site.web.api.espn.com/"));
   assert.ok(h.ctx.ESPN_SUMMARY_BASE_URL.startsWith("https://site.web.api.espn.com/"));
 });
+
+test("bot writes of standings or members carry a pool version stamp (B103)", () => {
+  const h = loadBot({ cloud: baseCloud() });
+  h.ctx.patchFirebaseNode("", { leaderboard: [] });
+  h.ctx.patchFirebaseNode("", { weekLabel: "Week 9" });
+  const bodies = h.patches().filter((c) => /shared_state/.test(c.url)).map((c) => h.patchBody(c));
+  assert.ok(bodies[0].poolUpdatedAt, "stamped");
+  assert.strictEqual(bodies[1].poolUpdatedAt, undefined, "other writes untouched");
+});
