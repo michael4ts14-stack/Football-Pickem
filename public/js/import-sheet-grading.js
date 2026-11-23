@@ -789,7 +789,7 @@ function parseAndStoreMasterPoolCsv() {
 async function syncSlateNow() {
   var btn = document.getElementById("btn-slate-sync");
   var st = document.getElementById("slate-sync-status");
-  var say = function(t) { if (st) st.textContent = t; };
+  var say = function(t) { if (st) st.textContent = t; if (typeof showAppToast === "function") showAppToast(t); };
   if (btn) btn.disabled = true;
   say("Syncing… the bot can take up to a minute.");
   try {

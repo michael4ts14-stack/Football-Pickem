@@ -9,8 +9,6 @@ function openUnifiedImportModal(defaultTab) {
   ACTIVE_IMPORT_HUB_TAB = defaultTab || "bot";
   var savedUrl = state.gasWebAppUrl || "";
   var activeWk = state.weekLabel || (state.currentWeek ? ("Week " + state.currentWeek) : "Week 8");
-  var activeFile = state.lastScrapedFile || ("College Pick'em '26 - " + activeWk + ".xlsx");
-  var participantCount = (state.poolMembers && state.poolMembers.length) ? state.poolMembers.length : 89;
   var cloudStatusMsg = (document.getElementById("cloud-status-text") && document.getElementById("cloud-status-text").textContent) || "Connected to Firebase (`football-pickem-46206`)";
 
   document.getElementById("modal-team-title").textContent = "📥 Data Import, Gmail Bot & Cloud Hub";
@@ -24,26 +22,7 @@ function openUnifiedImportModal(defaultTab) {
     '</div>' +
 
     '<!-- TAB 1: GMAIL BOT -->' +
-    '<div id="hub-pane-bot" class="hidden">' +
-      '<div style="background:var(--raised);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;font-size:0.75rem;">' +
-        '<div id="gas-modal-dynamic-title" style="font-weight:800;color:var(--win);margin-bottom:4px;">✅ ' + activeWk + ' Email Attachment Auto-Scraped & Pre-Loaded!</div>' +
-        '<div id="gas-modal-dynamic-desc" style="color:var(--text);">Active file: <strong><code>' + activeFile + '</code></strong> — all <strong>' + participantCount + ' participants</strong>, their 26 picks, Prior Season Points, and Tiebreakers are loaded!</div>' +
-        '<button class="btn-sm" style="margin-top:8px;background:var(--accent);color:var(--on-accent);font-weight:800;width:100%;padding:7px;" onclick="syncCurrentLoadedSheetToFirebase()">⚡ Sync All ' + participantCount + ' ' + activeWk + ' Picks + Michael & Kinyon to Firebase Now</button>' +
-      '</div>' +
-      '<div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px;">' +
-        '<strong>🔗 Deployed Google Apps Script Web App URL</strong> (triggers <code>runMasterPickemEmailBot()</code> live):' +
-      '</div>' +
-      '<div style="display:flex;gap:6px;margin-bottom:10px;">' +
-        '<input type="text" id="gas-webapp-url-input" class="search-input" style="font-size:0.73rem;padding:6px 9px;" placeholder="https://script.google.com/macros/s/.../exec" value="' + savedUrl + '" />' +
-        '<button class="btn-sm" style="background:var(--accent);color:var(--on-accent);font-weight:800;" onclick="triggerAppsScriptGmailScraper()">🔄 Run Gmail Bot</button>' +
-      '</div>' +
-      '<div id="gas-bot-status" style="font-size:0.74rem;color:var(--green);margin-bottom:8px;font-weight:700;"></div>' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">' +
-        '<span style="font-size:0.74rem;font-weight:800;color:var(--text);">📜 Upgraded <code>Code.gs</code> for Google Apps Script:</span>' +
-        '<button class="btn-sm" style="background:var(--accent);color:var(--on-accent);font-weight:800;" onclick="copyUpgradedCodeGs()">📋 Copy Code.gs</button>' +
-      '</div>' +
-      '<textarea id="gas-code-preview" readonly rows="7" class="search-input" style="width:100%;font-family:monospace;font-size:0.68rem;color:var(--text);"></textarea>' +
-    '</div>' +
+    '<div id="hub-pane-bot" class="hidden">' + importBotPaneHtml(savedUrl) + '</div>' +
 
     '<!-- TAB 2: MASTER CSV / EXCEL -->' +
     '<div id="hub-pane-csv" class="hidden">' +
@@ -107,9 +86,37 @@ function openUnifiedImportModal(defaultTab) {
 
   if (typeof closeAllModalsExcept === "function") closeAllModalsExcept("opp-modal-backdrop");
   document.getElementById("opp-modal-backdrop").style.display = "flex";
-  var ta = document.getElementById("gas-code-preview");
-  if (ta) ta.value = UPGRADED_CODE_GS_SOURCE;
   switchImportHubTab(ACTIVE_IMPORT_HUB_TAB);
+}
+
+// Gmail bot tab: what the pool holds right now (not a canned "loaded!" message), one button to run
+// the bot, and the email service address tucked away (it only changes if the bot is redeployed).
+function importBotPaneHtml(savedUrl) {
+  var esc = escapeShellHtml;
+  var members = Array.isArray(state.poolMembers) ? state.poolMembers : [];
+  var withPicks = members.filter(function(pm) { return pm && pm.picks && Object.keys(pm.picks).length && !pm.awaitingSheet; }).length;
+  var wk = state.weekLabel || ("Week " + (state.currentWeek || ""));
+  var gm = (typeof BOT_STATUS !== "undefined" && BOT_STATUS && BOT_STATUS.gmail) || null;
+  var thru = typeof standingsThroughWeek === "function" ? standingsThroughWeek() : null;
+  var row = function(label, value) { return '<div class="cw-item"><span class="cw-label">' + label + '</span><span class="cw-value">' + value + '</span></div>'; };
+  var url = (typeof EMAIL_SERVICE !== "undefined" && EMAIL_SERVICE.url) || savedUrl || "";
+  return '<section class="commish-week-bar">' +
+      row("Slate", esc(wk) + " · " + GAMES.length + " games") +
+      row("Pick sheet", withPicks ? (withPicks + " of " + members.length + " players' picks loaded") : ("not in yet for " + esc(wk) + " (the bot imports it when the email arrives)")) +
+      row("Standings", thru ? ("season points through Week " + thru) : "not synced yet") +
+      row("Bot", gm ? ((gm.ok === false ? "errors · " : "ok · ") + "last run " + esc(formatAgo(gm.lastRunAt))) : "no data") +
+    '</section>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">' +
+      '<button class="btn-sm" style="background:var(--accent);color:var(--on-accent);font-weight:800;" onclick="triggerAppsScriptGmailScraper()">Run Gmail bot now</button>' +
+      '<button class="btn-sm" onclick="openBotLog()">Bot log</button>' +
+      (withPicks ? '<button class="btn-sm" onclick="syncCurrentLoadedSheetToFirebase()">Re-save loaded picks (' + withPicks + ')</button>' : '') +
+    '</div>' +
+    '<p class="sheet-meta">The bot checks Gmail every 5 minutes for the new week&#39;s form, the standings email and the picks spreadsheet. Run it now if something just arrived.</p>' +
+    '<div id="gas-bot-status" style="font-size:0.74rem;color:var(--green);margin:8px 0;font-weight:700;"></div>' +
+    '<details style="margin-top:10px;font-size:0.74rem;"><summary>Advanced: email service address</summary>' +
+      '<p class="sheet-meta">Only change this if the Apps Script web app was redeployed under a new address.</p>' +
+      '<input type="text" id="gas-webapp-url-input" class="search-input" style="font-size:0.73rem;padding:6px 9px;width:100%;" placeholder="https://script.google.com/macros/s/.../exec" value="' + esc(url) + '" />' +
+    '</details>';
 }
 
 function switchImportHubTab(tabName) {

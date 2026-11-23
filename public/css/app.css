@@ -1569,3 +1569,11 @@ body.page-scroll-locked { position: fixed; left: 0; right: 0; width: 100%; overf
 .recap-note { font-size: 13px; color: var(--text-muted); margin: 6px 0; }
 .recap-up { color: #34d399; font-weight: 600; }
 .recap-top { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+
+/* Commissioner "This week" bar. */
+.commish-week-bar { display: grid; gap: 6px; margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; }
+.cw-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
+.cw-item .btn-sm { margin-left: auto; }
+.cw-item .btn-sm + .btn-sm { margin-left: 0; }
+.cw-label { min-width: 70px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.cw-item.is-warn .cw-value { color: #fbbf24; }

@@ -232,6 +232,29 @@ function adminForceControlsHtml() {
   '</section>';
 }
 
+// "This week" bar at the top of every commissioner tab: the things checked every week, each one
+// tap from its fix (deadline, bulletin, bot), so nobody has to hunt through the tabs.
+function commishWeekBarHtml() {
+  var esc = escapeShellHtml;
+  var kicks = typeof slateKickoffsMs === "function" ? slateKickoffsMs() : [];
+  var dl = typeof pickDeadlineMs === "function" ? pickDeadlineMs() : null;
+  var lateDeadline = dl !== null && kicks.length && dl > kicks[0];
+  var firstKick = kicks.length ? new Date(kicks[0]).toLocaleString("en-US", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: getDeadlineConfig().tz }) : "";
+  var bulletin = String(ensureCommissionerConfig().announcementBanner || "").trim();
+  var gm = (typeof BOT_STATUS !== "undefined" && BOT_STATUS && BOT_STATUS.gmail) || null;
+  var item = function(label, value, btn, warn) {
+    return '<div class="cw-item' + (warn ? ' is-warn' : '') + '"><span class="cw-label">' + label + '</span><span class="cw-value">' + value + '</span>' + btn + '</div>';
+  };
+  var go = function(tab, label) { return '<button type="button" class="btn-sm" onclick="switchCommissionerTab(\'' + tab + '\')">' + label + '</button>'; };
+  return '<section class="commish-week-bar" aria-label="This week">' +
+    item("Week", esc(state.weekLabel || ("Week " + (state.currentWeek || ""))) + " · " + GAMES.length + " games", "") +
+    item("Deadline", esc(pickDeadlineLabel()) + (lateDeadline ? ' <strong>· after the first kickoff (' + esc(firstKick) + ')</strong>' : ""), go("locks", "Change"), lateDeadline) +
+    item("Bulletin", bulletin ? "“" + esc(bulletin.slice(0, 60)) + (bulletin.length > 60 ? "…" : "") + "”" : "none", go("comms", bulletin ? "Edit" : "Add"), /^test/i.test(bulletin)) +
+    item("Bot", gm ? ((gm.ok === false ? "errors · " : "ok · ") + esc(formatAgo(gm.lastRunAt))) : "no data",
+      '<button type="button" class="btn-sm" onclick="syncSlateNow()">Sync slate</button><button type="button" class="btn-sm" onclick="openBotLog()">Log</button>', gm && gm.ok === false) +
+  '</section>';
+}
+
 function deadlineSettingsHtml() {
   var d = getDeadlineConfig();
   var dayOpts = DEADLINE_DAYS.map(function(x) { return '<option' + (x === d.day ? ' selected' : '') + '>' + x + '</option>'; }).join("");
@@ -486,11 +509,13 @@ renderCommissionerModalBody = function() {
   var body = document.getElementById("commish-modal-body");
   if (!body || !isVerifiedCommissioner()) return res;
   if (ACTIVE_COMMISH_TAB === "locks") {
+    // Deadline first: it's the setting changed most (short weeks), and it used to be at the bottom.
     body.insertAdjacentHTML("afterbegin", adminForceControlsHtml());
-    body.insertAdjacentHTML("beforeend", deadlineSettingsHtml());
+    body.insertAdjacentHTML("afterbegin", deadlineSettingsHtml());
   }
   if (ACTIVE_COMMISH_TAB === "slate") body.insertAdjacentHTML("beforeend", dangerZoneHtml());
   if (ACTIVE_COMMISH_TAB === "roster") body.insertAdjacentHTML("beforeend", paymentSettingsHtml());
+  body.insertAdjacentHTML("afterbegin", commishWeekBarHtml());
   return res;
 };
 
