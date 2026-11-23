@@ -122,6 +122,16 @@ test("pool state: commissioner writes anything; unverified or typo-domain accoun
   await assertFails(setDoc(SS(db({ uid: "t", email: "commissioner@separatedatturt.com" })), { customGames: [] }, { merge: true }));
 });
 
+// B100: a commissioner tab still on last week (any app version) can't save it over the new week.
+test("pool state: nobody moves the pool back to an earlier week", async () => {
+  await seed();
+  await assertFails(setDoc(SS(db(M)), { currentWeek: 8, customGames: [{ id: 7 }] }, { merge: true }));
+  await assertFails(setDoc(SS(db(M)), { currentWeek: 8, weekLabel: "Week 8" }, { mergeFields: ["currentWeek", "weekLabel"] }));
+  await assertSucceeds(setDoc(SS(db(M)), { currentWeek: 9, customGames: [{ id: 2 }] }, { merge: true }));
+  await assertSucceeds(setDoc(SS(db(M)), { leaderboard: [] }, { merge: true }));
+  await assertSucceeds(setDoc(SS(db(M)), { currentWeek: 10 }, { merge: true }));
+});
+
 test("pick docs: only the bound account or a commissioner writes", async () => {
   await seed();
   const U = (d, k) => doc(d, "pickem_v14_users/" + k);

@@ -177,7 +177,13 @@ service cloud.firestore {
     // picks, its own profilePrivacy entry, and adding its entry to the end of customUsers.
     match /pickem_v14/shared_state {
       allow read: if true;
-      allow write: if isVerifiedCommissioner() || playerSharedWrite();
+      allow write: if (isVerifiedCommissioner() || playerSharedWrite()) && weekNotLowered();
+    }
+    // B100: a tab still on last week (any app version, even one opened before a fix) can't save
+    // it over the new week the bot loaded. The bot writes with the owner's token, not through rules.
+    function weekNotLowered() {
+      return resource == null || !('currentWeek' in request.resource.data) || !('currentWeek' in resource.data) ||
+        request.resource.data.currentWeek >= resource.data.currentWeek;
     }
     function playerSharedWrite() {
       let meta = ['customUsers', 'profilePrivacy', 'updatedAt', 'lastProfileWriter'];
