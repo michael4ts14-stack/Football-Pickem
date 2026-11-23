@@ -654,7 +654,8 @@ test("form questions in the new layout (no 'at', record first, rivalry line) are
   assert.strictEqual(games[1].away, "Mississippi State");
   assert.strictEqual(games[1].home, "Ole Miss");
   assert.strictEqual(games[2].poolLine, "Notre Dame -24.5");
-  assert.strictEqual(games[0].kick, "Friday, 11/27 - 2:30 ABC");
+  assert.strictEqual(games[0].kick, "Fri 11/27 2:30 PM ABC");
+  assert.strictEqual(games[0].cstWindow, "2:30 PM CST Window");
   assert.strictEqual(games[0].awayCode, "A0");
 });
 
@@ -683,4 +684,17 @@ test("bot writes of standings or members carry a pool version stamp (B103)", () 
   const bodies = h.patches().filter((c) => /shared_state/.test(c.url)).map((c) => h.patchBody(c));
   assert.ok(bodies[0].poolUpdatedAt, "stamped");
   assert.strictEqual(bodies[1].poolUpdatedAt, undefined, "other writes untouched");
+});
+
+test("form kickoff text gets AM/PM and the right window", () => {
+  const h = loadBot({ cloud: baseCloud() });
+  assert.strictEqual(h.ctx.normalizeFormKick_("Friday, 11/27 - 11:00 CBS"), "Fri 11/27 11:00 AM CBS");
+  assert.strictEqual(h.ctx.normalizeFormKick_("Saturday, 11/28 - 8:00 FOX"), "Sat 11/28 8:00 PM FOX");
+  assert.strictEqual(h.ctx.normalizeFormKick_("Saturday, 11/28 - 2:30 PM ESPN"), "Sat 11/28 2:30 PM ESPN");
+  assert.strictEqual(h.ctx.normalizeFormKick_("TBD"), "TBD");
+  const win = (k) => h.ctx.buildGamesArrayFromLines(["Away 5-6", "at Home 7-4 (-3.5)", k])[0].cstWindow;
+  assert.strictEqual(win("Sat 11/28 11:00 AM ABC"), "11:00 AM CST Window");
+  assert.strictEqual(win("Sat 11/28 2:00 PM CW"), "2:30 PM CST Window");
+  assert.strictEqual(win("Fri 11/27 8:00 PM FOX"), "6:00 PM / 6:30 PM CST Primetime");
+  assert.strictEqual(win("Sat 11/28 9:15 PM ESPN"), "9:15 PM+ CST Late Night Window");
 });

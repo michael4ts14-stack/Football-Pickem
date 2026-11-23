@@ -15,6 +15,12 @@ function parseKickParts(kick) {
   // 1. Extract time: e.g. "11:00 AM", "2:30 PM"
   var timeMatch = str.match(/\b(\d{1,2}:\d{2}\s*[AP]M)\b/i);
   var time = timeMatch ? timeMatch[1].toUpperCase() : "";
+  if (!timeMatch) {
+    // Week 13+ forms write "Friday, 11/27 - 11:00 CBS" with no AM/PM: kickoffs at 11 are morning
+    // games, 12 through 10 afternoon or night.
+    timeMatch = str.match(/\b(\d{1,2}):(\d{2})\b(?!\s*[AP]M)/i);
+    if (timeMatch) time = parseInt(timeMatch[1], 10) + ":" + timeMatch[2] + (parseInt(timeMatch[1], 10) === 11 ? " AM" : " PM");
+  }
 
   // 2. Extract day of week: e.g. "Sat", "Saturday", "Fri"
   var dayMatch = str.match(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i);

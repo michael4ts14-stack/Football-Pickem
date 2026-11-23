@@ -1239,7 +1239,7 @@ function scrapeGoogleFormGames(formUrl) {
         // Newer layout: "[Rivalry name]\n(7-4) Away\n(9-2) #13 Home (-5.5)", kickoff in the description
         var pair = titleLines.slice(-2);
         if (!/^(?:at|vs\.?)\s+/i.test(pair[1])) pair[1] = "at " + pair[1];
-        var desc = questions[i][2] ? String(questions[i][2]).trim() : "";
+        var desc = normalizeFormKick_(questions[i][2] ? String(questions[i][2]).trim() : "");
         parsed = buildGamesArrayFromLines(desc ? pair.concat([desc]) : pair);
       }
       if (parsed.length !== 1) continue;
@@ -1258,6 +1258,16 @@ function scrapeGoogleFormGames(formUrl) {
     botLog_("Form scrape error: " + e.message);
     return [];
   }
+}
+
+// "Friday, 11/27 - 8:00 FOX" -> "Fri 11/27 8:00 PM FOX". The form leaves out AM/PM; college kickoffs
+// at 11 are morning games and 12 through 10 are afternoon or night.
+function normalizeFormKick_(desc) {
+  var m = String(desc || "").match(/^\s*(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,?\s*(\d{1,2}\/\d{1,2})?\s*[-–]?\s*(\d{1,2}):(\d{2})\s*([AP]M)?\s*(.*)$/i);
+  if (!m) return desc;
+  var hr = parseInt(m[3], 10);
+  var ampm = m[5] ? m[5].toUpperCase() : (hr === 11 ? "AM" : "PM");
+  return [m[1].charAt(0).toUpperCase() + m[1].slice(1, 3).toLowerCase(), m[2] || "", hr + ":" + m[4] + " " + ampm, m[6].trim()].filter(Boolean).join(" ");
 }
 
 function buildGamesArrayFromLines(lines) {
@@ -1294,10 +1304,16 @@ function buildGamesArrayFromLines(lines) {
       var homePts = favIsAway ? dogPts : 1;
       var rec = favIsAway ? away : home;
 
+      // Window from the kickoff hour (24h, Central); used to match only a few exact times, so
+      // 2:00, 7:00 or 8:00 PM games all landed in the 11 AM window.
       var cstWin = "11:00 AM CST Window";
-      if (kickLine.indexOf("2:30") !== -1 || kickLine.indexOf("3:00") !== -1) cstWin = "2:30 PM CST Window";
-      else if (kickLine.indexOf("6:00") !== -1 || kickLine.indexOf("6:30") !== -1) cstWin = "6:00 PM / 6:30 PM CST Primetime";
-      else if ((kickLine.indexOf("9:") !== -1 || kickLine.indexOf("10:") !== -1) && /PM/i.test(kickLine)) cstWin = "9:15 PM+ CST Late Night Window";
+      var tm = kickLine.match(/(\d{1,2}):(\d{2})\s*([AP]M)/i);
+      if (tm) {
+        var h24 = (parseInt(tm[1], 10) % 12) + (/PM/i.test(tm[3]) ? 12 : 0);
+        if (h24 >= 21) cstWin = "9:15 PM+ CST Late Night Window";
+        else if (h24 >= 17) cstWin = "6:00 PM / 6:30 PM CST Primetime";
+        else if (h24 >= 13 || (h24 === 12 && parseInt(tm[2], 10) >= 30)) cstWin = "2:30 PM CST Window";
+      }
 
       parsedGames.push({
         id: parsedGames.length + 1,
