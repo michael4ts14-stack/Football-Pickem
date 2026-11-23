@@ -669,3 +669,9 @@ test("a slate email whose form can't be read is reported, logged, and retried", 
   assert.ok(status.log.some((l) => /Week 13 Pick Sheet/.test(l)), "the run's log is saved for the commissioner");
   assert.ok(!JSON.parse(h.ctx.PropertiesService.getUserProperties().getProperty("PROCESSED_MSG_IDS") || "{}")["m-slate-13"], "kept for the next run");
 });
+
+test("the bot calls the ESPN host that still answers Apps Script", () => {
+  const h = loadBot({ cloud: baseCloud() });
+  assert.ok(h.ctx.ESPN_SB_BASE_URL.startsWith("https://site.web.api.espn.com/"));
+  assert.ok(h.ctx.ESPN_SUMMARY_BASE_URL.startsWith("https://site.web.api.espn.com/"));
+});

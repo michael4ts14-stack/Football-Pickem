@@ -13,8 +13,10 @@ var FIRESTORE_BASE_URL = "https://firestore.googleapis.com/v1/projects/football-
 var FIRESTORE_DOC_URL = FIRESTORE_BASE_URL + "/pickem_v14/shared_state";
 var FIRESTORE_USERS_URL = FIRESTORE_BASE_URL + "/pickem_v14_users";
 var FIRESTORE_LIVE_STATE_URL = FIRESTORE_BASE_URL + "/live_games/week_state";
-var ESPN_SB_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard";
-var ESPN_SUMMARY_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=";
+// site.api.espn.com answers 403 to any request tagged Google-Apps-Script (since 2026-11-22);
+// site.web.api.espn.com serves the same API and still answers Apps Script.
+var ESPN_SB_BASE_URL = "https://site.web.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard";
+var ESPN_SUMMARY_BASE_URL = "https://site.web.api.espn.com/apis/site/v2/sports/football/college-football/summary?event=";
 
 // ============================================================================
 // KILL SWITCH FOR POOL BROADCAST EMAILS (nudge, Saturday master sheet, email-to-all).
