@@ -371,15 +371,16 @@ function renderInjColumn(teamName, list) {
       var stCode = it.st || "FULL";
       var stClass = "st-" + stCode;
       var stLabel = stCode === "FULL" ? "ACTIVE" : stCode;
-      var pName = it.p || (teamName + " Roster");
-      var pPos = it.pos ? (" (" + it.pos + ")") : "";
-      var pNote = it.note || "Active on Availability Report";
-      items += '<div class="inj-item"><span class="inj-status ' + stClass + '">' + stLabel + '</span><strong>' + pName + '</strong>' + pPos + ' — <span style="color:var(--muted);">' + pNote + '</span></div>';
+      if (!it.p || isPlaceholderText(it.p) || isPlaceholderText(it.note)) continue; // made-up rows from older slates
+      var esc = typeof escapeShellHtml === "function" ? escapeShellHtml : function(x) { return String(x); };
+      var pPos = it.pos ? (" (" + esc(it.pos) + ")") : "";
+      items += '<div class="inj-item"><span class="inj-status ' + esc(stClass) + '">' + esc(stLabel) + '</span><strong>' + esc(it.p) + '</strong>' + pPos +
+        (it.note ? ' — <span style="color:var(--muted);">' + esc(it.note) + '</span>' : '') + '</div>';
     }
   }
   if (!items) {
-    items = '<div style="font-size:0.75rem;color:var(--muted);padding:4px 0;">No active injury concerns or player outs reported.</div>';
+    items = '<div style="font-size:0.75rem;color:var(--muted);padding:4px 0;">No injury report. ESPN doesn&#39;t publish college injury reports; check the team&#39;s availability report.</div>';
   }
-  return '<div><div class="sub-col-title"><span>🚑 ' + teamName + ' Availability</span></div>' + items + '</div>';
+  return '<div><div class="sub-col-title"><span>🚑 ' + (typeof escapeShellHtml === "function" ? escapeShellHtml(teamName) : teamName) + ' Availability</span></div>' + items + '</div>';
 }
 

@@ -621,14 +621,14 @@ function enrichGameInjuries(g) {
       updated = true;
     }
   }
-  if (CFB_MASTER_INJURIES[g.away] && (!g.awayInj || !g.awayInj.length || isPlaceholderText(g.awayInj[0].p))) {
-    g.awayInj = JSON.parse(JSON.stringify(CFB_MASTER_INJURIES[g.away]));
-    updated = true;
-  }
-  if (CFB_MASTER_INJURIES[g.home] && (!g.homeInj || !g.homeInj.length || isPlaceholderText(g.homeInj[0].p))) {
-    g.homeInj = JSON.parse(JSON.stringify(CFB_MASTER_INJURIES[g.home]));
-    updated = true;
-  }
+  // ESPN publishes no college injury data, and CFB_MASTER_INJURIES is a hand list from October.
+  // Only real entries are shown: made-up rows ("Iowa Active Roster — Synced via ESPN") are dropped,
+  // and the old list is no longer copied in as if it were this week's news.
+  ["awayInj", "homeInj"].forEach(function(k) {
+    if (!Array.isArray(g[k])) return;
+    var real = g[k].filter(function(it) { return it && it.p && !isPlaceholderText(it.p) && !isPlaceholderText(it.note); });
+    if (real.length !== g[k].length) { g[k] = real; updated = true; }
+  });
   var compHdr = computeKeyInjHeaderFromLists(g, true);
   if (compHdr !== (g.keyInjHeader || "")) {
     g.keyInjHeader = compHdr;

@@ -382,24 +382,10 @@ function rebuildDynamicGameInsights(g) {
       (g.keyInjHeader ? (" " + g.keyInjHeader + ".") : "");
   }
 
-  // Upgrade placeholder injury arrays with CFB_MASTER_INJURIES
+  // Drop made-up injury rows (see enrichGameInjuries)
   enrichGameInjuries(g);
-  if (!g.awayInj || !g.awayInj.length) {
-    g.awayInj = [{
-      p: g.away + " Active Roster",
-      pos: "TEAM",
-      st: "FULL",
-      note: aLog && aLog.rec ? ("Active (" + aLog.rec + ")") : "Active"
-    }];
-  }
-  if (!g.homeInj || !g.homeInj.length) {
-    g.homeInj = [{
-      p: g.home + " Active Roster",
-      pos: "TEAM",
-      st: "FULL",
-      note: hLog && hLog.rec ? ("Active (" + hLog.rec + ")") : "Active"
-    }];
-  }
+  if (!Array.isArray(g.awayInj)) g.awayInj = [];
+  if (!Array.isArray(g.homeInj)) g.homeInj = [];
 }
 
 function countMatchingPicksForSlate(picksMap, gamesArr) {

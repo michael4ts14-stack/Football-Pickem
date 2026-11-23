@@ -87,6 +87,30 @@ function liveTeamRowHtml(g, isAway, ls, myPick, myHidden, flash) {
   '</div>';
 }
 
+// Kickoff instant for ordering (ESPN's kickoffIso), or Infinity when unknown.
+function liveKickMs(g) {
+  var ms = g && g.kickoffIso ? new Date(g.kickoffIso).getTime() : NaN;
+  return isNaN(ms) ? Infinity : ms;
+}
+// "Fri" for a game, from its kickoff time (Central) or its kickoff text.
+function liveKickDay(g) {
+  var ms = liveKickMs(g);
+  if (ms !== Infinity) {
+    try { return new Date(ms).toLocaleDateString("en-US", { weekday: "short", timeZone: "America/Chicago" }); } catch (e) {}
+  }
+  return (typeof parseKickParts === "function" ? parseKickParts(g.kick).day : "") || "";
+}
+// Pool split once a game is locked or started: "Iowa 80% (8) · Neb 20% (2)" with a bar.
+function livePoolSplitHtml(g, ls) {
+  if (!(ls.inProgress || ls.completed || (typeof isGameLockedByCommissioner === "function" && isGameLockedByCommissioner(g.id)))) return "";
+  var o = typeof getGamePoolOwnership === "function" ? getGamePoolOwnership(g) : null;
+  if (!o || !o.total) return "";
+  var side = function(code, pct, n) { return escapeShellHtml(code) + " " + pct + "% (" + n + ")"; };
+  return '<div class="live-pool-split" aria-label="' + escapeShellHtml("Pool picks: " + g.away + " " + o.awayCount + ", " + g.home + " " + o.homeCount) + '">' +
+    '<div class="live-pool-split-text"><span>' + side(g.awayCode || g.away, o.awayPct, o.awayCount) + '</span><span>' + side(g.homeCode || g.home, o.homePct, o.homeCount) + '</span></div>' +
+    '<div class="pool-bar"><span style="width:' + o.awayPct + '%"></span></div></div>';
+}
+
 renderLiveScoreboardTab = function() {
   var container = document.getElementById("live-scoreboard-groups");
   if (!container) return;
@@ -102,8 +126,16 @@ renderLiveScoreboardTab = function() {
   var windows = {}, order = [];
   var pinned = []; // alert cards pulled to the top when "Pin red zone & 4Q sweats" is on
   var pinAlerts = getLivePinAlerts();
-  for (var i = 0; i < GAMES.length; i++) {
-    var g = GAMES[i];
+  // Kickoff order (Friday before Saturday); day labels only when the slate spans days.
+  var liveGames = GAMES.slice().sort(function(a, b) {
+    var x = liveKickMs(a), y = liveKickMs(b);
+    return x === y ? (a.id || 0) - (b.id || 0) : (x < y ? -1 : 1);
+  });
+  var liveDays = {};
+  liveGames.forEach(function(x) { var d = liveKickDay(x); if (d) liveDays[d] = true; });
+  var multiDay = Object.keys(liveDays).length > 1;
+  for (var i = 0; i < liveGames.length; i++) {
+    var g = liveGames[i];
     var ls = LIVE_SCORES[g.id] || { awayScore: 0, homeScore: 0, inProgress: false, completed: false };
     var myHidden = isProfileHiddenFromViewer(activeProfile, g.id);
     var myPick = getResolvedPickForGame(myPicks, g, false);
@@ -161,6 +193,7 @@ renderLiveScoreboardTab = function() {
           liveTeamRowHtml(g, true, ls, myPick, myHidden, flashAway) +
           liveTeamRowHtml(g, false, ls, myPick, myHidden, flashHome) +
           situation +
+          livePoolSplitHtml(g, ls) +
         '</button>' +
         h2hLine +
       '</article>';
@@ -170,7 +203,7 @@ renderLiveScoreboardTab = function() {
       pinned.push({ rank: alert.alertState === "redzone-4q-combo" ? 0 : (alert.isRedZone ? 1 : 2), html: cardHtml });
       continue;
     }
-    var wKey = g.cstWindow || "Other games";
+    var wKey = (multiDay && liveKickDay(g) ? liveKickDay(g) + " · " : "") + (g.cstWindow || "Other games");
     if (!windows[wKey]) { windows[wKey] = []; order.push(wKey); }
     windows[wKey].push(cardHtml);
   }

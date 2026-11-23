@@ -717,6 +717,8 @@ function applyRemoteCloudData(data, sourceLabel) {
       cloudLbStale = true;
     }
     if (data.lastScrapedFile) state.lastScrapedFile = data.lastScrapedFile;
+    if (data.standingsThroughWeek) state.standingsThroughWeek = data.standingsThroughWeek;
+    if (data.weekRecap) state.weekRecap = data.weekRecap;
     if (data.commissionerConfig && typeof data.commissionerConfig === "object") {
       // Replaced, not merged into this device's copy: a setting removed in the cloud (e.g. the
       // old public log, an unblocked account) must not linger here and be saved back.

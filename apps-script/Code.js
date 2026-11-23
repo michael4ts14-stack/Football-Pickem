@@ -345,6 +345,10 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           poolMembers: existingMembers,
           standingsUpdatedAt: new Date().toISOString()
         };
+        var thruWk = standingsThroughWeek_(subject, plainBody, msgWeekNum);
+        if (thruWk) stPatch.standingsThroughWeek = thruWk;
+        var recap = parseWeekRecap_(plainBody);
+        if (recap) stPatch.weekRecap = recap;
         // Standings emails report on a finished week; they never change the active week
         // (only a new slate rollover or the commissioner does).
         patchFirebaseNode("", stPatch);
@@ -1270,6 +1274,42 @@ function normalizeFormKick_(desc) {
   return [m[1].charAt(0).toUpperCase() + m[1].slice(1, 3).toLowerCase(), m[2] || "", hr + ":" + m[4] + " " + ampm, m[6].trim()].filter(Boolean).join(" ");
 }
 
+// Last finished week a standings email's totals include: its "Week 12 - Top 5" line, else
+// week - 1 for a "Week 13 Pick Sheet / Standings" email, else the subject's week.
+// The standings email's "Week 12 - Top 5" block and the comment lines under it, for the app's
+// weekly recap card: { week, top: [{ rank, name, pts }], note } or null.
+function parseWeekRecap_(body) {
+  var lines = String(body || "").replace(/\r/g, "").split("\n").map(function(l) { return l.replace(/\*/g, "").trim(); });
+  var start = -1, week = null;
+  for (var i = 0; i < lines.length; i++) {
+    var m = lines[i].match(/^week\s*(\d{1,2})\s*[-–:]\s*top\s*\d*/i);
+    if (m) { start = i + 1; week = parseInt(m[1], 10); break; }
+  }
+  if (start < 0) return null;
+  var top = [], j = start, lastRank = null;
+  for (; j < lines.length && top.length < 10; j++) {
+    if (!lines[j]) { if (top.length) break; continue; }
+    var r = lines[j].match(/^(?:(\d{1,3})\s+)?(.+?)\s+(\d{1,3})$/);
+    if (!r) break;
+    if (r[1]) lastRank = parseInt(r[1], 10);
+    top.push({ rank: lastRank, name: standardizeBotParticipantName(r[2]), pts: parseInt(r[3], 10) });
+  }
+  if (!top.length) return null;
+  var note = [];
+  for (; j < lines.length && note.length < 4; j++) {
+    if (/overall|standings/i.test(lines[j])) break;
+    if (lines[j]) note.push(lines[j]);
+  }
+  return { week: week, top: top, note: note.join(" ").slice(0, 300) };
+}
+
+function standingsThroughWeek_(subject, body, msgWeekNum) {
+  var top = String(body || "").match(/week\s*(\d{1,2})\s*[-–:]\s*top/i);
+  if (top) return parseInt(top[1], 10);
+  if (!msgWeekNum) return null;
+  return /pick\s*sheet/i.test(subject || "") ? msgWeekNum - 1 : msgWeekNum;
+}
+
 function buildGamesArrayFromLines(lines) {
   var parsedGames = [];
   // "at Home" for a home game, "vs. Home" / "vs Home" for a neutral site (e.g. Florida vs. Georgia).
@@ -1336,8 +1376,8 @@ function buildGamesArrayFromLines(lines) {
           matchup: "Positional matchup favoring " + rec + ".",
           splits: kickLine
         },
-        awayInj: [{ p: away + " Active Roster", pos: "TEAM", st: "FULL", note: "Synced via ESPN" }],
-        homeInj: [{ p: home + " Active Roster", pos: "TEAM", st: "FULL", note: "Synced via ESPN" }]
+        awayInj: [], // ESPN has no college injury data; the app says so instead of a made-up row
+        homeInj: []
       });
     }
   }

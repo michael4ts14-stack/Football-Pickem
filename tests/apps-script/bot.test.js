@@ -698,3 +698,26 @@ test("form kickoff text gets AM/PM and the right window", () => {
   assert.strictEqual(win("Fri 11/27 8:00 PM FOX"), "6:00 PM / 6:30 PM CST Primetime");
   assert.strictEqual(win("Sat 11/28 9:15 PM ESPN"), "9:15 PM+ CST Late Night Window");
 });
+
+test("standings record the last finished week they include", () => {
+  const h = loadBot({ cloud: baseCloud() });
+  assert.strictEqual(h.ctx.standingsThroughWeek_("College Pick'em '26 - Week 13 Pick Sheet / Standings", "Week 12 - Top 5\n1 Mike W 22", 13), 12);
+  assert.strictEqual(h.ctx.standingsThroughWeek_("College Pick'em '26 - Week 13 Pick Sheet / Standings", "no top five here", 13), 12);
+  assert.strictEqual(h.ctx.standingsThroughWeek_("Separated at Turf Week 8 Standings", "Overall", 8), 8);
+  assert.strictEqual(h.ctx.standingsThroughWeek_("Standings", "Overall", null), null);
+  const email = { id: "m-st8b", subject: "Separated at Turf Week 8 Standings",
+    body: "Overall Standings\n1. Adam L 120\n2. Bob K 118\n3. Cat M 117\n4. Dee N 110\n5. Eve O 100\n6. Fay P 99" };
+  const run = loadBot({ cloud: baseCloud(), threads: [fakeThread([email])] });
+  run.ctx.runMasterPickemEmailBot(false);
+  assert.ok(sharedStateWrites(run).some((w) => w.standingsThroughWeek === 8));
+});
+
+test("the standings email's Week Top 5 and comment become the weekly recap", () => {
+  const h = loadBot({ cloud: baseCloud() });
+  const body = "*Good Morning!!*\n\n Week 12 - Top 5\n1 Mike W 22\nGarrett M 22\n3 Chad C 21\n\nMike W wins on a tiebreaker!!\nTennessee beat LSU 27-13.\n\n*Overall Standings*\n1 Steve M 209";
+  const r = h.ctx.parseWeekRecap_(body);
+  assert.strictEqual(r.week, 12);
+  assert.strictEqual(JSON.stringify(r.top.map((t) => [t.rank, t.name, t.pts])), JSON.stringify([[1, "Mike W", 22], [1, "Garrett M", 22], [3, "Chad C", 21]]));
+  assert.strictEqual(r.note, "Mike W wins on a tiebreaker!! Tennessee beat LSU 27-13.");
+  assert.strictEqual(h.ctx.parseWeekRecap_("Overall Standings\n1 Steve M 209"), null);
+});

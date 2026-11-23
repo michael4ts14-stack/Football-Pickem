@@ -193,6 +193,7 @@ function renderStandingsList() {
   var isWeek = STANDINGS_SCOPE === "week";
 
   renderYourSpot(me, list.length);
+  renderWeekRecap();
   renderRivals(list, meLow, q);
   renderWeeklyWinners(list);
 
@@ -224,7 +225,51 @@ function renderStandingsList() {
   patchStandingsBlock(box, items, extra);
 
   var cnt = document.getElementById("leaderboard-count-label");
-  if (cnt) cnt.textContent = list.length ? (list.length + " players" + (isWeek ? " · this week's points" : " · season points")) : "";
+  var thru = standingsThroughWeek();
+  if (cnt) cnt.textContent = list.length ? (list.length + " players" + (isWeek ? " · this week's points" : " · season points" + (thru ? " through Week " + thru : ""))) : "";
+  var seasonBtn = document.getElementById("st-scope-season");
+  if (seasonBtn) seasonBtn.textContent = thru ? "Season · thru Wk " + thru : "Season";
+}
+
+// Last finished week the season points include: the bot records it from the standings email
+// ("Week 13 Pick Sheet / Standings" carries totals through Week 12).
+// Weekly recap: the week's top scorers and the commissioner's note (from the standings email),
+// plus the biggest climbers: rank now vs. the standings saved with the week before's archive.
+function rankNum(r) { var n = parseInt(String(r || "").replace(/[^0-9]/g, ""), 10); return isNaN(n) ? null : n; }
+function weekRecapClimbers(week, limit) {
+  var before = state.weekArchives && state.weekArchives["week_" + (week - 1)];
+  var prev = {};
+  ((before && before.leaderboard) || []).forEach(function(r) { if (r && r.name) prev[String(r.name).toLowerCase()] = rankNum(r.rank); });
+  var out = [];
+  (state.leaderboard || []).forEach(function(r) {
+    var was = r && r.name ? prev[String(r.name).toLowerCase()] : null, now = r ? rankNum(r.rank) : null;
+    if (was && now && was > now) out.push({ name: r.name, from: was, to: now, up: was - now });
+  });
+  out.sort(function(a, b) { return b.up - a.up || a.to - b.to; });
+  return out.slice(0, limit || 3);
+}
+function renderWeekRecap() {
+  var el = document.getElementById("standings-week-recap");
+  if (!el) return;
+  var r = state.weekRecap;
+  if (!r || !r.week || !Array.isArray(r.top) || !r.top.length) { el.hidden = true; return; }
+  var esc = typeof escapeShellHtml === "function" ? escapeShellHtml : function(x) { return String(x); };
+  var best = r.top[0].pts;
+  var winners = r.top.filter(function(t) { return t.pts === best; }).map(function(t) { return esc(t.name); }).join(" & ");
+  var climbers = weekRecapClimbers(r.week, 3);
+  el.innerHTML = '<div class="recap-head">Week ' + esc(r.week) + ' recap</div>' +
+    '<div class="recap-line"><span class="recap-label">Top score</span> ' + winners + ' · ' + esc(best) + ' pts</div>' +
+    (r.note ? '<p class="recap-note">' + esc(r.note) + '</p>' : '') +
+    (climbers.length ? '<div class="recap-line"><span class="recap-label">Biggest climbers</span> ' + climbers.map(function(c) {
+      return esc(c.name) + ' <span class="recap-up">▲' + c.up + '</span> (#' + c.from + ' → #' + c.to + ')';
+    }).join(' · ') + '</div>' : '') +
+    '<div class="recap-top">' + r.top.map(function(t) { return '<span>' + esc(t.rank || "") + ' ' + esc(t.name) + ' ' + esc(t.pts) + '</span>'; }).join('') + '</div>';
+  el.hidden = false;
+}
+
+function standingsThroughWeek() {
+  var w = parseInt(state.standingsThroughWeek, 10);
+  return w > 0 ? w : null;
 }
 
 function renderYourSpot(me, total) {

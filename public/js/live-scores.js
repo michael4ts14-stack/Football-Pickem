@@ -925,8 +925,8 @@ async function importStrictSheetText() {
           matchup: "Positional matchup favoring " + rec + ".",
           splits: kickLine
         },
-        awayInj: [{ p: away + " Starters", pos: "TEAM", st: "FULL", note: "Synced via ESPN" }],
-        homeInj: [{ p: home + " Starters", pos: "TEAM", st: "FULL", note: "Synced via ESPN" }]
+        awayInj: [],
+        homeInj: []
       });
     }
   }
