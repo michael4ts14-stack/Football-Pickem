@@ -194,7 +194,7 @@ function renderStandingsList() {
   var q = (qEl ? qEl.value : "").trim().toLowerCase();
   var isWeek = STANDINGS_SCOPE === "week";
 
-  renderYourSpot(me, list.length);
+  renderYourSpot(me, list.length, isWeek && !list.some(function(r) { return r.pts > 0 || r.live; }));
   renderWeekRecap();
   renderRivals(list, meLow, q);
   renderWeeklyWinners(list);
@@ -230,7 +230,7 @@ function renderStandingsList() {
   var thru = standingsThroughWeek();
   if (cnt) cnt.textContent = list.length ? (list.length + " players" + (isWeek ? " · this week's points" : " · season points" + (thru ? " through Week " + thru : ""))) : "";
   var seasonBtn = document.getElementById("st-scope-season");
-  if (seasonBtn) seasonBtn.textContent = thru ? "Season · thru Wk " + thru : "Season";
+  if (seasonBtn) seasonBtn.textContent = "Season"; // "through Week N" is in the count label; a longer label wraps on phones
 }
 
 // Last finished week the season points include: the bot records it from the standings email
@@ -275,9 +275,15 @@ function standingsThroughWeek() {
   return w > 0 ? w : null;
 }
 
-function renderYourSpot(me, total) {
+function renderYourSpot(me, total, weekNotStarted) {
   var el = document.getElementById("standings-your-spot");
   if (!el) return;
+  // Before anyone scores, every player ties at 0, so a rank like "T1" means nothing.
+  if (weekNotStarted) {
+    el.innerHTML = '<p class="spot-label">Your spot · this week</p>' +
+      '<p class="spot-empty">No points yet this week. Ranks show once the first game is graded. <button type="button" class="link-btn" onclick="setStandingsScope(\'season\')">See season standings</button></p>';
+    return;
+  }
   if (!me) {
     el.innerHTML = '<p class="spot-label">Your spot</p>' +
       (isSignedInUser()
