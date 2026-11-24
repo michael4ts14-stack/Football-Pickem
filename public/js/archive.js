@@ -202,6 +202,11 @@ function switchWeekArchive(weekKey) {
     if (targetSnap.michael) state.michael = JSON.parse(JSON.stringify(targetSnap.michael));
     if (targetSnap.kinyion) state.kinyion = JSON.parse(JSON.stringify(targetSnap.kinyion));
     Object.keys(targetSnap.customPicks || {}).forEach(function(k) { state[k] = JSON.parse(JSON.stringify(targetSnap.customPicks[k])); });
+    // A player with no saved picks that week shows none, not this week's picks on old games
+    // (returnToLiveWeek restores them from LIVE_WEEK_SNAPSHOT).
+    (state.customUsers || []).forEach(function(u) {
+      if (u && u.key && state[u.key] && !(targetSnap.customPicks || {})[u.key]) state[u.key] = Object.assign({}, state[u.key], { picks: {}, tiebreaker: "" });
+    });
     if (targetSnap.watchlist) state.watchlist = JSON.parse(JSON.stringify(targetSnap.watchlist));
     if (targetSnap.poolMembers) state.poolMembers = JSON.parse(JSON.stringify(targetSnap.poolMembers));
     if (targetSnap.leaderboard) state.leaderboard = JSON.parse(JSON.stringify(targetSnap.leaderboard));
@@ -258,62 +263,63 @@ function populateWeekArchiveDropdown() {
   sel.innerHTML = html;
 }
 
+// A player's record for an archived week: { won, lost, pts } from that week's saved picks and
+// final scores, or null when no picks were saved for them that week.
+function archivedWeekResult(snap, key) {
+  var prof = (snap.customPicks && snap.customPicks[key]) || ((key === "michael" || key === "kinyion") ? snap[key] : null);
+  var picks = prof && prof.picks;
+  if (!picks || !Object.keys(picks).length) return null;
+  var r = { won: 0, lost: 0, pts: 0 };
+  (snap.games || []).forEach(function(g) {
+    var pick = getResolvedPickForGame(picks, g, false);
+    var ls = (snap.liveScores || {})[g.id];
+    if (!pick || !ls || !ls.completed || isVoidedGame(ls)) return;
+    var a = Number(ls.awayScore) || 0, h = Number(ls.homeScore) || 0;
+    if (a === h) return;
+    if (isSameTeamPick(a > h ? g.away : g.home, pick, g)) { r.won++; r.pts += getGamePickPts(g, isSameTeamPick(pick, g.away, g)); }
+    else r.lost++;
+  });
+  return r;
+}
+
+// Past weeks: every player sees their own record per finished week and can open the week
+// (slate, final scores, their picks graded). Snapshot buttons are the commissioner's only.
 function renderSeasonArchiveHub() {
   var box = document.getElementById("season-archive-hub-container");
   if (!box) return;
   ensureWeekArchivesState();
-
-  var curKey = "week_" + (parseInt(state.currentWeek, 10) || 0);
-  var keys = Object.keys(state.weekArchives).sort(function(a, b) {
+  var commish = typeof isVerifiedCommissioner === "function" && isVerifiedCommissioner();
+  var liveKey = "week_" + liveWeekNum();
+  var keys = Object.keys(state.weekArchives).filter(function(k) { return /^week_\d+$/.test(k) && k !== liveKey; }).sort(function(a, b) {
     return (parseInt(b.replace("week_", ""), 10) || 0) - (parseInt(a.replace("week_", ""), 10) || 0);
   });
+  var me = activeProfile;
 
-  var cardsHtml = "";
-  for (var i = 0; i < keys.length; i++) {
-    var k = keys[i];
+  var cardsHtml = keys.map(function(k) {
     var snap = state.weekArchives[k];
-    if (!snap) continue;
-    var isCurrent = (k === curKey);
-    var gList = snap.games || [];
-    var lsMap = snap.liveScores || {};
-    var compCount = 0;
-    for (var gid in lsMap) {
-      if (lsMap[gid] && lsMap[gid].completed) compCount++;
-    }
-    var mPts = "—", kPts = "—";
-    if (snap.weekNum === 7) {
-      mPts = "15 pts (96→111)";
-      kPts = "17 pts (95→112)";
-    } else if (isCurrent) {
-      var mG = calcProfileMetrics("michael");
-      var kG = calcProfileMetrics("kinyion");
-      mPts = Math.max(mG.liveProjectedPts, mG.finalWonPts) + " pts (" + mG.ev.toFixed(1) + " EV)";
-      kPts = Math.max(kG.liveProjectedPts, kG.finalWonPts) + " pts (" + kG.ev.toFixed(1) + " EV)";
-    }
-    var firstMatchup = (gList[0] ? (gList[0].awayCode + " @ " + gList[0].homeCode) : "26 Games");
-
-    cardsHtml += '<div class="archive-week-card' + (isCurrent ? ' active-wk' : '') + '">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-        '<strong style="font-size:0.82rem;color:var(--text);">📚 ' + (snap.weekLabel || ("Week " + snap.weekNum)) + '</strong>' +
-        (isCurrent ? '<span class="badge badge-ev">Active View</span>' : '<span class="badge badge-1x">Archived</span>') +
+    if (!snap) return "";
+    var label = escapeHtml(snap.weekLabel || ("Week " + snap.weekNum));
+    var viewing = VIEWING_ARCHIVE_KEY === k;
+    var r = me ? archivedWeekResult(snap, me) : null;
+    var line = r ? '<strong>' + r.pts + ' pts</strong> · ' + r.won + '–' + r.lost
+      : '<span class="muted-note">No picks saved for you this week</span>';
+    return '<div class="archive-week-card' + (viewing ? ' active-wk' : '') + '">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+        '<strong style="font-size:0.85rem;color:var(--text);">' + label + '</strong>' +
+        '<span style="font-size:0.8rem;color:var(--text);">' + line + '</span>' +
       '</div>' +
-      '<div style="color:var(--muted);">Slate: <strong>' + gList.length + ' Games</strong> (' + firstMatchup + '...) • Graded: <strong>' + compCount + '/' + gList.length + '</strong></div>' +
-      '<div style="color:var(--text);">👤 Michael: <strong style="color:var(--text);">' + mPts + '</strong> • 👤 Kinyon: <strong style="color:var(--text);">' + kPts + '</strong></div>' +
-      '<div style="margin-top:4px;display:flex;gap:6px;">' +
-        (isCurrent
-          ? '<button type="button" class="btn-sm" style="width:100%;border-color:var(--border);color:var(--win);font-weight:800;" onclick="saveCurrentWeekToArchive(true)">💾 Update Snapshot in Firestore</button>'
-          : '<button type="button" class="btn-sm" style="width:100%;background:var(--accent);color:var(--on-accent);border:none;font-weight:800;" onclick="switchWeekArchive(\'' + k + '\')">📂 Load ' + (snap.weekLabel || ("Week " + snap.weekNum)) + ' Slate & Grades</button>') +
-      '</div>' +
+      '<button type="button" class="btn-sm" style="width:100%;margin-top:6px;font-weight:800;" onclick="' + (viewing ? 'returnToLiveWeek()' : 'switchWeekArchive(\'' + k + '\'); closePanelSheet();') + '">' +
+        (viewing ? 'Back to this week' : 'See ' + label + ' picks and scores') + '</button>' +
     '</div>';
-  }
+  }).join("");
 
   box.innerHTML =
-    '<div class="side-title" style="flex-wrap:wrap;gap:6px;">' +
-      '<span>📚 Multi-Week Season History Archive (Synced to Cloud Firestore)</span>' +
-      '<button type="button" class="btn-sm" style="padding:3px 9px;font-size:0.69rem;border-color:var(--border);color:var(--text);" onclick="saveCurrentWeekToArchive(true)">💾 Snapshot Current Week</button>' +
+    '<div class="side-title" style="flex-wrap:wrap;gap:6px;"><span>Past weeks</span>' +
+      (commish ? '<button type="button" class="btn-sm" style="padding:3px 9px;font-size:0.69rem;" onclick="saveCurrentWeekToArchive(true)">Snapshot this week</button>' : '') +
     '</div>' +
-    '<div style="font-size:0.73rem;color:var(--muted);">Switch between any archived week and your active week at any time from the top bar or below. Importing a new weekly PDF/CSV automatically snapshots the prior week first.</div>' +
-    '<div class="archive-week-strip">' + cardsHtml + '</div>';
+    (VIEWING_ARCHIVE_KEY ? '<button type="button" class="btn-sm" style="width:100%;margin:6px 0;font-weight:800;" onclick="returnToLiveWeek(); renderSeasonArchiveHub();">Back to this week</button>' : '') +
+    '<div style="font-size:0.75rem;color:var(--muted);">Open a finished week to see the games, final scores and your picks graded. Weeks before 13 only kept picks for some accounts.</div>' +
+    '<div class="archive-week-strip">' + (cardsHtml || '<p class="muted-note">No finished weeks saved yet.</p>') + '</div>';
 }
 
 function renderAll() {

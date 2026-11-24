@@ -497,7 +497,7 @@ function openMoreSection(section) {
   closeSettingsDrawer();
   closeEvSimulatorDrawer();
   if (section === "weeks") {
-    // Past weeks currently live in the commissioner's Season archive box on Standings.
+    // Desktop fallback; dialogs-ui.js opens Past weeks as a sheet.
     switchMainView("standings");
     var hub = document.getElementById("season-archive-hub-container");
     if (hub) hub.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -548,7 +548,7 @@ function renderMoreView() {
     '<section class="list-section" id="more-sec-tools" aria-labelledby="more-h-tools">' +
       '<h2 class="section-label" id="more-h-tools">Tools</h2>' +
       '<div class="list-card">' +
-        (isCommish ? moreRowHtml({ icon: "history", title: "Past weeks", sub: "Load an archived week's slate and grades", onclick: "openMoreSection('weeks')" }) : '') +
+        moreRowHtml({ icon: "history", title: "Past weeks", sub: "Your picks and results from earlier weeks", onclick: "openMoreSection('weeks')" }) +
         moreRowHtml({ icon: "dices", title: "EV simulator", sub: "Expected points and 5,000-trial finish odds", onclick: "openEvSimulatorDrawer()" }) +
       '</div>' +
     '</section>' +
@@ -686,7 +686,7 @@ var _shellOrigSyncCommishVis = syncCommissionerVisibilityDOM;
 syncCommissionerVisibilityDOM = function() {
   var result = _shellOrigSyncCommishVis.apply(this, arguments);
   var isCommish = isVerifiedCommissioner();
-  ["nav-more-weeks", "nav-more-commish"].forEach(function(id) {
+  ["nav-more-commish"].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.classList.toggle("commish-only-hidden", !isCommish);
   });

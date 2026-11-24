@@ -74,3 +74,15 @@ test("pre-filled link carries the name, every pick and the tie-breaker", () => {
   const partial = buildPrefillUrl(doc, { name: "x", picks: { 1: "away" }, tiebreaker: "" });
   assert.equal(partial.missing.length, 22);
 });
+
+// Week 13's form put one team per line with records first, plus rivalry names
+// ("Egg Bowl\n(5-6) Mississippi State\n(7-4) #23 Ole Miss (-18.5)"): it matched 0 of 26 games.
+test("week 13 one-team-per-line titles: all 26 games and both teams map", () => {
+  const fb13 = JSON.parse(readFileSync(new URL("./fixtures/form-week13.json", import.meta.url)));
+  const slate13 = JSON.parse(readFileSync(new URL("./fixtures/slate-week13.json", import.meta.url)));
+  assert.deepEqual(splitMatchupTitle("Egg Bowl\n(5-6) Mississippi State\n(7-4) #23 Ole Miss (-18.5)"), { first: "Mississippi State", second: "Ole Miss" });
+  const m = matchFormToSlate(parseFormData(fb13), slate13.games);
+  assert.deepEqual(m.unmatchedGames, []);
+  assert.deepEqual(m.games["3"].choices, { away: "Florida", home: "FSU" });
+  assert.deepEqual(m.games["4"].choices, { away: "Texas", home: "TA&M" });
+});

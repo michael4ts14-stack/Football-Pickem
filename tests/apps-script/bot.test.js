@@ -773,3 +773,23 @@ test("a lower week mid-season, or before July, never resets the pool", () => {
     assert.ok(!sharedStateWrites(h).some((x) => x.currentWeek === 1), "no reset on " + now);
   }
 });
+
+test("rollover keeps each player's app picks for the outgoing week (Past weeks)", () => {
+  const formEmail = { id: "m-form-10p", subject: "Separated at Turf Week 10 Pick'em Form Is Live", body: "Week 10 https://docs.google.com/forms/d/e/x/viewform" };
+  const cloud = baseCloud();
+  const h = loadBot({
+    cloud, threads: [fakeThread([formEmail])], isoDay: 2,
+    docs: {
+      "pickem_v14/shared_state": cloud,
+      "pickem_v14_users/adam": { displayName: "Adam L", currentWeek: 9, picks: { 1: "Away Team 0" }, tiebreaker: "28-24" },
+      "pickem_v14_users/old": { displayName: "Old", currentWeek: 8, picks: { 1: "Home Team 0" } },
+    },
+  });
+  h.ctx.scrapeGoogleFormGames = () => slate(23, 1).map((g) => Object.assign({}, g, { away: "New " + g.away }));
+  h.ctx.runMasterPickemEmailBot(false);
+  const w = sharedStateWrites(h).find((x) => x.currentWeek === 10);
+  const cp = w.weekArchives.week_9.customPicks;
+  assert.strictEqual(cp.adam.picks["1"], "Away Team 0");
+  assert.strictEqual(cp.adam.tiebreaker, "28-24");
+  assert.strictEqual(cp.old, undefined, "a doc still on an older week is left out");
+});

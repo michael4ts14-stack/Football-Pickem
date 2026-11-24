@@ -36,15 +36,20 @@ export function parseFormData(fb) {
 }
 
 // "#22 Arizona 6-1 at #13 Texas Tech 6-1 (-3.5)" -> { first: "Arizona", second: "Texas Tech" }
+// Week 13 on: one team per line, records first, sometimes a rivalry name line on top
+// ("Egg Bowl\n(5-6) Mississippi State\n(7-4) #23 Ole Miss (-18.5)") -> the last two lines.
 export function splitMatchupTitle(title) {
-  const clean = String(title || "")
+  const cleanLine = (s) => String(s || "")
     .replace(/\([^)]*\)/g, " ")
     .replace(/#\d+/g, " ")
     .replace(/\b\d+-\d+\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  const clean = cleanLine(title);
   const m = clean.match(/^(.*?)\s+(?:at|vs\.?|@)\s+(.*)$/i);
-  return m ? { first: m[1].trim(), second: m[2].trim() } : null;
+  if (m) return { first: m[1].trim(), second: m[2].trim() };
+  const lines = String(title || "").split(/\n/).map(cleanLine).filter(Boolean);
+  return lines.length >= 2 ? { first: lines[lines.length - 2], second: lines[lines.length - 1] } : null;
 }
 
 const BLOCKED_SUFFIXES = /(state|st|tech|am|at|oh|ohio|fl|christian|southern|northern|eastern|western|central|international|atlantic|college|elpaso|sanantonio)$/;

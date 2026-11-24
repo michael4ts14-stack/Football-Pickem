@@ -356,6 +356,23 @@ function serve() {
   });
   check("closing a game detail keeps your place on the page", rScroll.before > 0 && Math.abs(rScroll.after - rScroll.before) < 100, rScroll);
 
+  // Past weeks: a player's saved picks for a finished week are graded from its final scores,
+  // and opening the week shows those picks (not this week's) for players with none saved.
+  const rPast = await page.evaluate(() => {
+    const g = [{ id: 1, away: "Alpha", home: "Beta", awayPts: 2, homePts: 1 }, { id: 2, away: "Gamma", home: "Delta", awayPts: 1, homePts: 3 }];
+    const snap = { weekNum: 3, weekLabel: "Week 3", games: g,
+      liveScores: { 1: { completed: true, awayScore: 21, homeScore: 14 }, 2: { completed: true, awayScore: 30, homeScore: 7 } },
+      customPicks: { someone: { picks: { 1: "Alpha", 2: "Delta" } } } };
+    const res = archivedWeekResult(snap, "someone");
+    const none = archivedWeekResult(snap, "nobody");
+    openMoreSection("weeks");
+    const sheetText = (document.getElementById("panel-sheet-body") || {}).textContent || "";
+    closePanelSheet();
+    return { res, none, sheetText: sheetText.slice(0, 200) };
+  });
+  check("past weeks: graded record per player, sheet opens for players", rPast.res.won === 1 && rPast.res.lost === 1 && rPast.res.pts === 2 &&
+    rPast.none === null && /Past weeks/.test(rPast.sheetText), rPast);
+
   // An unknown week stays unknown (it used to become Week 8), and next season's Week 1 from the
   // cloud replaces this season's week while a stale copy of the old season is ignored.
   const rSeason = await page.evaluate(() => {

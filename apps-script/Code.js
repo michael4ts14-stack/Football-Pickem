@@ -477,6 +477,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             watchlist: (currentCloud && currentCloud.watchlist) || [],
             leaderboard: (currentCloud && currentCloud.leaderboard) || [],
             poolMembers: (currentCloud && currentCloud.poolMembers) || [],
+            customPicks: weekUserPicks_(prevWkNum), // each player's own app picks (Past weeks)
             liveScores: finalOutgoingScores
           };
           patchFirestoreDocUrl(FIRESTORE_BASE_URL + "/live_games/" + prevArchKey + "_archive", {
@@ -2452,6 +2453,24 @@ function firestoreAuthHeaders_() {
 
 // Every Firestore write goes through here. Returns true only on HTTP 2xx; failures are
 // logged and collected so they show up in live_games/bot_status instead of vanishing.
+// Every player's app picks for `week` ({ profileKey: { picks, tiebreaker, displayName } }), read
+// before the rollover so Past weeks can show them. Docs still on another week are left out.
+function weekUserPicks_(week) {
+  var out = {};
+  try {
+    var res = UrlFetchApp.fetch(FIRESTORE_USERS_URL + "?pageSize=300", { headers: firestoreAuthHeaders_(), muteHttpExceptions: true });
+    if (res.getResponseCode() !== 200) { recordBotError_("Past weeks: reading players' picks -> HTTP " + res.getResponseCode()); return out; }
+    (JSON.parse(res.getContentText()).documents || []).forEach(function(d) {
+      var u = fromFirestoreValue({ mapValue: { fields: d.fields || {} } }) || {};
+      if (parseInt(u.currentWeek, 10) !== week || !u.picks || !Object.keys(u.picks).length) return;
+      out[d.name.split("/").pop()] = { picks: u.picks, tiebreaker: u.tiebreaker || "", displayName: u.displayName || "" };
+    });
+  } catch (e) {
+    recordBotError_("Past weeks: reading players' picks threw: " + e.message);
+  }
+  return out;
+}
+
 // New season: copies every finished week (shared_state's and pickem_v14_archives' week_N docs)
 // to "s<season>_week_N" and deletes the week_N docs, so next season's weeks don't overwrite them.
 function archiveSeason_(season, sharedArchives) {
