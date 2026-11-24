@@ -244,11 +244,6 @@ function toggleDuesPaidInPlace(low) {
   applyDuesChanges(ch, "Dues: " + duesDisplayName(low) + " marked " + (next ? "paid" : "unpaid")).catch(function() {});
 }
 
-// The roster table's old toggle goes through the same in-place path.
-function commishToggleDuesPaid(memberName) {
-  toggleDuesPaidInPlace(duesKeyForName(memberName));
-}
-
 function toggleDuesSelected(low, on) {
   if (on) DUES_SELECTED[low] = true; else delete DUES_SELECTED[low];
   refreshDuesChrome();

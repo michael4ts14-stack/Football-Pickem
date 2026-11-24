@@ -18,6 +18,9 @@ test("team names match RotoWire's, and look-alike schools don't", () => {
   assert.strictEqual(lib.injuryReportFor("Iowa").list[0], 4);
   assert.strictEqual(lib.injuryReportFor("Iowa State"), null);
   assert.strictEqual(lib.injuryReportFor("Miami"), null);
+  lib.set({ teams: { Kent: { list: [5] } } }); // RotoWire's name for Kent State
+  assert.strictEqual(lib.injuryReportFor("Kent State").list[0], 5);
+  assert.strictEqual(lib.injuryReportFor("Kentucky"), null);
   lib.set(null);
   assert.strictEqual(lib.injuryReportFor("Iowa"), null);
 });

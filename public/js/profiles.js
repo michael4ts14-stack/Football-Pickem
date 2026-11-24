@@ -1,41 +1,3 @@
-// ============================================================================
-// MULTI-USER PROFILE MANAGER & ANTI-SPY HIDDEN PICKS MODAL
-// ============================================================================
-function buildLeaderboardLinkSelectHtml(profKey, currentLinkedName) {
-  var allNames = [];
-  var seen = {};
-  if (state.leaderboard && Array.isArray(state.leaderboard)) {
-    for (var i = 0; i < state.leaderboard.length; i++) {
-      var n = standardizeParticipantName(state.leaderboard[i].name);
-      var low = n.toLowerCase();
-      if (!seen[low]) {
-        seen[low] = true;
-        allNames.push({ name: n, pts: state.leaderboard[i].priorPts, rank: state.leaderboard[i].rank });
-      }
-    }
-  }
-  if (state.poolMembers && Array.isArray(state.poolMembers)) {
-    for (var j = 0; j < state.poolMembers.length; j++) {
-      var n2 = standardizeParticipantName(state.poolMembers[j].name);
-      var low2 = n2.toLowerCase();
-      if (!seen[low2]) {
-        seen[low2] = true;
-        allNames.push({ name: n2, pts: state.poolMembers[j].priorPts, rank: state.poolMembers[j].priorRank || "" });
-      }
-    }
-  }
-  var curLow = standardizeParticipantName(currentLinkedName || "").toLowerCase();
-  var html = '<select class="search-input" style="min-width:155px;max-width:210px;padding:3px 6px;font-size:0.7rem;color:var(--win);border-color:var(--border);" onchange="linkUserProfileToLeaderboard(\'' + profKey + '\', this.value)">';
-  html += '<option value="">— Not Linked to Pool —</option>';
-  for (var k = 0; k < allNames.length; k++) {
-    var item = allNames[k];
-    var sel = (item.name.toLowerCase() === curLow) ? " selected" : "";
-    html += '<option value="' + escapeHtml(item.name) + '"' + sel + '>🔗 ' + escapeHtml(item.name) + ' (' + item.pts + ' pts' + (item.rank ? ' • ' + item.rank : '') + ')</option>';
-  }
-  html += '</select>';
-  return html;
-}
-
 function linkUserProfileToLeaderboard(profKey, memberName, pullPicksNow) {
   ensureMultiUserAndPrivacyState();
   invalidateDuesRosterCache();
@@ -77,65 +39,6 @@ function linkUserProfileToLeaderboard(profKey, memberName, pullPicksNow) {
   if (document.getElementById("opp-modal-backdrop") && document.getElementById("opp-modal-backdrop").style.display === "flex") {
     openUserAndPrivacyModal();
   }
-}
-
-function claimOrCompareFromLeaderboard(memberName, mode) {
-  var stdName = standardizeParticipantName(memberName);
-  if (mode === "compare") {
-    setCompareTarget("pm:" + stdName);
-    switchMainView("condensed");
-    return;
-  }
-  // Check if a profile is already linked to this leaderboard member
-  var existingLinkedPf = getProfileLinkedToMemberName(stdName);
-  if (existingLinkedPf) {
-    switchProfile(existingLinkedPf.key);
-    return;
-  }
-  // Otherwise, create a new linked user profile for this leaderboard participant & switch to them!
-  var cleanKey = "u_" + stdName.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 14) + "_" + (Date.now() % 10000);
-  var pm = findPoolMemberByName(stdName);
-  var lb = findLeaderboardEntryByName(stdName);
-  var priorPts = lb ? (parseFloat(lb.priorPts) || 0) : (pm ? (parseFloat(pm.priorPts) || 0) : 0);
-  var rankStr = lb && lb.rank ? lb.rank : (pm && pm.priorRank ? pm.priorRank : "Linked");
-
-  var isDeletedLb = !!((state.deletedPicksByMember && state.deletedPicksByMember[stdName.toLowerCase()]) || (pm && pm._picksCleared));
-  var initialPicks = {};
-  var hasSheet = !isDeletedLb && pm && !pm.awaitingSheet && pm.picks && hasSubmittedPicksForCurrentSlate(pm.picks, GAMES);
-  if (hasSheet) {
-    for (var gIdx = 0; gIdx < GAMES.length; gIdx++) {
-      var gm = GAMES[gIdx];
-      if (pm.picks[gm.id]) initialPicks[gm.id] = pm.picks[gm.id];
-    }
-  }
-
-  state.customUsers.push({
-    key: cleanKey,
-    name: stdName,
-    linkedMemberName: stdName,
-    priorPts: priorPts,
-    rank: rankStr,
-    color: "#10b981"
-  });
-  state[cleanKey] = {
-    picks: initialPicks,
-    tiebreaker: (pm && pm.tiebreaker && pm.tiebreaker !== "—") ? pm.tiebreaker : "28-24",
-    target: 20,
-    linkedMemberName: stdName
-  };
-  state.profilePrivacy[cleanKey] = {
-    hidden: false,
-    pin: "",
-    revealAtKickoff: true,
-    autoUnhideOnSheet: true,
-    autoUnhideFridayNight: true
-  };
-  SESSION_UNLOCKED_PROFILES[cleanKey] = true;
-  activeProfile = cleanKey;
-  regradeAllPoolMembersLive();
-  pushMultiUserAndPrivacyToFirebase();
-  pushProfileToFirebase(cleanKey);
-  renderAll();
 }
 
 function openUserAndPrivacyModal() {

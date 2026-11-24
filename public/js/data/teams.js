@@ -607,7 +607,8 @@ function filterStale2024InjuryList(injList) {
 // Injury reports the bot saves from RotoWire (live_games/injuries): { teams: { "Iowa": { list, updatedAt } }, source }.
 var INJURY_REPORTS = null;
 function injuryTeamKey(name) {
-  return String(name || "").toLowerCase().replace(/&/g, "and").replace(/\(([^)]*)\)/g, "$1").replace(/[^a-z0-9]/g, "").replace(/state$/, "st");
+  var k = String(name || "").toLowerCase().replace(/&/g, "and").replace(/\(([^)]*)\)/g, "$1").replace(/[^a-z0-9]/g, "").replace(/state$/, "st");
+  return k === "kent" ? "kentst" : k; // RotoWire says "Kent"
 }
 function injuryReportFor(team) {
   var teams = INJURY_REPORTS && INJURY_REPORTS.teams;

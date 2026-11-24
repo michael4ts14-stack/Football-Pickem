@@ -774,10 +774,6 @@ function clearSearch() {
   renderGames();
 }
 
-function openPasteSheetModal() {
-  openUnifiedImportModal("pdf");
-}
-
 function triggerFileInputClick() {
   var inp = document.getElementById("pdf-file-input");
   if (inp) inp.click();

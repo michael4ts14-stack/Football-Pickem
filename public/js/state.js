@@ -551,8 +551,6 @@ function populateCompareTargetSelectors() {
   if (sel4) sel4.innerHTML = opts;
 }
 
-// Legacy PIN modal stubs disabled so no PIN can ever bypass account login!
-function openPinModal() { openAuthModal(); }
 function closePinModal() {
   var bd = document.getElementById("pin-modal-backdrop");
   if (bd) bd.style.display = "none";
@@ -568,10 +566,6 @@ function unlockProfileWithPrompt(profKey, onSuccess) {
   var otherMeta = getProfileDisplayMeta(profKey);
   showAppToast("🔒 " + otherMeta.name + "'s picks are hidden until kickoff on their account instance.");
   return false;
-}
-
-function toggleCompareTargetPinUnlock() {
-  showAppToast("🔒 Other users' hidden picks cannot be unlocked from your device — they auto-reveal at kickoff!");
 }
 
 function toggleQuickLockActiveProfile() {
@@ -604,12 +598,6 @@ function toggleBlindMode() {
   }
   showAppToast(BLIND_MODE ? "🙈 Spy Shield ON: Other users' picks hidden!" : "👁️ Spy Shield OFF");
   renderAll();
-}
-
-function cycleNextActiveProfile() {
-  var myKey = getMyInstanceProfileKey();
-  var nextKey = (activeProfile === "test") ? myKey : "test";
-  switchProfile(nextKey);
 }
 
 function pushMultiUserAndPrivacyToFirebase() {

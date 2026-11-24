@@ -533,34 +533,6 @@ function getCleanTeamCode(teamName, existingCode) {
   return existingCode && existingCode.length <= 7 ? existingCode : clean.slice(0, 6);
 }
 
-function detectTiebreakerGameFromLines(lines, gamesList) {
-  if (!lines || !lines.length || !gamesList || !gamesList.length) return null;
-  var tbText = "";
-  for (var i = 0; i < lines.length; i++) {
-    var l = String(lines[i] || "");
-    if (/tie[\s-]*breaker/i.test(l)) {
-      tbText = lines.slice(Math.max(0, i - 1), Math.min(lines.length, i + 5)).join(" ");
-      break;
-    }
-  }
-  if (tbText) {
-    var tbNorm = normalizeTeamKey(tbText);
-    for (var gIdx = 0; gIdx < gamesList.length; gIdx++) {
-      var gm = gamesList[gIdx];
-      var aKey = normalizeTeamKey(gm.away);
-      var hKey = normalizeTeamKey(gm.home);
-      var aCode = normalizeTeamKey(gm.awayCode);
-      var hCode = normalizeTeamKey(gm.homeCode);
-      var hasAway = (aKey && tbNorm.indexOf(aKey) !== -1) || (aCode && aCode.length >= 3 && tbNorm.indexOf(aCode) !== -1);
-      var hasHome = (hKey && tbNorm.indexOf(hKey) !== -1) || (hCode && hCode.length >= 3 && tbNorm.indexOf(hCode) !== -1);
-      if (hasAway && hasHome) {
-        return gm.id;
-      }
-    }
-  }
-  return null;
-}
-
 function resolveTiebreakerGame() {
   if (!GAMES || !GAMES.length) return null;
   // 1. Explicit state.tiebreakerGameId if valid

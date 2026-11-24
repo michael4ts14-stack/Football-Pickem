@@ -98,11 +98,6 @@ function getGameSituation(liveState, game, userPicks) {
   };
 }
 
-// The Live "4Q / red zone" filter: games worth watching right now.
-function isSweatGame(sit) {
-  return !!(sit && (sit.closeLate || sit.crunchTime || (sit.redZone && sit.period >= 4)));
-}
-
 // ============================================================================
 // LIVE ALERTS: red zone, 4Q / OT sweats and upset alerts for the glowing card outlines.
 // evaluateLiveGameAlertState(liveState, userPick, slateGame) -> {

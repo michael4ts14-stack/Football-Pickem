@@ -415,6 +415,17 @@ test("nudge: the email names the real deadline, not a fixed Friday 9 PM", () => 
   assert.ok(h.sentMail[0].subject.indexOf("Friday") === -1, h.sentMail[0].subject);
 });
 
+test("receipt: names this week's real deadline, not a fixed Friday 9 PM", () => {
+  const h = service({ docs: Object.assign(locksDoc("2099-01-01T03:00:00.000Z"), {
+    ["pickem_v14_accounts/email_" + PLAYER.replace(/[^a-z0-9]/g, "_")]: { uid: "uid-player", boundProfileKey: "playerKey", linkedMemberName: "Player One" },
+    "pickem_v14_bindings/playerKey": { uid: "uid-player", memberName: "Player One" },
+  }) });
+  const r = post(h, { action: "sendPickReceipt", idToken: token("uid-player") });
+  assert.strictEqual(r.ok, true, JSON.stringify(r));
+  assert.ok(h.sentMail[0].body.indexOf("2099-01-01T03:00:00.000Z") !== -1, h.sentMail[0].body);
+  assert.ok(h.sentMail[0].body.indexOf("Friday 9:00 PM") === -1, h.sentMail[0].body);
+});
+
 test("nudge: hidden picks left over from an older week don't count as picked", () => {
   const h = service({
     scriptProps: ON,

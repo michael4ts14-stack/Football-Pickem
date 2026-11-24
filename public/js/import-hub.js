@@ -131,10 +131,6 @@ function switchImportHubTab(tabName) {
   }
 }
 
-function openEmailImportModal() {
-  openUnifiedImportModal("email");
-}
-
 function isSafeClientSubstrMatch(hayNorm, needleNorm) {
   if (!hayNorm || !needleNorm) return false;
   if (hayNorm === needleNorm) return true;

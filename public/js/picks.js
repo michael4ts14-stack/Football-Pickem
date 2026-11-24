@@ -93,11 +93,6 @@ function buildTeamPickPillsHtml(g, teamName) {
   return html;
 }
 
-function buildLockedProfilesHeaderBadgesHtml(g) {
-  // Intentionally empty so Research Cards are never cluttered with hidden pick badges
-  return "";
-}
-
 function updateSingleGameCardPickUI(g) {
   if (!g) return false;
   var cardEl = document.getElementById("game-card-" + g.id);
@@ -198,17 +193,6 @@ function pickSideForProfile(profKey, gameId, sideCode) {
   renderAll();
 }
 
-function pickSideForWatchlist(watchIdx, gameId, sideCode) {
-  var g = findGameById(gameId);
-  if (!g || !state.watchlist[watchIdx]) return;
-  lastLocalPickTs = Date.now();
-  var numId = Number(g.id);
-  state.watchlist[watchIdx].picks[numId] = (sideCode === 1) ? g.away : g.home;
-  state.watchlist[watchIdx].picks[String(numId)] = (sideCode === 1) ? g.away : g.home;
-  pushWatchlistOrStandingsToFirebase();
-  renderAll();
-}
-
 function toggleWatchlistPick(watchIdx, gameId) {
   var g = findGameById(gameId);
   if (!g || !state.watchlist[watchIdx]) return;
@@ -226,11 +210,6 @@ function toggleWatchlistPick(watchIdx, gameId) {
     delete state.watchlist[watchIdx].picks[String(numId)];
   }
   pushWatchlistOrStandingsToFirebase();
-  renderAll();
-}
-
-function toggleShadowProfiles() {
-  showShadowBadges = !showShadowBadges;
   renderAll();
 }
 

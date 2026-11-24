@@ -62,20 +62,6 @@ commishRevokeRole = function(key) {
 // ---------- Panel sheet: shows an existing container, then puts it back ----------
 var _panelSheetNode = null, _panelSheetHome = null, _panelSheetNext = null;
 
-function openPanelSheet(title, nodeId) {
-  var node = document.getElementById(nodeId);
-  var bd = document.getElementById("panel-sheet-backdrop");
-  var body = document.getElementById("panel-sheet-body");
-  if (!node || !bd || !body) return;
-  closePanelSheet();
-  _panelSheetNode = node;
-  _panelSheetHome = node.parentNode;
-  _panelSheetNext = node.nextSibling;
-  body.appendChild(node);
-  document.getElementById("panel-sheet-title").textContent = title;
-  bd.hidden = false;
-}
-
 function closePanelSheet() {
   var bd = document.getElementById("panel-sheet-backdrop");
   if (bd) bd.hidden = true;

@@ -9,16 +9,6 @@ function setCondensedLayoutMode(mode) {
   syncCondensedLayoutModeUI();
 }
 
-function toggleCondensedShowAllProfiles() {
-  condensedShowAllProfiles = !condensedShowAllProfiles;
-  var btn = document.getElementById("btn-cond-col-scope");
-  if (btn) {
-    btn.textContent = condensedShowAllProfiles ? "All profiles" : "2-way compare";
-    btn.className = "cond-mode-pill active";
-  }
-  renderCondensedTable();
-}
-
 function syncCondensedLayoutModeUI() {
   var wrap = document.getElementById("condensed-view-container");
   var btnCards = document.getElementById("btn-cond-layout-cards");

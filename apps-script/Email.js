@@ -302,7 +302,7 @@ function sendPickReceipt_(who, shared, data) {
   var quota = remainingQuota_();
   if (quota !== null && quota < 1) throw emailError_("QUOTA_EXCEEDED", "Daily email limit reached. Try again tomorrow.");
   var lines = receiptLines_(games, mine.picks);
-  var msg = buildReceiptEmail_(mine.name, wk, mine.tiebreaker || "—", lines);
+  var msg = buildReceiptEmail_(mine.name, wk, mine.tiebreaker || "—", lines, nudgeDeadline_(W.week).label);
   MailApp.sendEmail({ to: who.email, subject: msg.subject, body: msg.text, htmlBody: msg.html, name: EMAIL_FROM_NAME, replyTo: EMAIL_REPLY_TO });
   return { ok: true, sentTo: who.email, picks: lines.filter(function(l) { return l.pick !== "No pick"; }).length };
 }
@@ -329,7 +329,8 @@ function emailLayout_(heading, bodyHtml, cta) {
 
 function emailPara_(html) { return "<p style='font-size:15px;line-height:1.5;margin:0 0 12px;'>" + html + "</p>"; }
 
-function buildReceiptEmail_(name, wk, tb, lines) {
+function buildReceiptEmail_(name, wk, tb, lines, due) {
+  due = due || "Friday at 9:00 PM CT";
   var C = EMAIL_COLORS;
   var made = lines.filter(function(l) { return l.pick !== "No pick"; }).length;
   var rows = lines.map(function(l) {
@@ -339,7 +340,7 @@ function buildReceiptEmail_(name, wk, tb, lines) {
       (l.pts ? " <span style='display:inline-block;margin-left:4px;padding:0 6px;border:1px solid " + C.border + ";border-radius:4px;font-size:12px;font-weight:600;'>" + esc_(l.pts) + "x</span>" : "") + "</td></tr>";
   }).join("");
   var html = emailLayout_(wk + " picks saved",
-    emailPara_("Hi " + esc_(name) + ", your picks are saved. You can change them until <strong>Friday 9:00 PM CT</strong>.") +
+    emailPara_("Hi " + esc_(name) + ", your picks are saved. You can change them until <strong>" + esc_(due) + "</strong>.") +
     "<table role='presentation' style='width:100%;border-collapse:collapse;margin:8px 0 4px;'>" +
       "<tr><td style='font-size:14px;padding:4px 0;'>Picks</td><td style='font-size:14px;text-align:right;font-weight:600;'>" + made + " of " + lines.length + "</td></tr>" +
       "<tr><td style='font-size:14px;padding:4px 0;'>Tie-breaker</td><td style='font-size:14px;text-align:right;font-weight:600;'>" + esc_(tb) + "</td></tr>" +
@@ -347,7 +348,7 @@ function buildReceiptEmail_(name, wk, tb, lines) {
     "<table role='presentation' style='width:100%;border-collapse:collapse;margin-top:12px;'>" + rows + "</table>",
     { url: APP_URL, label: "Review my picks" });
   var text = "Hi " + name + ",\n\nYour picks for " + wk + " are saved (" + made + " of " + lines.length + "). Tie-breaker: " + tb + ".\n" +
-    "You can change them until Friday 9:00 PM CT.\n\n" +
+    "You can change them until " + due + ".\n\n" +
     lines.map(function(l) { return l.game + ": " + l.pick + (l.pts ? " (" + l.pts + "x)" : ""); }).join("\n") + "\n\nReview: " + APP_URL + "\n— Separated at Turf Pick'em";
   return { subject: "Separated at Turf — " + wk + " picks saved (" + name + ")", text: text, html: html };
 }

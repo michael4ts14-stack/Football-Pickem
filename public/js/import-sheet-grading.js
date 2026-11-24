@@ -477,49 +477,6 @@ function syncCurrentLoadedSheetToFirebase() {
   document.getElementById("cloud-status-text").textContent = "🔥 Synced " + cnt + " Pool Entries (" + wkStr + ") to Firebase!";
 }
 
-function syncOfficialWeek7EmailSheetToFirebase() {
-  state.poolMembers = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_POOL_MEMBERS));
-  state.leaderboard = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_LEADERBOARD));
-  state.michael = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_MICHAEL));
-  state.kinyion = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_KINYION));
-  state.watchlist = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_WATCHLIST));
-  state.currentWeek = 7;
-  state.weekLabel = "Week 7";
-  state.lastScrapedFile = "College Pick'em '26 - Week 7.xlsx";
-  regradeAllPoolMembersLive();
-  saveCurrentState("michael");
-  saveCurrentState("kinyion");
-  pushWatchlistOrStandingsToFirebase();
-  renderAll();
-  var stEl = document.getElementById("gas-bot-status");
-  if (stEl) {
-    stEl.textContent = "✓ Loaded all 89 participants + Michael A & Kinyon C's official Week 7 picks from 'College Pick\'em \'26 - Week 7.xlsx' and synced to Firebase!";
-  }
-  document.getElementById("cloud-status-text").textContent = "🔥 Synced all 89 Week 7 Pool Entries from Gmail .xlsx Attachment to Firebase!";
-}
-
-var UPGRADED_CODE_GS_SOURCE = typeof UPGRADED_CODE_GS_SOURCE !== "undefined" ? UPGRADED_CODE_GS_SOURCE : (
-  "// Do not paste code from this app into Apps Script.\n" +
-  "// The current bot code lives in the GitHub repo: michael4ts14-stack/Football-Pickem\n" +
-  "//   apps-script/Code.js  (branch: main)\n" +
-  "// Deploy it with:  cd apps-script && clasp push\n"
-);
-
-// When the browser refuses the copy, the code is selected in #gas-code-preview to copy by hand.
-function copyUpgradedCodeGs() {
-  var previewEl = document.getElementById("gas-code-preview");
-  if (previewEl && !previewEl.value) previewEl.value = UPGRADED_CODE_GS_SOURCE;
-  return copyTextWithToast(UPGRADED_CODE_GS_SOURCE, "📋 Copied upgraded Code.gs to clipboard!", { fallbackInputEl: previewEl }).then(function(copied) {
-    var stEl = document.getElementById("gas-bot-status");
-    if (copied) {
-      if (stEl) stEl.textContent = "✓ Copied upgraded Code.gs to clipboard. Paste it into your 'Football Weekly' Google Apps Script project.";
-      return true;
-    }
-    if (stEl) stEl.textContent = "⚠️ Auto-copy blocked by browser — code is selected below, press Ctrl+C / Cmd+C to copy.";
-    return false;
-  });
-}
-
 async function triggerAppsScriptGmailScraper() {
   var stEl = document.getElementById("gas-bot-status");
   var urlInput = document.getElementById("gas-webapp-url-input");
@@ -559,7 +516,7 @@ async function triggerAppsScriptGmailScraper() {
     }
     var data = reply.summary || {};
     pullFromFirebaseCloud();
-    var wkStr = data.weekLabel || (data.week ? ("Week " + data.week) : (state.weekLabel || "Week 9"));
+    var wkStr = data.weekLabel || (data.week ? ("Week " + data.week) : (state.weekLabel || ("Week " + state.currentWeek)));
     var memCnt = (typeof data.importedPoolMembers === "number") ? data.importedPoolMembers : 0;
     var stdCnt = (typeof data.importedStandings === "number") ? data.importedStandings : 0;
     var gCnt = (typeof data.importedGames === "number") ? data.importedGames : 0;
@@ -570,11 +527,11 @@ async function triggerAppsScriptGmailScraper() {
       if (memCnt > 0) {
         stEl.textContent = "✅ Apps Script scraped Gmail! Imported " + memCnt + " pool entries" + (wkStr ? " for " + wkStr : "") + fileStr + " & synced to Firebase.";
       } else if (stdCnt > 0) {
-        stEl.textContent = "✅ Apps Script synced " + stdCnt + " standings rows for " + wkStr + "! (Week 8 archived, leaderboard updated to Week 9 starting points).";
+        stEl.textContent = "✅ Apps Script synced " + stdCnt + " standings rows for " + wkStr + ".";
       } else if (gCnt > 0) {
         stEl.textContent = "✅ Apps Script loaded " + gCnt + " weekly games for " + wkStr + " & synced to Firebase.";
       } else {
-        stEl.textContent = "ℹ️ Scanned " + (data.scannedMessages || 0) + " recent emails. No new spreadsheet attachment was detected in inbox. (Make sure 'College Pick\'em \'26 - Week 9.xlsx' is received).";
+        stEl.textContent = "ℹ️ Scanned " + (data.scannedMessages || 0) + " recent emails. Nothing new to load.";
       }
     }
     var titleEl = document.getElementById("gas-modal-dynamic-title");
@@ -587,14 +544,6 @@ async function triggerAppsScriptGmailScraper() {
     }
     setTimeout(function() { pullFromFirebaseCloud(); }, 3000);
   }
-}
-
-function openAppsScriptBotModal() {
-  openUnifiedImportModal("bot");
-}
-
-function openMasterCsvImporterModal() {
-  openUnifiedImportModal("csv");
 }
 
 function handleMasterCsvFileUpload(file) {

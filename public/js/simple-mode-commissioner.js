@@ -146,11 +146,6 @@ function pickDeadlineLabel() {
   return d.day + " " + ((h % 12) || 12) + ":" + tp[1] + " " + (h < 12 ? "AM" : "PM") + " " + DEADLINE_ZONES[d.tz];
 }
 
-// Kept for older callers: the deadline is configurable now.
-function isPastFriday9PmCST() {
-  return isPastPickDeadline();
-}
-
 // Hidden picks open to everyone once that player's picks are closed for the week: a commissioner
 // lock, or the configured deadline in deadline-lock mode (unless they were let past it). In the
 // other modes picks stay editable until kickoff, so each game reveals at its own kickoff.
