@@ -702,7 +702,7 @@ function syncManualLockButtonUI() {
   }
   if (pill) {
     pill.className = "lock-text";
-    pill.textContent = isCommishLocked ? "Locked" : (isUserLocked ? "You locked your picks" : "Locks " + pickDeadlineLabel());
+    pill.textContent = isCommishLocked ? "Locked" : (isUserLocked ? "You locked your picks" : ((typeof CLOUD_HYDRATED === "undefined" || CLOUD_HYDRATED) ? "Locks " + pickDeadlineLabel() : "Locks …"));
   }
 
   var revCountEl = document.getElementById("top-review-count");
