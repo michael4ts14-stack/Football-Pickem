@@ -220,7 +220,7 @@ function switchWeekArchive(weekKey) {
 
     var brandEl = document.getElementById("sheet-title-brand");
     if (brandEl) {
-      brandEl.textContent = state.weekLabel + " · Past week";
+      brandEl.textContent = state.weekLabel; // the eyebrow says "Past week"
     }
 
     regradeAllPoolMembersLive();
@@ -298,6 +298,14 @@ function archivedWeekResult(snap, key) {
 
 // Past weeks: every player sees their own record per finished week and can open the week
 // (slate, final scores, their picks graded). Snapshot buttons are the commissioner's only.
+// Opens a finished week on the Picks screen, where its games, scores and your picks show.
+function openPastWeek(weekKey) {
+  switchWeekArchive(weekKey);
+  if (typeof closePanelSheet === "function") closePanelSheet();
+  switchMainView("cards");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function renderSeasonArchiveHub() {
   var box = document.getElementById("season-archive-hub-container");
   if (!box) return;
@@ -307,7 +315,7 @@ function renderSeasonArchiveHub() {
   var keys = Object.keys(state.weekArchives).filter(function(k) { return /^week_\d+$/.test(k) && k !== liveKey; }).sort(function(a, b) {
     return (parseInt(b.replace("week_", ""), 10) || 0) - (parseInt(a.replace("week_", ""), 10) || 0);
   });
-  var me = activeProfile;
+  var me = typeof isSignedInUser === "function" && !isSignedInUser() ? "" : activeProfile;
 
   var cardsHtml = keys.map(function(k) {
     var snap = state.weekArchives[k];
@@ -316,21 +324,19 @@ function renderSeasonArchiveHub() {
     var viewing = VIEWING_ARCHIVE_KEY === k;
     var r = me ? archivedWeekResult(snap, me) : null;
     var line = r ? '<strong>' + r.pts + ' pts</strong> · ' + r.won + '–' + r.lost
-      : '<span class="muted-note">No picks saved for you this week</span>';
+      : '<span class="muted-note">' + (me ? 'No picks saved for you' : 'Sign in to see your picks') + '</span>';
     return '<div class="archive-week-card' + (viewing ? ' active-wk' : '') + '">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
         '<strong style="font-size:0.85rem;color:var(--text);">' + label + '</strong>' +
         '<span style="font-size:0.8rem;color:var(--text);">' + line + '</span>' +
       '</div>' +
-      '<button type="button" class="btn-sm" style="width:100%;margin-top:6px;font-weight:800;" onclick="' + (viewing ? 'returnToLiveWeek()' : 'switchWeekArchive(\'' + k + '\'); closePanelSheet();') + '">' +
+      '<button type="button" class="btn-sm" style="width:100%;margin-top:6px;font-weight:800;" onclick="' + (viewing ? 'returnToLiveWeek()' : 'openPastWeek(\'' + k + '\')') + '">' +
         (viewing ? 'Back to this week' : 'See ' + label + ' picks and scores') + '</button>' +
     '</div>';
   }).join("");
 
   box.innerHTML =
-    '<div class="side-title" style="flex-wrap:wrap;gap:6px;"><span>Past weeks</span>' +
-      (commish ? '<button type="button" class="btn-sm" style="padding:3px 9px;font-size:0.69rem;" onclick="saveCurrentWeekToArchive(true)">Snapshot this week</button>' : '') +
-    '</div>' +
+    (commish ? '<div style="display:flex;justify-content:flex-end;"><button type="button" class="btn-sm" style="padding:3px 9px;font-size:0.69rem;" onclick="saveCurrentWeekToArchive(true)">Snapshot this week</button></div>' : '') +
     (VIEWING_ARCHIVE_KEY ? '<button type="button" class="btn-sm" style="width:100%;margin:6px 0;font-weight:800;" onclick="returnToLiveWeek(); renderSeasonArchiveHub();">Back to this week</button>' : '') +
     '<div style="font-size:0.75rem;color:var(--muted);">Open a finished week to see the games, final scores and your picks graded.</div>' +
     '<div class="archive-week-strip">' + (cardsHtml || '<p class="muted-note">No finished weeks saved yet.</p>') + '</div>';

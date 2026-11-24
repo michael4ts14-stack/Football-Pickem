@@ -267,8 +267,8 @@
   }
   .archive-week-strip {
     display: flex;
+    flex-direction: column;
     gap: 8px;
-    flex-wrap: wrap;
     margin-top: 8px;
   }
   .archive-week-card {
@@ -280,8 +280,6 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    min-width: 195px;
-    flex: 1;
   }
   .archive-week-card.active-wk {
     border-color: var(--legacy-accent);

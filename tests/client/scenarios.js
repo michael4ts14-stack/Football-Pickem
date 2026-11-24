@@ -369,8 +369,19 @@ function serve() {
     const myName = getLinkedMemberNameForProfile(activeProfile);
     const fromSheet = myName ? archivedWeekResult(Object.assign({}, snap, { customPicks: {}, poolMembers: [{ name: myName, picks: { 1: "Alpha", 2: "Gamma" } }] }), activeProfile) : { won: 2 };
     if (!fromSheet || fromSheet.won !== 2) return { fromSheet, myName, res: {} };
+    // B114: a past week's season standings are the saved totals, not saved totals + that week again.
+    const savedArch = state.weekArchives.week_3, savedLb = state.leaderboard;
+    state.weekArchives.week_3 = Object.assign({}, snap, { leaderboard: [{ name: "Zed Q", priorPts: 50, rank: "1" }], poolMembers: [{ name: "Zed Q", priorPts: 50, picks: { 1: "Alpha", 2: "Delta" } }] });
+    openPastWeek("week_3");
+    STANDINGS_SCOPE = "season";
+    const zed = computeStandingsRows().find((r) => r.name === "Zed Q");
+    const backBtn = (document.getElementById("btn-submit-desk") || document.getElementById("btn-submit-picks") || {}).textContent || "";
+    returnToLiveWeek();
+    if (savedArch) state.weekArchives.week_3 = savedArch; else delete state.weekArchives.week_3;
+    state.leaderboard = savedLb;
+    if (!zed || zed.seasonPts !== 50 || !/^Back to Week/.test(backBtn)) return { zed, backBtn, res: {} };
     openMoreSection("weeks");
-    const sheetText = (document.getElementById("panel-sheet-body") || {}).textContent || "";
+    const sheetText = ((document.getElementById("panel-sheet-title") || {}).textContent || "") + " " + ((document.getElementById("panel-sheet-body") || {}).textContent || "");
     closePanelSheet();
     return { res, none, sheetText: sheetText.slice(0, 200) };
   });

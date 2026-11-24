@@ -76,6 +76,10 @@ async function main() {
   if (DRY) { log("Dry run: not writing to Firestore"); return; }
   await patchDoc(`live_games/week_${week}_form`, doc);
   log(`Wrote live_games/week_${week}_form`);
+  // Saved either way (the app shows what's missing), but a red run emails the owner (B112).
+  if (!requiresSignIn && !doc.weekMismatch && doc.matchedCount < slate.length) {
+    throw new Error(`Only ${doc.matchedCount} of ${slate.length} games matched the official form; Send picks can't fill the rest.`);
+  }
 }
 
 main().catch((e) => { console.error(e.message || e); process.exit(1); });

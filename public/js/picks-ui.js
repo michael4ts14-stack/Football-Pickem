@@ -335,12 +335,13 @@ function updatePicksHead() {
 
   // One main button: "Lock picks" until you lock them, then "Send picks" (opens the official form).
   var sendMode = typeof primaryPicksActionIsSend === "function" && primaryPicksActionIsSend();
-  var subLabel = sendMode ? "Send picks" : "Lock picks";
+  var pastWeek = typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY;
+  var subLabel = pastWeek ? "Back to Week " + liveWeekNum() : (sendMode ? "Send picks" : "Lock picks");
   ["btn-submit-desk", "btn-submit-picks"].forEach(function(id) {
     var b = document.getElementById(id);
     if (!b) return;
     b.textContent = subLabel;
-    b.classList.toggle("is-ready", sendMode || complete);
+    b.classList.toggle("is-ready", !pastWeek && (sendMode || complete));
     b.title = sendMode ? "Open the official Separated at Turf form with your picks filled in" : (complete ? "Lock your picks and get a receipt" : done + " of " + total + " picked");
   });
 

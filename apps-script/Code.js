@@ -2494,8 +2494,12 @@ function backfillArchivePoolPicks_() {
       if (i === undefined) rows.push({ name: p.name, picks: p.picks, tiebreaker: p.tiebreaker || "" });
       else rows[i] = Object.assign({}, rows[i], { picks: p.picks, tiebreaker: (p.tiebreaker && p.tiebreaker !== "—") ? p.tiebreaker : (rows[i].tiebreaker || "") });
     });
-    if (patchFirestoreDocUrl(base + "/" + id, { poolMembers: rows })) botLog_("✓ Past weeks backfill: " + parsed.length + " players' picks restored for " + id);
+    // Big writes back to back hit Firestore's write-bandwidth limit (HTTP 429): pause, retry once.
+    var saved = patchFirestoreDocUrl(base + "/" + id, { poolMembers: rows });
+    if (!saved) { Utilities.sleep(8000); saved = patchFirestoreDocUrl(base + "/" + id, { poolMembers: rows }); }
+    if (saved) botLog_("✓ Past weeks backfill: " + parsed.length + " players' picks restored for " + id);
     else allOk = false;
+    Utilities.sleep(2000);
   });
   if (allOk) props.setProperty("BACKFILL_POOL_PICKS_V1", new Date().toISOString());
 }

@@ -85,11 +85,13 @@ function computeStandingsRows() {
   var raw = [];
   try { raw = buildPoolLeaderboardRows(); } catch (e) { raw = []; }
   var isWeek = STANDINGS_SCOPE === "week";
+  // A past week's saved standings already include that week (B114), so they show as saved.
+  var pastWeek = typeof VIEWING_ARCHIVE_KEY !== "undefined" && !!VIEWING_ARCHIVE_KEY;
   var list = raw.map(function(r) {
     return {
       name: r.name,
       weekPts: Math.max(r.liveTotalWk || 0, r.finalPts || 0),
-      seasonPts: r.newTotal || 0,
+      seasonPts: pastWeek ? (r.priorPts || 0) : (r.newTotal || 0),
       priorPts: r.priorPts || 0,
       finalPts: r.finalPts || 0,
       liveTotalWk: r.liveTotalWk || 0,
@@ -268,6 +270,7 @@ function renderWeekRecap() {
 }
 
 function standingsThroughWeek() {
+  if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return parseInt(state.currentWeek, 10) || null;
   var w = parseInt(state.standingsThroughWeek, 10);
   return w > 0 ? w : null;
 }

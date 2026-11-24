@@ -114,6 +114,7 @@ function primaryPicksActionIsSend() {
 }
 
 function onPrimaryPicksAction() {
+  if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) { returnToLiveWeek(); return; } // past week: the button goes back
   if (primaryPicksActionIsSend()) { sendPicksToOfficialForm(); return; }
   // Picks autosave as they're tapped; locking first shows a summary (and any missing games).
   openPicksReviewSheet();
