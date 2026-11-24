@@ -258,6 +258,7 @@ function runMasterPickemEmailBot(forceRescan) {
     return { ok: false, skipped: true, reason: "Gmail bot already running" };
   }
   try {
+    try { backfillArchivePoolPicks_(); } catch (eBf) { recordBotError_("Past weeks backfill threw: " + eBf.message); }
     var stats = runMasterPickemEmailBotLocked_(forceRescan);
     stats.errors = BOT_RUN_ERRORS.slice(0, 10); // shown by the commissioner's manual run button
     writeBotStatus_("gmail", stats);
@@ -474,9 +475,10 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             games: activeGames,
             michael: (currentCloud && currentCloud.michael) || {},
             kinyion: (currentCloud && currentCloud.kinyion) || {},
-            watchlist: (currentCloud && currentCloud.watchlist) || [],
+            // Copies: STEP 3 clears picks on the live rows, which must not empty the archive (B113).
+            watchlist: JSON.parse(JSON.stringify((currentCloud && currentCloud.watchlist) || [])),
             leaderboard: (currentCloud && currentCloud.leaderboard) || [],
-            poolMembers: (currentCloud && currentCloud.poolMembers) || [],
+            poolMembers: JSON.parse(JSON.stringify((currentCloud && currentCloud.poolMembers) || [])),
             customPicks: weekUserPicks_(prevWkNum), // each player's own app picks (Past weeks)
             liveScores: finalOutgoingScores
           };
@@ -2453,6 +2455,51 @@ function firestoreAuthHeaders_() {
 
 // Every Firestore write goes through here. Returns true only on HTTP 2xx; failures are
 // logged and collected so they show up in live_games/bot_status instead of vanishing.
+// One time (B113): archived weeks whose pool picks were emptied get them back from that week's
+// pool spreadsheet email, read with the same parser as the weekly import. Only picks and
+// tiebreakers are filled in; done once every week that needed it was saved.
+function backfillArchivePoolPicks_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty("BACKFILL_POOL_PICKS_V1")) return;
+  var base = FIRESTORE_BASE_URL + "/pickem_v14_archives";
+  var res = UrlFetchApp.fetch(base + "?pageSize=300", { headers: firestoreAuthHeaders_(), muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) return;
+  var allOk = true;
+  (JSON.parse(res.getContentText()).documents || []).forEach(function(d) {
+    var id = d.name.split("/").pop();
+    var m = id.match(/^week_(\d+)$/);
+    if (!m) return;
+    var a = fromFirestoreValue({ mapValue: { fields: d.fields || {} } }) || {};
+    var rows = Array.isArray(a.poolMembers) ? a.poolMembers : [];
+    if (!Array.isArray(a.games) || !a.games.length || rows.some(function(p) { return p && p.picks && Object.keys(p.picks).length; })) return;
+    var fileRe = new RegExp("Week\\s*" + m[1] + "\\.xlsx$", "i");
+    var parsed = null;
+    GmailApp.search('from:' + BOT_OFFICIAL_SENDER + ' subject:"Week ' + m[1] + ' Spreadsheet" has:attachment', 0, 5).some(function(t) {
+      return t.getMessages().some(function(msg) {
+        return msg.getAttachments().some(function(att) {
+          if (!fileRe.test(att.getName() || "")) return false;
+          return extractGridsFromXlsxAttachment(att).some(function(s) {
+            var r = parsePoolSpreadsheetGrid(s.grid, a.games, { poolMembers: [], leaderboard: [] });
+            if (r && r.poolMembers && r.poolMembers.length) { parsed = r.poolMembers; return true; }
+            return false;
+          });
+        });
+      });
+    });
+    if (!parsed) { botLog_("Past weeks backfill: no spreadsheet found for " + id); return; }
+    var byName = {};
+    rows.forEach(function(p, i) { if (p && p.name) byName[standardizeBotParticipantName(p.name).toLowerCase()] = i; });
+    parsed.forEach(function(p) {
+      var i = byName[String(p.name).toLowerCase()];
+      if (i === undefined) rows.push({ name: p.name, picks: p.picks, tiebreaker: p.tiebreaker || "" });
+      else rows[i] = Object.assign({}, rows[i], { picks: p.picks, tiebreaker: (p.tiebreaker && p.tiebreaker !== "—") ? p.tiebreaker : (rows[i].tiebreaker || "") });
+    });
+    if (patchFirestoreDocUrl(base + "/" + id, { poolMembers: rows })) botLog_("✓ Past weeks backfill: " + parsed.length + " players' picks restored for " + id);
+    else allOk = false;
+  });
+  if (allOk) props.setProperty("BACKFILL_POOL_PICKS_V1", new Date().toISOString());
+}
+
 // Every player's app picks for `week` ({ profileKey: { picks, tiebreaker, displayName } }), read
 // before the rollover so Past weeks can show them. Docs still on another week are left out.
 function weekUserPicks_(week) {

@@ -204,8 +204,11 @@ function switchWeekArchive(weekKey) {
     Object.keys(targetSnap.customPicks || {}).forEach(function(k) { state[k] = JSON.parse(JSON.stringify(targetSnap.customPicks[k])); });
     // A player with no saved picks that week shows none, not this week's picks on old games
     // (returnToLiveWeek restores them from LIVE_WEEK_SNAPSHOT).
+    // Players without app picks that week get their pool-sheet row for it.
     (state.customUsers || []).forEach(function(u) {
-      if (u && u.key && state[u.key] && !(targetSnap.customPicks || {})[u.key]) state[u.key] = Object.assign({}, state[u.key], { picks: {}, tiebreaker: "" });
+      if (!u || !u.key || !state[u.key] || (targetSnap.customPicks || {})[u.key]) return;
+      var found = archivedWeekPicks(targetSnap, u.key);
+      state[u.key] = Object.assign({}, state[u.key], { picks: found ? found.picks : {}, tiebreaker: found ? found.tiebreaker : "" });
     });
     if (targetSnap.watchlist) state.watchlist = JSON.parse(JSON.stringify(targetSnap.watchlist));
     if (targetSnap.poolMembers) state.poolMembers = JSON.parse(JSON.stringify(targetSnap.poolMembers));
@@ -263,11 +266,22 @@ function populateWeekArchiveDropdown() {
   sel.innerHTML = html;
 }
 
-// A player's record for an archived week: { won, lost, pts } from that week's saved picks and
-// final scores, or null when no picks were saved for them that week.
-function archivedWeekResult(snap, key) {
+// A player's picks for an archived week: their app picks, else their row from that week's pool
+// sheet (by linked pool name), else null.
+function archivedWeekPicks(snap, key) {
   var prof = (snap.customPicks && snap.customPicks[key]) || ((key === "michael" || key === "kinyion") ? snap[key] : null);
-  var picks = prof && prof.picks;
+  if (prof && prof.picks && Object.keys(prof.picks).length) return { picks: prof.picks, tiebreaker: prof.tiebreaker || "" };
+  var name = typeof getLinkedMemberNameForProfile === "function" ? getLinkedMemberNameForProfile(key) : "";
+  var std = name ? standardizeParticipantName(name).toLowerCase() : "";
+  var row = std && (snap.poolMembers || []).find(function(m) { return m && standardizeParticipantName(m.name).toLowerCase() === std; });
+  return row && row.picks && Object.keys(row.picks).length ? { picks: row.picks, tiebreaker: row.tiebreaker || "" } : null;
+}
+
+// A player's record for an archived week: { won, lost, pts } from those picks and the final
+// scores, or null when no picks were saved for them that week.
+function archivedWeekResult(snap, key) {
+  var found = archivedWeekPicks(snap, key);
+  var picks = found && found.picks;
   if (!picks || !Object.keys(picks).length) return null;
   var r = { won: 0, lost: 0, pts: 0 };
   (snap.games || []).forEach(function(g) {
@@ -318,7 +332,7 @@ function renderSeasonArchiveHub() {
       (commish ? '<button type="button" class="btn-sm" style="padding:3px 9px;font-size:0.69rem;" onclick="saveCurrentWeekToArchive(true)">Snapshot this week</button>' : '') +
     '</div>' +
     (VIEWING_ARCHIVE_KEY ? '<button type="button" class="btn-sm" style="width:100%;margin:6px 0;font-weight:800;" onclick="returnToLiveWeek(); renderSeasonArchiveHub();">Back to this week</button>' : '') +
-    '<div style="font-size:0.75rem;color:var(--muted);">Open a finished week to see the games, final scores and your picks graded. Weeks before 13 only kept picks for some accounts.</div>' +
+    '<div style="font-size:0.75rem;color:var(--muted);">Open a finished week to see the games, final scores and your picks graded.</div>' +
     '<div class="archive-week-strip">' + (cardsHtml || '<p class="muted-note">No finished weeks saved yet.</p>') + '</div>';
 }
 

@@ -365,6 +365,10 @@ function serve() {
       customPicks: { someone: { picks: { 1: "Alpha", 2: "Delta" } } } };
     const res = archivedWeekResult(snap, "someone");
     const none = archivedWeekResult(snap, "nobody");
+    // No app picks saved: the player's row from that week's pool sheet is used.
+    const myName = getLinkedMemberNameForProfile(activeProfile);
+    const fromSheet = myName ? archivedWeekResult(Object.assign({}, snap, { customPicks: {}, poolMembers: [{ name: myName, picks: { 1: "Alpha", 2: "Gamma" } }] }), activeProfile) : { won: 2 };
+    if (!fromSheet || fromSheet.won !== 2) return { fromSheet, myName, res: {} };
     openMoreSection("weeks");
     const sheetText = (document.getElementById("panel-sheet-body") || {}).textContent || "";
     closePanelSheet();

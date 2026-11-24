@@ -793,3 +793,36 @@ test("rollover keeps each player's app picks for the outgoing week (Past weeks)"
   assert.strictEqual(cp.adam.tiebreaker, "28-24");
   assert.strictEqual(cp.old, undefined, "a doc still on an older week is left out");
 });
+
+// B113: the archive and the new week's reset shared the same member rows, so clearing picks
+// for the new week also emptied them in the archive (Weeks 9-12 lost everyone's sheet picks).
+test("rollover archive keeps last week's pool picks after the reset clears them", () => {
+  const formEmail = { id: "m-form-10q", subject: "Separated at Turf Week 10 Pick'em Form Is Live", body: "Week 10 https://docs.google.com/forms/d/e/x/viewform" };
+  const cloud = baseCloud({ poolMembers: [{ name: "Adam L", picks: { 1: "Away Team 0" } }], watchlist: [{ name: "Adam L", picks: { 1: "Away Team 0" } }] });
+  const h = loadBot({ cloud, threads: [fakeThread([formEmail])], isoDay: 2 });
+  h.ctx.scrapeGoogleFormGames = () => slate(23, 1).map((g) => Object.assign({}, g, { away: "New " + g.away }));
+  h.ctx.runMasterPickemEmailBot(false);
+  const w = sharedStateWrites(h).find((x) => x.currentWeek === 10);
+  assert.strictEqual(Object.keys(w.poolMembers[0].picks).length, 0, "new week starts empty");
+  assert.strictEqual(w.weekArchives.week_9.poolMembers[0].picks["1"], "Away Team 0", "archive keeps the picks");
+  assert.strictEqual(w.weekArchives.week_9.watchlist[0].picks["1"], "Away Team 0");
+});
+
+test("one-time backfill restores an archived week's pool picks from its spreadsheet email, once", () => {
+  const games = slate(23); // the parser expects a full slate
+  const archive = { weekNum: 9, games, poolMembers: [{ name: "Adam L", picks: {}, priorPts: 100 }] };
+  const sheetMsg = { id: "m-sheet-9", subject: "College Pick'em '26 - Week 9 Spreadsheet", attachments: [{ getName: () => "College Pick'em '26 - Week 9.xlsx" }] };
+  const h = loadBot({ cloud: baseCloud(), docs: { "pickem_v14/shared_state": baseCloud(), "pickem_v14_archives/week_9": archive }, threads: [fakeThread([sheetMsg])] });
+  const row = (n, home) => [n].concat(games.map((g) => (home ? g.homeCode : g.awayCode))).concat(["35-30"]);
+  h.ctx.extractGridsFromXlsxAttachment = () => [{ name: "Picks", grid: [row("Adam L", true), row("Amanda S", false)] }];
+  h.ctx.backfillArchivePoolPicks_();
+  const w = h.patches().filter((c) => /pickem_v14_archives\/week_9\?/.test(c.url)).map((c) => h.patchBody(c)).pop();
+  assert.ok(w, "archive patched");
+  const adam = w.poolMembers.find((p) => p.name === "Adam L");
+  assert.strictEqual(adam.picks["1"], "Home Team 0");
+  assert.strictEqual(adam.priorPts, 100, "other fields kept");
+  assert.ok(h.scriptProps.getProperty("BACKFILL_POOL_PICKS_V1"), "marked done");
+  const before = h.calls.length;
+  h.ctx.backfillArchivePoolPicks_();
+  assert.strictEqual(h.calls.length, before, "second call does nothing");
+});
