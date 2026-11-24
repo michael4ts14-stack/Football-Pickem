@@ -504,7 +504,7 @@ async function fetchAndStoreSingleTeamSchedule(teamName, teamId) {
     var lastGm = parsedGames.length > 0 ? parsedGames[parsedGames.length - 1] : null;
     var lastGmText = lastGm ? ((lastGm.wl === "W" ? "beat " : "lost to ") + lastGm.opp + " " + lastGm.score + " in " + lastGm.wk) : "";
 
-    var official2026Rank = (TEAM_RANKS[teamName] && teamName !== "Mississippi State" && teamName !== "Oklahoma")
+    var official2026Rank = TEAM_RANKS[teamName]
       ? parseInt(TEAM_RANKS[teamName].replace("#", ""), 10)
       : null;
 

@@ -262,7 +262,9 @@ function renderSimpleGuestAccountBar() {
     var lockedNow = isWeekLockedForActiveProfile();
     lockPill.className = "lock-text";
     if (cfg.lockMode === "friday_9pm_cst") {
-      lockPill.textContent = lockedNow ? "Locked" : "Locks " + pickDeadlineLabel();
+      // Until the pool settings load, the built-in Friday default could show instead of the real day.
+      var cfgKnown = typeof CLOUD_HYDRATED === "undefined" || CLOUD_HYDRATED;
+      lockPill.textContent = lockedNow ? "Locked" : (cfgKnown ? "Locks " + pickDeadlineLabel() : "Locks …");
     } else if (cfg.lockMode === "global_locked") {
       lockPill.textContent = "Locked by the commissioner";
     } else if (cfg.lockMode === "rolling_kickoff") {

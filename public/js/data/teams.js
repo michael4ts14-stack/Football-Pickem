@@ -423,36 +423,9 @@ var TEAM_LOGS = {
 var ESPN_TEAM_MAP = {};
 var ESPN_TEAM_INFO = {}; // ESPN team id -> { color, abbr } (display only)
 
-// Official 2026 College Football Playoff (CFP) Committee Top 25 Rankings (Week 10)
-var TEAM_RANKS = {
-  "Miami": "#1",
-  "Miami (FL)": "#1",
-  "Georgia": "#2",
-  "Utah": "#3",
-  "Indiana": "#4",
-  "Alabama": "#5",
-  "Kentucky": "#6",
-  "Texas": "#7",
-  "UCLA": "#8",
-  "BYU": "#9",
-  "Ole Miss": "#10",
-  "Mississippi": "#10",
-  "Notre Dame": "#11",
-  "Ohio State": "#12",
-  "Tennessee": "#13",
-  "LSU": "#14",
-  "Texas Tech": "#15",
-  "Wake Forest": "#16",
-  "Houston": "#17",
-  "Missouri": "#18",
-  "Iowa": "#19",
-  "USC": "#20",
-  "South Carolina": "#21",
-  "Arizona": "#22",
-  "Oregon": "#23",
-  "Florida": "#24",
-  "Boise State": "#25"
-};
+// Rankings come only from the live poll (live_games, filled on load). No built-in table: an old
+// one showed stale ranks (Iowa #19 for #13) until the poll arrived.
+var TEAM_RANKS = {};
 
 function formatOppWithRank(oppName, customRank) {
   if (!oppName) return "";

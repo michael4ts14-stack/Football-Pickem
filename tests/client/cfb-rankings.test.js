@@ -30,28 +30,17 @@ const fieldTrackerSrc = fs.readFileSync(path.join(__dirname, "../../public/js/re
 vm.runInThisContext(teamsSrc);
 vm.runInThisContext(fieldTrackerSrc);
 
-test("TEAM_RANKS authority maps 2026 CFP Committee rankings (Alabama #5, UCLA #8, Texas #7)", () => {
-  assert.strictEqual(TEAM_RANKS["Alabama"], "#5", "Alabama must be #5 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["UCLA"], "#8", "UCLA must be #8 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["Texas"], "#7", "Texas must be #7 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["Utah"], "#3", "Utah must be #3 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["Indiana"], "#4", "Indiana must be #4 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["Kentucky"], "#6", "Kentucky must be #6 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["Notre Dame"], "#11", "Notre Dame must be #11 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["Ohio State"], "#12", "Ohio State must be #12 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["Tennessee"], "#13", "Tennessee must be #13 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["LSU"], "#14", "LSU must be #14 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["Texas Tech"], "#15", "Texas Tech must be #15 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["South Carolina"], "#21", "South Carolina must be #21 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["Oregon"], "#23", "Oregon must be #23 in official CFP rankings");
-  assert.strictEqual(TEAM_RANKS["Florida"], "#24", "Florida must be #24 in official CFP rankings");
+// No built-in table: a stale one showed old ranks until the live poll loaded (B117).
+test("rankings start empty and come only from the live poll", () => {
+  assert.strictEqual(Object.keys(TEAM_RANKS).length, 0);
 });
 
-test("formatOppWithRank accurately formats teams using CFP rankings", () => {
+test("formatOppWithRank uses the loaded poll; unranked teams get no prefix", () => {
+  Object.assign(TEAM_RANKS, { Alabama: "#5", "Notre Dame": "#11" });
   assert.strictEqual(formatOppWithRank("Alabama"), "#5 Alabama");
-  assert.strictEqual(formatOppWithRank("UCLA"), "#8 UCLA");
   assert.strictEqual(formatOppWithRank("Notre Dame"), "#11 Notre Dame");
   assert.strictEqual(formatOppWithRank("Minnesota"), "Minnesota", "Unranked teams receive no prefix");
+  for (const k of Object.keys(TEAM_RANKS)) delete TEAM_RANKS[k];
 });
 
 test("fetchLiveCollegeFootballRankings prioritizes Playoff Committee Rankings over AP Poll", async () => {
