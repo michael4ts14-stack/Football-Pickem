@@ -33,8 +33,9 @@ test("week rollover from a Google Form email does not crash (prevWkNum)", () => 
   const h = loadBot({ cloud, threads: [fakeThread([formEmail])], isoDay: 2 });
   h.ctx.scrapeGoogleFormGames = () => slate(23, 1).map((g) => Object.assign({}, g, { away: "New " + g.away }));
   assert.doesNotThrow(() => h.ctx.runMasterPickemEmailBot(false));
-  const archived = h.patches().some((c) => c.url.indexOf("/live_games/week_9_archive") !== -1);
-  assert.ok(archived, "outgoing week 9 should be archived before the reset");
+  assert.ok(archiveWrite(h, "week_9"), "outgoing week 9 is archived to pickem_v14_archives before the reset");
+  assert.ok(!h.patches().some((c) => c.url.indexOf("/live_games/week_9_archive") !== -1), "no write-only live_games copy");
+  assert.ok(!("weekArchives" in sharedStateWrites(h).find((w) => w.currentWeek === 10)), "shared_state stays small (B118)");
   const reset = sharedStateWrites(h).find((w) => w.currentWeek === 10);
   assert.strictEqual(JSON.stringify(reset.deletedPicksByMember), "{}", "last week's picks-cleared flags are dropped");
   assert.strictEqual(reset.poolMembers[0]._picksCleared, undefined);
@@ -763,7 +764,7 @@ test("next season's Week 1 slate starts a new season and keeps last season's his
   assert.strictEqual(w.poolMembers[0].priorPts, 0);
   assert.strictEqual(Object.keys(w.weekArchives).length, 0);
   assert.ok(h.patches().some((c) => /pickem_v14_archives\/s2026_week_13$/.test(c.url.split("?")[0])), "week 13 copied to 2026 history");
-  assert.ok(h.patches().some((c) => /pickem_v14_archives\/s2026_week_14$/.test(c.url.split("?")[0])), "outgoing week 14 kept too");
+  assert.ok(archiveWrite(h, "week_14"), "outgoing week 14 saved (renamed with the rest when listed)");
   assert.ok(h.calls.some((c) => (c.params.method || "") === "delete" && /pickem_v14_archives\/week_13$/.test(c.url)), "old week_13 doc removed");
 });
 
@@ -788,7 +789,7 @@ test("rollover keeps each player's app picks for the outgoing week (Past weeks)"
   h.ctx.scrapeGoogleFormGames = () => slate(23, 1).map((g) => Object.assign({}, g, { away: "New " + g.away }));
   h.ctx.runMasterPickemEmailBot(false);
   const w = sharedStateWrites(h).find((x) => x.currentWeek === 10);
-  const cp = w.weekArchives.week_9.customPicks;
+  const cp = archiveWrite(h, "week_9").customPicks;
   assert.strictEqual(cp.adam.picks["1"], "Away Team 0");
   assert.strictEqual(cp.adam.tiebreaker, "28-24");
   assert.strictEqual(cp.old, undefined, "a doc still on an older week is left out");
@@ -804,25 +805,33 @@ test("rollover archive keeps last week's pool picks after the reset clears them"
   h.ctx.runMasterPickemEmailBot(false);
   const w = sharedStateWrites(h).find((x) => x.currentWeek === 10);
   assert.strictEqual(Object.keys(w.poolMembers[0].picks).length, 0, "new week starts empty");
-  assert.strictEqual(w.weekArchives.week_9.poolMembers[0].picks["1"], "Away Team 0", "archive keeps the picks");
-  assert.strictEqual(w.weekArchives.week_9.watchlist[0].picks["1"], "Away Team 0");
+  const arch = archiveWrite(h, "week_9");
+  assert.strictEqual(arch.poolMembers[0].picks["1"], "Away Team 0", "archive keeps the picks");
+  assert.strictEqual(arch.watchlist[0].picks["1"], "Away Team 0");
 });
 
-test("one-time backfill restores an archived week's pool picks from its spreadsheet email, once", () => {
-  const games = slate(23); // the parser expects a full slate
-  const archive = { weekNum: 9, games, poolMembers: [{ name: "Adam L", picks: {}, priorPts: 100 }] };
-  const sheetMsg = { id: "m-sheet-9", subject: "College Pick'em '26 - Week 9 Spreadsheet", attachments: [{ getName: () => "College Pick'em '26 - Week 9.xlsx" }] };
-  const h = loadBot({ cloud: baseCloud(), docs: { "pickem_v14/shared_state": baseCloud(), "pickem_v14_archives/week_9": archive }, threads: [fakeThread([sheetMsg])] });
-  const row = (n, home) => [n].concat(games.map((g) => (home ? g.homeCode : g.awayCode))).concat(["35-30"]);
-  h.ctx.extractGridsFromXlsxAttachment = () => [{ name: "Picks", grid: [row("Adam L", true), row("Amanda S", false)] }];
-  h.ctx.backfillArchivePoolPicks_();
-  const w = h.patches().filter((c) => /pickem_v14_archives\/week_9\?/.test(c.url)).map((c) => h.patchBody(c)).pop();
-  assert.ok(w, "archive patched");
-  const adam = w.poolMembers.find((p) => p.name === "Adam L");
-  assert.strictEqual(adam.picks["1"], "Home Team 0");
-  assert.strictEqual(adam.priorPts, 100, "other fields kept");
-  assert.ok(h.scriptProps.getProperty("BACKFILL_POOL_PICKS_V1"), "marked done");
-  const before = h.calls.length;
-  h.ctx.backfillArchivePoolPicks_();
-  assert.strictEqual(h.calls.length, before, "second call does nothing");
+
+function archiveWrite(h, key) {
+  const c = h.patches().filter((x) => x.url.split("?")[0].endsWith("/pickem_v14_archives/" + key)).pop();
+  return c ? h.patchBody(c) : null;
+}
+
+test("if the archive doc can't be written, the week is kept in shared_state as before", () => {
+  const { makeResponse } = require("./harness");
+  const formEmail = { id: "m-form-10r", subject: "Separated at Turf Week 10 Pick'em Form Is Live", body: "Week 10 https://docs.google.com/forms/d/e/x/viewform" };
+  let h;
+  h = loadBot({
+    threads: [fakeThread([formEmail])], isoDay: 2,
+    fetchHandler: (url, p) => {
+      const m = (p.method || "get").toLowerCase();
+      if (url.indexOf("espn.com") !== -1) return makeResponse(200, { events: [] });
+      if (m === "get") return url.indexOf("/pickem_v14/shared_state") !== -1 ? makeResponse(200, { fields: h.ctx.toFirestoreValue(baseCloud()).mapValue.fields }) : makeResponse(200, { documents: [] });
+      if (url.indexOf("/pickem_v14_archives/") !== -1) return makeResponse(403, { error: { status: "PERMISSION_DENIED" } });
+      return makeResponse(200, {});
+    },
+  });
+  h.ctx.scrapeGoogleFormGames = () => slate(23, 1).map((g) => Object.assign({}, g, { away: "New " + g.away }));
+  h.ctx.runMasterPickemEmailBot(false);
+  const w = sharedStateWrites(h).find((x) => x.currentWeek === 10);
+  assert.ok(w && w.weekArchives && w.weekArchives.week_9, "week 9 kept in shared_state.weekArchives");
 });

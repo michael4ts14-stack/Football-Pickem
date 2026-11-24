@@ -47,7 +47,8 @@ global.document = {
 };
 
 // Load source files
-const defaultSlateSrc = fs.readFileSync(path.join(__dirname, "../../public/js/data/default-slate.js"), "utf8");
+// A real 26-game slate (Week 9) as sample data.
+const sampleSlate = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/sample-slate.json"), "utf8"));
 const authSrc = fs.readFileSync(path.join(__dirname, "../../public/js/auth.js"), "utf8");
 const picksUiSrc = fs.readFileSync(path.join(__dirname, "../../public/js/picks-ui.js"), "utf8");
 
@@ -60,7 +61,7 @@ var signOutAccountInstance = () => {};
 const vm = require("node:vm");
 
 vm.runInThisContext("var pickSide = () => {}; var renderGames = () => {}; var updatePicksHead = () => {}; var syncManualLockButtonUI = () => {}; var signOutAccountInstance = () => {};");
-vm.runInThisContext(defaultSlateSrc);
+global.GAMES = sampleSlate;
 vm.runInThisContext(authSrc);
 vm.runInThisContext(picksUiSrc);
 

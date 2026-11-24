@@ -146,7 +146,6 @@ function isLikelyKickoffLine(candidateLine, nextLineAfterCandidate) {
 }
 
 var lastLocalPickTs = 0;
-var hasLockedCustomSlate = false;
 var activeSlateEpoch = 1;
 var saveStateDebounceTimer = null;
 
@@ -159,15 +158,6 @@ function clearAllSlateCaches() {
   DEMO_SIM_STATE = {};
   EXPANDED_FIELD_TRACKERS = {};
   GAME_DRIVE_VIEW_MODE = {};
-}
-
-function isHardcodedWeek7Slate(gamesArr) {
-  var list = gamesArr || GAMES || [];
-  if (list.length < 2) return false;
-  return normalizeTeamKey(list[0].away) === "ohiostate" &&
-         normalizeTeamKey(list[0].home) === "indiana" &&
-         normalizeTeamKey(list[1].away) === "florida" &&
-         normalizeTeamKey(list[1].home) === "texas";
 }
 
 function getSlateSignature(gamesArr) {
@@ -262,11 +252,6 @@ function mergeEnrichedGameFields(targetGame, sourceGame) {
 
 function rebuildDynamicGameInsights(g) {
   if (!g) return;
-  // Do not overwrite hardcoded Week 7 curated insights unless they are placeholders
-  if (isHardcodedWeek7Slate(GAMES) && !isPlaceholderText(g.rationale) && g.insights && !isPlaceholderText(g.insights.stats)) {
-    return;
-  }
-
   var aLog = TEAM_LOGS[g.away] || null;
   var hLog = TEAM_LOGS[g.home] || null;
 
@@ -423,15 +408,6 @@ function hasSubmittedPicksForCurrentSlate(picksMap, gamesArr) {
   return true;
 }
 
-function getMaxPriorPts(list) {
-  if (!list || !Array.isArray(list) || list.length === 0) return 0;
-  var mx = 0;
-  for (var i = 0; i < list.length; i++) {
-    var p = parseFloat(list[i] && list[i].priorPts) || 0;
-    if (p > mx) mx = p;
-  }
-  return mx;
-}
 
 function parseWeekNumFromLabel(lbl) {
   var m = String(lbl || "").match(/(\d{1,2})/);
@@ -667,13 +643,8 @@ function updateWeekBrandingUI() {
   }
   var presetBtns = document.querySelectorAll(".preset-grid .preset-btn");
   if (presetBtns && presetBtns.length >= 3) {
-    if (!isHardcodedWeek7Slate(GAMES)) {
-      presetBtns[0].textContent = "★ Optimal EV (Best +EV Dogs + Core)";
-      presetBtns[2].textContent = "🚀 Chaser (Live 2x/3x Multiplier Dogs)";
-    } else {
-      presetBtns[0].textContent = "★ Optimal EV (BYU 2x + Sharp 1x)";
-      presetBtns[2].textContent = "🚀 Chaser (BYU + GT 2x Dogs)";
-    }
+    presetBtns[0].textContent = "★ Optimal EV (Best +EV Dogs + Core)";
+    presetBtns[2].textContent = "🚀 Chaser (Live 2x/3x Multiplier Dogs)";
   }
 }
 
@@ -735,14 +706,7 @@ function sanitizeStateForActiveSlate() {
     }
   }
   if (state.watchlist && Array.isArray(state.watchlist)) {
-    // If watchlist still has Week 7's default top 3 (Taylor C 107, Chris H 106, Raukeese L 106), upgrade to Week 8's Top 3 (Raukeese L 124, Steve M 123, F.F.F. 123)
-    if (state.watchlist.length >= 3 && state.watchlist[0].name === "Taylor C" && (parseFloat(state.watchlist[0].priorPts) || 0) <= 107) {
-      state.watchlist = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_WATCHLIST));
-      if (!isHardcodedWeek7Slate(GAMES)) {
-        for (var wClr = 0; wClr < state.watchlist.length; wClr++) state.watchlist[wClr].picks = {};
-      }
-      cleanedAny = true;
-    } else {
+    {
       for (var wUp = 0; wUp < state.watchlist.length; wUp++) {
         var wlItem = state.watchlist[wUp];
         var wlKey = standardizeParticipantName(wlItem.name).toLowerCase();
@@ -933,20 +897,10 @@ function ensureWatchlistDefaults() {
       { id: "w3", name: "Rival #3", rank: "T-25th", priorPts: 101, picks: {} }
     ];
   }
-  // The built-in roster is only a placeholder until the pool's own arrives: once the cloud has
-  // loaded, a small (or empty) league is the real one.
-  var seedRoster = typeof CLOUD_HYDRATED === "undefined" || !CLOUD_HYDRATED;
+  // The roster and standings come from the cloud; nothing built in stands in for them.
   if (!Array.isArray(state.poolMembers)) state.poolMembers = [];
   if (!Array.isArray(state.leaderboard)) state.leaderboard = [];
-  if (seedRoster && state.poolMembers.length === 0) {
-    state.poolMembers = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_POOL_MEMBERS));
-  }
-  if (seedRoster && state.leaderboard.length === 0) {
-    state.leaderboard = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_LEADERBOARD));
-  }
-  if (state.watchlist && state.watchlist[0] && state.watchlist[0].name === "Pool Leader") {
-    state.watchlist = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_WATCHLIST));
-  }
+  if (!Array.isArray(state.watchlist)) state.watchlist = [];
   for (var w = 0; w < state.watchlist.length; w++) {
     if (!state.watchlist[w].picks) state.watchlist[w].picks = {};
   }

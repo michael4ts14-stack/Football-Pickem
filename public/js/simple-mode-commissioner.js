@@ -450,9 +450,7 @@ function getTop5WeeklyWinnersList() {
     var pm = pmList[i];
     if (!pm || pm.awaitingSheet) continue;
     var wkPts = Math.max(pm.livePts || 0, pm.finalPts || 0);
-    // If no games have started yet for the active week, rank by projected EV or show Week 7's official weekly points if available
-    var fallbackWk7Pts = (!countScoredGamesInLiveScores() && typeof pm.wk7ScoredPts === "number") ? pm.wk7ScoredPts : 0;
-    var displayWkPts = countScoredGamesInLiveScores() > 0 ? wkPts : fallbackWk7Pts;
+    var displayWkPts = countScoredGamesInLiveScores() > 0 ? wkPts : 0;
     var tbDiff = parseTiebreakerDiff(pm.tiebreaker, actualHigh, actualLow);
     scoredList.push({
       name: standardizeParticipantName(pm.name),

@@ -73,7 +73,7 @@ async function pollLiveSaturdayScores(manual) {
         var poolSpMatch = String(g.poolLine || "").match(/-(\d+\.?\d*)/);
         if (liveSpMatch) {
           g.liveSpreadNum = parseFloat(liveSpMatch[1]);
-          if (poolSpMatch && !isHardcodedWeek7Slate(GAMES)) {
+          if (poolSpMatch) {
             var pSp = parseFloat(poolSpMatch[1]);
             var lSp = g.liveSpreadNum;
             var diffSp = +(lSp - pSp).toFixed(1);
@@ -447,8 +447,7 @@ function buildPoolLeaderboardRows() {
       var stdName = standardizeParticipantName(pm.name);
       seenNames[stdName.toLowerCase()] = true;
       var rawPrior = parseFloat(pm.priorPts) || 0;
-      var isWk7Now = isHardcodedWeek7Slate(GAMES);
-      var prior = (isWk7Now && rawPrior >= 80 && pm.wk7PriorPts !== undefined && rawPrior > pm.wk7PriorPts) ? pm.wk7PriorPts : rawPrior;
+      var prior = rawPrior;
       var isAwaiting = !!pm.awaitingSheet;
       var liveTotalWk = isAwaiting ? 0 : (pm.livePts || 0);
       var finPts = isAwaiting ? 0 : (pm.finalPts || 0);

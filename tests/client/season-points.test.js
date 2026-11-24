@@ -18,7 +18,6 @@ global.dropDuplicateAppPoolRows = () => {};
 global.ensureWatchlistDefaults = () => {};
 global.hasSubmittedPicksForCurrentSlate = () => false;
 global.countScoredGamesInLiveScores = () => 0;
-global.isHardcodedWeek7Slate = () => false;
 global.syncLinkedProfilesWithLeaderboard = () => {};
 global.getTeamWinProb = () => 0.5;
 global.isProfileArchived = () => false;

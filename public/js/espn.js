@@ -412,8 +412,8 @@ async function fetchAndStoreSingleTeamSchedule(teamName, teamId) {
         var gmObj = GAMES[gmIdx];
         var existingLs = LIVE_SCORES[gmObj.id];
         if (existingLs && (existingLs.completed || existingLs.inProgress)) continue;
-        // If we are on a new week's slate (Week 8+), ignore completed schedule games from > 4 days ago
-        if (!isHardcodedWeek7Slate(GAMES) && sEv.date) {
+        // Ignore completed schedule games from more than 4 days ago (last week's)
+        if (sEv.date) {
           var sEvMs = new Date(sEv.date).getTime();
           if (!isNaN(sEvMs) && (Date.now() - sEvMs) > 4.5 * 86400000) continue;
         }

@@ -1,11 +1,12 @@
 // The week this device last saw (or none) until the cloud answers; never a made-up week.
 var BOOT_WEEK = (function() { try { var m = String(localStorage.getItem("sat_live_week_label_v1") || "").match(/(\d{1,2})/); return m ? parseInt(m[1], 10) : 0; } catch (e) { return 0; } })();
+var GAMES = []; // this week's slate, from the cloud (or this device's saved copy)
 var state = {
   currentWeek: BOOT_WEEK,
   weekLabel: BOOT_WEEK ? "Week " + BOOT_WEEK : "",
-  michael: Object.assign(JSON.parse(JSON.stringify(WEEK7_OFFICIAL_MICHAEL)), { linkedMemberName: "Michael A" }),
+  michael: { picks: {}, tiebreaker: "28-24", target: 20, linkedMemberName: "Michael A" },
   // Internal key is 'kinyion' (legacy spelling). Display name is 'Kinyon'. Do not rename the key.
-  kinyion: Object.assign(JSON.parse(JSON.stringify(WEEK7_OFFICIAL_KINYION)), { linkedMemberName: "Kinyon C" }),
+  kinyion: { picks: {}, tiebreaker: "31-24", target: 20, linkedMemberName: "Kinyon C" },
   test: { picks: {}, tiebreaker: "28-24", target: 20, linkedMemberName: "" },
   customUsers: [],
   compareTargetKey: "", // nobody is compared until the person picks someone
@@ -15,9 +16,9 @@ var state = {
     kinyion: { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: true, autoUnhideFridayNight: true },
     test: { hidden: false, pin: "", revealAtKickoff: true, autoUnhideOnSheet: true, autoUnhideFridayNight: true }
   },
-  watchlist: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_WATCHLIST)),
-  leaderboard: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_LEADERBOARD)),
-  poolMembers: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_POOL_MEMBERS)),
+  watchlist: [],
+  leaderboard: [],
+  poolMembers: [],
   gasWebAppUrl: ""
 };
 

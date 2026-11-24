@@ -537,8 +537,7 @@ var CLOUD_COMMISSIONER_CONFIG = null;
 var CLOUD_REGISTRY = { customUsers: null, profilePrivacy: null };
 
 function isAwaitingFirstSlate() {
-  // Compared with the built-in slate itself: data/default-slate.js is no longer the Week 7 one.
-  return !CLOUD_HYDRATED && (isHardcodedWeek7Slate(GAMES) || getSlateSignature(GAMES) === getSlateSignature(DEFAULT_WEEK7_GAMES));
+  return !CLOUD_HYDRATED && !GAMES.length; // no saved slate on this device and the cloud hasn't answered
 }
 
 function applyRemoteCloudData(data, sourceLabel) {
@@ -567,23 +566,6 @@ function applyRemoteCloudData(data, sourceLabel) {
     PENDING_REMOTE_DATA = data;
     return;
   }
-  // The Week 7 guards below only apply to the 2026 season, when the app shipped with Week 7 built in.
-  var firstSeason = poolSeason(state) === 2026;
-  var incomingIsWk7 = firstSeason && incomingGames ? isHardcodedWeek7Slate(incomingGames) : (firstSeason && incomingWkNum > 0 && incomingWkNum <= 7 && !data.leaderboard && !data.poolMembers);
-  var currentIsCustomNewWeek = !isHardcodedWeek7Slate(GAMES) || hasLockedCustomSlate || (state.currentWeek && state.currentWeek >= 8);
-
-  if (currentIsCustomNewWeek && incomingIsWk7) {
-    // Auto-heal the stale database (e.g., Firestore) by pushing the current Week 8+ state to both DBs once
-    if (!window._healedStaleFirestoreWeek) {
-      window._healedStaleFirestoreWeek = true;
-      setTimeout(function() {
-        pushCustomGamesToFirebase();
-        pushWatchlistOrStandingsToFirebase();
-      }, 100);
-    }
-    return;
-  }
-
   isApplyingRemoteUpdate = true;
   // Always cleared: if it stayed set after a throw, every later save would silently skip.
   try {
@@ -595,9 +577,6 @@ function applyRemoteCloudData(data, sourceLabel) {
       if (incomingSig !== currentSig) {
         GAMES = incomingGames;
         slateChanged = true;
-        if (!isHardcodedWeek7Slate(GAMES)) {
-          hasLockedCustomSlate = true;
-        }
         clearAllSlateCaches();
       } else {
         // Same 26 matchups: preserve any in-memory ESPN enrichments (insights, schedules, injuries, kickoff times)
@@ -724,8 +703,6 @@ function applyRemoteCloudData(data, sourceLabel) {
       state.watchlist = data.watchlist;
     }
 
-    var localMaxPrior = Math.max(getMaxPriorPts(state.leaderboard), getMaxPriorPts(WEEK7_OFFICIAL_LEADERBOARD));
-    var cloudLbStale = false;
     // The cloud standings are the source of truth, even when their points are lower than this
     // device's (a new season, or a commissioner's correction).
     LAST_SEEN_POOL_VERSION = data.poolUpdatedAt || null;
@@ -738,12 +715,10 @@ function applyRemoteCloudData(data, sourceLabel) {
         state.poolMembers = incomingPm;
       }
     }
-    var minValidWeek = !firstSeason ? 1 : (!isHardcodedWeek7Slate(GAMES) || localMaxPrior >= 120) ? 8 : 7;
-    if (incomingWkNum >= minValidWeek && incomingWkNum >= (state.currentWeek || minValidWeek)) {
+    // Never moves back within a season (a newer season reset currentWeek to 0 above).
+    if (incomingWkNum >= 1 && incomingWkNum >= (state.currentWeek || 1)) {
       state.currentWeek = incomingWkNum;
       state.weekLabel = "Week " + incomingWkNum;
-    } else if ((data.currentWeek && parseInt(data.currentWeek, 10) < minValidWeek) || (data.weekLabel && parseWeekNumFromLabel(data.weekLabel) < minValidWeek)) {
-      cloudLbStale = true;
     }
     if (data.lastScrapedFile) state.lastScrapedFile = data.lastScrapedFile;
     if (data.standingsThroughWeek) state.standingsThroughWeek = data.standingsThroughWeek;
@@ -787,7 +762,7 @@ function applyRemoteCloudData(data, sourceLabel) {
     isApplyingRemoteUpdate = false;
   }
 
-  if ((neededClean || slateChanged || cloudLbStale) && !window._pushedSlateCleanup) {
+  if ((neededClean || slateChanged) && !window._pushedSlateCleanup) {
     window._pushedSlateCleanup = true;
     pushCustomGamesToFirebase();
     pushWatchlistOrStandingsToFirebase();

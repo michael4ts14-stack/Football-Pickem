@@ -383,7 +383,9 @@ async function fetchLatestCfpPoll() {
   if (!item) return null;
   var poll = await fetchJsonSafe(item.$ref.replace(/^http:/, "https:"));
   if (!poll || !Array.isArray(poll.ranks) || poll.ranks.length < 20) return null;
-  var teams = await fetchJsonSafe("https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams?limit=1000&groups=80");
+  // The app's saved ESPN team list: browsers are often refused ESPN's own copy (no CORS
+  // header), and the fallback then failed, showing AP ranks instead of CFP.
+  var teams = await fetchJsonSafe("/js/data/espn-teams.json");
   var byId = {};
   var league = (((teams || {}).sports || [])[0] || {}).leagues;
   ((league && league[0] && league[0].teams) || []).forEach(function(t) { if (t && t.team) byId[t.team.id] = t.team.location || t.team.name; });

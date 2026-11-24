@@ -905,9 +905,8 @@ function initState() {
   if (saved) {
     try {
       var parsed = JSON.parse(saved);
-      if (parsed.customGames && Array.isArray(parsed.customGames) && parsed.customGames.length > 0 && !isHardcodedWeek7Slate(parsed.customGames)) {
+      if (parsed.customGames && Array.isArray(parsed.customGames) && parsed.customGames.length > 0) {
         GAMES = parsed.customGames;
-        if (!isHardcodedWeek7Slate(GAMES)) hasLockedCustomSlate = true;
         for (var cg = 0; cg < GAMES.length; cg++) {
           if (GAMES[cg].awayL5 && GAMES[cg].awayL5.length) TEAM_LOGS[GAMES[cg].away] = Object.assign(TEAM_LOGS[GAMES[cg].away] || {}, { rec: GAMES[cg].awayRec || "2026", l5: GAMES[cg].awayL5 });
           if (GAMES[cg].homeL5 && GAMES[cg].homeL5.length) TEAM_LOGS[GAMES[cg].home] = Object.assign(TEAM_LOGS[GAMES[cg].home] || {}, { rec: GAMES[cg].homeRec || "2026", l5: GAMES[cg].homeL5 });

@@ -256,7 +256,6 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
   }
 
   var hasScoredGames = countScoredGamesInLiveScores() > 0;
-  var isWk7Slate = isHardcodedWeek7Slate(GAMES);
 
   // Deduplicate state.poolMembers by standardized name & remove any orphan duplicate rows created before linking
   var dedupedPool = [];
@@ -324,9 +323,7 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
     pm.submittedPicksCount = gMetrics.submittedPicksCount;
     pm.awaitingSheet = (pm.submittedPicksCount === 0);
 
-    // Prevent double-counting on the Week 7 slate when priorPts already reflects post-Week-7 totals (124 max)
     var basePrior = parseFloat(pm.priorPts) || 0;
-    var priorAlreadyIncludesWk7 = isWk7Slate && basePrior >= 80 && pm.wk7PriorPts !== undefined && basePrior > pm.wk7PriorPts;
 
     if (pm.awaitingSheet) {
       pm.livePts = 0;
@@ -347,10 +344,6 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
         pm.won1x = gMetrics.won1x;
         pm.won2x = gMetrics.won2x;
         pm.won3x = gMetrics.won3x;
-      } else if (isWk7Slate && typeof pm.wk7ScoredPts === "number") {
-        pm.livePts = pm.wk7ScoredPts;
-        pm.inProgressPts = 0;
-        pm.finalPts = pm.wk7ScoredPts;
       } else {
         pm.livePts = 0;
         pm.inProgressPts = 0;
@@ -360,12 +353,7 @@ function regradeAllPoolMembersLive(onlyUserProfiles) {
       pm.count2x = gMetrics.count2x;
       pm.count3x = gMetrics.count3x;
       var bestWeeklyPts = Math.max(pm.livePts || 0, pm.finalPts || 0);
-      if (priorAlreadyIncludesWk7) {
-        // Show pre-Week-7 priorPts + Week 7 scored pts = Official Post-Week-7 Total (124 / 112 / 111)
-        pm.newLiveTotal = (parseFloat(pm.wk7PriorPts) || 0) + bestWeeklyPts;
-      } else {
-        pm.newLiveTotal = basePrior + bestWeeklyPts;
-      }
+      pm.newLiveTotal = basePrior + bestWeeklyPts;
     }
   }
 

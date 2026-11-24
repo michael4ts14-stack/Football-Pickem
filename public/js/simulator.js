@@ -67,7 +67,6 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
   var seenNames = {};
 
   // Build contender list from state.poolMembers
-  var isWk7Now = isHardcodedWeek7Slate(GAMES);
   var pmList = (state.poolMembers && Array.isArray(state.poolMembers)) ? state.poolMembers : [];
   for (var pIdx = 0; pIdx < pmList.length; pIdx++) {
     var pm = pmList[pIdx];
@@ -81,7 +80,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
     var pMap = memberPicksSource(pm).picks;
     var encoded = encodePicksBitmask(pMap, !!linkedPf);
     var rawPrior = parseFloat(pm.priorPts) || 0;
-    var basePrior = (isWk7Now && rawPrior >= 80 && pm.wk7PriorPts !== undefined && rawPrior > pm.wk7PriorPts) ? pm.wk7PriorPts : rawPrior;
+    var basePrior = rawPrior;
 
     participants.push({
       name: stdName,

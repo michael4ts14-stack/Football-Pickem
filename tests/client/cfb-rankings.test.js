@@ -182,7 +182,7 @@ test("with no CFP in the current feed, the latest CFP rankings still win over AP
     if (/site\.api\.espn\.com.*\/rankings/.test(url)) return { rankings: [{ name: "AP Top 25", type: "ap", ranks: ap }] };
     if (/core\.api\.espn\.com.*\/college-football\/rankings$/.test(url)) return coreIndex;
     if (/rankings\/21/.test(url)) return cfp;
-    if (/\/teams\?/.test(url)) return teams;
+    if (url === "/js/data/espn-teams.json") return teams; // the saved copy, never ESPN's often-blocked one
     return null;
   };
   global.GAMES = [];

@@ -258,7 +258,6 @@ function runMasterPickemEmailBot(forceRescan) {
     return { ok: false, skipped: true, reason: "Gmail bot already running" };
   }
   try {
-    try { backfillArchivePoolPicks_(); } catch (eBf) { recordBotError_("Past weeks backfill threw: " + eBf.message); }
     var stats = runMasterPickemEmailBotLocked_(forceRescan);
     stats.errors = BOT_RUN_ERRORS.slice(0, 10); // shown by the commissioner's manual run button
     writeBotStatus_("gmail", stats);
@@ -464,11 +463,8 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             : ((currentCloud && currentCloud.liveScores) ? currentCloud.liveScores : {});
 
           // STEP 2 (PRE-RESET): Archive the outgoing week's games, picks, leaderboard, and final ESPN scores/drives
-          var existingArchives = (currentCloud && currentCloud.weekArchives && typeof currentCloud.weekArchives === "object")
-            ? currentCloud.weekArchives
-            : {};
           var prevArchKey = "week_" + prevWkNum;
-          existingArchives[prevArchKey] = {
+          var prevArchive = {
             weekNum: prevWkNum,
             weekLabel: (currentCloud && currentCloud.weekLabel) || ("Week " + prevWkNum),
             archivedAt: new Date().toISOString(),
@@ -482,12 +478,14 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             customPicks: weekUserPicks_(prevWkNum), // each player's own app picks (Past weeks)
             liveScores: finalOutgoingScores
           };
-          patchFirestoreDocUrl(FIRESTORE_BASE_URL + "/live_games/" + prevArchKey + "_archive", {
-            currentWeek: prevWkNum,
-            weekLabel: "Week " + prevWkNum,
-            games: finalOutgoingScores,
-            archivedAt: new Date().toISOString()
-          });
+          // Its own doc in pickem_v14_archives: in shared_state each week (~170 KB) would push that
+          // doc toward Firestore's 1 MiB limit until a commissioner's browser moved it (B118).
+          // Only if that write fails is it kept in shared_state, as before.
+          var existingArchives = (currentCloud && currentCloud.weekArchives && typeof currentCloud.weekArchives === "object")
+            ? currentCloud.weekArchives
+            : {};
+          var archivedToCollection = patchFirestoreDocUrl(FIRESTORE_BASE_URL + "/pickem_v14_archives/" + prevArchKey, prevArchive);
+          if (!archivedToCollection) existingArchives[prevArchKey] = prevArchive;
           botLog_("✓ Archived outgoing Week " + prevWkNum + " final ESPN scores & drives before resetting for " + newWkLabel);
 
           // STEP 3: Reset pool picks & initialize `live_games/week_state` for the new week
@@ -508,13 +506,13 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             customGames: scrapedGames,
             currentWeek: newWkNum,
             weekLabel: newWkLabel,
-            weekArchives: existingArchives,
             liveScores: {},
             poolMembers: resetMembers,
             watchlist: resetWl,
             deletedPicksByMember: {}, // "picks cleared" flags belong to the outgoing week
             scrapedAt: new Date().toISOString()
           };
+          if (!archivedToCollection) rollPatch.weekArchives = existingArchives;
           var seasonSaved = true;
           if (startsSeason) {
             // Last season's weeks move to "s<year>_week_N" history docs; standings start at 0.
@@ -539,7 +537,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           currentCloud.customGames = scrapedGames;
           currentCloud.currentWeek = newWkNum;
           currentCloud.weekLabel = newWkLabel;
-          currentCloud.weekArchives = rollPatch.weekArchives;
+          if (rollPatch.weekArchives) currentCloud.weekArchives = rollPatch.weekArchives;
           if (rollPatch.season) currentCloud.season = rollPatch.season;
           // Immediately seed `live_games/week_state` with the new week's ESPN schedule & initial state
           syncEspnLiveStateToFirestore(true, scrapedGames, newWkNum);
@@ -2455,55 +2453,6 @@ function firestoreAuthHeaders_() {
 
 // Every Firestore write goes through here. Returns true only on HTTP 2xx; failures are
 // logged and collected so they show up in live_games/bot_status instead of vanishing.
-// One time (B113): archived weeks whose pool picks were emptied get them back from that week's
-// pool spreadsheet email, read with the same parser as the weekly import. Only picks and
-// tiebreakers are filled in; done once every week that needed it was saved.
-function backfillArchivePoolPicks_() {
-  var props = PropertiesService.getScriptProperties();
-  if (props.getProperty("BACKFILL_POOL_PICKS_V1")) return;
-  var base = FIRESTORE_BASE_URL + "/pickem_v14_archives";
-  var res = UrlFetchApp.fetch(base + "?pageSize=300", { headers: firestoreAuthHeaders_(), muteHttpExceptions: true });
-  if (res.getResponseCode() !== 200) return;
-  var allOk = true;
-  (JSON.parse(res.getContentText()).documents || []).forEach(function(d) {
-    var id = d.name.split("/").pop();
-    var m = id.match(/^week_(\d+)$/);
-    if (!m) return;
-    var a = fromFirestoreValue({ mapValue: { fields: d.fields || {} } }) || {};
-    var rows = Array.isArray(a.poolMembers) ? a.poolMembers : [];
-    if (!Array.isArray(a.games) || !a.games.length || rows.some(function(p) { return p && p.picks && Object.keys(p.picks).length; })) return;
-    var fileRe = new RegExp("Week\\s*" + m[1] + "\\.xlsx$", "i");
-    var parsed = null;
-    GmailApp.search('from:' + BOT_OFFICIAL_SENDER + ' subject:"Week ' + m[1] + ' Spreadsheet" has:attachment', 0, 5).some(function(t) {
-      return t.getMessages().some(function(msg) {
-        return msg.getAttachments().some(function(att) {
-          if (!fileRe.test(att.getName() || "")) return false;
-          return extractGridsFromXlsxAttachment(att).some(function(s) {
-            var r = parsePoolSpreadsheetGrid(s.grid, a.games, { poolMembers: [], leaderboard: [] });
-            if (r && r.poolMembers && r.poolMembers.length) { parsed = r.poolMembers; return true; }
-            return false;
-          });
-        });
-      });
-    });
-    if (!parsed) { botLog_("Past weeks backfill: no spreadsheet found for " + id); return; }
-    var byName = {};
-    rows.forEach(function(p, i) { if (p && p.name) byName[standardizeBotParticipantName(p.name).toLowerCase()] = i; });
-    parsed.forEach(function(p) {
-      var i = byName[String(p.name).toLowerCase()];
-      if (i === undefined) rows.push({ name: p.name, picks: p.picks, tiebreaker: p.tiebreaker || "" });
-      else rows[i] = Object.assign({}, rows[i], { picks: p.picks, tiebreaker: (p.tiebreaker && p.tiebreaker !== "—") ? p.tiebreaker : (rows[i].tiebreaker || "") });
-    });
-    // Big writes back to back hit Firestore's write-bandwidth limit (HTTP 429): pause, retry once.
-    var saved = patchFirestoreDocUrl(base + "/" + id, { poolMembers: rows });
-    if (!saved) { Utilities.sleep(8000); saved = patchFirestoreDocUrl(base + "/" + id, { poolMembers: rows }); }
-    if (saved) botLog_("✓ Past weeks backfill: " + parsed.length + " players' picks restored for " + id);
-    else allOk = false;
-    Utilities.sleep(2000);
-  });
-  if (allOk) props.setProperty("BACKFILL_POOL_PICKS_V1", new Date().toISOString());
-}
-
 // Every player's app picks for `week` ({ profileKey: { picks, tiebreaker, displayName } }), read
 // before the rollover so Past weeks can show them. Docs still on another week are left out.
 function weekUserPicks_(week) {

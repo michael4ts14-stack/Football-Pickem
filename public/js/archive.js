@@ -1,33 +1,9 @@
 // ============================================================================
 // FEATURE C: MULTI-WEEK SEASON HISTORY ARCHIVE (FIRESTORE + LOCAL SNAPSHOTS)
 // ============================================================================
-function buildOfficialWeek7ArchiveEntry() {
-  var wk7Members = JSON.parse(JSON.stringify(WEEK7_OFFICIAL_POOL_MEMBERS));
-  for (var i = 0; i < wk7Members.length; i++) {
-    var m = wk7Members[i];
-    if (m.wk7PriorPts !== undefined) m.priorPts = m.wk7PriorPts;
-    m.awaitingSheet = false;
-  }
-  return {
-    weekNum: 7,
-    weekLabel: "Week 7",
-    archivedAt: "2026-10-18T04:00:00.000Z",
-    tiebreakerGameId: 1,
-    games: JSON.parse(JSON.stringify(DEFAULT_WEEK7_GAMES)),
-    michael: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_MICHAEL)),
-    kinyion: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_KINYION)),
-    watchlist: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_WATCHLIST)),
-    poolMembers: wk7Members,
-    liveScores: JSON.parse(JSON.stringify(WEEK7_OFFICIAL_LIVE_SCORES))
-  };
-}
-
 function ensureWeekArchivesState() {
   if (!state.weekArchives || typeof state.weekArchives !== "object") {
     state.weekArchives = {};
-  }
-  if (!state.weekArchives["week_7"]) {
-    state.weekArchives["week_7"] = buildOfficialWeek7ArchiveEntry();
   }
   populateWeekArchiveDropdown();
 }
@@ -44,9 +20,6 @@ function customUserStates() {
 function saveCurrentWeekToArchive(notifyToast) {
   ensureWeekArchivesState();
   var wkNum = parseInt(state.currentWeek, 10) || 0;
-  if (typeof isHardcodedWeek7Slate === "function" && isHardcodedWeek7Slate(GAMES)) {
-    wkNum = 7;
-  }
   if (!wkNum) return; // week not known yet: never archive under a guessed week
   var key = "week_" + wkNum;
   state.weekArchives[key] = {
@@ -194,7 +167,7 @@ function switchWeekArchive(weekKey) {
   isApplyingRemoteUpdate = true;
   try {
     clearAllSlateCaches();
-    GAMES = JSON.parse(JSON.stringify(targetSnap.games || DEFAULT_WEEK7_GAMES));
+    GAMES = JSON.parse(JSON.stringify(targetSnap.games || []));
     state.currentWeek = parseInt(targetSnap.weekNum, 10) || 8;
     state.weekLabel = targetSnap.weekLabel || ("Week " + state.currentWeek);
     state.tiebreakerGameId = targetSnap.tiebreakerGameId || null;
