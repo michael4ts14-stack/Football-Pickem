@@ -478,7 +478,7 @@ function renderTop5WeeklyWinnersPodium() {
   var top5 = getTop5WeeklyWinnersList();
   var hasLiveThisWeek = countScoredGamesInLiveScores() > 0;
   var wkTitle = hasLiveThisWeek
-    ? (state.weekLabel || "Week 8") + " — Top 5 Weekly Winners (Most Points Gained This Week)"
+    ? (state.weekLabel || "This Week") + " — Top 5 Weekly Winners (Most Points Gained This Week)"
     : "🏅 Top 5 Weekly Winners Podium — Most Points Gained in a Single Week (Last Completed Slate)";
 
   var cardsHtml = "";
@@ -954,7 +954,7 @@ function renderCommissionerModalBody() {
     var missingCount = pmList.length - submittedCount;
     body.innerHTML =
       '<div class="commish-kpi-strip">' +
-        '<div class="commish-kpi"><div class="metric-label">Active Week</div><div class="metric-val" style="color:var(--legacy-accent);">' + (state.weekLabel || "Week 8") + '</div><div class="metric-sub">' + GAMES.length + ' Games • Lock: ' + pickDeadlineLabel() + '</div></div>' +
+        '<div class="commish-kpi"><div class="metric-label">Active Week</div><div class="metric-val" style="color:var(--legacy-accent);">' + (state.weekLabel || "Loading…") + '</div><div class="metric-sub">' + GAMES.length + ' Games • Lock: ' + pickDeadlineLabel() + '</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Sheets Saved</div><div class="metric-val" style="color:var(--green);">' + submittedCount + ' / ' + pmList.length + '</div><div class="metric-sub">' + Math.round((submittedCount / Math.max(1, pmList.length)) * 100) + '% Pool Completion</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Wed/Thu Nudge Target</div><div class="metric-val" style="color:' + (missingCount > 0 ? 'var(--amber)' : 'var(--green)') + ';">' + missingCount + ' Missing</div><div class="metric-sub">' + (cfg.lastWedThuNudgeSentAt ? ('Last Nudge: ' + cfg.lastWedThuNudgeSentAt) : 'Auto Wed & Thu Nudge Ready') + '</div></div>' +
         '<div class="commish-kpi"><div class="metric-label">Sat Morning Sheet</div><div class="metric-val" style="color:var(--win);font-size:0.95rem;">' + (cfg.lastSatSheetSentAt ? 'Sent!' : 'Auto 8AM Sat') + '</div><div class="metric-sub">Reveals & Emails All Picks</div></div>' +
@@ -1037,7 +1037,7 @@ function renderCommissionerModalBody() {
           '<div style="font-size:0.71rem;color:var(--muted);">Pull an automated 23-game list from ESPN, then <strong>swap any individual game</strong> using the <code>🔄 Swap Game...</code> dropdown on any row (or check/uncheck games before publishing)!</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
-          '<input type="number" id="commish-espn-wk-input" class="search-input" style="width:78px;min-width:0;padding:5px 7px;font-size:0.74rem;font-weight:800;" value="' + (state.currentWeek || 8) + '" min="1" max="16" title="CFB Week Number" />' +
+          '<input type="number" id="commish-espn-wk-input" class="search-input" style="width:78px;min-width:0;padding:5px 7px;font-size:0.74rem;font-weight:800;" value="' + (state.currentWeek || "") + '" min="1" max="16" title="CFB Week Number" />' +
           '<button type="button" class="btn-sm" style="background:var(--raised);color:var(--text);border:none;font-weight:800;" onclick="commishFetchEspnCandidateGames()">⚡ Pull Automated ESPN Game List</button>' +
           '<button type="button" class="btn-sm" style="border-color:var(--win);color:var(--win);font-weight:800;" onclick="syncCfpRankingsToSlate(true)">🏆 Sync CFP Rankings</button>' +
           '<button type="button" class="btn-sm" style="border-color:var(--border);color:var(--win);font-weight:800;" onclick="pushCustomGamesToFirebase().then(function(ok) { if (ok) showAppToast(\'☁️ Saved the slate to Firebase!\'); });">💾 Save Slate to Cloud</button>' +
@@ -1185,7 +1185,7 @@ function copyMissingPlayersList() {
     var c = countMatchingPicksForSlate(pMap, GAMES);
     if (c.matched === 0 || pm.awaitingSheet) missing.push(pm.name);
   }
-  var txt = "⏰ Separated at Turf — " + (state.weekLabel || "Week 8") + " Wed/Thu Picks Nudge (Deadline: " + pickDeadlineLabel() + " • " + missing.length + " Missing):\n" + (missing.join(", ") || "All players have submitted!");
+  var txt = "⏰ Separated at Turf — " + (state.weekLabel || "This Week") + " Wed/Thu Picks Nudge (Deadline: " + pickDeadlineLabel() + " • " + missing.length + " Missing):\n" + (missing.join(", ") || "All players have submitted!");
   copyTextWithToast(txt, "📧 Copied " + missing.length + " missing player names to clipboard!");
 }
 
@@ -1227,7 +1227,7 @@ function exportOfficialMasterCsv() {
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
   a.href = url;
-  a.download = "College_Pickem_26_" + (state.weekLabel || "Week_8").replace(/\s+/g, "_") + "_Master.csv";
+  a.download = "College_Pickem_26_" + (state.weekLabel || "Current_Week").replace(/\s+/g, "_") + "_Master.csv";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1274,7 +1274,7 @@ function commishUpdateGameKick(gameId, newKick) {
 
 async function commishFetchEspnCandidateGames() {
   var wkInp = document.getElementById("commish-espn-wk-input");
-  var wkNum = wkInp ? (parseInt(wkInp.value, 10) || 8) : 8;
+  var wkNum = wkInp ? (parseInt(wkInp.value, 10) || state.currentWeek || 1) : (state.currentWeek || 1);
   showAppToast("↻ Fetching Week " + wkNum + " FBS matchups & spreads from ESPN...");
   try {
     var data = await fetchJsonSafe(SB_BASE + "?groups=80&limit=300&seasontype=2&week=" + wkNum);
@@ -1350,7 +1350,7 @@ async function commishPublishSelectedEspnSlate() {
   }
   saveCurrentWeekToArchive(false);
   var newGames = [];
-  var targetWk = state.currentWeek || 8;
+  var targetWk = state.currentWeek || parseInt((document.getElementById("commish-espn-wk-input") || {}).value, 10) || 1;
   for (var i = 0; i < chks.length; i++) {
     var idx = parseInt(chks[i].value, 10);
     var cg = ESPN_CANDIDATE_SLATE_GAMES[idx];
@@ -1507,7 +1507,7 @@ function commishSaveBanner() {
 
 function generateCommissionerWeeklyRecapText() {
   regradeAllPoolMembersLive();
-  var wkLbl = state.weekLabel || "Week 8";
+  var wkLbl = state.weekLabel || "This Week";
   var top5 = getTop5WeeklyWinnersList();
   var pmList = (state.poolMembers || []).slice();
 

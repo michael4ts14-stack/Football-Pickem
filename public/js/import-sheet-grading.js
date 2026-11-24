@@ -499,7 +499,7 @@ async function triggerAppsScriptGmailScraper() {
 
   if (!url) {
     if (stEl) {
-      var curWk = state.weekLabel || "Week 8";
+      var curWk = state.weekLabel || "this week";
       var curCnt = (state.poolMembers && state.poolMembers.length) || 89;
       stEl.innerHTML = "ℹ️ <strong>Web App URL needed:</strong> Deploy your Google Apps Script as a Web App (Execute as: Me, Access: Anyone) and paste the URL above to trigger live scraping.<br><em>Currently active in cache: " + curWk + " (" + curCnt + " members).</em>";
     }
@@ -719,7 +719,7 @@ function parseAndStoreMasterPoolCsv() {
 
   if (parsedMembers.length > 0) {
     state.poolMembers = parsedMembers;
-    state.officialSheetSyncedForWeek = state.currentWeek || 8;
+    state.officialSheetSyncedForWeek = state.currentWeek || null;
     regradeAllPoolMembersLive();
     pushWatchlistOrStandingsToFirebase();
     if (statusEl) {

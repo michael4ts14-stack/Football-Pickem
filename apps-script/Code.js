@@ -444,10 +444,15 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
         var scrapedGames = scrapeGoogleFormGames(formUrl);
         if (scrapedGames && scrapedGames.length >= 15) {
           var curWkNum = (currentCloud && currentCloud.currentWeek) ? parseInt(currentCloud.currentWeek, 10) : 8;
-          var newWkNum = msgWeekNum || (curWkNum + 1);
+          var newWkNum = msgWeekNum !== null ? msgWeekNum : (curWkNum + 1);
+          // A Week 0-2 slate from July on, while the pool is still on an earlier year, starts a
+          // new season. Docs without `season` are the 2026 season.
+          var cloudSeason = parseInt(currentCloud && currentCloud.season, 10) || 2026;
+          var nowDate = new Date();
+          var startsSeason = newWkNum <= 2 && newWkNum < curWkNum && cloudSeason < nowDate.getFullYear() && nowDate.getMonth() >= 6;
 
-          // NEVER reset picks if newWkNum <= curWkNum (current or past week)!
-          if (newWkNum > curWkNum) {
+          // NEVER reset picks if newWkNum <= curWkNum (current or past week), except a new season.
+          if (newWkNum > curWkNum || startsSeason) {
           var prevWkNum = curWkNum;
           var newWkLabel = "Week " + newWkNum;
 
@@ -496,7 +501,7 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           for (var rw = 0; rw < resetWl.length; rw++) {
             resetWl[rw].picks = {};
           }
-          var rolledOver = patchFirebaseNode("", {
+          var rollPatch = {
             customGames: scrapedGames,
             currentWeek: newWkNum,
             weekLabel: newWkLabel,
@@ -506,7 +511,17 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
             watchlist: resetWl,
             deletedPicksByMember: {}, // "picks cleared" flags belong to the outgoing week
             scrapedAt: new Date().toISOString()
-          });
+          };
+          var seasonSaved = true;
+          if (startsSeason) {
+            // Last season's weeks move to "s<year>_week_N" history docs; standings start at 0.
+            seasonSaved = archiveSeason_(cloudSeason, existingArchives);
+            [resetMembers, resetWl].forEach(function(rows) {
+              rows.forEach(function(r) { r.priorPts = 0; delete r.priorRank; delete r.rank; });
+            });
+            Object.assign(rollPatch, { season: nowDate.getFullYear(), weekArchives: {}, leaderboard: [], standingsThroughWeek: null, weekRecap: null, officialSheetSyncedForWeek: null });
+          }
+          var rolledOver = seasonSaved && patchFirebaseNode("", rollPatch);
           if (!rolledOver) {
             // shared_state still shows the old week: don't advance week_state either, and
             // leave this email unprocessed so the rollover is retried on the next run.
@@ -521,7 +536,8 @@ function runMasterPickemEmailBotLocked_(forceRescan) {
           currentCloud.customGames = scrapedGames;
           currentCloud.currentWeek = newWkNum;
           currentCloud.weekLabel = newWkLabel;
-          currentCloud.weekArchives = existingArchives;
+          currentCloud.weekArchives = rollPatch.weekArchives;
+          if (rollPatch.season) currentCloud.season = rollPatch.season;
           // Immediately seed `live_games/week_state` with the new week's ESPN schedule & initial state
           syncEspnLiveStateToFirestore(true, scrapedGames, newWkNum);
           stats.importedGames = scrapedGames.length;
@@ -2436,6 +2452,29 @@ function firestoreAuthHeaders_() {
 
 // Every Firestore write goes through here. Returns true only on HTTP 2xx; failures are
 // logged and collected so they show up in live_games/bot_status instead of vanishing.
+// New season: copies every finished week (shared_state's and pickem_v14_archives' week_N docs)
+// to "s<season>_week_N" and deletes the week_N docs, so next season's weeks don't overwrite them.
+function archiveSeason_(season, sharedArchives) {
+  var base = FIRESTORE_BASE_URL + "/pickem_v14_archives/";
+  var prefix = "s" + season + "_";
+  var ok = Object.keys(sharedArchives || {}).every(function(k) {
+    return !/^week_\d+$/.test(k) || patchFirestoreDocUrl(base + prefix + k, sharedArchives[k]);
+  });
+  var res = UrlFetchApp.fetch(base.slice(0, -1) + "?pageSize=300", { headers: firestoreAuthHeaders_(), muteHttpExceptions: true });
+  if (!ok || res.getResponseCode() !== 200) {
+    recordBotError_("New season: saving the " + season + " season history failed; will retry");
+    return false;
+  }
+  return (JSON.parse(res.getContentText()).documents || []).every(function(d) {
+    var id = d.name.split("/").pop();
+    if (!/^week_\d+$/.test(id)) return true;
+    var put = UrlFetchApp.fetch(base + prefix + id, { method: "patch", contentType: "application/json", payload: JSON.stringify({ fields: d.fields }), headers: firestoreAuthHeaders_(), muteHttpExceptions: true });
+    if (put.getResponseCode() >= 300) { recordBotError_("New season: copying " + id + " failed; will retry"); return false; }
+    UrlFetchApp.fetch(base + id, { method: "delete", headers: firestoreAuthHeaders_(), muteHttpExceptions: true });
+    return true;
+  });
+}
+
 function patchFirestoreDocUrl(docUrl, dataObj) {
   if (!docUrl || !dataObj) return false;
   var topKeys = Object.keys(dataObj);

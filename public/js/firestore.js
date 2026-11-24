@@ -9,7 +9,7 @@ function withStaleClearFlagDropped(prof) {
   var curWk = parseInt(state.currentWeek, 10) || 0;
   var lockedWk = parseInt(prof.userLockedWeek, 10) || 0;
   // A lock newer than this device's week is kept: the snapshot's week is applied after the picks.
-  if (prof.userLockedPicks && (!lockedWk || !curWk || lockedWk < curWk)) {
+  if (prof.userLockedPicks && (!lockedWk || !curWk || lockedWk < curWk || (LAST_CLOUD_WEEK && lockedWk > LAST_CLOUD_WEEK + 1))) {
     prof = Object.assign({}, prof, { userLockedPicks: false });
     delete prof.userLockedWeek;
   }
@@ -232,6 +232,7 @@ function startFirebaseRealtimeListeners() {
         setArchiveCollectionState(true);
         ensureWeekArchivesState();
         snapshot.docChanges().forEach(function(ch) {
+          if (!/^week_\d+$/.test(ch.doc.id)) return;
           if (ch.type === "removed") { delete state.weekArchives[ch.doc.id]; return; }
           // A re-archive this device hasn't seen confirmed yet stays until a copy as new arrives.
           var mine = state.weekArchives[ch.doc.id], incoming = ch.doc.data();
@@ -548,6 +549,17 @@ function applyRemoteCloudData(data, sourceLabel) {
   //    overwrite an active Week 8+ slate already loaded in memory!
   var incomingGames = (data.customGames && Array.isArray(data.customGames) && data.customGames.length > 0) ? data.customGames : null;
   var incomingWkNum = Math.max(parseInt(data.currentWeek, 10) || 0, parseWeekNumFromLabel(data.weekLabel));
+  // Seasons: the bot sets `season` when next year's Week 1 arrives (no field = 2026). A newer
+  // season starts over (week, history, standings); an older one is a stale copy and is ignored.
+  var incomingSeason = poolSeason(data), newSeason = incomingSeason > poolSeason(state);
+  if (incomingSeason < poolSeason(state)) return;
+  if (newSeason) {
+    state.season = incomingSeason;
+    LAST_CLOUD_WEEK = 0;
+    state.currentWeek = 0;
+    state.weekArchives = {};
+    state.leaderboard = data.leaderboard || [];
+  }
   if (incomingWkNum > LAST_CLOUD_WEEK) LAST_CLOUD_WEEK = incomingWkNum;
   if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) {
     // Someone is looking at a past week: keep the newest snapshot and apply it when they
@@ -555,7 +567,9 @@ function applyRemoteCloudData(data, sourceLabel) {
     PENDING_REMOTE_DATA = data;
     return;
   }
-  var incomingIsWk7 = incomingGames ? isHardcodedWeek7Slate(incomingGames) : (incomingWkNum > 0 && incomingWkNum <= 7 && !data.leaderboard && !data.poolMembers);
+  // The Week 7 guards below only apply to the 2026 season, when the app shipped with Week 7 built in.
+  var firstSeason = poolSeason(state) === 2026;
+  var incomingIsWk7 = firstSeason && incomingGames ? isHardcodedWeek7Slate(incomingGames) : (firstSeason && incomingWkNum > 0 && incomingWkNum <= 7 && !data.leaderboard && !data.poolMembers);
   var currentIsCustomNewWeek = !isHardcodedWeek7Slate(GAMES) || hasLockedCustomSlate || (state.currentWeek && state.currentWeek >= 8);
 
   if (currentIsCustomNewWeek && incomingIsWk7) {
@@ -724,7 +738,7 @@ function applyRemoteCloudData(data, sourceLabel) {
         state.poolMembers = incomingPm;
       }
     }
-    var minValidWeek = (!isHardcodedWeek7Slate(GAMES) || localMaxPrior >= 120) ? 8 : 7;
+    var minValidWeek = !firstSeason ? 1 : (!isHardcodedWeek7Slate(GAMES) || localMaxPrior >= 120) ? 8 : 7;
     if (incomingWkNum >= minValidWeek && incomingWkNum >= (state.currentWeek || minValidWeek)) {
       state.currentWeek = incomingWkNum;
       state.weekLabel = "Week " + incomingWkNum;
@@ -853,7 +867,7 @@ function pushProfileToFirebase(profKey) {
     picks: profObj.picks || {},
     tiebreaker: profObj.tiebreaker || "28-24",
     target: profObj.target || 20,
-    currentWeek: state.currentWeek || 8,
+    currentWeek: state.currentWeek || null,
     updatedAt: nowIso
   };
   if (mine) userDoc.ownerUid = AUTH_SESSION.uid;
@@ -1193,6 +1207,10 @@ function retryUnsyncedLocalArchives(poolLoaded) {
 }
 try { window.addEventListener("online", function() { retryUnsyncedLocalArchives(); }); } catch (e) {}
 
+function poolSeason(d) {
+  return parseInt(d && d.season, 10) || 2026;
+}
+
 function canWriteSharedPoolState() {
   if (typeof VIEWING_ARCHIVE_KEY !== "undefined" && VIEWING_ARCHIVE_KEY) return false;
   if (typeof LIVE_ALERT_DEMO !== "undefined" && LIVE_ALERT_DEMO) return false; // sample scores on screen
@@ -1220,7 +1238,7 @@ function setSharedIfNotStale(payload, opts) {
     return tx.get(ref).then(function(d) {
       var cloud = d.exists ? d.data() : {};
       newer = null;
-      if ((parseInt(cloud.currentWeek, 10) || 0) > (parseInt(state.currentWeek, 10) || 0)) { newer = cloud; return; }
+      if (poolSeason(cloud) !== poolSeason(state) || (parseInt(cloud.currentWeek, 10) || 0) > (parseInt(state.currentWeek, 10) || 0)) { newer = cloud; return; }
       var out = Object.assign({}, payload);
       var hasPool = ("poolMembers" in out) || ("leaderboard" in out);
       if (hasPool && cloud.poolUpdatedAt && cloud.poolUpdatedAt !== LAST_SEEN_POOL_VERSION) {

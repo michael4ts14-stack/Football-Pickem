@@ -629,16 +629,14 @@ function setTiebreakerGame(gameId, skipCloudSync) {
 
 var BOOTED_FROM_SAVED_STATE = false; // set by initState (auth.js) when this device had a saved week
 function updateWeekBrandingUI() {
-  var isWk7 = isHardcodedWeek7Slate(GAMES);
-  var hasWk8Standings = getMaxPriorPts(state.leaderboard) >= 120 || getMaxPriorPts(state.poolMembers) >= 120;
-  var minWeek = (!isWk7 || hasWk8Standings) ? 8 : 7;
-  var curWkNum = Math.max(parseInt(state.currentWeek, 10) || 0, parseWeekNumFromLabel(state.weekLabel), minWeek);
+  // No floor: an unknown week stays unknown until the cloud says which week it is.
+  var curWkNum = Math.max(parseInt(state.currentWeek, 10) || 0, parseWeekNumFromLabel(state.weekLabel));
   state.currentWeek = curWkNum;
-  state.weekLabel = "Week " + curWkNum;
+  state.weekLabel = curWkNum ? "Week " + curWkNum : "";
   var brandEl = document.getElementById("sheet-title-brand");
   // A first visit has no saved week, so the built-in default would flash before the cloud's.
   var weekKnown = BOOTED_FROM_SAVED_STATE || (typeof CLOUD_HYDRATED !== "undefined" && CLOUD_HYDRATED);
-  if (brandEl && weekKnown) {
+  if (brandEl && weekKnown && state.weekLabel) {
     brandEl.textContent = state.weekLabel;
   }
   var tbGame = resolveTiebreakerGame();
@@ -669,7 +667,7 @@ function updateWeekBrandingUI() {
   }
   var presetBtns = document.querySelectorAll(".preset-grid .preset-btn");
   if (presetBtns && presetBtns.length >= 3) {
-    if (!isWk7) {
+    if (!isHardcodedWeek7Slate(GAMES)) {
       presetBtns[0].textContent = "★ Optimal EV (Best +EV Dogs + Core)";
       presetBtns[2].textContent = "🚀 Chaser (Live 2x/3x Multiplier Dogs)";
     } else {
@@ -709,7 +707,7 @@ function sanitizeStateForActiveSlate() {
     }
   }
 
-  // 2. Ensure week header reflects Week 8+ and never stays stuck on Week 6 or Week 7
+  // 2. Week header
   var prevWkLabel = state.weekLabel;
   var prevWkNum = state.currentWeek;
   updateWeekBrandingUI();

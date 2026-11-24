@@ -1,6 +1,8 @@
+// The week this device last saw (or none) until the cloud answers; never a made-up week.
+var BOOT_WEEK = (function() { try { var m = String(localStorage.getItem("sat_live_week_label_v1") || "").match(/(\d{1,2})/); return m ? parseInt(m[1], 10) : 0; } catch (e) { return 0; } })();
 var state = {
-  currentWeek: 8,
-  weekLabel: "Week 8",
+  currentWeek: BOOT_WEEK,
+  weekLabel: BOOT_WEEK ? "Week " + BOOT_WEEK : "",
   michael: Object.assign(JSON.parse(JSON.stringify(WEEK7_OFFICIAL_MICHAEL)), { linkedMemberName: "Michael A" }),
   // Internal key is 'kinyion' (legacy spelling). Display name is 'Kinyon'. Do not rename the key.
   kinyion: Object.assign(JSON.parse(JSON.stringify(WEEK7_OFFICIAL_KINYION)), { linkedMemberName: "Kinyon C" }),

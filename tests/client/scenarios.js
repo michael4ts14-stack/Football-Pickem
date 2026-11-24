@@ -356,6 +356,23 @@ function serve() {
   });
   check("closing a game detail keeps your place on the page", rScroll.before > 0 && Math.abs(rScroll.after - rScroll.before) < 100, rScroll);
 
+  // An unknown week stays unknown (it used to become Week 8), and next season's Week 1 from the
+  // cloud replaces this season's week while a stale copy of the old season is ignored.
+  const rSeason = await page.evaluate(() => {
+    const keep = { wk: state.currentWeek, lbl: state.weekLabel };
+    state.currentWeek = 0; state.weekLabel = "";
+    updateWeekBrandingUI();
+    const unknown = { wk: state.currentWeek, lbl: state.weekLabel };
+    state.currentWeek = keep.wk; state.weekLabel = keep.lbl;
+    const games = GAMES.map((g) => Object.assign({}, g, { away: "Next " + g.away }));
+    applyRemoteCloudData({ season: 2027, currentWeek: 1, weekLabel: "Week 1", customGames: games, leaderboard: [], poolMembers: state.poolMembers }, "test");
+    const next = { wk: state.currentWeek, season: state.season };
+    applyRemoteCloudData({ currentWeek: 13, weekLabel: "Week 13" }, "test");
+    return { unknown, next, afterStale: state.currentWeek };
+  });
+  check("unknown week is not guessed; a new season starts at Week 1", rSeason.unknown.wk === 0 && rSeason.unknown.lbl === "" &&
+    rSeason.next.wk === 1 && rSeason.next.season === 2027 && rSeason.afterStale === 1, rSeason);
+
   check("no page errors", pageErrors.length === 0, pageErrors);
 
   let failed = 0;

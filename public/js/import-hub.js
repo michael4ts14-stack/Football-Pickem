@@ -8,7 +8,7 @@ function openUnifiedImportModal(defaultTab) {
   ensureWatchlistDefaults();
   ACTIVE_IMPORT_HUB_TAB = defaultTab || "bot";
   var savedUrl = state.gasWebAppUrl || "";
-  var activeWk = state.weekLabel || (state.currentWeek ? ("Week " + state.currentWeek) : "Week 8");
+  var activeWk = state.weekLabel || (state.currentWeek ? ("Week " + state.currentWeek) : "This week");
   var cloudStatusMsg = (document.getElementById("cloud-status-text") && document.getElementById("cloud-status-text").textContent) || "Connected to Firebase (`football-pickem-46206`)";
 
   document.getElementById("modal-team-title").textContent = "📥 Data Import, Gmail Bot & Cloud Hub";

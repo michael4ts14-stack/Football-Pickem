@@ -914,9 +914,10 @@ function initState() {
         }
       }
       BOOTED_FROM_SAVED_STATE = true;
-      var savedWkNum = Math.max(parseInt(parsed.currentWeek, 10) || 0, parseWeekNumFromLabel(parsed.weekLabel), 8);
+      var savedWkNum = Math.max(parseInt(parsed.currentWeek, 10) || 0, parseWeekNumFromLabel(parsed.weekLabel));
       state.currentWeek = savedWkNum;
-      state.weekLabel = "Week " + savedWkNum;
+      state.weekLabel = savedWkNum ? "Week " + savedWkNum : "";
+      if (parsed.season) state.season = parsed.season;
       if (parsed.tiebreakerGameId) state.tiebreakerGameId = parseInt(parsed.tiebreakerGameId, 10) || null;
       if (parsed.weekArchives && typeof parsed.weekArchives === "object") state.weekArchives = parsed.weekArchives;
       if (parsed.deletedPicksByMember && typeof parsed.deletedPicksByMember === "object") state.deletedPicksByMember = parsed.deletedPicksByMember;

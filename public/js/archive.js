@@ -43,10 +43,11 @@ function customUserStates() {
 
 function saveCurrentWeekToArchive(notifyToast) {
   ensureWeekArchivesState();
-  var wkNum = parseInt(state.currentWeek, 10) || 8;
+  var wkNum = parseInt(state.currentWeek, 10) || 0;
   if (typeof isHardcodedWeek7Slate === "function" && isHardcodedWeek7Slate(GAMES)) {
     wkNum = 7;
   }
+  if (!wkNum) return; // week not known yet: never archive under a guessed week
   var key = "week_" + wkNum;
   state.weekArchives[key] = {
     weekNum: wkNum,
@@ -182,7 +183,7 @@ function switchWeekArchive(weekKey) {
 
   if (!VIEWING_ARCHIVE_KEY) {
     // Auto-save the currently active week ONLY if games were completed/scored and not unplayed Week 9
-    var curKey = "week_" + (parseInt(state.currentWeek, 10) || 8);
+    var curKey = "week_" + (parseInt(state.currentWeek, 10) || 0);
     if (curKey !== weekKey && typeof countScoredGamesInLiveScores === "function" && countScoredGamesInLiveScores() > 0 && curKey !== "week_9") {
       saveCurrentWeekToArchive(false);
     }
@@ -230,7 +231,7 @@ function populateWeekArchiveDropdown() {
   if (!sel) return;
   if (!state.weekArchives || typeof state.weekArchives !== "object") return;
 
-  var curWk = liveWeekNum() || 8;
+  var curWk = liveWeekNum();
   var curKey = "week_" + curWk;
   var selectedKey = VIEWING_ARCHIVE_KEY || curKey;
   var keys = Object.keys(state.weekArchives);
@@ -262,7 +263,7 @@ function renderSeasonArchiveHub() {
   if (!box) return;
   ensureWeekArchivesState();
 
-  var curKey = "week_" + (parseInt(state.currentWeek, 10) || 8);
+  var curKey = "week_" + (parseInt(state.currentWeek, 10) || 0);
   var keys = Object.keys(state.weekArchives).sort(function(a, b) {
     return (parseInt(b.replace("week_", ""), 10) || 0) - (parseInt(a.replace("week_", ""), 10) || 0);
   });

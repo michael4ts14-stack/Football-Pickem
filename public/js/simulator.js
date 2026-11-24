@@ -17,7 +17,7 @@ function runMonteCarloPoolSimulation(numTrials, forceRecompute) {
     activeProfile,
     cmpDesc ? cmpDesc.key : "none",
     MONTE_CARLO_MODE,
-    state.currentWeek || 8,
+    state.currentWeek || 0,
     countScoredGamesInLiveScores(),
     JSON.stringify(state[activeProfile] ? state[activeProfile].picks : {}),
     JSON.stringify(cmpDesc ? cmpDesc.picks : {})

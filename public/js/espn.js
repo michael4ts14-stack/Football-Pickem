@@ -57,17 +57,11 @@ async function fetchScoreboardEvents() {
     if (d && d.season && seasonYear === null) { seasonYear = d.season.year; seasonType = d.season.type; }
   }
   var extra = [];
-  var minTargetWk = Math.max(8, parseInt(state.currentWeek, 10) || 8);
+  var minTargetWk = parseInt(state.currentWeek, 10) || weekNum || 1;
   var candidateWeeks = [minTargetWk, minTargetWk + 1];
   if (weekNum !== null && weekNum >= minTargetWk) {
     if (candidateWeeks.indexOf(weekNum) === -1) candidateWeeks.push(weekNum);
     if (candidateWeeks.indexOf(weekNum + 1) === -1) candidateWeeks.push(weekNum + 1);
-  }
-  var fallbackWeeks = [8, 9, 10];
-  for (var fw = 0; fw < fallbackWeeks.length; fw++) {
-    if (candidateWeeks.indexOf(fallbackWeeks[fw]) === -1) {
-      candidateWeeks.push(fallbackWeeks[fw]);
-    }
   }
   var extraPromises = [];
   for (var cw = 0; cw < candidateWeeks.length; cw++) {

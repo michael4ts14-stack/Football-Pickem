@@ -741,3 +741,35 @@ test("injury feed rows become per-team reports; old games are dropped, new teams
   assert.deepStrictEqual(Object.keys(w.teams).sort(), ["Iowa", "Nebraska", "Ohio State"], "Kent State's old game dropped, Ohio State kept");
   assert.strictEqual(w.source, "RotoWire");
 });
+
+// Next season's Week 1: the bot must start a new season (week 1, standings at 0, last season's
+// history kept under "s<year>_week_N"), but a lower week mid-season must never reset anything.
+function seasonRun(cloudOver, now, docs) {
+  const formEmail = { id: "m-form-s1", subject: "Separated at Turf Week 1 Pick'em Form Is Live", body: "Week 1 https://docs.google.com/forms/d/e/x/viewform" };
+  const cloud = baseCloud(Object.assign({ currentWeek: 14, weekLabel: "Week 14", poolMembers: [{ name: "Adam L", priorPts: 300, priorRank: 1, picks: {} }] }, cloudOver));
+  const h = loadBot({ cloud, docs: Object.assign({ "pickem_v14/shared_state": cloud }, docs), threads: [fakeThread([formEmail])], isoDay: 2 });
+  const RealDate = Date;
+  h.ctx.Date = class extends RealDate { constructor(...a) { super(...(a.length ? a : [now])); } static now() { return new RealDate(now).getTime(); } };
+  h.ctx.scrapeGoogleFormGames = () => slate(23, 1);
+  h.ctx.runMasterPickemEmailBot(false);
+  return h;
+}
+
+test("next season's Week 1 slate starts a new season and keeps last season's history", () => {
+  const h = seasonRun({}, "2027-08-20T15:00:00Z", { "pickem_v14_archives/week_13": { weekNum: 13, games: [] } });
+  const w = sharedStateWrites(h).find((x) => x.currentWeek === 1);
+  assert.ok(w, "rolled over to Week 1");
+  assert.strictEqual(w.season, 2027);
+  assert.strictEqual(w.poolMembers[0].priorPts, 0);
+  assert.strictEqual(Object.keys(w.weekArchives).length, 0);
+  assert.ok(h.patches().some((c) => /pickem_v14_archives\/s2026_week_13$/.test(c.url.split("?")[0])), "week 13 copied to 2026 history");
+  assert.ok(h.patches().some((c) => /pickem_v14_archives\/s2026_week_14$/.test(c.url.split("?")[0])), "outgoing week 14 kept too");
+  assert.ok(h.calls.some((c) => (c.params.method || "") === "delete" && /pickem_v14_archives\/week_13$/.test(c.url)), "old week_13 doc removed");
+});
+
+test("a lower week mid-season, or before July, never resets the pool", () => {
+  for (const now of ["2026-11-25T15:00:00Z", "2027-01-05T15:00:00Z"]) {
+    const h = seasonRun({}, now);
+    assert.ok(!sharedStateWrites(h).some((x) => x.currentWeek === 1), "no reset on " + now);
+  }
+});

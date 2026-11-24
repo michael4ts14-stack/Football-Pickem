@@ -249,7 +249,7 @@ function printCheckmarkSheet() {
   }
   var printEl = document.getElementById("print-sheet-area");
   printEl.innerHTML =
-    '<h2>Separated at Turf — ' + (state.weekLabel || 'Week 8') + ' Official 2-Column Checkmark Sheet</h2>' +
+    '<h2>Separated at Turf — ' + (state.weekLabel || 'This Week') + ' Official 2-Column Checkmark Sheet</h2>' +
     '<p><strong>Player:</strong> ' + escapeHtml(profName) + ' &nbsp;|&nbsp; <strong>Tie-Breaker (Highest Score First):</strong> ' + escapeHtml(state[activeProfile].tiebreaker) + '</p>' +
     '<table class="print-table">' +
       '<thead><tr><th>Row #</th><th>LEFT COLUMN (Away Team)</th><th>RIGHT COLUMN (Home Team)</th><th>Locked Sheet Line</th></tr></thead>' +
